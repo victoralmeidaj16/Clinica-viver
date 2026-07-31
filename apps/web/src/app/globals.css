@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+  body {
+    background-color: #F4F0F8;
+    color: #241B30;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+@layer components {
+  /* Cards */
+  .card {
+    @apply bg-surface border border-line rounded-2xl p-6 shadow-card transition-all duration-200;
+  }
+  .card-hover {
+    @apply hover:shadow-lift hover:-translate-y-0.5 transition-all duration-200;
+  }
+
+  /* Botões */
+  .btn-primary {
+    @apply bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-5 rounded-xl transition-all duration-150 flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .btn-accent {
+    @apply bg-accent hover:bg-amber-600 text-white font-semibold py-3 px-5 rounded-xl transition-all duration-150 flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .btn-outline {
+    @apply bg-transparent hover:bg-soft text-primary border border-primary/30 font-semibold py-3 px-5 rounded-xl transition-all duration-150 flex items-center justify-center gap-2 active:scale-[0.98];
+  }
+
+  .btn-ghost {
+    @apply bg-transparent hover:bg-soft text-muted hover:text-ink font-medium py-2.5 px-4 rounded-xl transition-all duration-150 flex items-center justify-center gap-2;
+  }
+
+  /* Inputs */
+  .input {
+    @apply w-full bg-white border border-line rounded-xl px-4 py-3 text-ink placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-150;
+  }
+
+  /* Chips e Badges */
+  .chip {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-soft text-primary border border-primary/10;
+  }
+  
+  .chip-capri {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-capri-soft text-capri border border-capri/20;
+  }
+
+  .chip-accent {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-accent-soft text-amber-800 border border-accent/20;
+  }
+}

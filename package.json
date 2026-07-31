@@ -1,0 +1,23 @@
+{
+  "name": "thats-life",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Thats Life (TL - Psi) — Plataforma de Inteligência Clínica & App Mobile do Paciente",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "web:dev": "npm run dev --workspace @thats-life/web",
+    "web:build": "npm run build --workspace @thats-life/web",
+    "mobile:start": "npm run start --workspace @thats-life/mobile",
+    "mobile:build": "npm run build:web --workspace @thats-life/mobile",
+    "lint": "npm run lint --workspace @thats-life/web",
+    "typecheck": "npm run check --workspace @thats-life/core && npm run typecheck --workspace @thats-life/web && npm run typecheck --workspace @thats-life/mobile",
+    "test": "npm run test --workspace @thats-life/core",
+    "check": "npm run lint && npm run typecheck && npm run test && npm run web:build && npm run mobile:build"
+  },
+  "engines": {
+    "node": ">=20.19.4"
+  }
+}

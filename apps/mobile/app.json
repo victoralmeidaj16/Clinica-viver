@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "Thats Life Psi",
+    "slug": "thats-life-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "experiments": {
+      "autolinkingModuleResolution": true
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#5C397D"
+      }
+    }
+  }
+}

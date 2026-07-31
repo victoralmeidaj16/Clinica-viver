@@ -1,5 +1,6 @@
 export * from './types';
 export * from './validation';
+export * from './contentHash';
 export * from './eventFactory';
 export * from './aggregate';
 export * from './amendment';

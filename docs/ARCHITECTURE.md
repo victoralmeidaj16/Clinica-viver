@@ -453,9 +453,39 @@ O primeiro fluxo vertical executável é:
 
 `contexto → autorização → agendamento → conflito → persistência → lembrete`
 
+O segundo fluxo vertical é a automação pós-sessão em 1 clique, que atravessa
+quase todos os módulos em uma única cadeia transacional:
+
+```mermaid
+flowchart LR
+    REVIEW["Conteúdo revisado"] --> SCREEN["Triagem da entrega"]
+    SCREEN --> APPROVE["Aprovação do prontuário"]
+    APPROVE --> TIMELINE["Projeção na linha do tempo"]
+    APPROVE --> HANDOFF["Entrega ao paciente"]
+    HANDOFF --> BILLING["Cobrança"]
+    BILLING --> RECEIPT["Recibo"]
+    RECEIPT --> NOTIFY["Notificação"]
+    NOTIFY --> DONE["Sessão concluída"]
+```
+
+O ponto sem volta é a aprovação do prontuário: depois dela, uma falha em
+qualquer etapa opcional é registrada no agregado da sessão, interrompe a cadeia
+e devolve resultado parcial, sem desfazer o registro clínico já aprovado. Isso
+antecipa o comportamento exigido quando a persistência real substituir os
+repositórios em memória — não existe transação distribuída entre prontuário,
+financeiro e fila de mensagens, então a compensação é explícita e auditável.
+
 Todas as mutações exigem `Idempotency-Key`, carregam correlação e retornam erros
-padronizados. O dashboard transversal consulta agenda, tarefas, finanças e fila
-de comunicação em paralelo, sem tornar a projeção uma nova fonte de verdade.
+padronizados. Cada etapa da cadeia deriva seu próprio `commandId` da chave da
+requisição, de modo que a repetição reproduz o resultado em vez de duplicar
+cobranças ou mensagens. O dashboard transversal consulta agenda, tarefas,
+finanças e fila de comunicação em paralelo, sem tornar a projeção uma nova fonte
+de verdade.
+
+O hash SHA-256 do conteúdo aprovado passa a ser computado no core
+(`computeSoapContentHash`), sobre uma serialização canônica da revisão SOAP.
+Ele é o elo verificável entre a aprovação registrada no prontuário e cada
+entrada projetada na linha do tempo.
 
 O contexto atual é demonstrativo e resolvido por cabeçalhos contra vínculos em
 memória. Ele não deve ser tratado como autenticação real. Estado, comandos e

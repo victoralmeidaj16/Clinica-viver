@@ -4,7 +4,19 @@ import {
   type OrganizationPermission,
   type StaffAccessContext,
 } from '../identity';
-import { approveClinicalRecord } from './postSession';
+import type { FinancialCharge } from '../financial';
+import type { PatientHandoff } from '../patientHandoff';
+import {
+  approveClinicalRecord,
+  linkDeliveredPatientHandoff,
+} from './postSession';
+import {
+  completeClinicalSession,
+  linkSessionCharge,
+  markSessionNotificationSent,
+  markSessionReceiptIssued,
+} from './automationCompletion';
+import { markSessionAutomationFailed } from './automationRecovery';
 import {
   attachSessionRecording,
   confirmClinicalSession,
@@ -17,6 +29,7 @@ import {
 import type { TransitionMetadata } from './eventFactory';
 import type { ClinicalSessionRepository } from './ports';
 import type {
+  AutomationStepName,
   ClinicalSession,
   RecordingReference,
   SessionConsentRecord,
@@ -207,5 +220,109 @@ export function approveClinicalRecordCommand(
     metadata,
     (session) =>
       approveClinicalRecord(session, approvedClinicalRecordId, metadata)
+  );
+}
+
+export function linkDeliveredPatientHandoffCommand(
+  dependencies: ClinicalSessionDependencies,
+  actor: StaffAccessContext,
+  sessionId: string,
+  handoff: PatientHandoff,
+  metadata: SessionCommandMetadata
+): Promise<SessionCommandResult> {
+  return executeAuthorizedCommand(
+    dependencies,
+    actor,
+    sessionId,
+    'clinical_sessions.write',
+    metadata,
+    (session) => linkDeliveredPatientHandoff(session, handoff, metadata)
+  );
+}
+
+export function linkSessionChargeCommand(
+  dependencies: ClinicalSessionDependencies,
+  actor: StaffAccessContext,
+  sessionId: string,
+  charge: FinancialCharge,
+  metadata: SessionCommandMetadata
+): Promise<SessionCommandResult> {
+  return executeAuthorizedCommand(
+    dependencies,
+    actor,
+    sessionId,
+    'billing.write',
+    metadata,
+    (session) => linkSessionCharge(session, charge, metadata)
+  );
+}
+
+export function markSessionReceiptIssuedCommand(
+  dependencies: ClinicalSessionDependencies,
+  actor: StaffAccessContext,
+  sessionId: string,
+  receiptId: string,
+  metadata: SessionCommandMetadata
+): Promise<SessionCommandResult> {
+  return executeAuthorizedCommand(
+    dependencies,
+    actor,
+    sessionId,
+    'billing.write',
+    metadata,
+    (session) => markSessionReceiptIssued(session, receiptId, metadata)
+  );
+}
+
+export function markSessionNotificationSentCommand(
+  dependencies: ClinicalSessionDependencies,
+  actor: StaffAccessContext,
+  sessionId: string,
+  notificationReference: string,
+  metadata: SessionCommandMetadata
+): Promise<SessionCommandResult> {
+  return executeAuthorizedCommand(
+    dependencies,
+    actor,
+    sessionId,
+    'clinical_sessions.write',
+    metadata,
+    (session) =>
+      markSessionNotificationSent(session, notificationReference, metadata)
+  );
+}
+
+export function markSessionAutomationFailedCommand(
+  dependencies: ClinicalSessionDependencies,
+  actor: StaffAccessContext,
+  sessionId: string,
+  step: AutomationStepName,
+  errorCode: string,
+  metadata: SessionCommandMetadata
+): Promise<SessionCommandResult> {
+  return executeAuthorizedCommand(
+    dependencies,
+    actor,
+    sessionId,
+    'clinical_sessions.write',
+    metadata,
+    (session) =>
+      markSessionAutomationFailed(session, step, errorCode, metadata)
+  );
+}
+
+export function completeClinicalSessionCommand(
+  dependencies: ClinicalSessionDependencies,
+  actor: StaffAccessContext,
+  sessionId: string,
+  metadata: SessionCommandMetadata
+): Promise<SessionCommandResult> {
+  return executeAuthorizedCommand(
+    dependencies,
+    actor,
+    sessionId,
+    'clinical_sessions.write',
+    metadata,
+    (session) => completeClinicalSession(session, metadata)
   );
 }

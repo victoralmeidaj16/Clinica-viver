@@ -2,20 +2,20 @@
 
 import React, { useState, useEffect } from 'react';
 import { Mic, Square, Upload, Sparkles, Clock, UserCheck } from 'lucide-react';
-import { Paciente } from '@/lib/mockData';
+import type { ReviewSession } from '@/lib/postSessionApi';
 
 interface AudioRecorderProps {
-  patients: Paciente[];
-  selectedPatientId: string;
-  onSelectPatient: (id: string) => void;
-  onGenerateSoap: (durationSeconds: number) => void;
+  sessions: ReviewSession[];
+  selectedSessionId: string;
+  onSelectSession: (sessionId: string) => void;
+  onGenerateSoap: () => void;
   isProcessing: boolean;
 }
 
 export default function AudioRecorder({
-  patients,
-  selectedPatientId,
-  onSelectPatient,
+  sessions,
+  selectedSessionId,
+  onSelectSession,
   onGenerateSoap,
   isProcessing,
 }: AudioRecorderProps) {
@@ -55,7 +55,7 @@ export default function AudioRecorder({
     setHasAudioRecorded(true);
   };
 
-  const selectedPatient = patients.find((p) => p.id === selectedPatientId) || patients[0];
+  const selectedSession = sessions.find((item) => item.sessionId === selectedSessionId) ?? sessions[0];
 
   return (
     <div className="card space-y-6">
@@ -74,13 +74,13 @@ export default function AudioRecorder({
         <div className="flex items-center gap-2 bg-soft px-3 py-1.5 rounded-xl border border-line">
           <UserCheck className="w-4 h-4 text-primary" />
           <select
-            value={selectedPatientId}
-            onChange={(e) => onSelectPatient(e.target.value)}
+            value={selectedSessionId}
+            onChange={(e) => onSelectSession(e.target.value)}
             className="bg-transparent text-xs font-bold text-ink focus:outline-none cursor-pointer"
           >
-            {patients.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.nome}
+            {sessions.map((session) => (
+              <option key={session.sessionId} value={session.sessionId}>
+                {session.patientName}
               </option>
             ))}
           </select>
@@ -155,15 +155,15 @@ export default function AudioRecorder({
       {/* Botão de Disparo da IA SOAP */}
       <div className="pt-2">
         <button
-          onClick={() => onGenerateSoap(seconds || 245)}
+          onClick={onGenerateSoap}
           disabled={isRecording || isProcessing}
           className="w-full btn-accent text-base py-3.5 shadow-md flex items-center justify-center gap-3"
         >
           <Sparkles className={`w-5 h-5 ${isProcessing ? 'animate-spin' : ''}`} />
           <span>
             {isProcessing
-              ? 'Processando Áudio & Gerando Prontuário SOAP por IA...'
-              : `Gerar SOAP por IA para ${selectedPatient.nome.split(' ')[0]} ⚡`}
+              ? 'Processando Áudio & Carregando Prontuário SOAP...'
+              : `Abrir rascunho SOAP de ${selectedSession?.patientName.split(' ')[0] ?? 'paciente'} ⚡`}
           </span>
         </button>
       </div>

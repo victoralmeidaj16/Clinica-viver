@@ -2,11 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import {
-  approvePatientHandoff,
-  markPatientHandoffDelivered,
-  type PatientHandoff,
-} from '@thats-life/core';
-import {
+  AlertTriangle,
   ArrowRight,
   CheckCircle2,
   Lock,
@@ -15,72 +11,78 @@ import {
   X,
   Zap,
 } from 'lucide-react';
-import type { GeneratedSoapResult } from '@/lib/soapAiEngine';
+import { formatCents, type SoapView } from '@/lib/soapAiEngine';
+import { runPostSession, type PostSessionResult } from '@/lib/postSessionApi';
 
 interface OneClickApprovalModalProps {
   isOpen: boolean;
   onClose: () => void;
-  soapData: GeneratedSoapResult;
-  patientHandoff: PatientHandoff;
+  soapView: SoapView;
+  summary: string;
+  tasks: string[];
   patientName: string;
-  professionalName: string;
   shareWithPatient: boolean;
   sendWhatsApp: boolean;
-  onSuccessFinish: (deliveredHandoff: PatientHandoff | null) => void;
+  onSuccessFinish: (result: PostSessionResult) => void;
 }
+
+type StepState = 'pending' | 'done' | 'failed';
 
 export default function OneClickApprovalModal({
   isOpen,
   onClose,
-  soapData,
-  patientHandoff,
+  soapView,
+  summary,
+  tasks,
   patientName,
-  professionalName,
   shareWithPatient,
   sendWhatsApp,
   onSuccessFinish,
 }: OneClickApprovalModalProps) {
   const [isExecuting, setIsExecuting] = useState(false);
-  const [completedSteps, setCompletedSteps] = useState<number[]>([]);
-  const [deliveredHandoff, setDeliveredHandoff] = useState<PatientHandoff | null>(null);
-  const [isDone, setIsDone] = useState(false);
+  const [result, setResult] = useState<PostSessionResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const completeStep = (step: number) => {
-    setCompletedSteps((current) =>
-      current.includes(step) ? current : [...current, step]
-    );
-  };
-
+  /**
+   * Um único comando no servidor executa a cadeia inteira. O cliente não
+   * encadeia regras de domínio: ele envia o conteúdo revisado e reflete o
+   * resultado, inclusive quando o fluxo termina parcialmente.
+   */
   const handleRunAutopilot = async () => {
     setIsExecuting(true);
-
-    await new Promise((resolve) => setTimeout(resolve, 600));
-    completeStep(1);
-
-    if (shareWithPatient) {
-      const approved = approvePatientHandoff(
-        patientHandoff,
-        professionalName,
-        new Date().toISOString()
-      );
-      await new Promise((resolve) => setTimeout(resolve, 700));
-      const delivered = markPatientHandoffDelivered(
-        approved,
-        new Date().toISOString()
-      );
-      setDeliveredHandoff(delivered);
-      completeStep(2);
+    setError(null);
+    try {
+      const response = await runPostSession(soapView.sessionId, {
+        content: {
+          subjective: soapView.subjetivo,
+          objective: soapView.objetivo,
+          assessment: soapView.avaliacao,
+          plan: soapView.plano,
+          extractedTasks: soapView.tarefasPacientes,
+        },
+        handoff: { summary, tasks },
+        shareWithPatient,
+        charge: {
+          amountCents: soapView.valorSessaoCentavos,
+          dueAt: soapView.vencimentoCobranca,
+        },
+        notifyPatient: sendWhatsApp,
+        occurredAt: new Date().toISOString(),
+      });
+      setResult(response);
+    } catch (runError) {
+      setError(runError instanceof Error ? runError.message : 'Não foi possível concluir o fluxo.');
+    } finally {
+      setIsExecuting(false);
     }
+  };
 
-    if (sendWhatsApp) {
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      completeStep(3);
-    }
-
-    setIsExecuting(false);
-    setIsDone(true);
+  const stepState = (done: boolean, step: string): StepState => {
+    if (!result) return 'pending';
+    if (result.failedStep?.step === step) return 'failed';
+    return done ? 'done' : 'pending';
   };
 
   return (
@@ -114,32 +116,58 @@ export default function OneClickApprovalModal({
 
         <div className="space-y-3">
           <ActionStep
-            completed={completedSteps.includes(1)}
+            state={result ? 'done' : 'pending'}
             icon={<Lock className="h-5 w-5 text-primary" />}
-            title="1. Salvar prontuário SOAP criptografado"
-            description="Registro clínico privado, separado do conteúdo do paciente"
+            title="1. Aprovar prontuário SOAP e projetar na linha do tempo"
+            description={
+              result
+                ? `Revisão ${result.approvedRevisionNumber} • ${result.timelineEntries} entradas • hash ${result.contentHashSha256.slice(0, 12)}…`
+                : 'Registro clínico privado, separado do conteúdo do paciente'
+            }
           />
 
           {shareWithPatient ? (
             <ActionStep
-              completed={completedSteps.includes(2)}
+              state={stepState(Boolean(result?.handoffTasks !== undefined && !result?.failedStep), 'patient_handoff')}
               icon={<Smartphone className="h-5 w-5 text-capri" />}
-              title={`2. Disponibilizar resumo + ${patientHandoff.tasks.length} tarefa(s)`}
+              title={`2. Disponibilizar resumo + ${tasks.length} tarefa(s)`}
               description="Somente o conteúdo revisado será exibido no app"
             />
           ) : null}
 
+          <ActionStep
+            state={stepState(Boolean(result?.chargeId), 'billing')}
+            icon={<MessageSquare className="h-5 w-5 text-emerald-600" />}
+            title="3. Emitir cobrança e recibo da sessão"
+            description={`${formatCents(soapView.valorSessaoCentavos)} • vencimento em ${new Date(soapView.vencimentoCobranca).toLocaleDateString('pt-BR')}`}
+          />
+
           {sendWhatsApp ? (
             <ActionStep
-              completed={completedSteps.includes(3)}
+              state={stepState(Boolean(result?.notificationId), 'notification')}
               icon={<MessageSquare className="h-5 w-5 text-emerald-600" />}
-              title="3. Enviar recibo Pix no WhatsApp"
-              description={`Simulação via Evolution API — R$ ${soapData.valorSessao},00`}
+              title="4. Enfileirar aviso de cobrança no WhatsApp"
+              description="Simulação via Evolution API — nenhuma mensagem real é enviada"
             />
           ) : null}
         </div>
 
-        {!isDone ? (
+        {error ? (
+          <p className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-800">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            {error}
+          </p>
+        ) : null}
+
+        {result?.failedStep ? (
+          <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-900">
+            O prontuário foi aprovado e permanece válido. A etapa
+            {` ${result.failedStep.step} `}
+            falhou: {result.failedStep.message}
+          </p>
+        ) : null}
+
+        {!result ? (
           <button
             type="button"
             onClick={handleRunAutopilot}
@@ -147,15 +175,12 @@ export default function OneClickApprovalModal({
             className="btn-accent flex w-full items-center justify-center gap-2 py-3.5 text-sm shadow-md disabled:opacity-60"
           >
             <Zap className="h-4 w-4 fill-white" />
-            <span>{isExecuting ? 'Executando simulação...' : 'Confirmar e executar tudo'}</span>
+            <span>{isExecuting ? 'Executando no servidor...' : 'Confirmar e executar tudo'}</span>
           </button>
         ) : (
           <button
             type="button"
-            onClick={() => {
-              onSuccessFinish(deliveredHandoff);
-              onClose();
-            }}
+            onClick={() => { onSuccessFinish(result); onClose(); }}
             className="btn-primary flex w-full items-center justify-center gap-2 py-3.5 text-sm shadow-md"
           >
             <span>Concluir</span>
@@ -168,21 +193,21 @@ export default function OneClickApprovalModal({
 }
 
 interface ActionStepProps {
-  completed: boolean;
+  state: StepState;
   icon: ReactNode;
   title: string;
   description: string;
 }
 
-function ActionStep({ completed, icon, title, description }: ActionStepProps) {
+const STEP_STYLES: Record<StepState, string> = {
+  pending: 'border-line bg-canvas text-ink',
+  done: 'border-emerald-200 bg-emerald-50 text-emerald-900',
+  failed: 'border-rose-200 bg-rose-50 text-rose-900',
+};
+
+function ActionStep({ state, icon, title, description }: ActionStepProps) {
   return (
-    <div
-      className={`flex items-center justify-between rounded-xl border p-3.5 ${
-        completed
-          ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-          : 'border-line bg-canvas text-ink'
-      }`}
-    >
+    <div className={`flex items-center justify-between rounded-xl border p-3.5 ${STEP_STYLES[state]}`}>
       <div className="flex items-center gap-3">
         {icon}
         <div>
@@ -190,8 +215,10 @@ function ActionStep({ completed, icon, title, description }: ActionStepProps) {
           <p className="text-[11px] text-muted">{description}</p>
         </div>
       </div>
-      {completed ? (
+      {state === 'done' ? (
         <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+      ) : state === 'failed' ? (
+        <AlertTriangle className="h-5 w-5 text-rose-600" />
       ) : (
         <span className="h-2 w-2 rounded-full bg-slate-300" />
       )}

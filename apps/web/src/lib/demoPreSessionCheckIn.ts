@@ -8,10 +8,10 @@ import {
 const occurredAt = '2026-08-04T18:20:00.000Z';
 const scheduled = schedulePreSessionCheckIn(
   {
-    id: 'demo-pre-session-pac-01',
+    id: 'demo-pre-session-patient-1',
     organizationId: 'demo-org-01',
-    appointmentId: 'demo-appointment-pac-01',
-    patientId: 'pac_01',
+    appointmentId: 'demo-appointment-patient-1',
+    patientId: 'patient-1',
     professionalId: 'psi-demo-01',
     availableFrom: '2026-08-04T17:00:00.000Z',
     expiresAt: '2026-08-05T17:00:00.000Z',
@@ -48,5 +48,5 @@ const submitted = submitPreSessionCheckIn(
 export const DEMO_PRE_SESSION_BRIEFINGS: Readonly<
   Record<string, PreSessionBriefing>
 > = {
-  pac_01: buildPreSessionBriefing(submitted),
+  'patient-1': buildPreSessionBriefing(submitted),
 };

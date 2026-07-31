@@ -1,6 +1,5 @@
 'use client';
 
-import type { PatientHandoff } from '@thats-life/core';
 import {
   CheckCircle2,
   Eye,
@@ -10,7 +9,9 @@ import {
 } from 'lucide-react';
 
 interface PatientHandoffEditorProps {
-  draft: PatientHandoff;
+  summary: string;
+  selectedTaskTitles: readonly string[];
+  safetyWarnings: readonly string[];
   availableTasks: readonly string[];
   selectedTasks: readonly string[];
   shareWithPatient: boolean;
@@ -22,7 +23,9 @@ interface PatientHandoffEditorProps {
 }
 
 export default function PatientHandoffEditor({
-  draft,
+  summary,
+  selectedTaskTitles,
+  safetyWarnings,
   availableTasks,
   selectedTasks,
   shareWithPatient,
@@ -32,7 +35,7 @@ export default function PatientHandoffEditor({
   onShareChange,
   onReviewChange,
 }: PatientHandoffEditorProps) {
-  const isSafe = draft.safetyWarnings.length === 0;
+  const isSafe = safetyWarnings.length === 0;
 
   return (
     <section className="rounded-2xl border border-capri/30 bg-capri-soft/20 p-5 space-y-4">
@@ -69,14 +72,14 @@ export default function PatientHandoffEditor({
               </label>
               <textarea
                 id="patient-summary"
-                value={draft.summary}
+                value={summary}
                 onChange={(event) => onSummaryChange(event.target.value)}
                 rows={5}
                 maxLength={600}
                 className="input text-xs leading-relaxed"
               />
               <p className="text-right text-[10px] text-muted">
-                {draft.summary.length}/600 caracteres
+                {summary.length}/600 caracteres
               </p>
             </div>
 
@@ -123,7 +126,7 @@ export default function PatientHandoffEditor({
               </div>
               {!isSafe ? (
                 <ul className="mt-2 list-disc space-y-1 pl-5">
-                  {draft.safetyWarnings.map((warning) => (
+                  {safetyWarnings.map((warning) => (
                     <li key={warning}>{warning}</li>
                   ))}
                 </ul>
@@ -156,25 +159,22 @@ export default function PatientHandoffEditor({
             <div className="space-y-3 rounded-2xl border border-line bg-white p-4">
               <span className="chip-capri text-[9px]">Plano pós-sessão</span>
               <p className="text-sm font-extrabold text-ink">Seu plano para esta semana</p>
-              <p className="text-xs leading-relaxed text-muted">{draft.summary}</p>
+              <p className="text-xs leading-relaxed text-muted">{summary}</p>
               <div className="space-y-2 border-t border-line pt-3">
-                {draft.tasks.length > 0 ? (
-                  draft.tasks.map((task) => (
-                    <div key={task.id} className="flex items-start gap-2 text-[11px] text-ink">
+                {selectedTaskTitles.length > 0 ? (
+                  selectedTaskTitles.map((task) => (
+                    <div key={task} className="flex items-start gap-2 text-[11px] text-ink">
                       <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
-                      <span>{task.title}</span>
+                      <span>{task}</span>
                     </div>
                   ))
                 ) : (
                   <p className="text-[11px] text-muted">Sem tarefas nesta entrega.</p>
                 )}
               </div>
-              {draft.nextSessionLabel ? (
-                <p className="rounded-lg bg-soft px-3 py-2 text-[10px] font-semibold text-primary">
-                  Próxima sessão: {draft.nextSessionLabel}
-                </p>
-              ) : null}
-              <p className="text-[9px] text-muted">Revisado por {draft.professionalName}</p>
+              <p className="text-[9px] text-muted">
+                A entrega definitiva é montada e validada no servidor ao aprovar.
+              </p>
             </div>
           </div>
         </div>

@@ -1,76 +1,63 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  createPatientHandoffDraft,
-  type PatientHandoff,
-} from '@thats-life/core';
+import { reviewPatientHandoffContent } from '@thats-life/core';
 import { FileText, Send, Zap } from 'lucide-react';
-import type { GeneratedSoapResult } from '@/lib/soapAiEngine';
+import { formatCents, type SoapView } from '@/lib/soapAiEngine';
 import ExtractedTasksEditor from './ExtractedTasksEditor';
 import PatientHandoffEditor from './PatientHandoffEditor';
 import SoapFieldsGrid from './SoapFieldsGrid';
 
 interface SoapEditorProps {
-  soapData: GeneratedSoapResult | null;
-  patientId: string;
+  soapView: SoapView | null;
   patientName: string;
-  nextSessionLabel: string;
-  professionalName: string;
   onOpenOneClickModal: (
-    finalSoap: GeneratedSoapResult,
-    patientHandoff: PatientHandoff,
+    finalSoap: SoapView,
+    summary: string,
+    tasks: string[],
     shareWithPatient: boolean,
     sendWhatsApp: boolean
   ) => void;
 }
 
 export default function SoapEditor({
-  soapData,
-  patientId,
+  soapView,
   patientName,
-  nextSessionLabel,
-  professionalName,
   onOpenOneClickModal,
 }: SoapEditorProps) {
-  const [subjetivo, setSubjetivo] = useState(soapData?.subjetivo ?? '');
-  const [objetivo, setObjetivo] = useState(soapData?.objetivo ?? '');
-  const [avaliacao, setAvaliacao] = useState(soapData?.avaliacao ?? '');
-  const [plano, setPlano] = useState(soapData?.plano ?? '');
-  const [tasks, setTasks] = useState<string[]>(soapData?.tarefasPacientes ?? []);
+  const [subjetivo, setSubjetivo] = useState(soapView?.subjetivo ?? '');
+  const [objetivo, setObjetivo] = useState(soapView?.objetivo ?? '');
+  const [avaliacao, setAvaliacao] = useState(soapView?.avaliacao ?? '');
+  const [plano, setPlano] = useState(soapView?.plano ?? '');
+  const [tasks, setTasks] = useState<string[]>(soapView?.tarefasPacientes ?? []);
   const [patientSummary, setPatientSummary] = useState(
-    soapData?.resumoPacienteSugerido ?? ''
+    soapView?.resumoPacienteSugerido ?? ''
   );
   const [selectedPatientTasks, setSelectedPatientTasks] = useState<string[]>(
-    soapData?.tarefasPacientes ?? []
+    soapView?.tarefasPacientes ?? []
   );
   const [shareWithPatient, setShareWithPatient] = useState(true);
   const [handoffReviewed, setHandoffReviewed] = useState(false);
   const [sendWhatsAppBilling, setSendWhatsAppBilling] = useState(true);
 
-  if (!soapData) {
+  if (!soapView) {
     return (
       <div className="card space-y-3 border-dashed bg-white/60 py-12 text-center">
         <FileText className="mx-auto h-12 w-12 text-muted/50" />
-        <h3 className="text-base font-bold text-ink">Aguardando geração do Prontuário SOAP</h3>
+        <h3 className="text-base font-bold text-ink">Aguardando abertura do Prontuário SOAP</h3>
         <p className="mx-auto max-w-sm text-xs text-muted">
-          Grave o atendimento ou importe um áudio para estruturar a evolução clínica.
+          Grave o atendimento ou importe um áudio para revisar a evolução clínica pendente.
         </p>
       </div>
     );
   }
 
-  const patientHandoff = createPatientHandoffDraft({
-    patientId,
-    sessionId: soapData.sessionId,
-    summary: patientSummary,
-    tasks: tasks.filter((task) => selectedPatientTasks.includes(task)),
-    nextSessionLabel,
-    professionalName,
-  });
+  const patientTasks = tasks.filter((task) => selectedPatientTasks.includes(task));
+  // A mesma validação roda no servidor antes de aprovar o prontuário. Aqui ela
+  // é apenas antecipada, para o profissional corrigir antes de disparar o fluxo.
+  const safetyWarnings = reviewPatientHandoffContent(patientSummary, patientTasks);
   const patientDeliveryReady =
-    !shareWithPatient ||
-    (handoffReviewed && patientHandoff.safetyWarnings.length === 0);
+    !shareWithPatient || (handoffReviewed && safetyWarnings.length === 0);
 
   const handleAddTask = (task: string) => {
     setTasks((current) => (current.includes(task) ? current : [...current, task]));
@@ -82,9 +69,7 @@ export default function SoapEditor({
 
   const handleRemoveTask = (index: number) => {
     const removedTask = tasks[index];
-    setTasks((current) =>
-      current.filter((_, taskIndex) => taskIndex !== index)
-    );
+    setTasks((current) => current.filter((_, taskIndex) => taskIndex !== index));
     setSelectedPatientTasks((selected) =>
       selected.filter((task) => task !== removedTask)
     );
@@ -94,15 +79,9 @@ export default function SoapEditor({
   const handleTriggerOneClick = () => {
     if (!patientDeliveryReady) return;
     onOpenOneClickModal(
-      {
-        ...soapData,
-        subjetivo,
-        objetivo,
-        avaliacao,
-        plano,
-        tarefasPacientes: tasks,
-      },
-      patientHandoff,
+      { ...soapView, subjetivo, objetivo, avaliacao, plano, tarefasPacientes: tasks },
+      patientSummary,
+      patientTasks,
       shareWithPatient,
       sendWhatsAppBilling
     );
@@ -154,7 +133,9 @@ export default function SoapEditor({
       />
 
       <PatientHandoffEditor
-        draft={patientHandoff}
+        summary={patientSummary}
+        selectedTaskTitles={patientTasks}
+        safetyWarnings={safetyWarnings}
         availableTasks={tasks}
         selectedTasks={selectedPatientTasks}
         shareWithPatient={shareWithPatient}
@@ -183,7 +164,9 @@ export default function SoapEditor({
           <Send className="h-5 w-5 text-emerald-600" />
           <div>
             <p className="text-xs font-bold text-ink">Enviar recibo e cobrança Pix via WhatsApp</p>
-            <p className="text-[11px] text-muted">Valor da sessão: R$ {soapData.valorSessao},00</p>
+            <p className="text-[11px] text-muted">
+              Valor da sessão: {formatCents(soapView.valorSessaoCentavos)}
+            </p>
           </div>
         </div>
         <label className="relative inline-flex cursor-pointer items-center">

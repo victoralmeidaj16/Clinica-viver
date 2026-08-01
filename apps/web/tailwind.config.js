@@ -8,34 +8,47 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        // Paleta oficial solicitada
+        psi: {
+          darkest: "#43265E",   // Hex #43265E - Roxo Escuro Profundo (Sidebar, Cards de Alto Contraste)
+          deep: "#5C397D",      // Hex #5C397D - Roxo Principal (Botões primários, badges de destaque)
+          vibrant: "#9E6BCF",   // Hex #9E6BCF - Roxo Médio/Vibrante (Accent, highlights, ícones)
+          soft: "#EDE6F4",      // Hex #EDE6F4 - Lavanda Claro (Fundos sutis, hovers, chips)
+          light: "#F9F5FC",     // Hex #F9F5FC - Off-white Iluminado (Canvas de fundo da plataforma)
+        },
         primary: {
-          DEFAULT: "#5C397D", // Deep Iris
-          dark: "#46285F",
-          light: "#7E5BA6",
+          DEFAULT: "#5C397D",
+          dark: "#43265E",
+          light: "#9E6BCF",
         },
         accent: {
-          DEFAULT: "#F99E29", // Carrot Orange
-          soft: "#FDE7C7",
+          DEFAULT: "#9E6BCF",
+          soft: "#EDE6F4",
         },
         capri: {
-          DEFAULT: "#00C1FF", // Capri Blue
-          soft: "#D6F4FF",
+          DEFAULT: "#5C397D",
+          soft: "#EDE6F4",
         },
-        coral: "#E0484E",
-        ink: "#241B30",
-        muted: "#6B6275",
-        surface: "#FFFFFF",
-        canvas: "#F4F0F8",
-        soft: "#EFEAF3",
-        line: "#E4DEEC",
+        ink: "#1E1528",         // Tipografia escura de alto contraste
+        muted: "#756785",       // Tipografia secundária
+        surface: "#FFFFFF",     // Cards brancos
+        canvas: "#F9F5FC",      // Fundo geral do app (#F9F5FC)
+        soft: "#EDE6F4",       // Fundo suave de chips/hovers (#EDE6F4)
+        line: "#F0E9F5",        // Bordas leves imperceptíveis
       },
       borderRadius: {
-        xl: "1.1rem",
-        "2xl": "1.4rem",
+        'xl': '1rem',
+        '2xl': '1.25rem',       // 20px - Levemente arredondado conforme imagem de referência
+        '3xl': '1.5rem',
       },
       boxShadow: {
-        card: "0 1px 2px rgba(30,42,42,0.04), 0 8px 24px rgba(30,42,42,0.06)",
-        lift: "0 8px 30px rgba(92,57,125,0.18)",
+        // Sombras leves e suaves sem bordas pesadas (igual às dashboards de referência)
+        card: "0 4px 20px rgba(67, 38, 94, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02)",
+        contrast: "0 10px 30px rgba(67, 38, 94, 0.18)",
+        lift: "0 12px 28px rgba(92, 57, 125, 0.12)",
+      },
+      fontFamily: {
+        sans: ['Inter Tight', 'Inter', 'sans-serif'],
       },
     },
   },

@@ -4,6 +4,7 @@ export interface NotificationRepository {
   getById(organizationId: string, messageId: string): Promise<NotificationMessage | null>;
   findByIdempotencyKey(organizationId: string, key: string): Promise<NotificationMessage | null>;
   listDue(before: string, limit: number): Promise<readonly NotificationMessage[]>;
+  list(filter: { organizationId: string; patientId?: string }): Promise<readonly NotificationMessage[]>;
   save(message: NotificationMessage): Promise<void>;
 }
 export interface CommunicationPreferenceRepository {

@@ -11,6 +11,7 @@ import {
 } from '@thats-life/core';
 import { styles } from './preSessionAssessmentStyles';
 import PreSessionTopicsStep from './PreSessionTopicsStep';
+import { submitPreSessionCheckInRemote } from '../api/patientClient';
 
 type QuizPhase = 'questions' | 'follow-up' | 'topics' | 'completed';
 
@@ -100,6 +101,20 @@ export default function PreSessionAssessment() {
     ).checkIn;
     setSubmittedCheckIn(submitted);
     setPhase('completed');
+
+    // Enviar para o servidor de aplicação se disponível
+    submitPreSessionCheckInRemote({
+      appointmentId: 'appointment-pac-01',
+      topicsToDiscuss,
+      assessment: {
+        responseId: `${checkInId}-assessment`,
+        instrumentCode,
+        totalScore: result.totalScore,
+        severityLabel: result.severityLabel,
+        hasRiskAlert: result.hasRiskAlert,
+        riskAlertReason: result.riskAlertReason,
+      },
+    });
   };
 
   const handleSelect = (value: number) => {

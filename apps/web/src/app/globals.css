@@ -4,57 +4,67 @@
 
 @layer base {
   :root {
-    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-sans: 'Inter Tight', 'Inter', system-ui, -apple-system, sans-serif;
   }
   body {
-    background-color: #F4F0F8;
-    color: #241B30;
+    background-color: #F9F5FC; /* Hex #F9F5FC */
+    color: #1E1528;
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
   }
 }
 
 @layer components {
-  /* Cards */
+  /* Cards com bordas levemente arredondadas (rounded-2xl / 20px) e sombras extremamente leves sem bordas pesadas */
   .card {
-    @apply bg-surface border border-line rounded-2xl p-6 shadow-card transition-all duration-200;
+    @apply bg-surface rounded-2xl p-6 shadow-card border border-psi-soft/40 transition-all duration-200;
   }
+  
+  /* Cards de Grande Contraste (Estilo o card dark das dashboards de referência) */
+  .card-contrast {
+    @apply bg-psi-darkest text-white rounded-2xl p-6 shadow-contrast transition-all duration-200;
+  }
+
+  .card-vibrant {
+    @apply bg-psi-deep text-white rounded-2xl p-6 shadow-lift transition-all duration-200;
+  }
+
   .card-hover {
     @apply hover:shadow-lift hover:-translate-y-0.5 transition-all duration-200;
   }
 
-  /* Botões */
+  /* Botões com a paleta Roxo / Branco / Cinza Claro */
   .btn-primary {
-    @apply bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-5 rounded-xl transition-all duration-150 flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+    @apply bg-psi-deep hover:bg-psi-darkest text-white font-bold py-3 px-5 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
   }
 
   .btn-accent {
-    @apply bg-accent hover:bg-amber-600 text-white font-semibold py-3 px-5 rounded-xl transition-all duration-150 flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+    @apply bg-psi-vibrant hover:bg-psi-deep text-white font-bold py-3 px-5 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
   }
 
   .btn-outline {
-    @apply bg-transparent hover:bg-soft text-primary border border-primary/30 font-semibold py-3 px-5 rounded-xl transition-all duration-150 flex items-center justify-center gap-2 active:scale-[0.98];
+    @apply bg-white hover:bg-psi-soft/50 text-psi-darkest border border-psi-soft font-semibold py-3 px-5 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 active:scale-[0.98];
   }
 
   .btn-ghost {
-    @apply bg-transparent hover:bg-soft text-muted hover:text-ink font-medium py-2.5 px-4 rounded-xl transition-all duration-150 flex items-center justify-center gap-2;
+    @apply bg-transparent hover:bg-psi-soft/60 text-muted hover:text-ink font-semibold py-2.5 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2;
   }
 
-  /* Inputs */
+  /* Inputs com foco suave */
   .input {
-    @apply w-full bg-white border border-line rounded-xl px-4 py-3 text-ink placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-150;
+    @apply w-full bg-white border border-psi-soft rounded-xl px-4 py-3 text-ink placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-psi-vibrant/20 focus:border-psi-vibrant transition-all duration-200;
   }
 
   /* Chips e Badges */
   .chip {
-    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-soft text-primary border border-primary/10;
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-psi-soft text-psi-darkest border border-psi-vibrant/20;
   }
   
-  .chip-capri {
-    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-capri-soft text-capri border border-capri/20;
+  .chip-vibrant {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-psi-vibrant text-white;
   }
 
-  .chip-accent {
-    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-accent-soft text-amber-800 border border-accent/20;
+  .chip-dark {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-psi-darkest text-white;
   }
 }

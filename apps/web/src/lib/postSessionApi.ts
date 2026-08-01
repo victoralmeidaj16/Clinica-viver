@@ -60,3 +60,7 @@ export function runPostSession(
     { method: 'POST', headers: commandHeaders(), body: JSON.stringify(body) }
   );
 }
+
+export function fetchPreSessionBriefing(appointmentId: string): Promise<unknown> {
+  return applicationRequest<unknown>(`/appointments/${appointmentId}/briefing`);
+}

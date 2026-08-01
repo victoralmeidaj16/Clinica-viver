@@ -14,6 +14,8 @@ import {
 import { buildSoapView, type SoapView } from '@/lib/soapAiEngine';
 import { AlertTriangle, CheckCircle2, Sparkles, Zap } from 'lucide-react';
 
+import { CockpitHeroCard } from '@/components/cockpit/CockpitHeroCard';
+
 export default function CockpitPage() {
   const [sessions, setSessions] = useState<ReviewSession[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string>('');
@@ -133,6 +135,9 @@ export default function CockpitPage() {
           <span>Demonstração de IA: dados simulados</span>
         </div>
       </div>
+
+      {/* Card Hero com imagem Viver Mais Psicologia Clínica */}
+      <CockpitHeroCard />
 
       {isLoading ? (
         <div className="card py-12 text-center text-xs text-muted">Carregando fila de revisão...</div>

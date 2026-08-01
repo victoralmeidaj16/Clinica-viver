@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { searchClinicalTimeline } from '@thats-life/core';
+import { useEffect, useMemo, useState } from 'react';
+import { searchClinicalTimeline, type ClinicalTimelineEntry } from '@thats-life/core';
+import { applicationRequest } from '@/lib/applicationApi';
 import { DEMO_CLINICAL_TIMELINE } from '@/lib/demoClinicalTimeline';
 import ClinicalMemorySearch from './ClinicalMemorySearch';
 import TimelineFeed from './TimelineFeed';
@@ -14,21 +15,41 @@ export default function ClinicalTimelineWorkspace() {
   const [activeFilterId, setActiveFilterId] = useState('all');
   const [draftQuery, setDraftQuery] = useState(DEFAULT_QUERY);
   const [activeQuery, setActiveQuery] = useState(DEFAULT_QUERY);
+  const [apiEntries, setApiEntries] = useState<ClinicalTimelineEntry[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    applicationRequest<{ entries: ClinicalTimelineEntry[] }>('/timeline?patientId=patient-1')
+      .then((data) => {
+        if (!cancelled && data?.entries?.length) {
+          setApiEntries(data.entries);
+        }
+      })
+      .catch(() => {
+        // Fallback para dados locais em caso de falha de conexão
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const allEntries = apiEntries ?? DEMO_CLINICAL_TIMELINE;
+
   const activeFilter = TIMELINE_FILTERS.find(
     (filter) => filter.id === activeFilterId
   );
   const filteredEntries = useMemo(
     () =>
       activeFilter?.categories
-        ? DEMO_CLINICAL_TIMELINE.filter((entry) =>
+        ? allEntries.filter((entry) =>
             activeFilter.categories?.includes(entry.category)
           )
-        : DEMO_CLINICAL_TIMELINE,
-    [activeFilter]
+        : allEntries,
+    [activeFilter, allEntries]
   );
   const searchResult = useMemo(
-    () => searchClinicalTimeline(DEMO_CLINICAL_TIMELINE, activeQuery),
-    [activeQuery]
+    () => searchClinicalTimeline(allEntries, activeQuery),
+    [activeQuery, allEntries]
   );
 
   const runSuggestion = (value: string) => {
@@ -40,7 +61,7 @@ export default function ClinicalTimelineWorkspace() {
     <div className="mx-auto max-w-[1440px] space-y-6">
       <TimelineHeader
         patientName="Mariana Silva de Oliveira"
-        entries={DEMO_CLINICAL_TIMELINE}
+        entries={allEntries}
       />
 
       <div className="flex flex-col justify-between gap-3 rounded-2xl border border-line bg-white px-4 py-3 sm:flex-row sm:items-center">

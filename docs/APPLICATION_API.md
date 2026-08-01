@@ -19,6 +19,18 @@ estado em memória e não representa autenticação ou persistência de produç�
 - `PATCH /api/application/appointments/:id`
 - `GET /api/application/sessions`
 - `POST /api/application/sessions/:id/post-session`
+- `GET /api/application/patient/portal`
+- `POST /api/application/patient/tasks/:id/toggle`
+- `POST /api/application/patient/mood`
+- `POST /api/application/patient/assessments`
+- `POST /api/application/patient/pre-session`
+- `GET /api/application/appointments/:id/briefing`
+- `GET /api/application/timeline`
+- `GET /api/application/financial/reports`
+- `GET /api/application/communication/queue`
+- `POST /api/application/communication/dispatch`
+
+
 
 O `POST` de agendamento coordena agendamento, autorização, conflito de horário,
 persistência e inclusão idempotente do lembrete na fila. O `PATCH` aceita

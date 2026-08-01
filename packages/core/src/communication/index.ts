@@ -4,3 +4,4 @@ export * from './aggregate';
 export * from './ports';
 export * from './service';
 export * from './inMemory';
+export * from './evolutionProvider';

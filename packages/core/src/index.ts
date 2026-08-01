@@ -51,3 +51,4 @@ export * from './carePlan';
 export * from './communication';
 export * from './preSessionCheckIn';
 export * from './clinicalTimeline';
+export * from './transcription';

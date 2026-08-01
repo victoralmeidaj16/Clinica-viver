@@ -1,16 +1,25 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import type { PatientHandoff, PatientHandoffTask } from '@thats-life/core';
+import type { PatientHandoff } from '@thats-life/core';
 import { colors } from '../theme/colors';
+import { togglePatientTaskRemote } from '../api/patientClient';
 
 interface PatientTasksProps {
   handoff: PatientHandoff;
+  tasks?: Array<{ id: string; title: string; completed: boolean }>;
+  onToggleTask?: (id: string) => void;
 }
 
-export default function PatientTasks({ handoff }: PatientTasksProps) {
-  const [tasks, setTasks] = useState<PatientHandoffTask[]>(() =>
-    handoff.tasks.map((task) => ({ ...task }))
+export default function PatientTasks({ handoff, tasks: propTasks, onToggleTask }: PatientTasksProps) {
+  const [tasks, setTasks] = useState<Array<{ id: string; title: string; completed: boolean }>>(() =>
+    propTasks ?? handoff.tasks.map((task) => ({ ...task }))
   );
+
+  useEffect(() => {
+    if (propTasks) {
+      setTasks(propTasks);
+    }
+  }, [propTasks]);
 
   const toggleTask = (id: string) => {
     setTasks((current) =>
@@ -18,6 +27,11 @@ export default function PatientTasks({ handoff }: PatientTasksProps) {
         task.id === id ? { ...task, completed: !task.completed } : task
       )
     );
+    if (onToggleTask) {
+      onToggleTask(id);
+    } else {
+      togglePatientTaskRemote(id);
+    }
   };
 
   const doneCount = tasks.filter((task) => task.completed).length;

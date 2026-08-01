@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { colors } from '../theme/colors';
+import { recordPatientMoodRemote } from '../api/patientClient';
 
 const MOODS = [
   { level: 1, label: 'Muito Mal', emoji: '😢' },
@@ -12,9 +13,14 @@ const MOODS = [
 
 const EMOTIONS = ['Ansiedade', 'Calma', 'Foco', 'Gratidão', 'Irritação', 'Cansaço'];
 
-export default function MoodTracker() {
+interface MoodTrackerProps {
+  onMoodSaved?: () => void;
+}
+
+export default function MoodTracker({ onMoodSaved }: MoodTrackerProps) {
   const [selectedMood, setSelectedMood] = useState<number | null>(4);
   const [selectedEmotions, setSelectedEmotions] = useState<string[]>(['Calma', 'Foco']);
+  const [savedStatus, setSavedStatus] = useState<string | null>(null);
 
   const toggleEmotion = (emotion: string) => {
     if (selectedEmotions.includes(emotion)) {
@@ -22,6 +28,18 @@ export default function MoodTracker() {
     } else {
       setSelectedEmotions([...selectedEmotions, emotion]);
     }
+  };
+
+  const handleSelectMood = (level: number) => {
+    setSelectedMood(level);
+    recordPatientMoodRemote({
+      level: level as 1 | 2 | 3 | 4 | 5,
+      emotions: selectedEmotions,
+    }).then(() => {
+      setSavedStatus('Humor registrado com sucesso!');
+      if (onMoodSaved) onMoodSaved();
+      setTimeout(() => setSavedStatus(null), 3000);
+    });
   };
 
   return (
@@ -37,7 +55,7 @@ export default function MoodTracker() {
             <TouchableOpacity
               key={item.level}
               style={[styles.moodItem, isSelected && styles.moodItemSelected]}
-              onPress={() => setSelectedMood(item.level)}
+              onPress={() => handleSelectMood(item.level)}
             >
               <Text style={styles.emoji}>{item.emoji}</Text>
               <Text style={[styles.moodLabel, isSelected && styles.moodLabelSelected]}>{item.label}</Text>
@@ -62,6 +80,8 @@ export default function MoodTracker() {
           );
         })}
       </View>
+
+      {savedStatus && <Text style={styles.savedFeedback}>{savedStatus}</Text>}
     </View>
   );
 }
@@ -143,5 +163,12 @@ const styles = StyleSheet.create({
   tagTextActive: {
     color: colors.primaryDark,
     fontWeight: 'bold',
+  },
+  savedFeedback: {
+    marginTop: 12,
+    fontSize: 11,
+    color: colors.primaryDark,
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
 });

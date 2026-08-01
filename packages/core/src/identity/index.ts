@@ -7,3 +7,4 @@ export * from './useCaseSupport';
 export * from './accessResolution';
 export * from './membershipUseCases';
 export * from './profileUseCases';
+export * from './integrationSettings';

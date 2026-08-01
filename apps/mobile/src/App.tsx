@@ -1,15 +1,39 @@
-import React from 'react';
-import { StyleSheet, Text, View, ScrollView, SafeAreaView, StatusBar } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, Text, View, ScrollView, SafeAreaView, StatusBar, ActivityIndicator, Modal } from 'react-native';
 import { colors } from './theme/colors';
 import NextSessionCard from './components/NextSessionCard';
 import MoodTracker from './components/MoodTracker';
 import PatientTasks from './components/PatientTasks';
 import HabitsTracker from './components/HabitsTracker';
 import PreSessionAssessment from './components/PreSessionAssessment';
+import AssessmentChartCard from './components/AssessmentChartCard';
 import SessionSummaryCard from './components/SessionSummaryCard';
+import PatientVideoRoomModal from './components/PatientVideoRoomModal';
+import PatientClinicalTimeline from './components/PatientClinicalTimeline';
 import { DEMO_PATIENT_HANDOFF } from './data/demoPatientHandoff';
+import { fetchPatientPortal, togglePatientTaskRemote, type PatientPortalData } from './api/patientClient';
 
 export default function App() {
+  const [portalData, setPortalData] = useState<PatientPortalData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+
+  useEffect(() => {
+    fetchPatientPortal()
+      .then((data) => setPortalData(data))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handoff = portalData?.handoff ?? DEMO_PATIENT_HANDOFF;
+  const tasks = portalData?.tasks ?? handoff.tasks.map((t) => ({ ...t }));
+  const patientName = portalData?.patient.displayName ?? 'Mariana';
+
+  const handleToggleTask = (id: string) => {
+    togglePatientTaskRemote(id).then((result) => {
+      setPortalData((prev) => (prev ? { ...prev, tasks: result.tasks } : prev));
+    });
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.canvas} />
@@ -17,33 +41,55 @@ export default function App() {
       {/* Header do App Mobile */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>Olá, Mariana 👋</Text>
+          <Text style={styles.greeting}>Olá, {patientName.split(' ')[0]} 👋</Text>
           <Text style={styles.subgreeting}>Acompanhamento Terapêutico Thats Life</Text>
         </View>
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>M</Text>
+          <Text style={styles.avatarText}>{patientName.charAt(0)}</Text>
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Card de Próxima Consulta */}
-        <NextSessionCard />
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Card de Próxima Consulta com gatilho da Sala de Vídeo */}
+          <NextSessionCard onJoinSession={() => setIsVideoModalOpen(true)} />
 
-        {/* Conteúdo pós-sessão revisado pelo profissional */}
-        <SessionSummaryCard handoff={DEMO_PATIENT_HANDOFF} />
+          {/* Gráfico de Evolução Psicométrica (PHQ-9 e GAD-7) */}
+          <AssessmentChartCard />
 
-        {/* Tarefas autorizadas no mesmo conteúdo pós-sessão */}
-        <PatientTasks handoff={DEMO_PATIENT_HANDOFF} />
+          {/* Linha do Tempo e Histórico de Marcos Clínicos do Paciente */}
+          <PatientClinicalTimeline />
 
-        {/* Avaliação Pré-Sessão (PHQ-9 / GAD-7) */}
-        <PreSessionAssessment />
+          {/* Conteúdo pós-sessão revisado pelo profissional */}
+          <SessionSummaryCard handoff={handoff} />
 
-        {/* Diário de Humor */}
-        <MoodTracker />
+          {/* Tarefas autorizadas no mesmo conteúdo pós-sessão */}
+          <PatientTasks handoff={handoff} tasks={tasks} onToggleTask={handleToggleTask} />
 
-        {/* Hábitos & Autocuidado */}
-        <HabitsTracker />
-      </ScrollView>
+          {/* Avaliação Pré-Sessão (PHQ-9 / GAD-7) */}
+          <PreSessionAssessment />
+
+          {/* Diário de Humor */}
+          <MoodTracker />
+
+          {/* Hábitos & Autocuidado */}
+          <HabitsTracker />
+        </ScrollView>
+      )}
+
+      {/* Modal da Sala de Vídeo Telepresencial para o Paciente */}
+      <Modal
+        visible={isVideoModalOpen}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setIsVideoModalOpen(false)}
+      >
+        <PatientVideoRoomModal onClose={() => setIsVideoModalOpen(false)} />
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -89,5 +135,10 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 40,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

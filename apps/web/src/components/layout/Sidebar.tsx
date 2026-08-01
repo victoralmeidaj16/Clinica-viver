@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -12,43 +12,43 @@ import {
   ClipboardList,
   Brain,
   Smartphone,
-  ChevronRight,
   History,
   CalendarDays,
   Target,
+  Video,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const navItems = [
     {
       label: 'Cockpit 1-Clique',
       href: '/cockpit',
       icon: Zap,
-      badge: 'IA SOAP',
-      badgeColor: 'bg-accent/20 text-amber-900 border-accent/30',
+    },
+    {
+      label: 'Sessão Zoom ao Vivo',
+      href: '/sessao/demo',
+      icon: Video,
     },
     {
       label: 'Avaliações & Escalas',
       href: '/avaliacoes',
       icon: ClipboardList,
-      badge: 'Escalas IA',
-      badgeColor: 'bg-capri-soft text-cyan-900 border-capri/30',
     },
     {
       label: 'Linha do Tempo Clínica',
       href: '/linha-do-tempo',
       icon: History,
-      badge: 'Memória',
-      badgeColor: 'bg-emerald-50 text-emerald-800 border-emerald-200',
     },
     {
-      label: 'Agenda',
+      label: 'Agenda & Pagamentos',
       href: '/agenda',
       icon: CalendarDays,
-      badge: 'Google futuro',
-      badgeColor: 'bg-emerald-50 text-emerald-800 border-emerald-200',
     },
     {
       label: 'Acompanhamento',
@@ -69,37 +69,59 @@ export default function Sidebar() {
       label: 'Supervisão Clínica',
       href: '/supervisao',
       icon: UserCheck,
-      badge: 'Anonimização',
-      badgeColor: 'bg-primary/10 text-primary border-primary/20',
     },
     {
       label: 'Financeiro & Pix',
       href: '/financeiro',
       icon: CreditCard,
     },
+    {
+      label: 'Integrações (Asaas/Wpp)',
+      href: '/configuracoes/integracoes',
+      icon: Brain,
+    },
   ];
 
   return (
-    <aside className="w-64 bg-surface border-r border-line flex flex-col justify-between h-screen sticky top-0 z-40 select-none">
+    <aside
+      className={`bg-psi-darkest text-white flex flex-col justify-between h-screen sticky top-0 z-40 select-none shadow-contrast transition-all duration-300 ${
+        isCollapsed ? 'w-20' : 'w-68'
+      }`}
+    >
       <div>
-        {/* Brand Header */}
-        <div className="h-20 px-6 flex items-center gap-3 border-b border-line">
-          <div className="w-10 h-10 rounded-xl bg-primary text-white flex items-center justify-center shadow-md">
-            <Brain className="w-6 h-6" />
+        {/* Header do Menu com Botão de Minimizar */}
+        <div className="h-20 px-5 flex items-center justify-between border-b border-white/10 relative">
+          <div className="flex items-center gap-3 overflow-hidden">
+            <div className="w-10 h-10 rounded-xl bg-psi-vibrant text-white flex items-center justify-center shrink-0 shadow-md">
+              <Brain className="w-6 h-6" />
+            </div>
+            {!isCollapsed && (
+              <div className="animate-in fade-in duration-200">
+                <h1 className="font-extrabold text-lg text-white leading-none tracking-tight flex items-center gap-1.5">
+                  Thats Life <span className="text-psi-darkest text-xs font-black px-1.5 py-0.5 rounded-md bg-psi-vibrant">Psi</span>
+                </h1>
+                <p className="text-[11px] text-psi-soft/70 font-medium mt-1 whitespace-nowrap">Inteligência Clínica</p>
+              </div>
+            )}
           </div>
-          <div>
-            <h1 className="font-extrabold text-lg text-ink leading-none">
-              Thats Life <span className="text-primary text-xs font-semibold">Psi</span>
-            </h1>
-            <p className="text-[11px] text-muted font-medium mt-0.5">Inteligência Clínica</p>
-          </div>
+
+          {/* Toggle Minimizar / Expandir */}
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+            title={isCollapsed ? 'Expandir Menu' : 'Minimizar Menu'}
+          >
+            {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          </button>
         </div>
 
-        {/* Navigation List */}
-        <nav className="p-4 space-y-1.5">
-          <div className="px-3 py-2 text-[11px] font-bold text-muted uppercase tracking-wider">
-            Menu do Consultório
-          </div>
+        {/* Lista de Navegação sem etiquetas */}
+        <nav className="p-3 space-y-1">
+          {!isCollapsed && (
+            <div className="px-3 py-2 text-[10px] font-black text-psi-soft/50 uppercase tracking-widest animate-in fade-in">
+              Menu do Consultório
+            </div>
+          )}
           {navItems.map((item) => {
             const isActive = pathname === item.href || (pathname === '/' && item.href === '/cockpit');
             const Icon = item.icon;
@@ -107,40 +129,33 @@ export default function Sidebar() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-semibold transition-all duration-150 group ${
+                title={isCollapsed ? item.label : undefined}
+                className={`flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-bold transition-all duration-200 group ${
                   isActive
-                    ? 'bg-primary text-white shadow-md shadow-primary/20'
-                    : 'text-muted hover:text-ink hover:bg-soft'
-                }`}
+                    ? 'bg-psi-vibrant text-white shadow-lg shadow-psi-vibrant/30 scale-[1.01]'
+                    : 'text-psi-soft/80 hover:text-white hover:bg-white/10'
+                } ${isCollapsed ? 'justify-center px-0' : ''}`}
               >
-                <div className="flex items-center gap-3">
-                  <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-primary/80 group-hover:text-primary'}`} />
-                  <span>{item.label}</span>
-                </div>
-
-                {item.badge ? (
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${item.badgeColor}`}>
-                    {item.badge}
-                  </span>
-                ) : (
-                  <ChevronRight className={`w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity ${isActive ? 'text-white' : 'text-muted'}`} />
-                )}
+                <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-psi-vibrant group-hover:text-white'}`} />
+                {!isCollapsed && <span className="truncate animate-in fade-in">{item.label}</span>}
               </Link>
             );
           })}
         </nav>
       </div>
 
-      {/* App Mobile Integration Footer */}
-      <div className="p-4 border-t border-line">
-        <div className="p-3.5 rounded-2xl bg-capri-soft/50 border border-capri/20 text-left">
-          <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
-            <Smartphone className="w-4 h-4 text-capri" />
-            <span>App Mobile do Paciente</span>
+      {/* App Mobile Footer */}
+      <div className="p-3 border-t border-white/10">
+        <div className={`p-3 rounded-xl bg-white/5 border border-white/10 text-left ${isCollapsed ? 'flex justify-center p-2' : 'space-y-1'}`}>
+          <div className="flex items-center gap-2 text-xs font-bold text-white">
+            <Smartphone className="w-4 h-4 text-psi-vibrant shrink-0" />
+            {!isCollapsed && <span>App do Paciente</span>}
           </div>
-          <p className="text-[11px] text-muted mt-1 leading-snug">
-            Questionários pré-sessão sincronizados via Expo/React Native.
-          </p>
+          {!isCollapsed && (
+            <p className="text-[11px] text-psi-soft/70 leading-snug">
+              Sincronizado via Expo.
+            </p>
+          )}
         </div>
       </div>
     </aside>

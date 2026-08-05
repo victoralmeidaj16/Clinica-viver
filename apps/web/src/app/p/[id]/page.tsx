@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import {
   CreditCard,
@@ -13,17 +13,40 @@ import {
   Building2,
   Clock,
   Check,
+  ArrowLeft,
 } from 'lucide-react';
 
 export default function CheckoutLinkUnicoPage() {
   const params = useParams();
   const idCobranca = params?.id ? String(params.id) : 'PAY-89312';
 
+  // Modalidade e Valor Dinâmicos com base no código do ID
+  const isParticular = idCobranca.toLowerCase().includes('part') || idCobranca.toLowerCase().includes('130');
+  const valorSessao = isParticular ? 130.00 : 75.00;
+  const modalidadeNome = isParticular ? 'Sessão Individual (Particular)' : 'Atendimento Acessível (Social)';
+
   const [metodo, setMetodo] = useState<'pix' | 'cartao'>('pix');
   const [copiado, setCopiado] = useState(false);
   const [pago, setPago] = useState(false);
 
-  const pixCode = `00020126580014BR.GOV.BCB.PIX0136vivermais-${idCobranca}52040000530398654075.005802BR`;
+  // Timer de Vencimento de 15 minutos do Pix
+  const [timeLeft, setTimeLeft] = useState(15 * 60);
+
+  useEffect(() => {
+    if (timeLeft <= 0) return;
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [timeLeft]);
+
+  const formatTimer = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const pixCode = `00020126580014BR.GOV.BCB.PIX0136vivermais-${idCobranca}520400005303986540${valorSessao.toFixed(2)}5802BR`;
 
   const handleCopiarPix = () => {
     navigator.clipboard.writeText(pixCode);
@@ -31,8 +54,31 @@ export default function CheckoutLinkUnicoPage() {
     setTimeout(() => setCopiado(false), 3000);
   };
 
-  const handleSimularPagamentoWebhook = () => {
+  const handleSimularPagamentoWebhook = async () => {
     setPago(true);
+
+    // Enviar notificação de confirmação via Evolution API para a clínica/psicólogo
+    try {
+      const evoUrl = process.env.NEXT_PUBLIC_EVOLUTION_API_URL || 'http://localhost:8080';
+      const evoApiKey = process.env.NEXT_PUBLIC_EVOLUTION_API_KEY || '7c49eaa59c3631963fe335f99b3860f5d6b0e0751afcdda4b8c00c9ef08e52e6';
+      const evoInstance = process.env.NEXT_PUBLIC_EVOLUTION_INSTANCE || 'viver_mais_clinica';
+
+      const textoConfirmacao = `🎉 *PAGAMENTO CONFIRMADO!* 🎉\n\nA cobrança *#${idCobranca}* no valor de *R$ ${valorSessao.toFixed(2)}* foi liquidada com sucesso via Pix Conciliado!\n\nStatus da Sessão: AGENDADA & CONFIRMADA.`;
+
+      fetch(`${evoUrl}/message/sendText/${evoInstance}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': evoApiKey,
+        },
+        body: JSON.stringify({
+          number: '5551998234411',
+          text: textoConfirmacao,
+        }),
+      }).catch((e) => console.warn('[Evolution API Checkout] Servidor indisponível:', e));
+    } catch (e) {
+      console.warn('[Evolution API Checkout] Ignorado:', e);
+    }
   };
 
   return (
@@ -59,23 +105,24 @@ export default function CheckoutLinkUnicoPage() {
             </div>
             <h2 className="text-2xl font-black text-white">Pagamento Confirmado!</h2>
             <p className="text-xs text-slate-300">
-              Obrigado! Seu pagamento foi conciliação automaticamente em nosso sistema via Webhook. Não é necessário enviar nenhum comprovante.
+              Obrigado! Seu pagamento de <strong className="text-emerald-400">R$ {valorSessao.toFixed(2)}</strong> foi conciliado automaticamente via Webhook. O psicólogo já foi notificado.
             </p>
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-xs text-slate-400 font-mono">
-              Nota Fiscal Eletrônica será enviada em seu e-mail cadastrado.
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-xs text-slate-400 font-mono space-y-1">
+              <p>Nota Fiscal Eletrônica será enviada no e-mail cadastrado.</p>
+              <p className="text-emerald-400 font-bold text-[11px]">Resguardo Jurídico & Sigilo Garantidos (CFP/LGPD)</p>
             </div>
           </div>
         ) : (
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-6 shadow-2xl">
-            {/* Detalhes da Consulta */}
+            {/* Detalhes da Consulta com Valor Dinâmico */}
             <div className="bg-slate-800/80 rounded-2xl p-4 border border-slate-700/60 flex items-center justify-between">
               <div>
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Atendimento Psicologia</span>
-                <span className="text-sm font-black text-white">Sessão Individual (Social)</span>
+                <span className="text-sm font-black text-white">{modalidadeNome}</span>
               </div>
               <div className="text-right">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Valor</span>
-                <span className="text-xl font-black text-emerald-400">R$ 75,00</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Valor Total</span>
+                <span className="text-xl font-black text-emerald-400">R$ {valorSessao.toFixed(2)}</span>
               </div>
             </div>
 
@@ -105,6 +152,13 @@ export default function CheckoutLinkUnicoPage() {
 
             {metodo === 'pix' ? (
               <div className="space-y-4 text-center">
+                {/* Timer de Vencimento */}
+                <div className="inline-flex items-center gap-1.5 text-xs text-amber-400 bg-amber-500/10 px-3 py-1.5 rounded-xl border border-amber-500/30">
+                  <Clock className="w-3.5 h-3.5 animate-pulse" />
+                  <span>Este QR Code expira em <strong className="font-mono">{formatTimer(timeLeft)}</strong></span>
+                </div>
+
+                {/* QR Code gerado */}
                 <div className="bg-white p-4 rounded-2xl inline-block border border-slate-700 shadow-md">
                   <img
                     src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(pixCode)}`}
@@ -114,7 +168,7 @@ export default function CheckoutLinkUnicoPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <p className="text-[11px] text-slate-400">Ou copie a chave Pix abaixo e pague no seu banco:</p>
+                  <p className="text-[11px] text-slate-400">Ou copie a chave Pix abaixo e pague no seu aplicativo do banco:</p>
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
@@ -177,7 +231,7 @@ export default function CheckoutLinkUnicoPage() {
                   onClick={handleSimularPagamentoWebhook}
                   className="w-full bg-emerald-500 hover:bg-emerald-400 text-white font-extrabold text-xs py-3.5 rounded-2xl shadow-lg shadow-emerald-500/30 transition-all mt-2"
                 >
-                  PAGAR R$ 75,00 NO CARTÃO
+                  PAGAR R$ {valorSessao.toFixed(2)} NO CARTÃO
                 </button>
               </div>
             )}

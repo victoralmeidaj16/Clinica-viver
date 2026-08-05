@@ -97,7 +97,7 @@ export default function Sidebar() {
       icon: BarChart3,
     },
     {
-      label: 'Convênios PJ (Canguru)',
+      label: 'Convênios PJ',
       href: '/convenios',
       icon: Briefcase,
     },

@@ -16,8 +16,8 @@ import {
 export default function ConveniosPage() {
   const [projetos] = useState([
     {
-      id: 'PROJ-CANGURU-2026',
-      empresa: 'Canguru Soluções Corporativas',
+      id: 'PROJ-ALVET-2026',
+      empresa: 'Alvet Hospital Veterinário',
       cnpj: '12.345.678/0001-90',
       pacoteSessoes: 6,
       pacientesAtendidos: 8,

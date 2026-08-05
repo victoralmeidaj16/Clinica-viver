@@ -29,15 +29,38 @@ export class EvolutionApiClient {
   }
 
   async sendTextMessage(payload: SendWhatsAppMessagePayload): Promise<{ success: boolean; messageId: string }> {
-    void payload;
-    return {
-      success: true,
-      messageId: `msg_${Date.now()}`,
-    };
+    try {
+      const url = `${this.baseUrl.replace(/\/$/, '')}/message/sendText/${payload.instanceName}`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': this.apiKey,
+        },
+        body: JSON.stringify({
+          number: payload.number.replace(/\D/g, ''),
+          text: payload.text,
+        }),
+      });
+
+      if (!response.ok) {
+        console.warn(`[EvolutionAPI] Erro ao enviar WhatsApp HTTP ${response.status}`);
+        return { success: false, messageId: '' };
+      }
+
+      const data = await response.json();
+      return {
+        success: true,
+        messageId: data?.key?.id || `msg_${Date.now()}`,
+      };
+    } catch (err) {
+      console.warn('[EvolutionAPI] Falha de comunicação com servidor:', err);
+      return { success: false, messageId: '' };
+    }
   }
 
   async sendPixBilling(payload: SendPixBillingPayload): Promise<{ success: boolean; messageId: string }> {
-    const text = `Olá, ${payload.patientName}! 👋\n\nSua sessão com a Dra. Camila Vasconcelos foi concluída com sucesso.\n\n💳 *Dados para Pagamento Pix (R$ ${payload.valor},00)*:\n\nCopia e Cola:\n\`\`\`${payload.chavePix}\`\`\`\n\nSuas tarefas terapêuticas já estão atualizadas no seu App Mobile Thats Life! 🧠📱`;
+    const text = `Olá, ${payload.patientName}! 👋\n\nSua sessão na *Viver Mais Psicologia* foi agendada/realizada com sucesso.\n\n💳 *Dados para Pagamento Pix (R$ ${payload.valor},00)*:\n\nCopia e Cola:\n\`\`\`${payload.chavePix}\`\`\`\n\nAgradecemos a confiança! 🧠✨`;
     return this.sendTextMessage({
       instanceName: payload.instanceName,
       number: payload.number,

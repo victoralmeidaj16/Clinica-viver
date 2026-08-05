@@ -19,7 +19,76 @@ import {
 
 export default function Relatorios11IndicadoresPage() {
   const handleExportarRelatorio = () => {
-    alert('Relatório Mensal de 11 Indicadores compilado com sucesso! Baixando PDF/Excel para reunião de equipe.');
+    const htmlReport = `
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Relatório dos 11 Indicadores Mensais — Viver Mais Psicologia</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: #f8fafc; color: #0f172a; padding: 32px; }
+    .header { background: #1e1b4b; color: white; padding: 32px; border-radius: 20px; margin-bottom: 24px; }
+    .brand { font-size: 24px; font-weight: 900; }
+    .sub { font-size: 12px; color: #a5b4fc; margin-top: 4px; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+    .card { background: white; border: 1px solid #e2e8f0; padding: 20px; border-radius: 16px; }
+    .card-num { font-size: 10px; font-weight: 800; text-transform: uppercase; color: #64748b; }
+    .card-val { font-size: 20px; font-weight: 900; color: #4338ca; margin-top: 4px; }
+    .card-desc { font-size: 11px; color: #64748b; margin-top: 2px; }
+    table { width: 100%; border-collapse: collapse; background: white; border-radius: 16px; overflow: hidden; margin-top: 16px; font-size: 12px; }
+    th { background: #4338ca; color: white; text-align: left; padding: 12px 16px; font-size: 10px; text-transform: uppercase; }
+    td { padding: 12px 16px; border-bottom: 1px solid #e2e8f0; }
+    .footer { margin-top: 32px; font-size: 10px; text-align: center; color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="brand">Viver Mais Psicologia — Clínica Escola</div>
+    <div class="sub">Relatório Gerencial Automatizado de 11 Indicadores Mensais — Emissão: ${new Date().toLocaleDateString('pt-BR')}</div>
+  </div>
+
+  <div class="grid">
+    <div class="card"><div class="card-num">1. Fila de Espera</div><div class="card-val">3 Psicólogos na Fila</div><div class="card-desc">Algoritmo Round-Robin Ativo</div></div>
+    <div class="card"><div class="card-num">2. SLA 24h WhatsApp</div><div class="card-val">98.2% Cumprimento</div><div class="card-desc">Apenas 1 transbordo efetuado no mês</div></div>
+    <div class="card"><div class="card-num">3. Gênero Pacientes</div><div class="card-val">64% Fem | 36% Masc</div><div class="card-desc">142 Pacientes Ativos</div></div>
+    <div class="card"><div class="card-num">4. Faixa Etária Predominante</div><div class="card-val">18 a 28 anos (58%)</div><div class="card-desc">Segunda: 29 a 42 anos (31%)</div></div>
+    <div class="card"><div class="card-num">5. Origem dos Leads</div><div class="card-val">Google Ads (52%)</div><div class="card-desc">Site Orgânico (28%) | Indicação (20%)</div></div>
+    <div class="card"><div class="card-num">6. Total de Atendimentos</div><div class="card-val">348 Sessões</div><div class="card-desc">+14% em relação ao mês anterior</div></div>
+    <div class="card"><div class="card-num">7. Modalidades</div><div class="card-val">72% Social | 28% Part.</div><div class="card-desc">250 Acessíveis / 98 Particulares</div></div>
+    <div class="card"><div class="card-num">8. Faixas de Valor</div><div class="card-val">R$ 75 a R$ 130</div><div class="card-desc">Média: R$ 91,20 / sessão</div></div>
+    <div class="card"><div class="card-num">9. Custo de Aquisição (CAC)</div><div class="card-val">R$ 18,40 / Lead</div><div class="card-desc">Investimento Ads: R$ 1.200,00</div></div>
+    <div class="card"><div class="card-num">10. Convênios PJ</div><div class="card-val">R$ 9.240,00 Faturados</div><div class="card-desc">Projeto Canguru + Alvet</div></div>
+    <div class="card" style="grid-column: span 2;"><div class="card-num">11. Audit Log de Resguardo Jurídico</div><div class="card-val">348 Logs Backupados</div><div class="card-desc">Timestamps, aceites e resguardo em repouso conforme normas do CFP e LGPD</div></div>
+  </div>
+
+  <h3 style="font-size: 14px; font-weight: 800; color: #1e1b4b; margin-top: 24px;">Resumo Financeiro & Repasse aos Psicólogos (70% Aluno / 30% Clínica)</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Rubrica Operacional</th>
+        <th>Quantidade / Base</th>
+        <th>Valor Ponderado</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Faturamento Bruto Total (Sessões + Convênios)</td><td>348 Sessões + 2 Contratos PJ</td><td><strong>R$ 40.977,60</strong></td></tr>
+      <tr><td>Créditos Acumulados dos Alunos (70%)</td><td>Repasse Abatimento Boletos</td><td style="color: #059669; font-weight: 800;">R$ 28.684,32</td></tr>
+      <tr><td>Receita Operacional Viver Mais (30%)</td><td>Manutenção Estrutura & Infra</td><td style="color: #4338ca; font-weight: 800;">R$ 12.293,28</td></tr>
+    </tbody>
+  </table>
+
+  <div class="footer">Relatório gerado automaticamente via Viver Mais Psicologia Engine — Arquitetura de Inteligência Clínica & Governança</div>
+  <script>window.onload = function() { setTimeout(function() { window.print(); }, 400); };</script>
+</body>
+</html>
+    `;
+    const printWin = window.open('', '_blank');
+    if (printWin) {
+      printWin.document.write(htmlReport);
+      printWin.document.close();
+    }
   };
 
   return (

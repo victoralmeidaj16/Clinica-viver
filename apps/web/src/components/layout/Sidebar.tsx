@@ -69,11 +69,6 @@ export default function Sidebar() {
       icon: ClipboardList,
     },
     {
-      label: 'Linha do Tempo',
-      href: '/linha-do-tempo',
-      icon: History,
-    },
-    {
       label: 'Site / Vitrine de Serviços',
       href: '/vitrine',
       icon: Sparkles,
@@ -210,21 +205,6 @@ export default function Sidebar() {
             );
           })}
         </nav>
-      </div>
-
-      {/* Footer Viver Mais */}
-      <div className="p-3 border-t border-white/10 shrink-0">
-        <div className={`p-2.5 rounded-xl bg-white/5 border border-white/10 text-left ${isCollapsed ? 'flex justify-center p-2' : 'space-y-1'}`}>
-          <div className="flex items-center gap-2 text-xs font-bold text-white">
-            <Smartphone className="w-4 h-4 text-psi-vibrant shrink-0" />
-            {!isCollapsed && <span>App do Paciente</span>}
-          </div>
-          {!isCollapsed && (
-            <p className="text-[10px] text-psi-soft/70 leading-snug">
-              Sincronizado via Expo.
-            </p>
-          )}
-        </div>
       </div>
     </aside>
   );

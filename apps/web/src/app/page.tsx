@@ -1,5 +1,5 @@
-import CockpitPage from './cockpit/page';
+import ViverMaisLandingPage from './vitrine/page';
 
 export default function Home() {
-  return <CockpitPage />;
+  return <ViverMaisLandingPage />;
 }

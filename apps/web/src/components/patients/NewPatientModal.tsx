@@ -36,6 +36,7 @@ export default function NewPatientModal({ isOpen, onClose, onAddPatient }: NewPa
       planoAtendimento: planoAtendimento || 'Avaliação Psicológica Inicial',
       historicoSessoesCount: 0,
       tarefasAtivasCount: 0,
+      valorSessao: 'R$ 250,00',
     };
 
     onAddPatient(newPatient);

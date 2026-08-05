@@ -9,6 +9,7 @@ import {
   type MoodCheckIn, type PatientHandoff, type PreSessionCheckIn,
 } from '@thats-life/core';
 import { seedSessionAwaitingReview } from './sessionSeed';
+import { readSnapshot, writeSnapshot, type PersistedSnapshot } from './persistence';
 
 interface DemoApplicationState {
   identities: InMemoryIdentityRepository;
@@ -40,15 +41,21 @@ function createState(): DemoApplicationState {
   // continue sendo exigido nas permissões clínicas.
   const membership: OrganizationMembership = { id: 'membership-demo', organizationId: organization.id, userId: professional.userId, roles: ['professional', 'billing'], status: 'active', professionalProfileId: professional.id, createdAt, updatedAt: createdAt };
   const patients = [
-    createPatientProfile({ id: 'patient-1', userId: 'user-patient-demo', organizationId: organization.id, displayName: 'Mariana Costa', primaryProfessionalId: professional.id, assignedProfessionalIds: [professional.id], createdAt }),
-    createPatientProfile({ id: 'pac-01', userId: 'user-pac-01', organizationId: organization.id, displayName: 'Mariana Costa', primaryProfessionalId: professional.id, assignedProfessionalIds: [professional.id], createdAt }),
-    createPatientProfile({ id: 'patient-2', organizationId: organization.id, displayName: 'Lucas Ribeiro', primaryProfessionalId: professional.id, assignedProfessionalIds: [professional.id], createdAt }),
-    createPatientProfile({ id: 'patient-3', organizationId: organization.id, displayName: 'Ana Souza', primaryProfessionalId: professional.id, assignedProfessionalIds: [professional.id], createdAt }),
+    createPatientProfile({ id: 'patient-1', userId: 'user-patient-demo', organizationId: organization.id, displayName: 'Mariana Silva de Oliveira', primaryProfessionalId: professional.id, assignedProfessionalIds: [professional.id], createdAt }),
+    createPatientProfile({ id: 'pac-01', userId: 'user-pac-01', organizationId: organization.id, displayName: 'Mariana Silva de Oliveira', primaryProfessionalId: professional.id, assignedProfessionalIds: [professional.id], createdAt }),
+    createPatientProfile({ id: 'patient-2', organizationId: organization.id, displayName: 'Lucas Ramos Oliveira', primaryProfessionalId: professional.id, assignedProfessionalIds: [professional.id], createdAt }),
+    createPatientProfile({ id: 'patient-3', organizationId: organization.id, displayName: 'Beatriz Santos Guimarães', primaryProfessionalId: professional.id, assignedProfessionalIds: [professional.id], createdAt }),
+    createPatientProfile({ id: 'patient-4', organizationId: organization.id, displayName: 'Rodrigo Costa Ferreira', primaryProfessionalId: professional.id, assignedProfessionalIds: [professional.id], createdAt }),
+    createPatientProfile({ id: 'patient-5', organizationId: organization.id, displayName: 'Camila Alencar de Souza', primaryProfessionalId: professional.id, assignedProfessionalIds: [professional.id], createdAt }),
+    createPatientProfile({ id: 'patient-6', organizationId: organization.id, displayName: 'Gabriel Mendes Prado', primaryProfessionalId: professional.id, assignedProfessionalIds: [professional.id], createdAt }),
   ];
   const rows = [
     ['appointment-1', 'patient-1', '2026-08-03T12:00:00.000Z', '2026-08-03T12:50:00.000Z'],
     ['appointment-pac-01', 'pac-01', '2026-08-03T14:00:00.000Z', '2026-08-03T14:50:00.000Z'],
     ['appointment-2', 'patient-2', '2026-08-03T15:00:00.000Z', '2026-08-03T15:50:00.000Z'],
+    ['appointment-3', 'patient-3', '2026-08-04T10:00:00.000Z', '2026-08-04T10:50:00.000Z'],
+    ['appointment-5', 'patient-5', '2026-08-04T11:00:00.000Z', '2026-08-04T11:50:00.000Z'],
+    ['appointment-6', 'patient-6', '2026-08-04T15:00:00.000Z', '2026-08-04T15:50:00.000Z'],
   ] as const;
   const appointments = rows.map(([id, patientId, startsAt, endsAt]) => scheduleAppointment({ id, organizationId: organization.id, patientId, professionalId: professional.id, startsAt, endsAt, timezone: organization.timezone, mode: 'video', reminders: [{ id: `${id}-reminder`, channel: 'whatsapp', minutesBefore: 60 }], createdAt }, { actorUserId: professional.userId, occurredAt: createdAt, correlationId: `seed-${id}` }).appointment);
   
@@ -121,6 +128,8 @@ function createState(): DemoApplicationState {
   const moodLogs: MoodCheckIn[] = [
     { id: 'mood-1', organizationId: organization.id, patientId: 'patient-1', recordedAt: '2026-07-30T20:00:00.000Z', level: 4, emotions: ['Tranquila', 'Focada'], note: 'Dia produtivo no trabalho.' },
     { id: 'mood-2', organizationId: organization.id, patientId: 'patient-1', recordedAt: '2026-07-31T09:00:00.000Z', level: 3, emotions: ['Ansiosa'], note: 'Apresentação importante à tarde.' },
+    { id: 'mood-3', organizationId: organization.id, patientId: 'patient-2', recordedAt: '2026-08-01T18:00:00.000Z', level: 4, emotions: ['Reflexivo', 'Determinado'], note: 'Avanços na proposta de transição.' },
+    { id: 'mood-4', organizationId: organization.id, patientId: 'patient-3', recordedAt: '2026-08-02T10:00:00.000Z', level: 3, emotions: ['Desatenta', 'Empolgada'], note: 'Nova rotina de estudos iniciada.' },
     { id: 'mood-pac-1', organizationId: organization.id, patientId: 'pac-01', recordedAt: '2026-07-30T20:00:00.000Z', level: 4, emotions: ['Tranquila', 'Focada'], note: 'Dia produtivo no trabalho.' },
   ];
 
@@ -249,4 +258,87 @@ function createState(): DemoApplicationState {
   };
 }
 
-export function getApplicationStore() { globalStore.__thatsLifeApplication ??= createState(); return globalStore.__thatsLifeApplication; }
+const DEMO_ORGANIZATION_ID = 'org-demo';
+const DEMO_PATIENT_IDS = ['patient-1', 'pac-01', 'patient-2', 'patient-3'] as const;
+
+/**
+ * Reconstrói o estado a partir de um snapshot gravado em disco.
+ *
+ * A identidade (organização, membros, profissionais, pacientes) não é
+ * persistida: ela é a definição da demonstração, não dado produzido por ela.
+ * Vem sempre do seed, de modo que ajustes em papéis e permissões passem a valer
+ * sem exigir que se apague o estado acumulado.
+ */
+function stateFromSnapshot(snapshot: PersistedSnapshot): DemoApplicationState {
+  const seed = createState();
+  return {
+    ...seed,
+    appointments: new InMemoryAppointmentRepository(snapshot.appointments),
+    sessions: new InMemoryClinicalSessionRepository(snapshot.sessions),
+    records: new InMemoryClinicalRecordRepository(snapshot.records),
+    timeline: new InMemoryClinicalTimelineRepository(snapshot.timeline),
+    checkIns: new InMemoryPreSessionCheckInRepository(snapshot.checkIns),
+    notifications: new InMemoryNotificationRepository(snapshot.notifications),
+    financial: new InMemoryFinancialRepository(snapshot.ledger),
+    preferences: [...snapshot.preferences],
+    consents: [...snapshot.consents],
+    carePlans: [...snapshot.carePlans],
+    moodLogs: [...snapshot.moodLogs],
+    deliveredHandoffs: [...snapshot.deliveredHandoffs],
+    assessments: [...snapshot.assessments],
+  };
+}
+
+/** Lê o estado corrente pelas APIs públicas dos repositórios. */
+export async function captureSnapshot(): Promise<PersistedSnapshot> {
+  const state = getApplicationStore();
+  const organizationId = DEMO_ORGANIZATION_ID;
+
+  const timelinePerPatient = await Promise.all(
+    DEMO_PATIENT_IDS.map((patientId) => state.timeline.list({ organizationId, patientId }))
+  );
+
+  const [appointments, sessions, records, checkIns, notifications, ledger] = await Promise.all([
+    state.appointments.list({ organizationId }),
+    state.sessions.list({ organizationId }),
+    state.records.list({ organizationId }),
+    state.checkIns.list({ organizationId }),
+    state.notifications.list({ organizationId }),
+    state.financial.getLedger({ organizationId }),
+  ]);
+
+  return {
+    version: 1,
+    savedAt: new Date().toISOString(),
+    appointments,
+    sessions,
+    records,
+    timeline: timelinePerPatient.flat(),
+    checkIns,
+    notifications,
+    ledger,
+    carePlans: state.carePlans,
+    moodLogs: state.moodLogs,
+    deliveredHandoffs: state.deliveredHandoffs,
+    assessments: state.assessments,
+    preferences: state.preferences,
+    consents: state.consents,
+  };
+}
+
+/**
+ * Grava o estado corrente. Chamado depois das mutações; falhas de escrita são
+ * registradas mas nunca derrubam a requisição — o estado em memória segue
+ * válido e a próxima gravação tenta de novo.
+ */
+export async function persistApplicationState(): Promise<void> {
+  await writeSnapshot(await captureSnapshot());
+}
+
+export function getApplicationStore(): DemoApplicationState {
+  if (!globalStore.__thatsLifeApplication) {
+    const snapshot = readSnapshot();
+    globalStore.__thatsLifeApplication = snapshot ? stateFromSnapshot(snapshot) : createState();
+  }
+  return globalStore.__thatsLifeApplication;
+}

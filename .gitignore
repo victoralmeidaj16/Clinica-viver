@@ -36,3 +36,6 @@ clinical-data/
 uploads/
 recordings/
 transcriptions/
+
+# Estado local de demonstração (contém dados de sessões da demo)
+.demo-state/

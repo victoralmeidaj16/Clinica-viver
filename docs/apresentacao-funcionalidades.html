@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#43265E">
+  <title>Thats Life Psi — Plataforma de Inteligência Clínica</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Inter+Tight:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --dark: #43265e;
+      --deep: #5c397d;
+      --vibrant: #9e6bcf;
+      --soft: #ede6f4;
+      --canvas: #f9f5fc;
+      --ink: #1e1528;
+      --muted: #756785;
+      --line: #e6dcea;
+      --white: #fff;
+      --green: #18724d;
+      --amber: #9a5d00;
+      --rose: #9d3659;
+      --shadow: 0 22px 56px rgba(67, 38, 94, .12);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 9% 3%, rgba(158, 107, 207, .23), transparent 21rem),
+        radial-gradient(circle at 100% 15%, rgba(92, 57, 125, .13), transparent 25rem),
+        var(--canvas);
+      font-family: "Inter Tight", "Inter", system-ui, -apple-system, sans-serif;
+      line-height: 1.5;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 14px clamp(20px, 5vw, 72px);
+      color: white;
+      background: rgba(67, 38, 94, .94);
+      backdrop-filter: blur(18px);
+      box-shadow: 0 2px 18px rgba(30, 21, 40, .14);
+    }
+
+    .brand { display: flex; align-items: center; gap: 11px; white-space: nowrap; }
+    .brand-mark {
+      display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px;
+      color: var(--dark); background: #cdaff0; font-family: "Inter Tight", "Inter", sans-serif; font-weight: 800;
+    }
+    .brand strong { font-size: 13px; letter-spacing: -.02em; }
+    .brand span { color: #d9c8e9; font-size: 11px; }
+    .nav { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+    .nav::-webkit-scrollbar { display: none; }
+    .nav a {
+      padding: 6px 9px; border-radius: 999px; color: #e5d9ef; text-decoration: none;
+      font-size: 10px; font-weight: 700; white-space: nowrap;
+    }
+    .nav a:hover { color: white; background: rgba(255,255,255,.12); }
+
+    main { width: min(1240px, calc(100% - 40px)); margin: 0 auto; padding: 38px 0 90px; }
+    section { scroll-margin-top: 75px; }
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 8px; margin: 0 0 13px;
+      color: var(--deep); font-size: 10px; font-weight: 800; letter-spacing: .15em; text-transform: uppercase;
+    }
+    .eyebrow::before { width: 22px; height: 2px; background: var(--vibrant); content: ""; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1, h2 { font-family: "Inter Tight", "Inter", sans-serif; letter-spacing: -.055em; line-height: .98; }
+    h1 { max-width: 760px; margin-bottom: 22px; font-size: clamp(48px, 8.2vw, 108px); font-weight: 600; }
+    h2 { margin-bottom: 13px; font-size: clamp(32px, 4.4vw, 58px); font-weight: 600; }
+    h3 { margin-bottom: 6px; font-size: 15px; letter-spacing: -.02em; }
+    .lead { max-width: 690px; color: #4a3b58; font-size: clamp(16px, 2vw, 21px); line-height: 1.55; }
+    .muted { color: var(--muted); }
+    .rule { height: 1px; margin: 54px 0; background: var(--line); }
+
+    .hero {
+      position: relative; overflow: hidden; min-height: 610px; padding: clamp(34px, 6vw, 78px);
+      border: 1px solid rgba(255,255,255,.9); border-radius: 30px; background: rgba(255,255,255,.69);
+      box-shadow: var(--shadow);
+    }
+    .hero::after {
+      position: absolute; right: -90px; bottom: -105px; width: 430px; height: 430px; border: 55px solid rgba(158,107,207,.14);
+      border-radius: 50%; content: "";
+    }
+    .hero-grid { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(280px, .85fr); gap: 42px; align-items: end; }
+    .hero-note { max-width: 330px; padding: 23px; border-radius: 20px; color: white; background: var(--dark); box-shadow: 0 18px 38px rgba(67,38,94,.26); }
+    .hero-note p { margin: 0; color: #dfcdec; font-size: 13px; }
+    .hero-note strong { display: block; margin-bottom: 7px; font-family: "Inter Tight", "Inter", sans-serif; font-size: 29px; line-height: 1.05; }
+    .stamp { display: inline-flex; padding: 7px 10px; border: 1px solid #d7c5e5; border-radius: 999px; color: var(--deep); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .hero-footer { position: relative; z-index: 1; display: flex; align-items: center; gap: 10px; margin-top: 80px; color: var(--muted); font-size: 11px; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: #47a878; box-shadow: 0 0 0 4px rgba(71,168,120,.15); }
+
+    .section-head { max-width: 720px; margin-bottom: 27px; }
+    .section-head p { margin-bottom: 0; color: var(--muted); font-size: 15px; }
+    .grid { display: grid; gap: 16px; }
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .card {
+      padding: 24px; border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,.9);
+      box-shadow: 0 7px 22px rgba(67,38,94,.04);
+    }
+    .card.dark { color: white; border-color: transparent; background: var(--dark); box-shadow: 0 14px 36px rgba(67,38,94,.22); }
+    .card.dark p, .card.dark li { color: #e5d8ee; }
+    .number { color: var(--vibrant); font-family: "Inter Tight", "Inter", sans-serif; font-size: 11px; font-weight: 800; }
+    .icon {
+      display: grid; place-items: center; width: 38px; height: 38px; margin-bottom: 17px; border-radius: 12px;
+      color: var(--deep); background: var(--soft); font-family: "Inter Tight", "Inter", sans-serif; font-size: 16px; font-weight: 800;
+    }
+    .dark .icon { color: white; background: rgba(255,255,255,.13); }
+    ul.clean { margin: 11px 0 0; padding: 0; list-style: none; }
+    ul.clean li { position: relative; padding-left: 15px; color: #5a4c66; font-size: 13px; }
+    ul.clean li + li { margin-top: 8px; }
+    ul.clean li::before { position: absolute; left: 0; top: .55em; width: 5px; height: 5px; border-radius: 50%; background: var(--vibrant); content: ""; }
+    .dark ul.clean li::before { background: #d4b1f2; }
+
+    .flow { display: grid; grid-template-columns: repeat(6, 1fr); gap: 9px; }
+    .flow-step { position: relative; min-height: 130px; padding: 17px 13px; border-radius: 15px; background: white; border: 1px solid var(--line); }
+    .flow-step:not(:last-child)::after { position: absolute; z-index: 2; right: -10px; top: 50%; color: var(--vibrant); font-size: 18px; content: "→"; transform: translateY(-50%); }
+    .flow-step b { display: block; margin-bottom: 6px; font-size: 12px; line-height: 1.15; }
+    .flow-step span { color: var(--muted); font-size: 10px; line-height: 1.35; }
+    .approval-stage {
+      display: grid; grid-template-columns: minmax(0, 1fr) 94px minmax(0, 1fr); align-items: stretch;
+      overflow: hidden; border-radius: 22px; background: var(--dark); box-shadow: var(--shadow);
+    }
+    .approval-step { min-height: 248px; padding: 31px; color: white; }
+    .approval-step + .approval-step { background: #5b377c; }
+    .approval-step .step-index { color: #d8b6ef; font-size: 10px; font-weight: 800; letter-spacing: .13em; }
+    .approval-step h3 { margin: 24px 0 10px; font-family: "Inter Tight", "Inter", sans-serif; font-size: 29px; letter-spacing: -.045em; }
+    .approval-step p { margin-bottom: 0; color: #dfd0e9; font-size: 13px; }
+    .approval-gate {
+      position: relative; z-index: 1; display: grid; place-items: center; color: var(--deep); background: #e7d8f0;
+    }
+    .approval-gate::before { position: absolute; width: 1px; height: 100%; background: rgba(92,57,125,.22); content: ""; }
+    .approval-gate span {
+      position: relative; z-index: 1; display: grid; place-items: center; width: 58px; height: 58px; border: 1px solid #d1b5e1;
+      border-radius: 50%; color: white; background: var(--deep); box-shadow: 0 0 0 8px rgba(255,255,255,.45); font-size: 23px;
+    }
+    .approval-caption { margin: 14px 0 0; color: var(--muted); font-size: 12px; text-align: center; }
+    .continuity-stage {
+      position: relative; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; padding: 28px;
+      border: 1px solid #ddcce9; border-radius: 22px; background: linear-gradient(135deg, #f2eafa, #faf7fc);
+    }
+    .continuity-stage::before {
+      position: absolute; top: 58px; left: 11%; right: 11%; height: 2px; background: #cba9df; content: "";
+    }
+    .continuity-step { position: relative; z-index: 1; min-height: 192px; padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: white; }
+    .continuity-index {
+      display: grid; place-items: center; width: 29px; height: 29px; margin: 0 0 24px; border-radius: 50%;
+      color: white; background: var(--vibrant); box-shadow: 0 0 0 6px #f1e7f7; font-size: 10px; font-weight: 800;
+    }
+    .continuity-step h3 { margin-bottom: 7px; font-size: 14px; }
+    .continuity-step p { margin-bottom: 0; color: var(--muted); font-size: 11px; }
+    .callout { padding: 19px 22px; border-left: 4px solid var(--vibrant); border-radius: 0 14px 14px 0; background: #f1ebf6; color: #493858; font-size: 13px; }
+    .callout strong { color: var(--deep); }
+
+    .retention { display: grid; grid-template-columns: .82fr 1fr 1.6fr; overflow: hidden; border: 1px solid var(--line); border-radius: 18px; background: white; }
+    .retention > div { padding: 17px 18px; border-bottom: 1px solid var(--line); font-size: 12px; }
+    .retention > div:nth-last-child(-n+3) { border-bottom: none; }
+    .retention .head { color: white; background: var(--deep); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .retention .time { color: var(--deep); font-weight: 800; }
+
+    .panel { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); overflow: hidden; border-radius: 22px; background: var(--dark); box-shadow: var(--shadow); }
+    .panel-copy { padding: 38px; color: white; }
+    .panel-copy p { color: #d9cae6; }
+    .panel-side { padding: 27px; background: #f1ebf6; }
+    .action { display: flex; gap: 12px; padding: 13px 0; border-bottom: 1px solid #dfd3e8; }
+    .action:last-child { border-bottom: none; }
+    .action-n { flex: 0 0 auto; display: grid; place-items: center; width: 27px; height: 27px; border-radius: 50%; color: white; background: var(--deep); font: 800 10px "Inter Tight", "Inter", sans-serif; }
+    .action p { margin: 1px 0 0; color: var(--muted); font-size: 11px; }
+
+    .timeline { display: grid; grid-template-columns: 90px 1fr; border-top: 1px solid var(--line); }
+    .timeline > div { padding: 18px 0; border-bottom: 1px solid var(--line); }
+    .timeline-label { color: var(--deep); font: 800 10px "Inter Tight", "Inter", sans-serif; letter-spacing: .05em; }
+    .timeline p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+    .evidence { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 5px 8px; border-radius: 6px; color: var(--deep); background: var(--soft); font: 800 10px "Inter Tight", "Inter", sans-serif; }
+
+    .tag { display: inline-flex; margin: 4px 4px 0 0; padding: 5px 8px; border-radius: 7px; color: var(--deep); background: var(--soft); font-size: 10px; font-weight: 800; }
+    .stat { padding: 23px; border-radius: 17px; color: white; background: var(--deep); }
+    .stat b { display: block; margin-bottom: 4px; font-family: "Inter Tight", "Inter", sans-serif; font-size: 40px; letter-spacing: -.05em; }
+    .stat span { color: #dfd0ea; font-size: 11px; }
+    .notice { padding: 16px 17px; border: 1px solid #edd5df; border-radius: 13px; color: #7d2847; background: #fff6f8; font-size: 12px; }
+    .notice b { color: var(--rose); }
+
+    .roles { display: grid; grid-template-columns: 175px 1fr; overflow: hidden; border: 1px solid var(--line); border-radius: 18px; background: white; }
+    .roles div { padding: 13px 16px; border-bottom: 1px solid var(--line); font-size: 12px; }
+    .roles div:nth-last-child(-n+2) { border-bottom: none; }
+    .roles .role { color: var(--deep); font-weight: 800; background: #fbf9fc; }
+    .comparison { overflow-x: auto; border: 1px solid var(--line); border-radius: 18px; background: white; }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    th, td { min-width: 120px; padding: 14px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+    th { color: var(--muted); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
+    th:last-child, td:last-child { color: var(--deep); background: #faf7fc; font-weight: 800; }
+    tr:last-child td { border-bottom: 0; }
+
+    .status { display: grid; grid-template-columns: 1.05fr 2fr; overflow: hidden; border: 1px solid var(--line); border-radius: 18px; background: white; }
+    .status div { padding: 12px 15px; border-bottom: 1px solid var(--line); font-size: 12px; }
+    .status div:nth-last-child(-n+2) { border-bottom: none; }
+    .status .status-name { color: var(--deep); font-weight: 800; background: #fbf9fc; }
+    .status b.ok { color: var(--green); }
+    .status b.pending { color: var(--amber); }
+    .footer { display: flex; justify-content: space-between; gap: 18px; margin-top: 54px; padding: 22px 0 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; }
+    .footer strong { color: var(--deep); }
+
+    @media (max-width: 840px) {
+      .hero-grid, .panel, .grid.two, .grid.three { grid-template-columns: 1fr; }
+      .hero { min-height: unset; }
+      .hero-footer { margin-top: 42px; }
+      .flow { grid-template-columns: repeat(2, 1fr); }
+      .flow-step:not(:last-child)::after { display: none; }
+      .approval-stage { grid-template-columns: 1fr; }
+      .approval-gate { min-height: 76px; }
+      .approval-gate::before { width: 100%; height: 1px; }
+      .continuity-stage { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .continuity-stage::before { display: none; }
+      .roles { grid-template-columns: 125px 1fr; }
+    }
+    @media (max-width: 560px) {
+      main { width: min(100% - 24px, 1240px); padding-top: 20px; }
+      .topbar { padding: 11px 12px; }
+      .brand span { display: none; }
+      .hero { padding: 28px 23px; border-radius: 22px; }
+      .retention { grid-template-columns: 1fr; }
+      .retention .head { display: none; }
+      .retention > div { border-bottom: 0; padding: 8px 16px; }
+      .retention > div:nth-child(3n+1) { padding-top: 18px; color: var(--deep); font-weight: 800; }
+      .retention > div:nth-child(3n) { padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+      .flow { grid-template-columns: 1fr; }
+      .continuity-stage { grid-template-columns: 1fr; padding: 16px; }
+      .footer { flex-direction: column; }
+    }
+    @media print {
+      @page { size: A4 landscape; margin: 12mm; }
+      body { background: white; }
+      .topbar { display: none; }
+      main { width: 100%; padding: 0; }
+      section, .hero { break-inside: avoid; page-break-inside: avoid; }
+      .rule { margin: 22px 0; }
+      .hero { min-height: 0; box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><div class="brand-mark">ψ</div><strong>Thats Life</strong><span>Inteligência Clínica</span></div>
+    <nav class="nav" aria-label="Navegação da apresentação">
+      <a href="#visao">Visão</a><a href="#fluxo">Revisão</a><a href="#entrega">Entrega</a><a href="#clinico">Clínico</a>
+      <a href="#avaliacao">Acompanhamento</a><a href="#jornada">Jornada</a><a href="#gestao">Gestão</a>
+      <a href="#etica">Ética</a><a href="#status">Status</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero" id="visao">
+      <div class="hero-grid">
+        <div>
+          <p class="eyebrow">Plataforma de inteligência clínica</p>
+          <h1>O cuidado continua entre as sessões.</h1>
+          <p class="lead">Uma plataforma para psicólogos, clínicas de saúde mental e clínicas-escola que transforma o pós-sessão em um fluxo de um clique — sem abrir mão de privacidade, critério clínico ou vínculo humano.</p>
+        </div>
+        <aside class="hero-note">
+          <strong>10–20 min</strong>
+          <p>de burocracia pós-atendimento podem ser devolvidos ao trabalho clínico, enquanto o paciente continua acompanhado no intervalo entre consultas.</p>
+        </aside>
+      </div>
+      <div class="hero-footer"><span class="dot"></span> Protótipo demonstrativo · dados fictícios · IA clínica disponível mediante configuração</div>
+    </section>
+
+    <div class="rule"></div>
+    <section>
+      <div class="section-head">
+        <p class="eyebrow">A proposta</p>
+        <h2>Menos operação manual. Mais continuidade terapêutica.</h2>
+        <p>O Thats Life concentra o fluxo de atendimento em uma experiência clínica integrada: sessão, prontuário, acompanhamento do paciente, comunicação e gestão.</p>
+      </div>
+      <div class="grid three">
+        <article class="card"><div class="icon">01</div><h3>Para o psicólogo</h3><p class="muted">Automatiza as etapas repetitivas após a consulta, sempre com revisão humana antes de qualquer registro clínico.</p></article>
+        <article class="card dark"><div class="icon">02</div><h3>Para o paciente</h3><p>Oferece uma experiência mobile de humor, hábitos, tarefas, escalas, check-ins e preparação para a próxima sessão.</p></article>
+        <article class="card"><div class="icon">03</div><h3>Para clínicas e ensino</h3><p class="muted">Combina multi-tenancy, papéis separados, financeiro, integrações e supervisão com anonimização.</p></article>
+      </div>
+    </section>
+
+    <div class="rule"></div>
+    <section id="fluxo">
+      <div class="section-head">
+        <p class="eyebrow">1 clique · parte 1</p>
+        <h2>Da sessão à decisão clínica.</h2>
+        <p>O primeiro momento do fluxo é intencionalmente curto: a IA organiza o rascunho e o profissional decide o que pode se tornar um registro clínico.</p>
+      </div>
+      <div class="approval-stage">
+        <div class="approval-step">
+          <span class="step-index">01 · IA ASSISTIVA</span>
+          <h3>Rascunho SOAP</h3>
+          <p>A partir da transcrição, a IA estrutura o conteúdo em Subjetivo, Objetivo, Avaliação e Plano — além de sugerir tarefas que poderão ser compartilhadas.</p>
+        </div>
+        <div class="approval-gate" aria-label="Portão de aprovação humana"><span>✓</span></div>
+        <div class="approval-step">
+          <span class="step-index">02 · PROFISSIONAL RESPONSÁVEL</span>
+          <h3>Revisão e aprovação</h3>
+          <p>O psicólogo edita campo a campo, atesta a revisão e aprova o registro. Nenhum conteúdo de IA vira prontuário ou decisão clínica sozinho.</p>
+        </div>
+      </div>
+      <p class="approval-caption">A aprovação humana é o ponto sem volta clínico: ela registra autoria, data, atestado de revisão e assinatura do conteúdo aprovado.</p>
+      <div class="grid two" style="margin-top:16px">
+        <div class="card"><span class="number">META DE DESEMPENHO</span><h3 style="margin-top:8px">SOAP inicial em menos de 15 segundos</h3><p class="muted">Objetivo não funcional para o processamento do áudio e geração do rascunho inicial.</p></div>
+        <div class="card"><span class="number">PROVENIÊNCIA</span><h3 style="margin-top:8px">Cada versão permanece rastreável</h3><p class="muted">O prontuário aprovado preserva revisão, autoria e histórico — sem apagar versões anteriores.</p></div>
+      </div>
+    </section>
+
+    <div class="rule"></div>
+    <section id="entrega">
+      <div class="section-head">
+        <p class="eyebrow">1 clique · parte 2</p>
+        <h2>Da aprovação à continuidade do cuidado.</h2>
+        <p>Com o registro clínico seguro, as etapas operacionais seguem uma trilha independente: o paciente recebe somente o conteúdo preparado para ele, e cada efeito é rastreado.</p>
+      </div>
+      <div class="continuity-stage">
+        <article class="continuity-step"><div class="continuity-index">03</div><h3>Entrega segura</h3><p>Resumo em linguagem acessível e tarefas terapêuticas chegam ao app do paciente.</p></article>
+        <article class="continuity-step"><div class="continuity-index">04</div><h3>Cobrança e recibo</h3><p>Gera cobrança, Pix e recibo conforme as etapas financeiras habilitadas.</p></article>
+        <article class="continuity-step"><div class="continuity-index">05</div><h3>Notificação</h3><p>Dispara comunicação transacional somente pelo canal permitido.</p></article>
+        <article class="continuity-step"><div class="continuity-index">06</div><h3>Conclusão auditável</h3><p>Registra sucesso, falha e tentativa de cada etapa para retomada segura.</p></article>
+      </div>
+      <div class="callout" style="margin-top:16px"><strong>Proteção por construção.</strong> Antes de qualquer entrega, a plataforma bloqueia transcrição, SOAP, notas internas, hipóteses diagnósticas, risco clínico e identificadores de terceiros. Se uma etapa opcional falhar, o prontuário aprovado permanece intacto e a retomada não duplica cobranças ou mensagens.</div>
+      <div class="grid two" style="margin-top:16px">
+        <div class="card"><span class="number">CONTEÚDO SEPARADO</span><h3 style="margin-top:8px">Paciente recebe o que foi preparado para ele</h3><p class="muted">O resumo compartilhado possui contrato próprio e nunca reutiliza o conteúdo interno do prontuário.</p></div>
+        <div class="card"><span class="number">RECUPERAÇÃO SEGURA</span><h3 style="margin-top:8px">O que falhou pode ser retomado</h3><p class="muted">Entrega, cobrança, recibo e comunicação podem ser repetidos sem efeito duplicado.</p></div>
+      </div>
+    </section>
+
+    <div class="rule"></div>
+    <section id="clinico">
+      <div class="section-head">
+        <p class="eyebrow">Atendimento e inteligência clínica</p>
+        <h2>Sessão integrada, IA como apoio e memória verificável.</h2>
+      </div>
+      <div class="grid two">
+        <article class="card dark">
+          <div class="icon">◌</div><h3>Sala de atendimento online</h3>
+          <ul class="clean"><li>Vídeo integrado, sem depender de link externo.</li><li>Controles de microfone, câmera e compartilhamento.</li><li>Cards de participantes reposicionáveis.</li><li>Aviso permanente de criptografia e conformidade CFP.</li><li>Consentimento antes de qualquer captura de áudio.</li></ul>
+        </article>
+        <article class="card">
+          <div class="icon">⌁</div><h3>Transcrição discreta e diarizada</h3>
+          <ul class="clean"><li>Transcrição em segundo plano, sem interromper o contato terapêutico.</li><li>Calibração identifica falas de profissional e paciente.</li><li>Consentimento ativo, versionado e revogável.</li><li>Importação de mídia para quem grava fora da plataforma.</li></ul>
+        </article>
+      </div>
+      <div class="grid two" style="margin-top:16px">
+        <article class="card"><div class="icon">AI</div><h3>Copiloto clínico durante a sessão</h3><p class="muted">Painel lateral sob demanda para resumo parcial, indicadores de alerta e estresse, hipóteses de formulação e sugestões de pergunta ou técnica. Ele sugere; nunca decide ou registra sozinho.</p></article>
+        <article class="card"><div class="icon">SOAP</div><h3>Prontuário estruturado e versionado</h3><p class="muted">Editor campo a campo, revisões imutáveis, aprovação com profissional, data, atestado e assinatura digital do conteúdo. Leituras são auditadas e o acesso clínico é limitado aos profissionais atribuídos.</p></article>
+      </div>
+      <div style="margin-top:16px">
+        <p class="eyebrow">Retenção proporcional ao risco</p>
+        <div class="retention" aria-label="Política de retenção">
+          <div class="head">Artefato</div><div class="head">Permanência</div><div class="head">Finalidade</div>
+          <div>Áudio da sessão</div><div class="time">Até 72 horas</div><div>Reprocessamento caso a transcrição falhe. Descartado em seguida.</div>
+          <div>Transcrição</div><div class="time">90 dias</div><div>Janela para retificação do prontuário com a fonte disponível.</div>
+          <div>Prontuário aprovado</div><div class="time">Mínimo de 5 anos</div><div>Registro clínico regulatório, com possibilidade de retenção legal estendida.</div>
+        </div>
+      </div>
+      <div class="panel" style="margin-top:16px">
+        <div class="panel-copy"><p class="eyebrow" style="color:#d9baf2">Linha do tempo clínica</p><h3 style="font:700 35px/1 'Inter Tight','Inter',sans-serif">Uma visão longitudinal sem inventar respostas.</h3><p>Prontuários aprovados, escalas, humor, hábitos, tarefas, metas, check-ins, sessões, agenda e alertas aparecem em ordem cronológica. Rascunhos nunca entram nessa memória.</p></div>
+        <div class="panel-side">
+          <div class="timeline">
+            <div class="timeline-label">BUSCA</div><div><b>Memória baseada em evidência</b><p>Resultados trazem trecho de origem e referência verificável à fonte.</p><span class="evidence">evidence_only · fonte rastreável</span></div>
+            <div class="timeline-label">LACUNAS</div><div><b>Sem resposta fabricada</b><p>Quando não há evidência suficiente, o sistema declara que não encontrou.</p></div>
+            <div class="timeline-label">ACESSO</div><div><b>Consulta auditada</b><p>Profissional precisa estar atribuído ao paciente; o texto pesquisado não entra na auditoria.</p></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="rule"></div>
+    <section id="avaliacao">
+      <div class="section-head">
+        <p class="eyebrow">Avaliação e acompanhamento</p>
+        <h2>Dados úteis para acompanhar — não para automatizar conduta.</h2>
+      </div>
+      <div class="grid two">
+        <article class="card">
+          <div class="icon">44</div><h3>Biblioteca de avaliação psicológica</h3>
+          <p class="muted">44 instrumentos catalogados em 17 domínios, incluindo ansiedade, depressão, estresse, sono, TDAH, autismo, TOC, trauma, humor, burnout, personalidade, cognição, alimentação, substâncias, qualidade de vida, funcionamento geral e risco de suicídio.</p>
+          <div style="margin-top:13px"><span class="tag">BAI</span><span class="tag">GAD-7</span><span class="tag">BDI-II</span><span class="tag">PHQ-9</span><span class="tag">DASS-21</span><span class="tag">PSQI</span><span class="tag">ISI</span><span class="tag">ASRS</span><span class="tag">Y-BOCS</span><span class="tag">MBI</span><span class="tag">WHOQOL-BREF</span></div>
+        </article>
+        <article class="card dark">
+          <div class="icon">↗</div><h3>Da escala ao acompanhamento</h3>
+          <ul class="clean"><li>Instrumentos recomendados para TCC e distinção entre autorrelato, aplicação profissional e entrevista diagnóstica.</li><li>Escalas enviadas ao paciente pelo app.</li><li>Gráficos longitudinais de evolução dos escores.</li><li>Interpretação clínica assistida por IA.</li><li>Indicadores críticos viram alerta para revisão humana, nunca diagnóstico ou mensagem automática.</li></ul>
+        </article>
+      </div>
+      <div class="grid three" style="margin-top:16px">
+        <article class="card"><div class="icon">◎</div><h3>Plano terapêutico</h3><p class="muted">Metas por paciente, tarefas entre sessões e hábitos configuráveis pelo profissional.</p></article>
+        <article class="card"><div class="icon">↳</div><h3>Check-in pré-sessão</h3><p class="muted">Estado estruturado, escala validada e temas que o paciente deseja abordar, preservados como escritos.</p></article>
+        <article class="card"><div class="icon">!</div><h3>Revisão humana</h3><p class="muted">Humor muito baixo ou indicador de risco abre alerta operacional, sem criar conduta automatizada.</p></article>
+      </div>
+      <div class="callout" style="margin-top:16px"><strong>Briefing, não prontuário.</strong> O check-in prepara o profissional antes da consulta e nunca entra automaticamente no SOAP. O campo de assuntos é opcional, limitado a mil caracteres e não sofre reescrita automática.</div>
+    </section>
+
+    <div class="rule"></div>
+    <section id="jornada">
+      <div class="section-head">
+        <p class="eyebrow">A jornada entre consultas</p>
+        <h2>Agenda, app e comunicação em continuidade.</h2>
+      </div>
+      <div class="grid two">
+        <article class="card dark">
+          <div class="icon">⌚</div><h3>Agenda conectada à sessão</h3>
+          <ul class="clean"><li>Agendamento por paciente e profissional, com validação de conflito.</li><li>Atendimento presencial, por vídeo ou telefone.</li><li>Confirmação, reagendamento e cancelamento.</li><li>Disponibilidade semanal, bloqueios e recorrência.</li><li>Ciclo: agendado → confirmado → realizado, cancelado ou falta.</li><li>Lembretes em 24h e 2h por WhatsApp, e-mail e/ou app.</li><li>Google Calendar individual por psicólogo, sem compartilhamento de credenciais.</li></ul>
+        </article>
+        <article class="card">
+          <div class="icon">⌁</div><h3>App mobile do paciente</h3>
+          <ul class="clean"><li>Diário de humor com tendências semanais e mensais.</li><li>Tarefas terapêuticas, hábitos e metas configurados pelo terapeuta.</li><li>Resumo acessível da última sessão e card da próxima consulta.</li><li>Entrada direta na sala de vídeo.</li><li>Check-ins pré-sessão e resposta a escalas.</li><li>Evolução dos próprios resultados, linha do tempo pessoal e notificações push.</li></ul>
+        </article>
+      </div>
+      <div class="grid two" style="margin-top:16px">
+        <article class="card"><div class="icon">PIX</div><h3>Financeiro clínico</h3><p class="muted">Cobranças por sessão com descontos, pagamentos, estornos, taxas e repasses. Conciliação lida com pagamento parcial, excesso, vencimento, cancelamento e saldo. Relatórios de faturamento, caixa, recebíveis, inadimplência e repasses podem ser filtrados e exportados em CSV ou PDF A4. Pix, Asaas, NFSe, Receita Saúde e recibos em PDF completam o fluxo brasileiro.</p></article>
+        <article class="card"><div class="icon">↗</div><h3>Comunicação e notificações</h3><p class="muted">WhatsApp, push e e-mail para confirmação e alteração de agenda, lembretes, tarefas, cobrança, confirmação de pagamento e recibo. A fila controla agendamento, estados de entrega, tentativas e cancelamento; preferências por canal, categoria e horário de silêncio respeitam o fuso do paciente.</p></article>
+      </div>
+      <div class="notice" style="margin-top:16px"><b>Conteúdo clínico não viaja pela mensageria.</b> Templates impedem SOAP, diagnóstico, risco e notas clínicas. A auditoria registra categoria, canal e resultado — nunca texto da mensagem ou contato do paciente.</div>
+    </section>
+
+    <div class="rule"></div>
+    <section id="gestao">
+      <div class="section-head">
+        <p class="eyebrow">Operação de clínica</p>
+        <h2>Permissões que não confundem gestão com acesso clínico.</h2>
+        <p>Organizações são isoladas entre si. Um mesmo usuário pode acumular papéis, mas permissões administrativas não viram acesso automático a prontuários.</p>
+      </div>
+      <div class="roles">
+        <div class="role">Proprietário / Admin</div><div>Administração da organização, financeiro e membros — sem acesso automático ao prontuário.</div>
+        <div class="role">Diretor clínico</div><div>Operação clínica e supervisão, sem gestão de membros.</div>
+        <div class="role">Profissional</div><div>Prontuário, sessões e avaliações dos pacientes atribuídos a ele.</div>
+        <div class="role">Assistente</div><div>Cadastro, agenda e leitura financeira, sem prontuário.</div>
+        <div class="role">Financeiro</div><div>Cobrança, relatórios e dados mínimos de pacientes.</div>
+        <div class="role">Auditor</div><div>Leitura de auditoria, relatórios e finanças.</div>
+      </div>
+      <div class="grid two" style="margin-top:16px">
+        <article class="card"><div class="icon">+</div><h3>Gestão de pacientes e responsáveis</h3><p class="muted">Cadastro de pacientes e responsáveis legais. Responsáveis não recebem acesso clínico por padrão: cada permissão é concedida explicitamente.</p></article>
+        <article class="card"><div class="icon">⚙</div><h3>Integrações por profissional</h3><p class="muted">Painéis de conexão para WhatsApp via Evolution API e pagamentos via Asaas, com indicadores de status. A conexão individual ao Google Calendar mantém credenciais separadas da clínica e dos colegas.</p></article>
+      </div>
+      <div class="panel" style="margin-top:16px">
+        <div class="panel-copy"><p class="eyebrow" style="color:#d9baf2">Clínicas-escola e institutos</p><h3 style="font:700 35px/1 'Inter Tight','Inter',sans-serif">Supervisão com privacidade pedagógica.</h3><p>Antes da revisão, o relato clínico passa por anonimização que remove identificadores pessoais. Um painel dedicado permite que professores e supervisores acompanhem os casos de seus alunos.</p></div>
+        <div class="panel-side"><span class="number">PRINCÍPIO</span><h3 style="margin-top:9px">Analisar sem expor quem é a pessoa.</h3><p class="muted">A anonimização é uma camada de proteção para a supervisão, complementar às regras de acesso, auditoria e isolamento entre organizações.</p></div>
+      </div>
+    </section>
+
+    <div class="rule"></div>
+    <section id="etica">
+      <div class="section-head">
+        <p class="eyebrow">Privacidade, ética e conformidade</p>
+        <h2>A IA amplia a capacidade do profissional. Não substitui o seu julgamento.</h2>
+      </div>
+      <div class="grid three">
+        <article class="card"><div class="icon">CFP</div><h3>Registro clínico protegido</h3><p class="muted">Prontuários são protegidos por retenção mínima de cinco anos, versionamento, auditoria e controle de acesso por papel e atribuição.</p></article>
+        <article class="card dark"><div class="icon">LGPD</div><h3>Dados minimizados</h3><p>Dados de saúde exigem criptografia em repouso e em trânsito. Logs não carregam nome, e-mail, telefone, CPF, transcrição ou nota clínica.</p></article>
+        <article class="card"><div class="icon">AI</div><h3>Pseudonimização antes da IA</h3><p class="muted">O provedor recebe uma referência opaca e estável do paciente, nunca nome, contato, documento ou data de nascimento.</p></article>
+      </div>
+      <div class="grid two" style="margin-top:16px">
+        <article class="card"><span class="number">CONSENTIMENTO GRANULAR</span><h3 style="margin-top:8px">Gravação, IA e conteúdo ao paciente são decisões separadas.</h3><p class="muted">Cada consentimento é versionado e pode ser revogado, em vez de concentrar permissões de natureza diferente em uma única autorização.</p></article>
+        <article class="card"><span class="number">LIMITE CLÍNICO</span><h3 style="margin-top:8px">Nenhuma decisão clínica é automatizada.</h3><p class="muted">A IA produz rascunhos e sugestões. Aprovação de prontuário, conduta diante de risco e qualquer intervenção exigem ação humana explícita.</p></article>
+      </div>
+    </section>
+
+    <div class="rule"></div>
+    <section>
+      <div class="section-head">
+        <p class="eyebrow">Escolhas deliberadas</p>
+        <h2>O que a plataforma escolhe não fazer.</h2>
+      </div>
+      <div class="grid three">
+        <article class="card"><div class="icon">×</div><h3>Fila de espera</h3><p class="muted">Não mantém lista de espera nem oferece automaticamente horários cancelados. O foco é o cuidado, não maximizar ocupação.</p></article>
+        <article class="card"><div class="icon">×</div><h3>Diagnóstico automático</h3><p class="muted">Nenhum indicador de risco se torna diagnóstico, conduta ou mensagem sem um profissional no meio.</p></article>
+        <article class="card"><div class="icon">×</div><h3>Memória inventada</h3><p class="muted">Perguntas sobre o histórico só podem ser respondidas com evidência recuperada. Sem fonte, a resposta é “não encontrado”.</p></article>
+      </div>
+    </section>
+
+    <div class="rule"></div>
+    <section>
+      <div class="section-head">
+        <p class="eyebrow">Posicionamento</p>
+        <h2>Um cockpit clínico, não mais um ERP de consultório.</h2>
+      </div>
+      <div class="comparison">
+        <table>
+          <thead><tr><th></th><th>PsicoManager</th><th>PersonCare</th><th>SimplePractice</th><th>Thats Life</th></tr></thead>
+          <tbody>
+            <tr><td>Foco</td><td>ERP de gestão clássico</td><td>Gestão + app simples</td><td>Prontuário eletrônico EUA</td><td>Inteligência clínica e automação em 1 clique</td></tr>
+            <tr><td>Prontuário por IA</td><td>Rascunho manual</td><td>Transcrição simples</td><td>Transcrição de nota</td><td>SOAP automatizado com aprovação humana</td></tr>
+            <tr><td>App do paciente</td><td>Genérico / web</td><td>Humor e hábitos</td><td>Portal básico</td><td>App nativo: humor, hábitos, tarefas e escalas</td></tr>
+            <tr><td>WhatsApp</td><td>Proprietário</td><td>Ilimitado</td><td>Não suporta</td><td>Nativo, com proteção de conteúdo clínico</td></tr>
+            <tr><td>Supervisão</td><td>Genérico</td><td>Não focado</td><td>Grupos simples</td><td>Anonimização por IA + painel do supervisor</td></tr>
+            <tr><td>Fiscal brasileiro</td><td>NFSe, Receita Saúde</td><td>NFSe, Receita Saúde</td><td>Não atende o Brasil</td><td>Pix, Asaas, NFSe e Receita Saúde</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="rule"></div>
+    <section id="status">
+      <div class="section-head">
+        <p class="eyebrow">Maturidade atual</p>
+        <h2>Uma demonstração funcional, com limites explícitos.</h2>
+        <p>O protótipo opera com dados fictícios e não deve receber informações clínicas reais neste estágio.</p>
+      </div>
+      <div class="status">
+        <div class="status-name">Regras de domínio</div><div><b class="ok">Implementadas e testadas (85 testes).</b> Regras clínicas, financeiras, agenda, identidade e prontuário.</div>
+        <div class="status-name">Automação pós-sessão</div><div><b class="ok">Funcional.</b> Executa a cadeia de ponta a ponta sobre dados de demonstração.</div>
+        <div class="status-name">Interfaces web e mobile</div><div><b class="ok">Navegáveis.</b> Experiências demonstrativas para psicólogo e paciente.</div>
+        <div class="status-name">SOAP e copiloto por IA</div><div><b class="ok">Reais.</b> Claude gera rascunho e responde sobre a transcrição acumulada quando <code>AI_PROVIDER_API_KEY</code> está configurada.</div>
+        <div class="status-name">Diarização</div><div><b class="ok">Real.</b> Identifica profissional e paciente a partir da calibração.</div>
+        <div class="status-name">Áudio da consulta</div><div><b class="pending">Ainda não capturado.</b> As falas vêm de transcrições de demonstração.</div>
+        <div class="status-name">Painel operacional</div><div><b class="ok">API funcional.</b> Ainda sem página dedicada na interface.</div>
+        <div class="status-name">WhatsApp / Evolution API</div><div><b class="pending">Adaptador demonstrativo.</b> Registra na caixa de saída, sem enviar mensagem real.</div>
+        <div class="status-name">Push e e-mail</div><div><b class="pending">Contratos e modelos definidos.</b> Adaptadores reais pendentes.</div>
+        <div class="status-name">Asaas / Pix</div><div><b class="pending">Adaptador demonstrativo.</b> Gera cobrança e código Pix sem movimentar dinheiro.</div>
+        <div class="status-name">Persistência e autenticação</div><div><b class="pending">Demonstração.</b> Arquivo local e cabeçalhos de contexto; não são banco de dados ou autenticação de produção.</div>
+        <div class="status-name">Expurgo, Calendar e supervisão</div><div><b class="pending">Pendentes.</b> Política de retenção definida; Google Calendar e supervisão possuem contratos/especificação.</div>
+        <div class="status-name">Prontuário em PDF</div><div><b class="pending">Controle visual existente.</b> Geração e download ainda não implementados.</div>
+      </div>
+      <div class="callout" style="margin-top:16px"><strong>Por que pagamentos e WhatsApp continuam simulados?</strong> Criar uma cobrança ou enviar uma mensagem é irreversível. Na demonstração, os adaptadores usam os mesmos contratos e comportamento idempotente dos reais, sem produzir efeitos no mundo de ninguém.</div>
+      <div class="footer"><span><strong>Thats Life (TL - Psi)</strong> · Plataforma de inteligência clínica e acompanhamento terapêutico.</span><span>Baseado em <strong>FUNCIONALIDADES.md</strong> · versão de apresentação HTML</span></div>
+    </section>
+  </main>
+  <script>
+    document.addEventListener("keydown", function (event) {
+      var links = Array.prototype.slice.call(document.querySelectorAll(".nav a"));
+      var current = links.findIndex(function (link) {
+        var section = document.querySelector(link.getAttribute("href"));
+        var rect = section.getBoundingClientRect();
+        return rect.top >= -90 && rect.top < window.innerHeight / 2;
+      });
+      if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+        event.preventDefault();
+        (links[Math.min(current + 1, links.length - 1)] || links[0]).click();
+      }
+      if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+        event.preventDefault();
+        (links[Math.max(current - 1, 0)] || links[0]).click();
+      }
+    });
+  </script>
+</body>
+</html>

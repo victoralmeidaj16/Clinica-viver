@@ -2,44 +2,59 @@
 
 import React, { useState } from 'react';
 import { Bot, Sparkles, FileText, AlertTriangle, Lightbulb, CheckCircle2, Loader2, X } from 'lucide-react';
+import { applicationRequest } from '@/lib/applicationApi';
 
 interface AiCopilotSidebarProps {
   isOpen: boolean;
   onClose: () => void;
+  sessionId: string;
   sessionDurationSeconds: number;
 }
 
-export function AiCopilotSidebar({ isOpen, onClose, sessionDurationSeconds }: AiCopilotSidebarProps) {
+interface CopilotSuggestion {
+  action: string;
+  text: string;
+  transcriptCoverageSeconds: number;
+}
+
+export function AiCopilotSidebar({
+  isOpen,
+  onClose,
+  sessionId,
+  sessionDurationSeconds,
+}: AiCopilotSidebarProps) {
   const [activePrompt, setActivePrompt] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiOutput, setAiOutput] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const handleTriggerAction = (actionType: string, label: string) => {
+  // A sugestão é gerada no servidor sobre a transcrição acumulada até este
+  // instante da sessão — o copiloto não enxerga o que ainda não foi dito.
+  const handleTriggerAction = async (actionType: string, label: string) => {
     setActivePrompt(label);
     setIsGenerating(true);
     setAiOutput(null);
+    setError(null);
 
-    // Simulação de geração de resposta da IA em tempo real com base no áudio capturado
-    setTimeout(() => {
+    try {
+      const suggestion = await applicationRequest<CopilotSuggestion>(
+        `/sessions/${sessionId}/copilot`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            action: actionType,
+            elapsedSeconds: sessionDurationSeconds,
+          }),
+        }
+      );
+      setAiOutput(suggestion.text);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível consultar o copiloto.');
+    } finally {
       setIsGenerating(false);
-      if (actionType === 'summary') {
-        setAiOutput(
-          '**Resumo dos primeiros minutos:** Paciente relata aumento da ansiedade noturna após mudança de cargo no trabalho. Menciona dificuldades para conciliar o sono e pensamentos de insuficiência.'
-        );
-      } else if (actionType === 'risk') {
-        setAiOutput(
-          '**Análise de Indicadores:** Nenhum indicador de risco agudo identificado até o momento. Nível de estresse moderado a alto.'
-        );
-      } else if (actionType === 'hypothesis') {
-        setAiOutput(
-          '**Hipóteses Psicoterapêuticas (TCC):** Crença central de desvalor impulsionada por alta autoexigência. Recomenda-se investigar distorções cognitivas do tipo "tudo ou nada".'
-        );
-      } else {
-        setAiOutput('**Intervenção Sugerida:** Questionamento socrático sobre as evidências da suposta incompetência profissional relatada.');
-      }
-    }, 1200);
+    }
   };
 
   return (
@@ -114,6 +129,16 @@ export function AiCopilotSidebar({ isOpen, onClose, sessionDurationSeconds }: Ai
           <div className="p-4 bg-slate-950/60 border border-indigo-500/30 rounded-xl flex items-center space-x-3 text-indigo-300">
             <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
             <span className="text-xs font-medium">Processando transcrição acumulada...</span>
+          </div>
+        )}
+
+        {error && !isGenerating && (
+          <div className="p-4 bg-red-950/40 border border-red-500/30 rounded-xl space-y-1">
+            <div className="flex items-center space-x-2">
+              <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+              <span className="text-xs font-semibold text-red-400">Copiloto indisponível</span>
+            </div>
+            <p className="text-xs text-red-200/80 leading-relaxed">{error}</p>
           </div>
         )}
 

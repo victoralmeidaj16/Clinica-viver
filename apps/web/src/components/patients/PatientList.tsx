@@ -81,9 +81,12 @@ export default function PatientList({ patients, onSelectForSession, onOpenNewPat
                 <Calendar className="w-3.5 h-3.5 text-primary" />
                 <span>Próxima: {patient.proximaSessao}</span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-accent" />
-                <span>{patient.historicoSessoesCount} Sessões</span>
+              <div className="flex items-center gap-3">
+                <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">{patient.valorSessao}</span>
+                <div className="flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 text-accent" />
+                  <span>{patient.historicoSessoesCount} Sessões</span>
+                </div>
               </div>
             </div>
 

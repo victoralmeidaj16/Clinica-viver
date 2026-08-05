@@ -1,7 +1,7 @@
 import { assertStaffAuthorized, cancelAppointmentCommand, confirmAppointmentCommand, enqueueNotification, rescheduleAppointmentCommand, scheduleAppointmentCommand, type ScheduleAppointmentInput } from '@thats-life/core';
 import type { RequestContext } from './context';
 import { ApplicationError } from './http';
-import { getApplicationStore } from './store';
+import { getApplicationStore, persistApplicationState } from './store';
 
 const names: Record<string, string> = { 'professional-1': 'Dra. Camila' };
 export async function listAppointments(context: RequestContext) {
@@ -16,15 +16,24 @@ export async function createAppointmentFlow(context: RequestContext, input: Sche
   if (!preference) throw new ApplicationError('PREFERENCE_NOT_FOUND', 'Preferências de comunicação não encontradas.', 409);
   const scheduledFor = new Date(Date.parse(input.startsAt) - 60 * 60 * 1000).toISOString();
   const notification = await enqueueNotification({ id: `notification-${result.appointment.id}`, organizationId: input.organizationId, patientId: input.patientId, recipientReference: `contact-${input.patientId}`, channel: 'whatsapp', template: { category: 'appointment_reminder', professionalName: names[input.professionalId] ?? 'Profissional', appointmentLabel: new Date(input.startsAt).toLocaleString('pt-BR', { timeZone: input.timezone }) }, preference, consents: store.consents, scheduledFor, idempotencyKey: `${context.idempotencyKey}:reminder`, createdAt: input.createdAt }, store.notifications, store.communicationAudit);
+  await persistApplicationState();
   return { appointment: result.appointment, reminder: { id: notification.message.id, status: notification.message.status }, idempotentReplay: result.idempotentReplay };
 }
 
 export async function changeAppointment(context: RequestContext, id: string, body: Record<string, unknown>) {
   const store = getApplicationStore(); const metadata = { actorUserId: context.actor.userId, occurredAt: String(body.occurredAt ?? new Date().toISOString()), correlationId: context.correlationId, commandId: context.idempotencyKey! };
-  if (body.action === 'confirm') return confirmAppointmentCommand({ appointments: store.appointments, identities: store.identities }, context.actor, id, metadata);
-  if (body.action === 'cancel') return cancelAppointmentCommand({ appointments: store.appointments, identities: store.identities }, context.actor, id, String(body.reasonCode ?? 'USER_REQUEST'), metadata);
-  if (body.action === 'reschedule') return rescheduleAppointmentCommand({ appointments: store.appointments, identities: store.identities }, context.actor, id, String(body.startsAt ?? ''), String(body.endsAt ?? ''), metadata);
-  throw new ApplicationError('INVALID_ACTION', 'Ação de agendamento inválida.', 400);
+  const dependencies = { appointments: store.appointments, identities: store.identities };
+  const result =
+    body.action === 'confirm'
+      ? await confirmAppointmentCommand(dependencies, context.actor, id, metadata)
+      : body.action === 'cancel'
+        ? await cancelAppointmentCommand(dependencies, context.actor, id, String(body.reasonCode ?? 'USER_REQUEST'), metadata)
+        : body.action === 'reschedule'
+          ? await rescheduleAppointmentCommand(dependencies, context.actor, id, String(body.startsAt ?? ''), String(body.endsAt ?? ''), metadata)
+          : null;
+  if (!result) throw new ApplicationError('INVALID_ACTION', 'Ação de agendamento inválida.', 400);
+  await persistApplicationState();
+  return result;
 }
 
 export function parseAppointmentInput(body: Record<string, unknown>, context: RequestContext): ScheduleAppointmentInput {

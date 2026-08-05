@@ -90,6 +90,7 @@ export default function SessionPage() {
           <AiCopilotSidebar
             isOpen={isCopilotOpen}
             onClose={() => setIsCopilotOpen(false)}
+            sessionId={sessionId}
             sessionDurationSeconds={recordingSeconds}
           />
         )}

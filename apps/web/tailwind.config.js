@@ -29,6 +29,11 @@ module.exports = {
           DEFAULT: "#5C397D",
           soft: "#EDE6F4",
         },
+        coral: {
+          DEFAULT: "#F43F5E",
+          light: "#FECDD3",
+          dark: "#E11D48",
+        },
         ink: "#1E1528",         // Tipografia escura de alto contraste
         muted: "#756785",       // Tipografia secundária
         surface: "#FFFFFF",     // Cards brancos

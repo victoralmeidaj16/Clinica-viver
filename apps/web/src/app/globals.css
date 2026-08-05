@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700;800;900&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -58,6 +60,14 @@
   /* Chips e Badges */
   .chip {
     @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-psi-soft text-psi-darkest border border-psi-vibrant/20;
+  }
+
+  .chip-accent {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-psi-soft text-psi-darkest border border-psi-vibrant/20;
+  }
+
+  .chip-capri {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-psi-soft text-psi-deep border border-psi-vibrant/30;
   }
   
   .chip-vibrant {

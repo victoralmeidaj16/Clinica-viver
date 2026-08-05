@@ -80,25 +80,25 @@ export default function ClinicalMemorySearch({
         </div>
       </div>
 
-      <div className="rounded-[24px] border border-line bg-[#fffdf8] p-5 shadow-card">
+      <div className="rounded-2xl border border-psi-soft bg-white p-5 shadow-card">
         <div className="flex items-center justify-between">
           <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted">
             Evidências encontradas
           </p>
-          <span className="rounded-full bg-ink px-2 py-0.5 text-[9px] font-bold text-white">
+          <span className="rounded-full bg-psi-darkest px-2.5 py-0.5 text-[9px] font-bold text-white">
             {result.matches.length}
           </span>
         </div>
 
         {firstDate ? (
-          <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+          <div className="mt-4 rounded-xl border border-psi-soft bg-psi-light p-3">
             <div className="flex gap-2">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-psi-deep" />
               <div>
-                <p className="text-[10px] font-bold uppercase text-emerald-800">
+                <p className="text-[10px] font-bold uppercase text-psi-darkest">
                   Primeira evidência localizada
                 </p>
-                <p className="mt-1 font-serif text-lg text-emerald-950">{firstDate}</p>
+                <p className="mt-1 font-bold text-lg text-ink">{firstDate}</p>
               </div>
             </div>
           </div>

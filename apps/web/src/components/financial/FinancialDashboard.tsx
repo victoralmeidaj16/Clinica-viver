@@ -13,6 +13,7 @@ import {
 import { applicationRequest } from '@/lib/applicationApi';
 import { demoLedger, people } from './demoLedger';
 import { FinanceMetrics } from './FinanceMetrics';
+import { exportBrandedFinancialPdf } from '@/lib/financialPdfReportBuilder';
 
 const money = (value: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value / 100);
@@ -144,21 +145,20 @@ export function FinancialDashboard() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-5 pb-10">
-      <header className="relative overflow-hidden rounded-[28px] bg-[#f0e9dc] p-7 md:p-9">
-        <div className="absolute -right-20 -top-24 h-72 w-72 rounded-full border-[42px] border-[#d7c8aa]/40" />
+      <header className="relative overflow-hidden rounded-2xl bg-psi-darkest p-7 md:p-9 text-white shadow-contrast">
         <div className="relative flex flex-col justify-between gap-6 md:flex-row md:items-end">
           <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.24em] text-primary">
+            <p className="text-[11px] font-black uppercase tracking-[0.24em] text-psi-vibrant">
               Livro-caixa · Julho 2026
             </p>
-            <h1 className="mt-3 max-w-2xl font-serif text-4xl font-bold tracking-tight text-[#2d2639] md:text-5xl">
+            <h1 className="mt-3 max-w-2xl text-3xl font-bold tracking-tight text-white md:text-4xl">
               Clareza financeira, sessão por sessão.
             </h1>
-            <p className="mt-3 max-w-xl text-sm text-[#655d6b]">
+            <p className="mt-3 max-w-xl text-xs text-psi-soft/80">
               Dados calculados pelo motor financeiro. Conciliação automática de contas a receber e repasses.
             </p>
           </div>
-          <button onClick={() => setShowForm(true)} className="btn-primary shrink-0 text-sm">
+          <button onClick={() => setShowForm(true)} className="btn-accent shrink-0 text-xs">
             <Plus className="h-4 w-4" />
             Nova cobrança
           </button>
@@ -197,11 +197,11 @@ export function FinancialDashboard() {
                 CSV (Excel PT-BR)
               </button>
               <button
-                onClick={() => download(exportFinancialReportPdf(report), 'application/pdf', 'financeiro-julho-2026.pdf')}
-                className="btn-outline px-3 py-2 text-xs"
+                onClick={() => exportBrandedFinancialPdf(report)}
+                className="btn-accent px-4 py-2 text-xs shadow-md"
               >
                 <FileText className="h-4 w-4" />
-                PDF
+                Exportar PDF Estilizado ⚡
               </button>
             </div>
           </div>

@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.115.0",
     "@thats-life/core": "*",
     "lucide-react": "^0.475.0",
     "next": "16.2.12",

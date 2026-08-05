@@ -52,3 +52,8 @@ export * from './communication';
 export * from './preSessionCheckIn';
 export * from './clinicalTimeline';
 export * from './transcription';
+
+// Viver Mais Psicologia Core Domain
+export * from './viverMaisTypes';
+export * from './viverMaisMatchingEngine';
+export * from './viverMaisAsaasService';

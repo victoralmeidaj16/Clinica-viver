@@ -11,7 +11,7 @@ import {
 } from '@thats-life/core';
 import type { RequestContext } from './context';
 import { ApplicationError } from './http';
-import { getApplicationStore } from './store';
+import { getApplicationStore, persistApplicationState } from './store';
 
 export interface PostSessionInput {
   content: SoapClinicalContent;
@@ -149,6 +149,7 @@ export async function runPostSessionAutomation(
     const failed = await markSessionAutomationFailedCommand(
       sessionDependencies, context.actor, sessionId, step, errorCode, metadata(`${step}-failed`)
     );
+    await persistApplicationState();
     return { ...result, status: failed.session.status, failedStep: { step, errorCode, message } };
   };
 
@@ -220,6 +221,7 @@ export async function runPostSessionAutomation(
   const completed = await completeClinicalSessionCommand(
     sessionDependencies, context.actor, sessionId, metadata('complete')
   );
+  await persistApplicationState();
   return { ...result, status: completed.session.status, completed: completed.session.status === 'completed' };
 }
 

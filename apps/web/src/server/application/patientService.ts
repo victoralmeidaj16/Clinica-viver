@@ -8,7 +8,7 @@ import {
 } from '@thats-life/core';
 import type { PatientRequestContext } from './patientContext';
 import { ApplicationError } from './http';
-import { getApplicationStore } from './store';
+import { getApplicationStore, persistApplicationState } from './store';
 
 export async function getPatientPortal(context: PatientRequestContext) {
   const store = getApplicationStore();
@@ -118,6 +118,7 @@ export async function togglePatientTask(
   });
 
   const updatedTask = updatedPlan.tasks.find((t) => t.id === taskId);
+  await persistApplicationState();
   return {
     id: taskId,
     completed: updatedTask?.status === 'completed',
@@ -146,6 +147,7 @@ export async function recordPatientMood(
   const { checkIn, alert } = recordMoodAsPatient(context.actor, moodCheckIn);
   store.moodLogs.push(checkIn);
 
+  await persistApplicationState();
   return { checkIn, alertCreated: Boolean(alert) };
 }
 
@@ -170,6 +172,7 @@ export async function submitPatientAssessment(
   };
 
   store.assessments.push(entry);
+  await persistApplicationState();
   return { id: entry.id, score, status: 'completed' };
 }
 
@@ -237,6 +240,7 @@ export async function submitPatientPreSessionCheckIn(
     metadata
   );
 
+  await persistApplicationState();
   return {
     checkInId: result.checkIn.id,
     status: result.checkIn.status,

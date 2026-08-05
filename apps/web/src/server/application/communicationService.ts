@@ -1,11 +1,11 @@
 import {
   deliverNotification,
   enqueueNotification,
-  EvolutionWhatsAppDeliveryProvider,
   type NotificationTemplateInput,
 } from '@thats-life/core';
 import type { RequestContext } from './context';
-import { getApplicationStore } from './store';
+import { getApplicationStore, persistApplicationState } from './store';
+import { demoNotificationDeliveries } from '../adapters/notifications';
 
 export async function getCommunicationQueue(context: RequestContext) {
   const store = getApplicationStore();
@@ -41,8 +41,21 @@ export async function dispatchCommunicationMessage(
   messageId: string
 ) {
   const store = getApplicationStore();
-  const provider = new EvolutionWhatsAppDeliveryProvider();
   const occurredAt = new Date().toISOString();
+
+  // O adaptador é escolhido pelo canal da própria mensagem — o core rejeita
+  // um provedor que não atenda ao canal, então errar aqui falharia alto.
+  const message = await store.notifications.getById(context.actor.organizationId, messageId);
+  if (!message) {
+    throw new Error('Mensagem não encontrada.');
+  }
+
+  const provider = demoNotificationDeliveries.find(
+    (delivery) => delivery.channel === message.channel
+  );
+  if (!provider) {
+    throw new Error(`Nenhum adaptador de entrega configurado para o canal ${message.channel}.`);
+  }
 
   const result = await deliverNotification({
     organizationId: context.actor.organizationId,
@@ -53,6 +66,7 @@ export async function dispatchCommunicationMessage(
     audit: store.communicationAudit,
   });
 
+  await persistApplicationState();
   return result;
 }
 

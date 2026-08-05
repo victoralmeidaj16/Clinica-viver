@@ -54,6 +54,63 @@ export default function ViverMaisLandingPage() {
   });
 
   const [protocolo, setProtocolo] = useState('');
+  const [enderecoInfo, setEnderecoInfo] = useState({ logradouro: '', bairro: '', cidade: '', uf: '' });
+  const [loadingCep, setLoadingCep] = useState(false);
+
+  // Máscara CPF: 000.000.000-00
+  const maskCPF = (val: string) => {
+    return val
+      .replace(/\D/g, '')
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+      .substring(0, 14);
+  };
+
+  // Máscara Telefone: (00) 00000-0000
+  const maskPhone = (val: string) => {
+    return val
+      .replace(/\D/g, '')
+      .replace(/^(\d{2})(\d)/g, '($1) $2')
+      .replace(/(\d{5})(\d)/, '$1-$2')
+      .substring(0, 15);
+  };
+
+  // Máscara CEP: 00000-000
+  const maskCEP = (val: string) => {
+    return val
+      .replace(/\D/g, '')
+      .replace(/^(\d{5})(\d)/, '$1-$2')
+      .substring(0, 9);
+  };
+
+  // Busca automática via CEP
+  const handleCepChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value;
+    const masked = maskCEP(rawValue);
+    setForm((prev) => ({ ...prev, cep: masked }));
+
+    const cleanCep = masked.replace(/\D/g, '');
+    if (cleanCep.length === 8) {
+      setLoadingCep(true);
+      try {
+        const resp = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+        const data = await resp.json();
+        if (!data.erro) {
+          setEnderecoInfo({
+            logradouro: data.logradouro || '',
+            bairro: data.bairro || '',
+            cidade: data.localidade || '',
+            uf: data.uf || '',
+          });
+        }
+      } catch (err) {
+        console.error('Erro ao consultar ViaCEP:', err);
+      } finally {
+        setLoadingCep(false);
+      }
+    }
+  };
 
   // Lista de convênios das imagens do usuário
   const conveniosDisponiveis = [
@@ -434,7 +491,7 @@ export default function ViverMaisLandingPage() {
                 />
               </div>
 
-              {/* Telefone e Confirme Telefone */}
+              {/* Telefone e Confirme Telefone com Máscara */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">Telefone <span className="text-rose-500">*</span></label>
@@ -442,8 +499,9 @@ export default function ViverMaisLandingPage() {
                     type="text"
                     required
                     value={form.whatsapp}
-                    onChange={(e) => setForm({ ...form, whatsapp: e.target.value })}
-                    placeholder="Telefone"
+                    onChange={(e) => setForm({ ...form, whatsapp: maskPhone(e.target.value) })}
+                    placeholder="(00) 00000-0000"
+                    maxLength={15}
                     className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
                   />
                 </div>
@@ -453,8 +511,9 @@ export default function ViverMaisLandingPage() {
                     type="text"
                     required
                     value={form.whatsappConfirmacao}
-                    onChange={(e) => setForm({ ...form, whatsappConfirmacao: e.target.value })}
-                    placeholder="Telefone"
+                    onChange={(e) => setForm({ ...form, whatsappConfirmacao: maskPhone(e.target.value) })}
+                    placeholder="(00) 00000-0000"
+                    maxLength={15}
                     className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
                   />
                 </div>
@@ -486,7 +545,7 @@ export default function ViverMaisLandingPage() {
                 </div>
               </div>
 
-              {/* CPF e CEP */}
+              {/* CPF e CEP com Máscara e ViaCEP */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">CPF <span className="text-rose-500">*</span></label>
@@ -494,23 +553,46 @@ export default function ViverMaisLandingPage() {
                     type="text"
                     required
                     value={form.cpf}
-                    onChange={(e) => setForm({ ...form, cpf: e.target.value })}
-                    placeholder="CPF"
+                    onChange={(e) => setForm({ ...form, cpf: maskCPF(e.target.value) })}
+                    placeholder="000.000.000-00"
+                    maxLength={14}
                     className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
                   />
                 </div>
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">CEP <span className="text-rose-500">*</span></label>
-                  <input
-                    type="text"
-                    required
-                    value={form.cep}
-                    onChange={(e) => setForm({ ...form, cep: e.target.value })}
-                    placeholder="CEP"
-                    className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      value={form.cep}
+                      onChange={handleCepChange}
+                      placeholder="00000-000"
+                      maxLength={9}
+                      className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
+                    />
+                    {loadingCep && (
+                      <span className="absolute right-3 top-3 text-[10px] text-purple-600 font-bold animate-pulse">
+                        Buscando...
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
+
+              {/* Endereço auto-preenchido pelo ViaCEP */}
+              {enderecoInfo.cidade && (
+                <div className="bg-purple-50/60 border border-purple-100 p-3 rounded-2xl text-[11px] space-y-1 animate-in fade-in">
+                  <span className="font-bold text-purple-800 flex items-center gap-1">
+                    <MapPin className="w-3.5 h-3.5 text-purple-600" /> Endereço Localizado:
+                  </span>
+                  <p className="text-slate-600">
+                    {enderecoInfo.logradouro ? `${enderecoInfo.logradouro}, ` : ''}
+                    {enderecoInfo.bairro ? `${enderecoInfo.bairro} — ` : ''}
+                    <span className="font-semibold text-slate-800">{enderecoInfo.cidade}/{enderecoInfo.uf}</span>
+                  </p>
+                </div>
+              )}
 
               {/* Você é conveniado com alguma empresa parceira? */}
               <div className="space-y-2">

@@ -76,6 +76,30 @@ export default function GestaoCockpitPage() {
     },
   ]);
 
+  const [filtroModalidade, setFiltroModalidade] = useState<string>('TODAS');
+  const [filtroTurno, setFiltroTurno] = useState<string>('TODOS');
+  const [filtroBusca, setFiltroBusca] = useState<string>('');
+
+  const leadsFiltrados = leads.filter((item) => {
+    const matchModalidade =
+      filtroModalidade === 'TODAS' ||
+      (filtroModalidade === 'SOCIAL' && item.modalidade.toLowerCase().includes('social')) ||
+      (filtroModalidade === 'PARTICULAR' && item.modalidade.toLowerCase().includes('particular')) ||
+      (filtroModalidade === 'AVALIACAO' && item.modalidade.toLowerCase().includes('avaliação'));
+
+    const matchTurno =
+      filtroTurno === 'TODOS' ||
+      item.turno.toLowerCase().includes(filtroTurno.toLowerCase());
+
+    const matchBusca =
+      !filtroBusca.trim() ||
+      item.paciente.toLowerCase().includes(filtroBusca.toLowerCase()) ||
+      item.psicologo.toLowerCase().includes(filtroBusca.toLowerCase()) ||
+      item.telefone.includes(filtroBusca);
+
+    return matchModalidade && matchTurno && matchBusca;
+  });
+
   const [novoLeadModal, setNovoLeadModal] = useState(false);
   const [manualForm, setManualForm] = useState({
     nome: '',
@@ -306,11 +330,50 @@ export default function GestaoCockpitPage() {
 
       {/* Conteúdo da Aba 1: Fila de Triagem */}
       {abaAtiva === 'FILA' && (
-        <div className="bg-surface rounded-3xl border border-line shadow-card overflow-hidden">
-          <div className="p-6 border-b border-line flex items-center justify-between">
+        <div className="bg-surface rounded-3xl border border-line shadow-card overflow-hidden space-y-4">
+          <div className="p-6 border-b border-line flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <h3 className="font-extrabold text-base text-ink">Monitoramento da Fila de Atribuição (SLA 24h)</h3>
               <p className="text-xs text-muted">Leads em andamento e contagem regressiva para confirmação via WhatsApp</p>
+            </div>
+
+            {/* Barra de Filtros Rápida */}
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              {/* Busca */}
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Buscar paciente ou psi..."
+                  value={filtroBusca}
+                  onChange={(e) => setFiltroBusca(e.target.value)}
+                  className="pl-8 pr-3 py-2 bg-slate-50 border border-line rounded-xl text-ink focus:outline-none focus:border-psi-vibrant w-44"
+                />
+                <Search className="w-3.5 h-3.5 text-muted absolute left-2.5 top-3" />
+              </div>
+
+              {/* Filtro por Modalidade */}
+              <select
+                value={filtroModalidade}
+                onChange={(e) => setFiltroModalidade(e.target.value)}
+                className="py-2 px-3 bg-slate-50 border border-line rounded-xl font-bold text-ink focus:outline-none focus:border-psi-vibrant"
+              >
+                <option value="TODAS">Todas Modalidades</option>
+                <option value="SOCIAL">Atendimento Social</option>
+                <option value="PARTICULAR">Particular</option>
+                <option value="AVALIACAO">Avaliação Psicológica</option>
+              </select>
+
+              {/* Filtro por Turno */}
+              <select
+                value={filtroTurno}
+                onChange={(e) => setFiltroTurno(e.target.value)}
+                className="py-2 px-3 bg-slate-50 border border-line rounded-xl font-bold text-ink focus:outline-none focus:border-psi-vibrant"
+              >
+                <option value="TODOS">Todos Turnos</option>
+                <option value="MANHA">Manhã</option>
+                <option value="TARDE">Tarde</option>
+                <option value="NOITE">Noite</option>
+              </select>
             </div>
           </div>
 
@@ -328,39 +391,47 @@ export default function GestaoCockpitPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {leads.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="px-6 py-4 font-extrabold text-ink">{item.paciente}</td>
-                    <td className="px-6 py-4 text-muted">{item.telefone}</td>
-                    <td className="px-6 py-4">
-                      <div className="font-semibold text-ink">{item.modalidade}</div>
-                      <div className="text-[10px] text-muted">{item.turno}</div>
-                    </td>
-                    <td className="px-6 py-4 font-bold text-psi-vibrant">{item.psicologo}</td>
-                    <td className="px-6 py-4 font-mono font-bold text-ink">{item.horasDecorridas}h</td>
-                    <td className="px-6 py-4">
-                      {item.slaStatus === 'VERDE' ? (
-                        <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full">
-                          Normal (&lt; 12h)
-                        </span>
-                      ) : (
-                        <span className="bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full">
-                          Atenção (21h)
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <button
-                        type="button"
-                        onClick={() => handleForcarTransbordo(item.id)}
-                        className="bg-surface hover:bg-slate-100 border border-line text-ink font-bold text-[11px] px-3 py-1.5 rounded-xl transition-all inline-flex items-center gap-1"
-                      >
-                        <ArrowRightLeft className="w-3.5 h-3.5 text-psi-vibrant" />
-                        Forçar Transbordo
-                      </button>
+                {leadsFiltrados.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-8 text-center text-muted font-semibold">
+                      Nenhum lead encontrado com os filtros selecionados.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  leadsFiltrados.map((item) => (
+                    <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-6 py-4 font-extrabold text-ink">{item.paciente}</td>
+                      <td className="px-6 py-4 text-muted">{item.telefone}</td>
+                      <td className="px-6 py-4">
+                        <div className="font-semibold text-ink">{item.modalidade}</div>
+                        <div className="text-[10px] text-muted">{item.turno}</div>
+                      </td>
+                      <td className="px-6 py-4 font-bold text-psi-vibrant">{item.psicologo}</td>
+                      <td className="px-6 py-4 font-mono font-bold text-ink">{item.horasDecorridas}h</td>
+                      <td className="px-6 py-4">
+                        {item.slaStatus === 'VERDE' ? (
+                          <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full">
+                            Normal (&lt; 12h)
+                          </span>
+                        ) : (
+                          <span className="bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full">
+                            Atenção (21h)
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          type="button"
+                          onClick={() => handleForcarTransbordo(item.id)}
+                          className="bg-surface hover:bg-slate-100 border border-line text-ink font-bold text-[11px] px-3 py-1.5 rounded-xl transition-all inline-flex items-center gap-1"
+                        >
+                          <ArrowRightLeft className="w-3.5 h-3.5 text-psi-vibrant" />
+                          Forçar Transbordo
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

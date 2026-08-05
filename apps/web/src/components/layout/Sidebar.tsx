@@ -97,11 +97,6 @@ export default function Sidebar() {
       icon: Shield,
     },
     {
-      label: 'Formulário de Triagem',
-      href: '/triagem/solicitar',
-      icon: UserPlus,
-    },
-    {
       label: '11 Indicadores Mensais',
       href: '/relatorios',
       icon: BarChart3,

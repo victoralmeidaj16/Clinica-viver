@@ -134,13 +134,36 @@ export default function CockpitPage() {
     }
   };
 
-  const handleConfirmContact = () => {
-    const linkUrl = `https://vivermais.com.br/p/PAY-${Math.floor(10000 + Math.random() * 90000)}`;
+  const handleConfirmContact = async () => {
+    const linkUrl = `https://vivermaispsicologia.com.br/p/PAY-${Math.floor(10000 + Math.random() * 90000)}`;
     setPendingLead((prev) => ({
       ...prev,
       confirmado: true,
       cobrancaUrl: linkUrl,
     }));
+
+    // Disparar WhatsApp via Evolution API para o paciente
+    try {
+      const evoUrl = process.env.NEXT_PUBLIC_EVOLUTION_API_URL || 'http://localhost:8080';
+      const evoApiKey = process.env.NEXT_PUBLIC_EVOLUTION_API_KEY || '7c49eaa59c3631963fe335f99b3860f5d6b0e0751afcdda4b8c00c9ef08e52e6';
+      const evoInstance = process.env.NEXT_PUBLIC_EVOLUTION_INSTANCE || 'viver_mais_clinica';
+
+      const textoPaciente = `Olá, ${pendingLead.nomePaciente}! 👋✨\n\nAqui é o Dr. Lucas da *Viver Mais Psicologia*.\n\nSua sessão de *${pendingLead.modalidade}* foi confirmada para o turno da *${pendingLead.turno}*!\n\n💳 Para concluir o agendamento e efetuar o pagamento da sessão (R$ 75,00), acesse seu link exclusivo:\n${linkUrl}\n\nEstou ansioso para nosso atendimento!🧠`;
+
+      await fetch(`${evoUrl}/message/sendText/${evoInstance}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': evoApiKey,
+        },
+        body: JSON.stringify({
+          number: pendingLead.telefone.replace(/\D/g, ''),
+          text: textoPaciente,
+        }),
+      });
+    } catch (e) {
+      console.warn('[Evolution API Cockpit Confirm] Servidor offline ou desconfigurado:', e);
+    }
   };
 
   const handleCopyLink = () => {

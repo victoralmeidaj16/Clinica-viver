@@ -18,6 +18,37 @@ import {
 } from 'lucide-react';
 
 export default function GestaoCockpitPage() {
+  const [abaAtiva, setAbaAtiva] = useState<'FILA' | 'CREDENCIAMENTOS'>('FILA');
+  
+  const [psicologosPendentes, setPsicologosPendentes] = useState([
+    {
+      id: 'psi-cad-1',
+      nomeCompleto: 'Dra. Vanessa Ferreira',
+      crp: 'CRP 07/88912',
+      whatsapp: '(51) 99876-1234',
+      email: 'vanessa.ferreira@psi.com',
+      cidadeUf: 'Porto Alegre/RS',
+      especialidade: 'Cognitivo-Comportamental (TCC)',
+      modalidadeAtendimento: 'AMBOS',
+      minibio: '10 anos de experiência clínica com foco em quadros de ansiedade e transtorno do pânico.',
+      status: 'EM_ANALISE',
+      criadoEm: '05/08/2026 14:20',
+    },
+    {
+      id: 'psi-cad-2',
+      nomeCompleto: 'Dr. Fernando Albuquerque',
+      crp: 'CRP 07/34190',
+      whatsapp: '(51) 99123-5566',
+      email: 'fernando.albuquerque@psi.com',
+      cidadeUf: 'Canoas/RS',
+      especialidade: 'Psicanálise',
+      modalidadeAtendimento: 'ONLINE',
+      minibio: 'Mestre em Psicologia Clínica, atuando com adultos e supervisão acadêmica.',
+      status: 'EM_ANALISE',
+      criadoEm: '05/08/2026 16:45',
+    },
+  ]);
+
   const [leads, setLeads] = useState([
     {
       id: 'lead-101',
@@ -29,7 +60,7 @@ export default function GestaoCockpitPage() {
       alocadoEm: '05/08/2026 08:30',
       horasDecorridas: 3.5,
       status: 'AGUARDANDO_CONTATO',
-      slaStatus: 'VERDE', // VERDE (< 12h), AMARELO (12h-20h), VERMELHO (> 20h)
+      slaStatus: 'VERDE',
     },
     {
       id: 'lead-102',
@@ -43,18 +74,6 @@ export default function GestaoCockpitPage() {
       status: 'AGUARDANDO_CONTATO',
       slaStatus: 'AMARELO',
     },
-    {
-      id: 'lead-103',
-      paciente: 'Roberto Mendes',
-      telefone: '(51) 99123-9988',
-      modalidade: 'Avaliação Psicológica',
-      turno: 'Noite',
-      psicologo: 'Dr. Gabriel Souza',
-      alocadoEm: '04/08/2026 08:00',
-      horasDecorridas: 27.5,
-      status: 'TRANSBORDADO',
-      slaStatus: 'VERMELHO',
-    },
   ]);
 
   const [novoLeadModal, setNovoLeadModal] = useState(false);
@@ -64,6 +83,19 @@ export default function GestaoCockpitPage() {
     modalidade: 'ACESSIVEL_SOCIAL',
     turno: 'TARDE',
   });
+
+  const handleAprovarPsicologo = (id: string) => {
+    setPsicologosPendentes((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, status: 'APROVADO' } : item))
+    );
+    alert('Psicólogo aprovado com sucesso! Acesso liberado no sistema.');
+  };
+
+  const handleRecusarPsicologo = (id: string) => {
+    setPsicologosPendentes((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, status: 'RECUSADO' } : item))
+    );
+  };
 
   const handleForcarTransbordo = (leadId: string) => {
     setLeads((prev) =>
@@ -217,18 +249,20 @@ export default function GestaoCockpitPage() {
 
         <div className="bg-surface p-5 rounded-3xl border border-line shadow-card flex items-center justify-between">
           <div>
-            <span className="text-xs font-bold text-muted">Alerta de Prazo (12h - 20h)</span>
-            <h3 className="text-2xl font-black text-amber-600 mt-1">1 Lead</h3>
+            <span className="text-xs font-bold text-muted">Credenciamentos em Análise</span>
+            <h3 className="text-2xl font-black text-purple-600 mt-1">
+              {psicologosPendentes.filter((p) => p.status === 'EM_ANALISE').length} Psicólogos
+            </h3>
           </div>
-          <div className="p-3 bg-amber-100 text-amber-700 rounded-2xl">
-            <Clock className="w-5 h-5" />
+          <div className="p-3 bg-purple-100 text-purple-700 rounded-2xl">
+            <UserCheck className="w-5 h-5" />
           </div>
         </div>
 
         <div className="bg-surface p-5 rounded-3xl border border-line shadow-card flex items-center justify-between">
           <div>
             <span className="text-xs font-bold text-muted">SLA Estourado (&gt; 24h)</span>
-            <h3 className="text-2xl font-black text-rose-600 mt-1">1 Transbordo</h3>
+            <h3 className="text-2xl font-black text-rose-600 mt-1">0 Transbordos</h3>
           </div>
           <div className="p-3 bg-rose-100 text-rose-700 rounded-2xl">
             <AlertTriangle className="w-5 h-5" />
@@ -236,70 +270,188 @@ export default function GestaoCockpitPage() {
         </div>
       </div>
 
-      {/* Tabela da Fila */}
-      <div className="bg-surface rounded-3xl border border-line shadow-card overflow-hidden">
-        <div className="p-6 border-b border-line flex items-center justify-between">
-          <div>
-            <h3 className="font-extrabold text-base text-ink">Monitoramento da Fila de Atribuição (SLA 24h)</h3>
-            <p className="text-xs text-muted">Leads em andamento e contagem regressiva para confirmação via WhatsApp</p>
+      {/* Navegação de Abas */}
+      <div className="flex items-center gap-2 border-b border-line pb-2">
+        <button
+          type="button"
+          onClick={() => setAbaAtiva('FILA')}
+          className={`px-5 py-2.5 rounded-2xl text-xs font-extrabold transition-all flex items-center gap-2 ${
+            abaAtiva === 'FILA'
+              ? 'bg-psi-vibrant text-white shadow-md'
+              : 'bg-surface text-muted hover:text-ink hover:bg-slate-100 border border-line'
+          }`}
+        >
+          <Clock className="w-4 h-4" />
+          Fila de Triagem & SLA 24h
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setAbaAtiva('CREDENCIAMENTOS')}
+          className={`px-5 py-2.5 rounded-2xl text-xs font-extrabold transition-all flex items-center gap-2 ${
+            abaAtiva === 'CREDENCIAMENTOS'
+              ? 'bg-psi-vibrant text-white shadow-md'
+              : 'bg-surface text-muted hover:text-ink hover:bg-slate-100 border border-line'
+          }`}
+        >
+          <UserCheck className="w-4 h-4" />
+          Aprovação de Psicólogos (Vitrine)
+          {psicologosPendentes.filter((p) => p.status === 'EM_ANALISE').length > 0 && (
+            <span className="bg-rose-500 text-white text-[10px] px-2 py-0.5 rounded-full font-black">
+              {psicologosPendentes.filter((p) => p.status === 'EM_ANALISE').length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* Conteúdo da Aba 1: Fila de Triagem */}
+      {abaAtiva === 'FILA' && (
+        <div className="bg-surface rounded-3xl border border-line shadow-card overflow-hidden">
+          <div className="p-6 border-b border-line flex items-center justify-between">
+            <div>
+              <h3 className="font-extrabold text-base text-ink">Monitoramento da Fila de Atribuição (SLA 24h)</h3>
+              <p className="text-xs text-muted">Leads em andamento e contagem regressiva para confirmação via WhatsApp</p>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-line">
+                <tr>
+                  <th className="px-6 py-4">Paciente</th>
+                  <th className="px-6 py-4">Telefone</th>
+                  <th className="px-6 py-4">Modalidade / Turno</th>
+                  <th className="px-6 py-4">Psicólogo Alocado</th>
+                  <th className="px-6 py-4">Tempo Decorrido</th>
+                  <th className="px-6 py-4">SLA Status</th>
+                  <th className="px-6 py-4 text-right">Ação</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {leads.map((item) => (
+                  <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="px-6 py-4 font-extrabold text-ink">{item.paciente}</td>
+                    <td className="px-6 py-4 text-muted">{item.telefone}</td>
+                    <td className="px-6 py-4">
+                      <div className="font-semibold text-ink">{item.modalidade}</div>
+                      <div className="text-[10px] text-muted">{item.turno}</div>
+                    </td>
+                    <td className="px-6 py-4 font-bold text-psi-vibrant">{item.psicologo}</td>
+                    <td className="px-6 py-4 font-mono font-bold text-ink">{item.horasDecorridas}h</td>
+                    <td className="px-6 py-4">
+                      {item.slaStatus === 'VERDE' ? (
+                        <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full">
+                          Normal (&lt; 12h)
+                        </span>
+                      ) : (
+                        <span className="bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full">
+                          Atenção (21h)
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <button
+                        type="button"
+                        onClick={() => handleForcarTransbordo(item.id)}
+                        className="bg-surface hover:bg-slate-100 border border-line text-ink font-bold text-[11px] px-3 py-1.5 rounded-xl transition-all inline-flex items-center gap-1"
+                      >
+                        <ArrowRightLeft className="w-3.5 h-3.5 text-psi-vibrant" />
+                        Forçar Transbordo
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
+      )}
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-line">
-              <tr>
-                <th className="px-6 py-4">Paciente</th>
-                <th className="px-6 py-4">Telefone</th>
-                <th className="px-6 py-4">Modalidade / Turno</th>
-                <th className="px-6 py-4">Psicólogo Alocado</th>
-                <th className="px-6 py-4">Tempo Decorrido</th>
-                <th className="px-6 py-4">SLA Status</th>
-                <th className="px-6 py-4 text-right">Ação</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {leads.map((item) => (
-                <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="px-6 py-4 font-extrabold text-ink">{item.paciente}</td>
-                  <td className="px-6 py-4 text-muted">{item.telefone}</td>
-                  <td className="px-6 py-4">
-                    <div className="font-semibold text-ink">{item.modalidade}</div>
-                    <div className="text-[10px] text-muted">{item.turno}</div>
-                  </td>
-                  <td className="px-6 py-4 font-bold text-psi-vibrant">{item.psicologo}</td>
-                  <td className="px-6 py-4 font-mono font-bold text-ink">{item.horasDecorridas}h</td>
-                  <td className="px-6 py-4">
-                    {item.slaStatus === 'VERDE' ? (
-                      <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full">
-                        Normal (&lt; 12h)
-                      </span>
-                    ) : item.slaStatus === 'AMARELO' ? (
-                      <span className="bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full">
-                        Atenção (21h)
-                      </span>
-                    ) : (
-                      <span className="bg-rose-100 text-rose-800 border border-rose-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full">
-                        Transbordado (&gt; 24h)
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <button
-                      type="button"
-                      onClick={() => handleForcarTransbordo(item.id)}
-                      className="bg-surface hover:bg-slate-100 border border-line text-ink font-bold text-[11px] px-3 py-1.5 rounded-xl transition-all inline-flex items-center gap-1"
-                    >
-                      <ArrowRightLeft className="w-3.5 h-3.5 text-psi-vibrant" />
-                      Forçar Transbordo
-                    </button>
-                  </td>
+      {/* Conteúdo da Aba 2: Credenciamentos de Psicólogos */}
+      {abaAtiva === 'CREDENCIAMENTOS' && (
+        <div className="bg-surface rounded-3xl border border-line shadow-card overflow-hidden space-y-4">
+          <div className="p-6 border-b border-line flex items-center justify-between">
+            <div>
+              <h3 className="font-extrabold text-base text-ink">Solicitações de Credenciamento da Vitrine</h3>
+              <p className="text-xs text-muted">Psicólogos que se cadastraram no site aguardando conferência do CRP e liberação de acesso</p>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-line">
+                <tr>
+                  <th className="px-6 py-4">Psicólogo(a)</th>
+                  <th className="px-6 py-4">CRP</th>
+                  <th className="px-6 py-4">Contato / Localidade</th>
+                  <th className="px-6 py-4">Especialidade / Modalidade</th>
+                  <th className="px-6 py-4">Status do Acesso</th>
+                  <th className="px-6 py-4 text-right">Ações da Gestão</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {psicologosPendentes.map((psi) => (
+                  <tr key={psi.id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="font-extrabold text-ink">{psi.nomeCompleto}</div>
+                      <div className="text-[10px] text-muted italic line-clamp-1">{psi.minibio}</div>
+                    </td>
+                    <td className="px-6 py-4 font-mono font-bold text-psi-vibrant">{psi.crp}</td>
+                    <td className="px-6 py-4">
+                      <div className="font-semibold text-ink">{psi.whatsapp}</div>
+                      <div className="text-[10px] text-muted">{psi.cidadeUf}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="font-bold text-ink">{psi.especialidade}</div>
+                      <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md inline-block mt-0.5">
+                        {psi.modalidadeAtendimento}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      {psi.status === 'EM_ANALISE' ? (
+                        <span className="bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full">
+                          Acesso em Conferência
+                        </span>
+                      ) : psi.status === 'APROVADO' ? (
+                        <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full">
+                          Aprovado & Credenciado
+                        </span>
+                      ) : (
+                        <span className="bg-rose-100 text-rose-800 border border-rose-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full">
+                          Recusado
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      {psi.status === 'EM_ANALISE' ? (
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleAprovarPsicologo(psi.id)}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[11px] px-3.5 py-1.5 rounded-xl transition-all shadow-sm flex items-center gap-1"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Aprovar Acesso
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRecusarPsicologo(psi.id)}
+                            className="bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-800 border border-slate-200 font-bold text-[11px] px-3 py-1.5 rounded-xl transition-all"
+                          >
+                            Recusar
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-[11px] font-bold text-slate-400">Concluído</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

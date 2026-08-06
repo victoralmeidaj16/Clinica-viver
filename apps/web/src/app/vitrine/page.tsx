@@ -291,103 +291,196 @@ export default function ViverMaisLandingPage() {
         </div>
       </header>
 
-      {/* Hero Banner Card Section */}
-      <section className="px-6 pt-10 pb-2">
+      {/* Hero Banner Card Section com Imagem Premium de Fundo */}
+      <section className="px-6 pt-8 pb-4">
         <div className="max-w-6xl mx-auto">
-          <div className="relative overflow-hidden bg-gradient-to-br from-purple-900 via-indigo-950 to-slate-950 text-white rounded-3xl p-8 sm:p-12 shadow-xl border border-white/10 flex flex-col md:flex-row items-center justify-between gap-8">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(147,51,234,0.15),transparent_45%)]"></div>
+          <div className="relative overflow-hidden bg-slate-950 text-white rounded-3xl p-8 sm:p-14 shadow-2xl border border-purple-900/40 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+            {/* Background Decorativo */}
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(158,107,207,0.25),transparent_60%)] pointer-events-none"></div>
             
-            <div className="space-y-6 max-w-2xl relative z-10">
-              <div className="inline-flex items-center gap-1.5 bg-white/10 backdrop-blur-md text-purple-200 border border-white/10 text-[11px] font-bold px-3 py-1 rounded-full">
-                <Sparkles className="w-3.5 h-3.5 text-purple-300" />
+            <div className="space-y-6 relative z-10 lg:col-span-7">
+              <div className="inline-flex items-center gap-2 bg-psi-deep/40 backdrop-blur-md text-purple-200 border border-purple-400/30 text-[11px] font-extrabold px-3.5 py-1.5 rounded-full">
+                <Sparkles className="w-4 h-4 text-psi-vibrant" />
                 Cuidar da mente é Viver Mais!
               </div>
-              <h2 className="text-3xl sm:text-5xl font-black tracking-tight leading-tight text-white">
-                Nossos Serviços de Psicologia
+              <h2 className="text-3xl sm:text-5xl font-black tracking-tight leading-[1.1] text-white">
+                Acolhimento Humano e Inteligência Clínica ao Seu Alcance
               </h2>
-              <p className="text-sm sm:text-base text-purple-100/80 leading-relaxed max-w-xl">
-                Conheça nossos serviços oferecidos por profissionais capacitados prontos para acolher você. Oferecemos atendimento online ou presencial.
+              <p className="text-sm sm:text-base text-purple-100/90 leading-relaxed max-w-xl font-normal">
+                Encontre o psicólogo ideal para suas necessidades em consultas presenciais ou on-line. Agendamento ágil, valores acessíveis e resguardo ético em todas as etapas.
               </p>
+              
+              <div className="pt-2 flex flex-wrap items-center gap-4">
+                <a
+                  href="#modalidades"
+                  className="bg-psi-vibrant hover:bg-psi-deep text-white font-black text-xs px-6 py-3.5 rounded-2xl transition-all shadow-lift flex items-center gap-2 active:scale-95"
+                >
+                  Ver Modalidades & Agendar <ArrowRight className="w-4 h-4" />
+                </a>
+                <div className="flex items-center gap-2 text-xs text-purple-200 font-semibold">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <span>Sigilo CFP & LGPD Garantidos</span>
+                </div>
+              </div>
             </div>
             
-            <div className="relative z-10 shrink-0 bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-sm max-w-xs text-center space-y-4">
-              <span className="text-[10px] text-purple-300 font-bold uppercase tracking-wider block">Agendamento Simplificado</span>
-              <p className="text-xs text-purple-100/90 leading-snug">Escolha a melhor modalidade (acessível ou particular) e seja acolhido em até 24 horas.</p>
-              <a 
-                href="#servicos"
-                className="w-full bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs py-3 px-4 rounded-xl transition-all shadow-md inline-block"
-              >
-                Ver Modalidades & Preços
-              </a>
+            {/* Imagem Premium de Consultório na Hero */}
+            <div className="relative z-10 lg:col-span-5">
+              <div className="relative rounded-2xl overflow-hidden border-2 border-white/10 shadow-2xl group">
+                <img
+                  src="/landing_hero_psychology.png"
+                  alt="Consultório de Psicologia Viver Mais"
+                  className="w-full h-72 lg:h-80 object-cover group-hover:scale-105 transition-transform duration-700"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-transparent"></div>
+                <div className="absolute bottom-4 left-4 right-4 bg-slate-900/80 backdrop-blur-md p-3.5 rounded-xl border border-white/10 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-psi-vibrant font-extrabold uppercase block">Atendimento Humanizado</span>
+                    <span className="text-xs text-white font-extrabold">Sessões Online ou Presenciais</span>
+                  </div>
+                  <span className="bg-emerald-500/20 text-emerald-300 text-[10px] font-bold px-2.5 py-1 rounded-lg border border-emerald-500/30">
+                    SLA 24h
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Seção 3 Passos: Como Funciona o Seu Agendamento */}
+      <section className="px-6 py-8">
+        <div className="max-w-6xl mx-auto">
+          <div className="bg-surface rounded-3xl p-8 border border-line shadow-card space-y-6">
+            <div className="text-center max-w-2xl mx-auto space-y-2">
+              <span className="chip-accent text-[11px]">Jornada Descomplicada</span>
+              <h3 className="text-xl sm:text-2xl font-black text-ink">Como Funciona o Seu Agendamento em 3 Passos</h3>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="p-5 rounded-2xl bg-canvas border border-psi-soft/60 space-y-3 relative">
+                <span className="w-8 h-8 rounded-xl bg-psi-deep text-white font-black text-xs flex items-center justify-center">1</span>
+                <h4 className="font-extrabold text-sm text-ink">Escolha o Serviço & Modalidade</h4>
+                <p className="text-xs text-muted leading-relaxed">
+                  Selecione entre Psicoterapia, Avaliação ou Orientação. Escolha o agendamento Acessível (R$ 75) ou Particular (R$ 130).
+                </p>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-canvas border border-psi-soft/60 space-y-3 relative">
+                <span className="w-8 h-8 rounded-xl bg-psi-vibrant text-white font-black text-xs flex items-center justify-center">2</span>
+                <h4 className="font-extrabold text-sm text-ink">Preencha Seus Dados</h4>
+                <p className="text-xs text-muted leading-relaxed">
+                  Informe seu contato no WhatsApp e endereço. O sistema aloca um psicólogo especializado via rodízio inteligente.
+                </p>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-canvas border border-psi-soft/60 space-y-3 relative">
+                <span className="w-8 h-8 rounded-xl bg-emerald-600 text-white font-black text-xs flex items-center justify-center">3</span>
+                <h4 className="font-extrabold text-sm text-ink">Confirmação via WhatsApp (24h)</h4>
+                <p className="text-xs text-muted leading-relaxed">
+                  Seu psicólogo entra em contato no WhatsApp em até 24 horas com o link Pix dinâmico para agendar o horário ideal.
+                </p>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
       {/* Main Flow Section */}
-      <main id="servicos" className="max-w-6xl mx-auto px-6 py-12">
+      <main id="modalidades" className="max-w-6xl mx-auto px-6 py-8">
         {step === 'SERVICOS' && (
           <div className="space-y-16 animate-in fade-in slide-in-from-bottom-4 duration-300">
-            {/* 4 Cards de Serviços */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {Object.entries(precos).map(([key, service]) => (
-                <div
-                  key={key}
-                  className="bg-white rounded-3xl border border-purple-100 p-6 flex flex-col justify-between shadow-sm hover:shadow-md transition-all hover:-translate-y-1"
-                >
-                  <div className="space-y-4">
-                    <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center text-purple-600 border border-purple-100">
-                      <Heart className="w-5 h-5 fill-purple-100" />
-                    </div>
-                    <h3 className="text-base font-black text-slate-900 leading-snug">{service.titulo}</h3>
-                    <p className="text-xs text-slate-500 leading-relaxed">{service.descricao}</p>
-                  </div>
-                  <a
-                    href={`#detalhes-${key}`}
-                    className="text-[11px] font-extrabold text-purple-600 hover:text-purple-700 mt-6 inline-flex items-center gap-1 hover:underline"
-                  >
-                    Ver Valores e Agendar <ArrowRight className="w-3 h-3" />
-                  </a>
+            {/* NOVO LAYOUT REELABORADO: CARDS DE SERVIÇOS PREMIUM */}
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                <div>
+                  <span className="chip-accent text-[11px]">Nossas Especialidades</span>
+                  <h3 className="text-2xl sm:text-3xl font-black text-ink mt-1">Serviços Clínicos Oferecidos</h3>
+                  <p className="text-xs text-muted">Escolha o serviço mais adequado para o seu momento de vida</p>
                 </div>
-              ))}
-            </div>
+              </div>
 
-            {/* Psicoterapia Explicativo */}
-            <div className="bg-white rounded-3xl p-8 border border-purple-100 shadow-sm space-y-6">
-              <div className="max-w-3xl space-y-4">
-                <h3 className="text-xl font-black text-slate-900">Por que fazer Psicoterapia?</h3>
-                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-                  Fazer psicoterapia é um processo de autodescoberta e transformação. É a oportunidade de compreender melhor seus sentimentos, pensamentos e comportamentos, ajudando a enfrentar desafios como ansiedade, tristeza, estresse ou conflitos nos relacionamentos. Com o apoio de profissionais qualificados, você encontra um espaço seguro e acolhedor para explorar as questões que impactam sua vida.
-                </p>
-                <p className="text-[11px] font-bold text-purple-700 bg-purple-50 border border-purple-100 px-3 py-1.5 rounded-lg inline-block">
-                  Oferecemos atendimento psicológico on-line e presencial, com valores acessíveis (R$75,00) e particular (R$ 130,00).
-                </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {Object.entries(precos).map(([key, service]) => (
+                  <div
+                    key={key}
+                    className="bg-surface rounded-3xl border border-psi-soft/80 p-6 flex flex-col justify-between shadow-card hover:shadow-lift transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden"
+                  >
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-psi-soft/40 rounded-full blur-2xl group-hover:bg-psi-vibrant/20 transition-all"></div>
+                    
+                    <div className="space-y-4 relative z-10">
+                      <div className="w-12 h-12 rounded-2xl bg-psi-soft text-psi-deep flex items-center justify-center border border-psi-soft/80 group-hover:scale-110 group-hover:bg-psi-deep group-hover:text-white transition-all">
+                        <Heart className="w-5 h-5" />
+                      </div>
+                      <h4 className="text-base font-black text-ink leading-snug group-hover:text-psi-deep transition-colors">{service.titulo}</h4>
+                      <p className="text-xs text-muted leading-relaxed line-clamp-4">{service.descricao}</p>
+                    </div>
+
+                    <div className="pt-6 border-t border-psi-soft/50 mt-6 relative z-10">
+                      <a
+                        href={`#detalhes-${key}`}
+                        className="w-full bg-canvas hover:bg-psi-soft/80 border border-psi-soft text-psi-darkest font-extrabold text-xs py-2.5 px-4 rounded-xl transition-all flex items-center justify-center gap-1.5 group-hover:bg-psi-deep group-hover:text-white group-hover:border-psi-deep"
+                      >
+                        Ver Valores e Agendar <ArrowRight className="w-3.5 h-3.5" />
+                      </a>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
-            {/* Tabela de Preços e Ações */}
-            <div className="space-y-12">
-              <h3 className="text-2xl font-black text-slate-900 text-center">Nossas Modalidades e Valores</h3>
+            {/* Banner Informativo Psicoterapia com Equipe */}
+            <div className="bg-surface rounded-3xl p-8 border border-line shadow-card grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+              <div className="lg:col-span-7 space-y-4">
+                <span className="chip-accent text-[11px]">Equipe Credenciada</span>
+                <h3 className="text-2xl font-black text-ink">Por que fazer Psicoterapia na Viver Mais?</h3>
+                <p className="text-xs sm:text-sm text-muted leading-relaxed">
+                  A psicoterapia é um ambiente seguro e sigiloso de escuta técnica para superar desafios emocionais, ansiedade e momentos de transição. Nossos profissionais passam por rigoroso processo de credenciamento e supervisão clínica contínua.
+                </p>
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <span className="bg-psi-soft text-psi-darkest font-extrabold text-[11px] px-3 py-1 rounded-full border border-psi-soft">
+                    Modalidade Acessível (R$ 75,00)
+                  </span>
+                  <span className="bg-psi-soft text-psi-darkest font-extrabold text-[11px] px-3 py-1 rounded-full border border-psi-soft">
+                    Modalidade Particular (R$ 130,00)
+                  </span>
+                </div>
+              </div>
+              <div className="lg:col-span-5">
+                <img
+                  src="/psychologist_team.png"
+                  alt="Equipe de Psicólogos Viver Mais"
+                  className="rounded-2xl border border-line shadow-md w-full h-56 object-cover"
+                />
+              </div>
+            </div>
+
+            {/* Tabela de Preços e Ações por Serviço */}
+            <div className="space-y-10">
+              <div className="text-center max-w-xl mx-auto">
+                <h3 className="text-2xl font-black text-ink">Escolha Seu Serviço & Agende em 1-Clique</h3>
+                <p className="text-xs text-muted mt-1">Valores transparentes e alocação ética garantida</p>
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 {Object.entries(precos).map(([key, service]) => (
                   <div
                     key={key}
                     id={`detalhes-${key}`}
-                    className="bg-white rounded-3xl border border-purple-100 shadow-sm overflow-hidden flex flex-col justify-between hover:shadow-md transition-all scroll-mt-24"
+                    className="bg-surface rounded-3xl border border-line shadow-card overflow-hidden flex flex-col justify-between hover:shadow-lift transition-all scroll-mt-24"
                   >
                     <div>
                       {/* Banner de Imagem com Gradiente */}
-                      <div className="relative h-44 w-full overflow-hidden bg-slate-900">
+                      <div className="relative h-48 w-full overflow-hidden bg-psi-darkest">
                         <img
                           src={service.imagem}
                           alt={service.titulo}
-                          className="w-full h-full object-cover opacity-90 hover:scale-105 transition-all duration-500"
+                          className="w-full h-full object-cover opacity-90 hover:scale-105 transition-all duration-700"
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent"></div>
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/30 to-transparent"></div>
                         <div className="absolute bottom-4 left-6 right-6">
-                          <span className="text-[10px] text-purple-300 font-extrabold uppercase tracking-wider bg-purple-950/80 backdrop-blur-md px-2.5 py-1 rounded-full border border-purple-400/30">
-                            Serviço Especializado
+                          <span className="text-[10px] text-psi-vibrant font-extrabold uppercase tracking-wider bg-psi-darkest/90 backdrop-blur-md px-3 py-1 rounded-full border border-psi-vibrant/30">
+                            Atendimento Especializado
                           </span>
                           <h4 className="text-lg font-black text-white mt-1.5 flex items-center gap-2">
                             {service.titulo}
@@ -396,7 +489,7 @@ export default function ViverMaisLandingPage() {
                       </div>
 
                       <div className="p-6">
-                        <p className="text-xs text-slate-500 leading-relaxed border-b border-purple-50 pb-4">{service.descricao}</p>
+                        <p className="text-xs text-muted leading-relaxed border-b border-line pb-4">{service.descricao}</p>
                       </div>
                     </div>
 
@@ -404,16 +497,16 @@ export default function ViverMaisLandingPage() {
                       {service.opcoes.map((opcao) => (
                         <div
                           key={opcao.tipo}
-                          className="flex items-center justify-between p-3.5 rounded-2xl bg-purple-50/50 border border-purple-100/60 hover:bg-purple-50 transition-colors"
+                          className="flex items-center justify-between p-4 rounded-2xl bg-canvas border border-psi-soft/80 hover:bg-psi-soft/40 transition-colors"
                         >
                           <div>
-                            <span className="text-xs font-extrabold text-slate-800 block">{opcao.label}</span>
-                            <span className="text-[11px] text-purple-600 font-bold">{opcao.preco} / sessão</span>
+                            <span className="text-xs font-extrabold text-ink block">{opcao.label}</span>
+                            <span className="text-[11px] text-psi-deep font-black">{opcao.preco} / sessão (50 min)</span>
                           </div>
                           <button
                             type="button"
                             onClick={() => handleSelectServiceAndPrice(key as any, opcao.tipo)}
-                            className="bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition-all shadow-sm"
+                            className="bg-psi-deep hover:bg-psi-darkest text-white font-extrabold text-xs px-5 py-2.5 rounded-xl transition-all shadow-sm active:scale-95"
                           >
                             Agendar
                           </button>

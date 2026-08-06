@@ -3,21 +3,30 @@
 import React, { useState } from 'react';
 import {
   Sparkles,
+  Heart,
+  Calendar,
+  CheckCircle2,
+  Phone,
+  User,
+  Mail,
   MapPin,
+  HelpCircle,
+  Clock,
   ArrowRight,
-  ArrowUpRight,
+  Brain,
   ShieldCheck,
   Check,
+  Building2,
+  DollarSign,
   Send,
-  UserPlus,
-  Plus,
+  UserPlus
 } from 'lucide-react';
 
 export default function ViverMaisLandingPage() {
   const [selectedService, setSelectedService] = useState<'PSICOTERAPIA' | 'AVALIACAO' | 'ORIENTACAO_PROFISSIONAL' | 'ORIENTACAO_PARENTAL' | null>(null);
   const [selectedModalidade, setSelectedModalidade] = useState<'SOCIAL' | 'PARTICULAR' | 'CASAL_SOCIAL' | 'CASAL_PARTICULAR' | null>(null);
   const [step, setStep] = useState<'SERVICOS' | 'FORMULARIO' | 'CADASTRO_PSICOLOGO' | 'SUCESSO' | 'SUCESSO_PSICOLOGO'>('SERVICOS');
-
+  
   const [form, setForm] = useState({
     nome: '',
     whatsapp: '',
@@ -143,7 +152,6 @@ export default function ViverMaisLandingPage() {
   const precos = {
     PSICOTERAPIA: {
       titulo: 'Psicoterapia',
-      resumo: 'Escuta contínua',
       descricao: 'Atendimento on-line ou presencial. Atendemos crianças, adolescentes, adultos e idosos, com sessões individuais, em casal ou em grupo.',
       imagem: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=800&q=80',
       opcoes: [
@@ -155,9 +163,8 @@ export default function ViverMaisLandingPage() {
     },
     AVALIACAO: {
       titulo: 'Avaliação Psicológica',
-      resumo: 'Mapa clínico',
       descricao: 'A Avaliação Psicológica é um serviço clínico que busca compreender as particularidades de cada indivíduo, analisando aspectos como personalidade, comportamentos, habilidades e desafios emocionais.',
-      imagem: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?auto=format&fit=crop&w=800&q=80',
+      imagem: 'https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&w=800&q=80',
       opcoes: [
         { tipo: 'SOCIAL', label: 'Agendamento Acessível', preco: 'R$ 100,00' },
         { tipo: 'PARTICULAR', label: 'Agendamento Particular', preco: 'R$ 150,00' }
@@ -165,7 +172,6 @@ export default function ViverMaisLandingPage() {
     },
     ORIENTACAO_PROFISSIONAL: {
       titulo: 'Orientação Profissional/Vocacional',
-      resumo: 'Escolha de rumo',
       descricao: 'A Orientação Profissional auxilia no planejamento de sua carreira ou transição profissional. A Orientação Vocacional ajuda jovens e adolescentes a descobrir suas aptidões e interesses.',
       imagem: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=800&q=80',
       opcoes: [
@@ -175,7 +181,6 @@ export default function ViverMaisLandingPage() {
     },
     ORIENTACAO_PARENTAL: {
       titulo: 'Orientação Parental',
-      resumo: 'Vínculo familiar',
       descricao: 'A Orientação Parental oferece suporte especializado para pais e responsáveis que desejam compreender melhor as necessidades emocionais e comportamentais de seus filhos, construindo relações saudáveis.',
       imagem: 'https://images.unsplash.com/photo-1543269865-cbf427effbad?auto=format&fit=crop&w=800&q=80',
       opcoes: [
@@ -185,58 +190,12 @@ export default function ViverMaisLandingPage() {
     }
   };
 
-  const passos = [
-    {
-      n: '01',
-      titulo: 'Escolha o serviço e a modalidade',
-      texto: 'Psicoterapia, Avaliação ou Orientação. Você decide entre o agendamento Acessível (a partir de R$ 75) ou Particular (a partir de R$ 130).',
-    },
-    {
-      n: '02',
-      titulo: 'Preencha seus dados',
-      texto: 'Informe seu contato de WhatsApp e endereço. O sistema aloca um psicólogo especializado por rodízio ético e transparente.',
-    },
-    {
-      n: '03',
-      titulo: 'Confirmação em até 24 horas',
-      texto: 'Seu psicólogo entra em contato no WhatsApp com o link Pix dinâmico para combinar o dia e o horário ideais para você.',
-    },
-  ];
-
-  const faq = [
-    {
-      q: 'As sessões de Psicoterapia são on-line ou presenciais?',
-      a: 'Oferecemos atendimento em ambas modalidades, on-line para qualquer lugar do mundo e presencial em algumas regiões cadastradas.',
-    },
-    {
-      q: 'Quanto tempo dura a sessão?',
-      a: 'A psicoterapia individual dura em média 50 minutos. A psicoterapia de casal/família dura em média 1h30.',
-    },
-    {
-      q: 'Como marcar um dia e horário para minha sessão?',
-      a: 'Escolha o serviço desejado, selecione a modalidade de pagamento e preencha as informações solicitadas. Um psicólogo entrará em contato para agendar o dia e horário ideais.',
-    },
-    {
-      q: 'Como é feito o pagamento?',
-      a: 'O pagamento é realizado de forma segura por Pix (QR Code/Copia e Cola) ou Cartão de Crédito.',
-    },
-  ];
-
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Leva o usuário até o formulário recém-renderizado, e não ao topo da hero
-  const scrollToMain = () => {
-    if (typeof window === 'undefined') return;
-    requestAnimationFrame(() => {
-      document.getElementById('servicos')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-  };
 
   const handleSelectServiceAndPrice = (serviceKey: keyof typeof precos, modalidadeType: string) => {
     setSelectedService(serviceKey);
     setSelectedModalidade(modalidadeType as any);
     setStep('FORMULARIO');
-    scrollToMain();
   };
 
   const handleSubmitPaciente = async (e: React.FormEvent) => {
@@ -294,792 +253,755 @@ export default function ViverMaisLandingPage() {
     }
   };
 
-  const goHome = () => {
-    setStep('SERVICOS');
-    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
   return (
-    <div className="vitrine min-h-screen font-sans antialiased selection:bg-psi-vibrant/25 selection:text-psi-darkest">
-      {/* ————— Cabeçalho ————— */}
-      <header className="sticky top-0 z-40 border-b border-psi-darkest/10 bg-[#f4efe9]/85 backdrop-blur-md">
-        <div className="relative z-10 mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-3.5">
-          <button type="button" onClick={goHome} className="flex items-center gap-3 text-left">
-            <span className="arch-sm flex h-9 w-8 items-end justify-center bg-psi-darkest pb-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#f4efe9]" />
-            </span>
-            <span className="leading-none">
-              <span className="display block text-[19px] font-semibold text-psi-darkest">Viver Mais</span>
-              <span className="mt-0.5 block text-[9px] font-bold uppercase tracking-[0.28em] text-psi-darkest/45">
-                Psicologia
-              </span>
-            </span>
-          </button>
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-purple-100 selection:text-purple-900">
+      {/* Banner / Header */}
+      <header className="bg-white border-b border-purple-100 py-4 px-6 sticky top-0 z-40 backdrop-blur-md bg-white/90 shadow-sm">
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
+          <div 
+            onClick={() => setStep('SERVICOS')}
+            className="flex items-center gap-2 cursor-pointer"
+          >
+            <div className="w-10 h-10 rounded-2xl bg-purple-600 text-white flex items-center justify-center shadow-lg shadow-purple-600/30">
+              <Brain className="w-5 h-5" />
+            </div>
+            <div>
+              <h1 className="text-lg font-black tracking-tight text-slate-900 leading-none">Viver Mais</h1>
+              <span className="text-[10px] text-purple-600 font-bold uppercase tracking-wider">Psicologia</span>
+            </div>
+          </div>
 
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={() => { setStep('CADASTRO_PSICOLOGO'); scrollToMain(); }}
-              className="hidden items-center gap-1.5 rounded-full border border-psi-darkest/20 px-4 py-2 text-[11px] font-bold text-psi-darkest transition-colors hover:border-psi-darkest/50 hover:bg-psi-darkest/5 sm:flex"
+              onClick={() => setStep('CADASTRO_PSICOLOGO')}
+              className="text-xs font-extrabold text-purple-700 hover:text-purple-900 px-4 py-2 rounded-xl hover:bg-purple-50 transition-all border border-purple-200 flex items-center gap-1.5"
             >
-              <UserPlus className="h-3.5 w-3.5" />
-              Sou psicólogo
+              <UserPlus className="w-4 h-4 text-purple-600" />
+              <span>Quero me cadastrar (Sou Psicólogo)</span>
             </button>
             <a
               href="#servicos"
               onClick={() => setStep('SERVICOS')}
-              className="group flex items-center gap-1.5 rounded-full bg-psi-darkest px-5 py-2.5 text-[11px] font-bold text-[#f4efe9] transition-all hover:bg-[var(--ochre)] active:scale-[0.97]"
+              className="bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl transition-all shadow-md active:scale-[0.98]"
             >
-              Agendar consulta
-              <ArrowUpRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+              Agendar Consulta
             </a>
           </div>
         </div>
       </header>
 
-      {/* ————— Hero editorial ————— */}
-      <section className="relative z-10 mx-auto max-w-6xl px-6 pb-14 pt-16 sm:pt-24">
-        <div className="grid grid-cols-1 items-end gap-12 lg:grid-cols-12">
-          <div className="lg:col-span-7">
-            <p className="rise flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.3em] text-[var(--ochre)]" style={{ animationDelay: '60ms' }}>
-              <Sparkles className="h-3.5 w-3.5" />
-              Cuidar da mente é viver mais
-            </p>
-
-            <h1
-              className="rise display mt-7 text-[42px] font-normal leading-[0.98] text-psi-darkest sm:text-[64px]"
-              style={{ animationDelay: '150ms' }}
-            >
-              Um lugar para
-              <br />
-              ser escutado
-              <br />
-              <em className="underline-brush font-light italic text-[var(--iris-mid)]">sem pressa.</em>
-            </h1>
-
-            <p
-              className="rise mt-8 max-w-lg text-[15px] leading-relaxed text-psi-darkest/70"
-              style={{ animationDelay: '260ms' }}
-            >
-              Encontre o psicólogo certo para o seu momento, on-line ou presencial. Agendamento ágil,
-              valores acessíveis e resguardo ético em todas as etapas do cuidado.
-            </p>
-
-            <div className="rise mt-9 flex flex-wrap items-center gap-x-7 gap-y-4" style={{ animationDelay: '360ms' }}>
-              <a
-                href="#servicos"
-                className="group flex items-center gap-2 rounded-full bg-[var(--iris-mid)] px-7 py-4 text-xs font-bold text-white transition-all hover:bg-psi-darkest active:scale-[0.97]"
-              >
-                Ver modalidades e agendar
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-              </a>
-              <span className="flex items-center gap-2 text-[11px] font-semibold text-psi-darkest/60">
-                <ShieldCheck className="h-4 w-4 text-[var(--iris-soft)]" />
-                Sigilo CFP &amp; LGPD garantidos
-              </span>
-            </div>
-          </div>
-
-          {/* Retrato em arco — a soleira do consultório */}
-          <div className="rise relative lg:col-span-5" style={{ animationDelay: '480ms' }}>
-            <div className="arch absolute -left-4 -top-4 h-full w-full border border-psi-darkest/15" aria-hidden="true" />
-            <div className="arch relative overflow-hidden bg-psi-darkest">
-              <img
-                src="/landing_hero_psychology.png"
-                alt="Consultório de psicologia da Clínica Viver Mais"
-                className="h-[380px] w-full object-cover lg:h-[440px]"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-psi-darkest via-psi-darkest/45 to-transparent" />
-              <div className="absolute inset-x-6 bottom-6">
-                <span className="block text-[9px] font-bold uppercase tracking-[0.24em] text-white/70">
-                  Atendimento humanizado
-                </span>
-                <span className="display mt-1 block text-lg leading-snug text-white">
-                  Sessões on-line ou presenciais
-                </span>
+      {/* Hero Banner Card Section com Imagem Premium de Fundo */}
+      <section className="px-6 pt-8 pb-4">
+        <div className="max-w-6xl mx-auto">
+          <div className="relative overflow-hidden bg-slate-950 text-white rounded-3xl p-8 sm:p-14 shadow-2xl border border-purple-900/40 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+            {/* Background Decorativo */}
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(158,107,207,0.25),transparent_60%)] pointer-events-none"></div>
+            
+            <div className="space-y-6 relative z-10 lg:col-span-7">
+              <div className="inline-flex items-center gap-2 bg-psi-deep/40 backdrop-blur-md text-purple-200 border border-purple-400/30 text-[11px] font-extrabold px-3.5 py-1.5 rounded-full">
+                <Sparkles className="w-4 h-4 text-psi-vibrant" />
+                Cuidar da mente é Viver Mais!
+              </div>
+              <h2 className="text-3xl sm:text-5xl font-black tracking-tight leading-[1.1] text-white">
+                Acolhimento Humano e Inteligência Clínica ao Seu Alcance
+              </h2>
+              <p className="text-sm sm:text-base text-purple-100/90 leading-relaxed max-w-xl font-normal">
+                Encontre o psicólogo ideal para suas necessidades em consultas presenciais ou on-line. Agendamento ágil, valores acessíveis e resguardo ético em todas as etapas.
+              </p>
+              
+              <div className="pt-2 flex flex-wrap items-center gap-4">
+                <a
+                  href="#modalidades"
+                  className="bg-psi-vibrant hover:bg-psi-deep text-white font-black text-xs px-6 py-3.5 rounded-2xl transition-all shadow-lift flex items-center gap-2 active:scale-95"
+                >
+                  Ver Modalidades & Agendar <ArrowRight className="w-4 h-4" />
+                </a>
+                <div className="flex items-center gap-2 text-xs text-purple-200 font-semibold">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <span>Sigilo CFP & LGPD Garantidos</span>
+                </div>
               </div>
             </div>
-            <div className="absolute -right-4 top-10 rounded-2xl border border-psi-darkest/10 bg-[#f4efe9] px-4 py-3 text-right shadow-[0_10px_30px_rgba(67,38,94,0.14)] sm:-right-6">
-              <span className="display block text-2xl leading-none text-psi-darkest">24h</span>
-              <span className="mt-1 block text-[9px] font-bold uppercase tracking-[0.16em] text-psi-darkest/50">
-                Retorno garantido
-              </span>
+            
+            {/* Imagem Premium de Consultório na Hero */}
+            <div className="relative z-10 lg:col-span-5">
+              <div className="relative rounded-2xl overflow-hidden border-2 border-white/10 shadow-2xl group">
+                <img
+                  src="/landing_hero_psychology.png"
+                  alt="Consultório de Psicologia Viver Mais"
+                  className="w-full h-72 lg:h-80 object-cover group-hover:scale-105 transition-transform duration-700"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-transparent"></div>
+                <div className="absolute bottom-4 left-4 right-4 bg-slate-900/80 backdrop-blur-md p-3.5 rounded-xl border border-white/10 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-psi-vibrant font-extrabold uppercase block">Atendimento Humanizado</span>
+                    <span className="text-xs text-white font-extrabold">Sessões Online ou Presenciais</span>
+                  </div>
+                  <span className="bg-emerald-500/20 text-emerald-300 text-[10px] font-bold px-2.5 py-1 rounded-lg border border-emerald-500/30">
+                    SLA 24h
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ————— Fluxo em 3 passos ————— */}
-      <section className="relative z-10 mx-auto max-w-6xl px-6 py-16">
-        <div className="rule" />
-        <div className="mt-10 grid grid-cols-1 gap-10 md:grid-cols-3 md:gap-14">
-          {passos.map((passo) => (
-            <div key={passo.n} className="relative">
-              <span className="display block text-[56px] font-light leading-none text-psi-darkest/15">{passo.n}</span>
-              <h3 className="display mt-3 text-xl leading-snug text-psi-darkest">{passo.titulo}</h3>
-              <p className="mt-3 text-[13px] leading-relaxed text-psi-darkest/65">{passo.texto}</p>
+      {/* Seção 3 Passos: Como Funciona o Seu Agendamento */}
+      <section className="px-6 py-8">
+        <div className="max-w-6xl mx-auto">
+          <div className="bg-surface rounded-3xl p-8 border border-line shadow-card space-y-6">
+            <div className="text-center max-w-2xl mx-auto space-y-2">
+              <span className="chip-accent text-[11px]">Jornada Descomplicada</span>
+              <h3 className="text-xl sm:text-2xl font-black text-ink">Como Funciona o Seu Agendamento em 3 Passos</h3>
             </div>
-          ))}
-        </div>
-      </section>
 
-      {/* ————— Fluxos interativos ————— */}
-      <main id="servicos" className="relative z-10 mx-auto max-w-6xl px-6 pb-24 scroll-mt-20">
-        {step === 'SERVICOS' && (
-          <div className="space-y-24">
-            {/* Índice dos serviços */}
-            <div>
-              <div className="flex flex-col gap-5 border-t border-psi-darkest/15 pt-8 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <span className="text-[10px] font-bold uppercase tracking-[0.28em] text-[var(--ochre)]">
-                    Nossas especialidades
-                  </span>
-                  <h2 className="display mt-3 text-[32px] leading-tight text-psi-darkest sm:text-[42px]">
-                    Serviços clínicos
-                  </h2>
-                </div>
-                <p className="max-w-xs text-[13px] leading-relaxed text-psi-darkest/60">
-                  Valores transparentes, alocação ética por rodízio e sessões de 50 minutos.
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="p-5 rounded-2xl bg-canvas border border-psi-soft/60 space-y-3 relative">
+                <span className="w-8 h-8 rounded-xl bg-psi-deep text-white font-black text-xs flex items-center justify-center">1</span>
+                <h4 className="font-extrabold text-sm text-ink">Escolha o Serviço & Modalidade</h4>
+                <p className="text-xs text-muted leading-relaxed">
+                  Selecione entre Psicoterapia, Avaliação ou Orientação. Escolha o agendamento Acessível (R$ 75) ou Particular (R$ 130).
                 </p>
               </div>
 
-              <nav className="mt-8 flex flex-wrap gap-2">
-                {Object.entries(precos).map(([key, service]) => (
-                  <a
-                    key={key}
-                    href={`#detalhes-${key}`}
-                    className="group flex items-center gap-2 rounded-full border border-psi-darkest/15 px-4 py-2 text-[11px] font-bold text-psi-darkest/75 transition-all hover:border-psi-darkest hover:bg-psi-darkest hover:text-[#f4efe9]"
-                  >
-                    {service.titulo}
-                    <ArrowRight className="h-3 w-3 opacity-40 transition-all group-hover:translate-x-0.5 group-hover:opacity-100" />
-                  </a>
-                ))}
-              </nav>
-            </div>
+              <div className="p-5 rounded-2xl bg-canvas border border-psi-soft/60 space-y-3 relative">
+                <span className="w-8 h-8 rounded-xl bg-psi-vibrant text-white font-black text-xs flex items-center justify-center">2</span>
+                <h4 className="font-extrabold text-sm text-ink">Preencha Seus Dados</h4>
+                <p className="text-xs text-muted leading-relaxed">
+                  Informe seu contato no WhatsApp e endereço. O sistema aloca um psicólogo especializado via rodízio inteligente.
+                </p>
+              </div>
 
-            {/* Serviços em linhas editoriais alternadas */}
-            <div className="space-y-24">
-              {Object.entries(precos).map(([key, service], index) => (
-                <article
-                  key={key}
-                  id={`detalhes-${key}`}
-                  className="grid scroll-mt-24 grid-cols-1 gap-10 lg:grid-cols-12 lg:gap-14"
-                >
-                  <div className={`lg:col-span-5 ${index % 2 === 1 ? 'lg:order-2' : ''}`}>
-                    <div className="arch relative overflow-hidden bg-psi-darkest">
-                      <img
-                        src={service.imagem}
-                        alt={service.titulo}
-                        className="h-[300px] w-full object-cover transition-transform duration-[900ms] hover:scale-[1.04] sm:h-[360px]"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-psi-darkest/70 via-transparent to-transparent" />
-                      <span className="display absolute bottom-5 left-6 text-base italic text-white/85">
-                        {service.resumo}
-                      </span>
+              <div className="p-5 rounded-2xl bg-canvas border border-psi-soft/60 space-y-3 relative">
+                <span className="w-8 h-8 rounded-xl bg-emerald-600 text-white font-black text-xs flex items-center justify-center">3</span>
+                <h4 className="font-extrabold text-sm text-ink">Confirmação via WhatsApp (24h)</h4>
+                <p className="text-xs text-muted leading-relaxed">
+                  Seu psicólogo entra em contato no WhatsApp em até 24 horas com o link Pix dinâmico para agendar o horário ideal.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Main Flow Section */}
+      <main id="modalidades" className="max-w-6xl mx-auto px-6 py-8">
+        {step === 'SERVICOS' && (
+          <div className="space-y-16 animate-in fade-in slide-in-from-bottom-4 duration-300">
+            {/* NOVO LAYOUT REELABORADO: CARDS DE SERVIÇOS PREMIUM */}
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                <div>
+                  <span className="chip-accent text-[11px]">Nossas Especialidades</span>
+                  <h3 className="text-2xl sm:text-3xl font-black text-ink mt-1">Serviços Clínicos Oferecidos</h3>
+                  <p className="text-xs text-muted">Escolha o serviço mais adequado para o seu momento de vida</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {Object.entries(precos).map(([key, service]) => (
+                  <div
+                    key={key}
+                    className="bg-surface rounded-3xl border border-psi-soft/80 p-6 flex flex-col justify-between shadow-card hover:shadow-lift transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden"
+                  >
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-psi-soft/40 rounded-full blur-2xl group-hover:bg-psi-vibrant/20 transition-all"></div>
+                    
+                    <div className="space-y-4 relative z-10">
+                      <div className="w-12 h-12 rounded-2xl bg-psi-soft text-psi-deep flex items-center justify-center border border-psi-soft/80 group-hover:scale-110 group-hover:bg-psi-deep group-hover:text-white transition-all">
+                        <Heart className="w-5 h-5" />
+                      </div>
+                      <h4 className="text-base font-black text-ink leading-snug group-hover:text-psi-deep transition-colors">{service.titulo}</h4>
+                      <p className="text-xs text-muted leading-relaxed line-clamp-4">{service.descricao}</p>
+                    </div>
+
+                    <div className="pt-6 border-t border-psi-soft/50 mt-6 relative z-10">
+                      <a
+                        href={`#detalhes-${key}`}
+                        className="w-full bg-canvas hover:bg-psi-soft/80 border border-psi-soft text-psi-darkest font-extrabold text-xs py-2.5 px-4 rounded-xl transition-all flex items-center justify-center gap-1.5 group-hover:bg-psi-deep group-hover:text-white group-hover:border-psi-deep"
+                      >
+                        Ver Valores e Agendar <ArrowRight className="w-3.5 h-3.5" />
+                      </a>
                     </div>
                   </div>
+                ))}
+              </div>
+            </div>
 
-                  <div className={`flex flex-col justify-center lg:col-span-7 ${index % 2 === 1 ? 'lg:order-1' : ''}`}>
-                    <span className="display text-[13px] italic text-[var(--ochre)]">
-                      {String(index + 1).padStart(2, '0')} / 04
-                    </span>
-                    <h3 className="display mt-2 text-[30px] leading-tight text-psi-darkest sm:text-[36px]">
-                      {service.titulo}
-                    </h3>
-                    <p className="mt-4 max-w-xl text-[14px] leading-relaxed text-psi-darkest/70">
-                      {service.descricao}
-                    </p>
+            {/* Banner Informativo Psicoterapia com Equipe */}
+            <div className="bg-surface rounded-3xl p-8 border border-line shadow-card grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+              <div className="lg:col-span-7 space-y-4">
+                <span className="chip-accent text-[11px]">Equipe Credenciada</span>
+                <h3 className="text-2xl font-black text-ink">Por que fazer Psicoterapia na Viver Mais?</h3>
+                <p className="text-xs sm:text-sm text-muted leading-relaxed">
+                  A psicoterapia é um ambiente seguro e sigiloso de escuta técnica para superar desafios emocionais, ansiedade e momentos de transição. Nossos profissionais passam por rigoroso processo de credenciamento e supervisão clínica contínua.
+                </p>
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <span className="bg-psi-soft text-psi-darkest font-extrabold text-[11px] px-3 py-1 rounded-full border border-psi-soft">
+                    Modalidade Acessível (R$ 75,00)
+                  </span>
+                  <span className="bg-psi-soft text-psi-darkest font-extrabold text-[11px] px-3 py-1 rounded-full border border-psi-soft">
+                    Modalidade Particular (R$ 130,00)
+                  </span>
+                </div>
+              </div>
+              <div className="lg:col-span-5">
+                <img
+                  src="/psychologist_team.png"
+                  alt="Equipe de Psicólogos Viver Mais"
+                  className="rounded-2xl border border-line shadow-md w-full h-56 object-cover"
+                />
+              </div>
+            </div>
 
-                    <ul className="mt-8 border-t border-psi-darkest/12">
+            {/* Tabela de Preços e Ações por Serviço */}
+            <div className="space-y-10">
+              <div className="text-center max-w-xl mx-auto">
+                <h3 className="text-2xl font-black text-ink">Escolha Seu Serviço & Agende em 1-Clique</h3>
+                <p className="text-xs text-muted mt-1">Valores transparentes e alocação ética garantida</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {Object.entries(precos).map(([key, service]) => (
+                  <div
+                    key={key}
+                    id={`detalhes-${key}`}
+                    className="bg-surface rounded-3xl border border-line shadow-card overflow-hidden flex flex-col justify-between hover:shadow-lift transition-all scroll-mt-24"
+                  >
+                    <div>
+                      {/* Banner de Imagem com Gradiente */}
+                      <div className="relative h-48 w-full overflow-hidden bg-psi-darkest">
+                        <img
+                          src={service.imagem}
+                          alt={service.titulo}
+                          className="w-full h-full object-cover opacity-90 hover:scale-105 transition-all duration-700"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/30 to-transparent"></div>
+                        <div className="absolute bottom-4 left-6 right-6">
+                          <span className="text-[10px] text-psi-vibrant font-extrabold uppercase tracking-wider bg-psi-darkest/90 backdrop-blur-md px-3 py-1 rounded-full border border-psi-vibrant/30">
+                            Atendimento Especializado
+                          </span>
+                          <h4 className="text-lg font-black text-white mt-1.5 flex items-center gap-2">
+                            {service.titulo}
+                          </h4>
+                        </div>
+                      </div>
+
+                      <div className="p-6">
+                        <p className="text-xs text-muted leading-relaxed border-b border-line pb-4">{service.descricao}</p>
+                      </div>
+                    </div>
+
+                    <div className="p-6 pt-0 space-y-3">
                       {service.opcoes.map((opcao) => (
-                        <li
+                        <div
                           key={opcao.tipo}
-                          className="group flex flex-wrap items-center justify-between gap-4 border-b border-psi-darkest/12 py-4 transition-colors hover:bg-white/50"
+                          className="flex items-center justify-between p-4 rounded-2xl bg-canvas border border-psi-soft/80 hover:bg-psi-soft/40 transition-colors"
                         >
                           <div>
-                            <span className="block text-[13px] font-bold text-psi-darkest">{opcao.label}</span>
-                            <span className="display mt-0.5 block text-[15px] text-[var(--iris-mid)]">
-                              {opcao.preco}
-                              <span className="ml-1.5 font-sans text-[11px] font-medium not-italic text-psi-darkest/45">
-                                / sessão de 50 min
-                              </span>
-                            </span>
+                            <span className="text-xs font-extrabold text-ink block">{opcao.label}</span>
+                            <span className="text-[11px] text-psi-deep font-black">{opcao.preco} / sessão (50 min)</span>
                           </div>
                           <button
                             type="button"
                             onClick={() => handleSelectServiceAndPrice(key as any, opcao.tipo)}
-                            className="flex items-center gap-1.5 rounded-full border border-psi-darkest/25 px-5 py-2.5 text-[11px] font-bold text-psi-darkest transition-all hover:border-psi-darkest hover:bg-psi-darkest hover:text-[#f4efe9] active:scale-[0.97]"
+                            className="bg-psi-deep hover:bg-psi-darkest text-white font-extrabold text-xs px-5 py-2.5 rounded-xl transition-all shadow-sm active:scale-95"
                           >
                             Agendar
-                            <ArrowUpRight className="h-3.5 w-3.5" />
                           </button>
-                        </li>
+                        </div>
                       ))}
-                    </ul>
+                    </div>
                   </div>
-                </article>
-              ))}
-            </div>
-
-            {/* Faixa escura — momento de alto contraste */}
-            <section className="overflow-hidden rounded-[32px] bg-psi-darkest text-[#f4efe9]">
-              <div className="grid grid-cols-1 items-center gap-10 p-9 sm:p-14 lg:grid-cols-12">
-                <div className="lg:col-span-7">
-                  <span className="text-[10px] font-bold uppercase tracking-[0.28em] text-[var(--iris-soft)]">
-                    Equipe credenciada
-                  </span>
-                  <h3 className="display mt-4 text-[30px] leading-tight text-white sm:text-[40px]">
-                    Por que fazer psicoterapia
-                    <br />
-                    <em className="font-light italic text-[var(--iris-soft)]">na Viver Mais?</em>
-                  </h3>
-                  <p className="mt-5 max-w-lg text-[14px] leading-relaxed text-white/70">
-                    A psicoterapia é um ambiente seguro e sigiloso de escuta técnica para atravessar desafios
-                    emocionais, ansiedade e momentos de transição. Nossos profissionais passam por rigoroso
-                    processo de credenciamento e supervisão clínica contínua.
-                  </p>
-                  <div className="mt-7 flex flex-wrap gap-2.5">
-                    <span className="rounded-full border border-white/20 px-4 py-1.5 text-[11px] font-bold text-white/85">
-                      Acessível · R$ 75,00
-                    </span>
-                    <span className="rounded-full border border-white/20 px-4 py-1.5 text-[11px] font-bold text-white/85">
-                      Particular · R$ 130,00
-                    </span>
-                    <span className="rounded-full border border-white/20 px-4 py-1.5 text-[11px] font-bold text-white/85">
-                      Supervisão clínica contínua
-                    </span>
-                  </div>
-                </div>
-                <div className="lg:col-span-5">
-                  <img
-                    src="/psychologist_team.png"
-                    alt="Equipe de psicólogos da Clínica Viver Mais"
-                    className="arch-sm h-64 w-full border border-white/10 object-cover"
-                  />
-                </div>
-              </div>
-            </section>
-
-            {/* Dúvidas frequentes */}
-            <section>
-              <div className="flex flex-col gap-4 border-t border-psi-darkest/15 pt-8 sm:flex-row sm:items-end sm:justify-between">
-                <h3 className="display text-[30px] leading-tight text-psi-darkest sm:text-[40px]">
-                  Dúvidas frequentes
-                </h3>
-                <span className="text-[10px] font-bold uppercase tracking-[0.28em] text-[var(--ochre)]">
-                  Antes de agendar
-                </span>
-              </div>
-
-              <div className="mt-8">
-                {faq.map((item) => (
-                  <details key={item.q} className="group border-b border-psi-darkest/12">
-                    <summary className="flex items-center justify-between gap-6 py-5 transition-colors hover:text-[var(--iris-mid)]">
-                      <span className="display text-[17px] leading-snug text-psi-darkest sm:text-[19px]">
-                        {item.q}
-                      </span>
-                      <Plus className="faq-plus h-4 w-4 shrink-0 text-[var(--iris-mid)] transition-transform duration-300" />
-                    </summary>
-                    <p className="max-w-2xl pb-6 text-[13px] leading-relaxed text-psi-darkest/65">{item.a}</p>
-                  </details>
                 ))}
               </div>
-            </section>
+            </div>
+
+            {/* Dúvidas Frequentes */}
+            <div className="bg-white rounded-3xl p-8 border border-purple-100 shadow-sm space-y-6">
+              <h3 className="text-xl font-black text-slate-900 border-b border-purple-50 pb-4">Dúvidas Frequentes</h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs sm:text-sm">
+                <div className="space-y-2">
+                  <h4 className="font-extrabold text-slate-900">As sessões de Psicoterapia são on-line ou presenciais?</h4>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Oferecemos atendimento em ambas modalidades, on-line para qualquer lugar do mundo e presencial em algumas regiões cadastradas.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <h4 className="font-extrabold text-slate-900">Quanto tempo dura a sessão?</h4>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    A psicoterapia individual dura em média 50 minutos. A psicoterapia de casal/família dura em média 1h30.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <h4 className="font-extrabold text-slate-900">Como marcar um dia e horário para minha sessão?</h4>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Escolha o serviço desejado, selecione a modalidade de pagamento e preencha as informações solicitadas. Um psicólogo entrará em contato para agendar o dia e horário ideais.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <h4 className="font-extrabold text-slate-900">Como é feito o pagamento?</h4>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    O pagamento é realizado de forma segura por Pix (QR Code/Copia e Cola) ou Cartão de Crédito.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
         {step === 'FORMULARIO' && selectedService && selectedModalidade && (
-          <div className="rise mx-auto max-w-xl" style={{ animationDelay: '0ms' }}>
-            <div className="arch border border-psi-darkest/12 bg-white/80 px-7 pb-9 pt-12 backdrop-blur-sm sm:px-10">
-              <div className="text-center">
-                <span className="text-[10px] font-bold uppercase tracking-[0.28em] text-[var(--ochre)]">
-                  Solicitação de consulta
-                </span>
-                <h3 className="display mt-3 text-[26px] leading-tight text-psi-darkest">
-                  {precos[selectedService].titulo}
+          <div className="max-w-xl mx-auto bg-white rounded-3xl p-6 sm:p-8 border border-purple-100 shadow-xl space-y-6 animate-in fade-in duration-300">
+            <div className="flex items-center justify-between border-b border-purple-50 pb-4">
+              <div>
+                <span className="text-[10px] text-purple-600 font-bold uppercase tracking-wider block">Solicitação de Consulta</span>
+                <h3 className="text-lg font-black text-slate-900">
+                  Preencha o formulário abaixo para concluir seu agendamento!
                 </h3>
-                {(() => {
-                  const opcao = precos[selectedService].opcoes.find((o) => o.tipo === selectedModalidade);
-                  return opcao ? (
-                    <p className="mt-3 inline-flex flex-wrap items-center justify-center gap-2 rounded-full border border-psi-darkest/15 bg-psi-soft/50 px-4 py-1.5 text-[11px] font-bold text-psi-darkest">
-                      {opcao.label}
-                      <span className="text-[var(--iris-mid)]">{opcao.preco}</span>
-                    </p>
-                  ) : null;
-                })()}
-                <p className="mt-3 text-[12px] text-psi-darkest/55">
-                  Preencha os dados abaixo para concluir seu agendamento.
-                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setStep('SERVICOS')}
+                className="text-xs text-slate-500 hover:text-slate-900 hover:underline font-bold"
+              >
+                Voltar
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitPaciente} className="space-y-4 text-xs">
+              {/* Nome Completo */}
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Nome Completo <span className="text-rose-500">*</span></label>
+                <input
+                  type="text"
+                  required
+                  value={form.nome}
+                  onChange={(e) => setForm({ ...form, nome: e.target.value })}
+                  placeholder="Nome Completo"
+                  className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-200"
+                />
               </div>
 
-              <div className="my-8 h-px bg-psi-darkest/12" />
-
-              <form onSubmit={handleSubmitPaciente} className="space-y-5">
+              {/* Telefone e Confirme Telefone com Máscara */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="label">Nome completo *</label>
+                  <label className="font-bold text-slate-700 block mb-1">Telefone <span className="text-rose-500">*</span></label>
                   <input
                     type="text"
                     required
-                    value={form.nome}
-                    onChange={(e) => setForm({ ...form, nome: e.target.value })}
-                    placeholder="Como você se chama?"
-                    className="field"
+                    value={form.whatsapp}
+                    onChange={(e) => setForm({ ...form, whatsapp: maskPhone(e.target.value) })}
+                    placeholder="(00) 00000-0000"
+                    maxLength={15}
+                    className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
                   />
                 </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Confirme o Telefone <span className="text-rose-500">*</span></label>
+                  <input
+                    type="text"
+                    required
+                    value={form.whatsappConfirmacao}
+                    onChange={(e) => setForm({ ...form, whatsappConfirmacao: maskPhone(e.target.value) })}
+                    placeholder="(00) 00000-0000"
+                    maxLength={15}
+                    className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
+                  />
+                </div>
+              </div>
 
-                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                  <div>
-                    <label className="label">Telefone *</label>
+              {/* Idade e E-mail */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Idade <span className="text-rose-500">*</span></label>
+                  <input
+                    type="number"
+                    required
+                    value={form.idade}
+                    onChange={(e) => setForm({ ...form, idade: e.target.value })}
+                    placeholder="Idade"
+                    className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">E-mail <span className="text-rose-500">*</span></label>
+                  <input
+                    type="email"
+                    required
+                    value={form.email}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    placeholder="E-mail"
+                    className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
+                  />
+                </div>
+              </div>
+
+              {/* CPF e CEP com Máscara e ViaCEP */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">CPF <span className="text-rose-500">*</span></label>
+                  <input
+                    type="text"
+                    required
+                    value={form.cpf}
+                    onChange={(e) => setForm({ ...form, cpf: maskCPF(e.target.value) })}
+                    placeholder="000.000.000-00"
+                    maxLength={14}
+                    className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">CEP <span className="text-rose-500">*</span></label>
+                  <div className="relative">
                     <input
                       type="text"
                       required
-                      value={form.whatsapp}
-                      onChange={(e) => setForm({ ...form, whatsapp: maskPhone(e.target.value) })}
-                      placeholder="(00) 00000-0000"
-                      maxLength={15}
-                      className="field"
+                      value={form.cep}
+                      onChange={handleCepChange}
+                      placeholder="00000-000"
+                      maxLength={9}
+                      className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
                     />
-                  </div>
-                  <div>
-                    <label className="label">Confirme o telefone *</label>
-                    <input
-                      type="text"
-                      required
-                      value={form.whatsappConfirmacao}
-                      onChange={(e) => setForm({ ...form, whatsappConfirmacao: maskPhone(e.target.value) })}
-                      placeholder="(00) 00000-0000"
-                      maxLength={15}
-                      className="field"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                  <div>
-                    <label className="label">Idade *</label>
-                    <input
-                      type="number"
-                      required
-                      value={form.idade}
-                      onChange={(e) => setForm({ ...form, idade: e.target.value })}
-                      placeholder="Ex: 34"
-                      className="field"
-                    />
-                  </div>
-                  <div>
-                    <label className="label">E-mail *</label>
-                    <input
-                      type="email"
-                      required
-                      value={form.email}
-                      onChange={(e) => setForm({ ...form, email: e.target.value })}
-                      placeholder="voce@email.com"
-                      className="field"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                  <div>
-                    <label className="label">CPF *</label>
-                    <input
-                      type="text"
-                      required
-                      value={form.cpf}
-                      onChange={(e) => setForm({ ...form, cpf: maskCPF(e.target.value) })}
-                      placeholder="000.000.000-00"
-                      maxLength={14}
-                      className="field"
-                    />
-                  </div>
-                  <div>
-                    <label className="label">CEP *</label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        required
-                        value={form.cep}
-                        onChange={handleCepChange}
-                        placeholder="00000-000"
-                        maxLength={9}
-                        className="field"
-                      />
-                      {loadingCep && (
-                        <span className="absolute right-3 top-3 animate-pulse text-[10px] font-bold text-[var(--iris-mid)]">
-                          Buscando…
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {enderecoInfo.cidade && (
-                  <div className="rise rounded-xl border border-psi-darkest/12 bg-psi-soft/50 p-3.5 text-[11px]">
-                    <span className="flex items-center gap-1.5 font-bold text-psi-darkest">
-                      <MapPin className="h-3.5 w-3.5 text-[var(--iris-mid)]" /> Endereço localizado
-                    </span>
-                    <p className="mt-1 text-psi-darkest/70">
-                      {enderecoInfo.logradouro ? `${enderecoInfo.logradouro}, ` : ''}
-                      {enderecoInfo.bairro ? `${enderecoInfo.bairro} — ` : ''}
-                      <span className="font-semibold text-psi-darkest">
-                        {enderecoInfo.cidade}/{enderecoInfo.uf}
+                    {loadingCep && (
+                      <span className="absolute right-3 top-3 text-[10px] text-purple-600 font-bold animate-pulse">
+                        Buscando...
                       </span>
-                    </p>
-                  </div>
-                )}
-
-                <div>
-                  <label className="label">Você é conveniado com alguma empresa parceira? *</label>
-                  <div className="flex items-center gap-5 text-[13px] text-psi-darkest">
-                    <label className="flex cursor-pointer items-center gap-2">
-                      <input
-                        type="radio"
-                        name="possuiConvenio"
-                        value="SIM"
-                        checked={form.possuiConvenio === 'SIM'}
-                        onChange={() => setForm({ ...form, possuiConvenio: 'SIM' })}
-                        className="accent-[#5C397D]"
-                      />
-                      Sim
-                    </label>
-                    <label className="flex cursor-pointer items-center gap-2">
-                      <input
-                        type="radio"
-                        name="possuiConvenio"
-                        value="NAO"
-                        checked={form.possuiConvenio === 'NAO'}
-                        onChange={() => setForm({ ...form, possuiConvenio: 'NAO', convenioSelecionado: '' })}
-                        className="accent-[#5C397D]"
-                      />
-                      Não
-                    </label>
+                    )}
                   </div>
                 </div>
+              </div>
 
-                {form.possuiConvenio === 'SIM' && (
-                  <div className="rise">
-                    <label className="label">Selecione seu convênio *</label>
-                    <select
-                      required
-                      value={form.convenioSelecionado}
-                      onChange={(e) => setForm({ ...form, convenioSelecionado: e.target.value })}
-                      className="field"
-                    >
-                      <option value="">Selecione seu convênio</option>
-                      {conveniosDisponiveis.map((c) => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+              {/* Endereço auto-preenchido pelo ViaCEP */}
+              {enderecoInfo.cidade && (
+                <div className="bg-purple-50/60 border border-purple-100 p-3 rounded-2xl text-[11px] space-y-1 animate-in fade-in">
+                  <span className="font-bold text-purple-800 flex items-center gap-1">
+                    <MapPin className="w-3.5 h-3.5 text-purple-600" /> Endereço Localizado:
+                  </span>
+                  <p className="text-slate-600">
+                    {enderecoInfo.logradouro ? `${enderecoInfo.logradouro}, ` : ''}
+                    {enderecoInfo.bairro ? `${enderecoInfo.bairro} — ` : ''}
+                    <span className="font-semibold text-slate-800">{enderecoInfo.cidade}/{enderecoInfo.uf}</span>
+                  </p>
+                </div>
+              )}
 
-                <div>
-                  <label className="label">Como ficou sabendo da clínica? *</label>
+              {/* Você é conveniado com alguma empresa parceira? */}
+              <div className="space-y-2">
+                <label className="font-bold text-slate-700 block">Você é conveniado com alguma empresa parceira? <span className="text-rose-500">*</span></label>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="possuiConvenio"
+                      value="SIM"
+                      checked={form.possuiConvenio === 'SIM'}
+                      onChange={() => setForm({ ...form, possuiConvenio: 'SIM' })}
+                      className="accent-purple-600"
+                    />
+                    Sim
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="possuiConvenio"
+                      value="NAO"
+                      checked={form.possuiConvenio === 'NAO'}
+                      onChange={() => setForm({ ...form, possuiConvenio: 'NAO', convenioSelecionado: '' })}
+                      className="accent-purple-600"
+                    />
+                    Não
+                  </label>
+                </div>
+              </div>
+
+              {/* Dropdown condicional de Convênio */}
+              {form.possuiConvenio === 'SIM' && (
+                <div className="animate-in fade-in duration-200">
+                  <label className="font-bold text-slate-700 block mb-1">Selecione seu convênio <span className="text-rose-500">*</span></label>
                   <select
-                    value={form.origem}
-                    onChange={(e) => setForm({ ...form, origem: e.target.value })}
-                    className="field"
+                    required
+                    value={form.convenioSelecionado}
+                    onChange={(e) => setForm({ ...form, convenioSelecionado: e.target.value })}
+                    className="w-full border border-slate-300 bg-white rounded-xl p-3 focus:outline-none focus:border-purple-600"
                   >
-                    <option value="Facebook">Facebook</option>
-                    <option value="Instagram">Instagram</option>
-                    <option value="Google">Google</option>
-                    <option value="Whatsapp">Whatsapp</option>
-                    <option value="Sou aluno">Sou aluno</option>
-                    <option value="Conveniado">Conveniado</option>
-                    <option value="Indicação">Indicação</option>
-                    <option value="Outros">Outros</option>
+                    <option value="">Selecione seu convênio</option>
+                    {conveniosDisponiveis.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
                   </select>
                 </div>
+              )}
 
-                <div>
-                  <label className="label">Períodos de preferência *</label>
-                  <div className="flex items-center gap-5 text-[13px] text-psi-darkest">
-                    <label className="flex cursor-pointer items-center gap-2">
-                      <input
-                        type="radio"
-                        name="turno"
-                        value="VESPERTINO"
-                        checked={form.turno === 'VESPERTINO'}
-                        onChange={() => setForm({ ...form, turno: 'VESPERTINO' })}
-                        className="accent-[#5C397D]"
-                      />
-                      Vespertino (tarde)
-                    </label>
-                    <label className="flex cursor-pointer items-center gap-2">
-                      <input
-                        type="radio"
-                        name="turno"
-                        value="NOTURNO"
-                        checked={form.turno === 'NOTURNO'}
-                        onChange={() => setForm({ ...form, turno: 'NOTURNO' })}
-                        className="accent-[#5C397D]"
-                      />
-                      Noturno (noite)
-                    </label>
-                  </div>
+              {/* Como ficou sabendo da clínica? */}
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Como ficou sabendo da clínica? <span className="text-rose-500">*</span></label>
+                <select
+                  value={form.origem}
+                  onChange={(e) => setForm({ ...form, origem: e.target.value })}
+                  className="w-full border border-slate-300 bg-white rounded-xl p-3 focus:outline-none focus:border-purple-600"
+                >
+                  <option value="Facebook">Facebook</option>
+                  <option value="Instagram">Instagram</option>
+                  <option value="Google">Google</option>
+                  <option value="Whatsapp">Whatsapp</option>
+                  <option value="Sou aluno">Sou aluno</option>
+                  <option value="Conveniado">Conveniado</option>
+                  <option value="Indicação">Indicação</option>
+                  <option value="Outros">Outros</option>
+                </select>
+              </div>
+
+              {/* Períodos de preferência */}
+              <div className="space-y-2">
+                <label className="font-bold text-slate-700 block">Períodos de preferência: <span className="text-rose-500">*</span></label>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="turno"
+                      value="VESPERTINO"
+                      checked={form.turno === 'VESPERTINO'}
+                      onChange={() => setForm({ ...form, turno: 'VESPERTINO' })}
+                      className="accent-purple-600"
+                    />
+                    Vespertino (tarde)
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="turno"
+                      value="NOTURNO"
+                      checked={form.turno === 'NOTURNO'}
+                      onChange={() => setForm({ ...form, turno: 'NOTURNO' })}
+                      className="accent-purple-600"
+                    />
+                    Noturno (noite)
+                  </label>
                 </div>
+              </div>
 
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-full bg-psi-darkest py-4 text-[12px] font-bold text-[#f4efe9] transition-all hover:bg-[var(--iris-mid)] active:scale-[0.98] disabled:opacity-50"
-                >
-                  <Send className="h-4 w-4" />
-                  {isSubmitting ? 'Enviando…' : 'Finalizar agendamento'}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={goHome}
-                  className="w-full text-[11px] font-semibold text-psi-darkest/50 transition-colors hover:text-psi-darkest"
-                >
-                  ← Voltar aos serviços
-                </button>
-              </form>
-            </div>
+              <button
+                type="submit"
+                className="w-full bg-purple-700 hover:bg-purple-800 text-white font-extrabold py-3.5 rounded-2xl shadow-lg shadow-purple-700/25 transition-all text-xs flex items-center justify-center gap-1.5 mt-2"
+              >
+                <Send className="w-4 h-4" />
+                Finalizar agendamento
+              </button>
+            </form>
           </div>
         )}
 
         {step === 'CADASTRO_PSICOLOGO' && (
-          <div className="rise mx-auto max-w-xl">
-            <div className="arch border border-psi-darkest/12 bg-white/80 px-7 pb-9 pt-12 backdrop-blur-sm sm:px-10">
-              <div className="text-center">
-                <span className="text-[10px] font-bold uppercase tracking-[0.28em] text-[var(--ochre)]">
-                  Credenciamento clínico
-                </span>
-                <h3 className="display mt-3 text-[26px] leading-tight text-psi-darkest">
-                  Atenda na Clínica Viver Mais
+          <div className="max-w-xl mx-auto bg-white rounded-3xl p-6 sm:p-8 border border-purple-100 shadow-xl space-y-6 animate-in fade-in duration-300">
+            <div className="flex items-center justify-between border-b border-purple-50 pb-4">
+              <div>
+                <span className="text-[10px] text-purple-600 font-bold uppercase tracking-wider block">Credenciamento Clínico</span>
+                <h3 className="text-lg font-black text-slate-900">
+                  Faça seu cadastro para atender na Clínica Viver Mais
                 </h3>
-                <p className="mt-2 text-[12px] text-psi-darkest/55">
-                  Preencha seus dados profissionais para iniciar a verificação.
-                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setStep('SERVICOS')}
+                className="text-xs text-slate-500 hover:text-slate-900 hover:underline font-bold"
+              >
+                Voltar
+              </button>
+            </div>
+
+            <form
+              onSubmit={handleSubmitPsicologo}
+              className="space-y-4 text-xs"
+            >
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Nome Completo <span className="text-rose-500">*</span></label>
+                <input
+                  type="text"
+                  required
+                  value={formPsicologo.nomeCompleto}
+                  onChange={(e) => setFormPsicologo({ ...formPsicologo, nomeCompleto: e.target.value })}
+                  placeholder="Seu nome completo"
+                  className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
+                />
               </div>
 
-              <div className="my-8 h-px bg-psi-darkest/12" />
-
-              <form onSubmit={handleSubmitPsicologo} className="space-y-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="label">Nome completo *</label>
+                  <label className="font-bold text-slate-700 block mb-1">Registro CRP <span className="text-rose-500">*</span></label>
                   <input
                     type="text"
                     required
-                    value={formPsicologo.nomeCompleto}
-                    onChange={(e) => setFormPsicologo({ ...formPsicologo, nomeCompleto: e.target.value })}
-                    placeholder="Seu nome completo"
-                    className="field"
+                    value={formPsicologo.crp}
+                    onChange={(e) => setFormPsicologo({ ...formPsicologo, crp: e.target.value })}
+                    placeholder="Ex: CRP 07/12345"
+                    className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
                   />
                 </div>
-
-                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                  <div>
-                    <label className="label">Registro CRP *</label>
-                    <input
-                      type="text"
-                      required
-                      value={formPsicologo.crp}
-                      onChange={(e) => setFormPsicologo({ ...formPsicologo, crp: e.target.value })}
-                      placeholder="Ex: CRP 07/12345"
-                      className="field"
-                    />
-                  </div>
-                  <div>
-                    <label className="label">WhatsApp com DDD *</label>
-                    <input
-                      type="text"
-                      required
-                      value={formPsicologo.whatsapp}
-                      onChange={(e) => setFormPsicologo({ ...formPsicologo, whatsapp: e.target.value })}
-                      placeholder="(51) 99999-9999"
-                      className="field"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                  <div>
-                    <label className="label">E-mail profissional *</label>
-                    <input
-                      type="email"
-                      required
-                      value={formPsicologo.email}
-                      onChange={(e) => setFormPsicologo({ ...formPsicologo, email: e.target.value })}
-                      placeholder="seuemail@exemplo.com"
-                      className="field"
-                    />
-                  </div>
-                  <div>
-                    <label className="label">Cidade / Estado *</label>
-                    <input
-                      type="text"
-                      required
-                      value={formPsicologo.cidadeUf}
-                      onChange={(e) => setFormPsicologo({ ...formPsicologo, cidadeUf: e.target.value })}
-                      placeholder="Ex: Porto Alegre/RS"
-                      className="field"
-                    />
-                  </div>
-                </div>
-
                 <div>
-                  <label className="label">Abordagem / especialidade principal *</label>
-                  <select
-                    value={formPsicologo.especialidade}
-                    onChange={(e) => setFormPsicologo({ ...formPsicologo, especialidade: e.target.value })}
-                    className="field"
-                  >
-                    <option value="Cognitivo-Comportamental (TCC)">Terapia Cognitivo-Comportamental (TCC)</option>
-                    <option value="Psicanálise">Psicanálise</option>
-                    <option value="Humanista / Gestalt">Humanista / Gestalt-terapia</option>
-                    <option value="Avaliação Psicológica / Neuropsicologia">Avaliação Psicológica / Neuropsicologia</option>
-                    <option value="Orientação Parental e Carreira">Orientação Parental e Carreira</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="label">Modalidade de interesse *</label>
-                  <div className="flex flex-wrap items-center gap-5 text-[13px] text-psi-darkest">
-                    {(['ONLINE', 'PRESENCIAL', 'AMBOS'] as const).map((mod) => (
-                      <label key={mod} className="flex cursor-pointer items-center gap-2">
-                        <input
-                          type="radio"
-                          name="modalidadeAtendimento"
-                          value={mod}
-                          checked={formPsicologo.modalidadeAtendimento === mod}
-                          onChange={() => setFormPsicologo({ ...formPsicologo, modalidadeAtendimento: mod })}
-                          className="accent-[#5C397D]"
-                        />
-                        {mod === 'ONLINE' ? 'Online' : mod === 'PRESENCIAL' ? 'Presencial' : 'Ambos'}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="label">Breve apresentação clínica</label>
-                  <textarea
-                    rows={3}
-                    value={formPsicologo.minibio}
-                    onChange={(e) => setFormPsicologo({ ...formPsicologo, minibio: e.target.value })}
-                    placeholder="Conte um pouco sobre sua trajetória clínica e área de atuação…"
-                    className="field resize-none"
+                  <label className="font-bold text-slate-700 block mb-1">WhatsApp com DDD <span className="text-rose-500">*</span></label>
+                  <input
+                    type="text"
+                    required
+                    value={formPsicologo.whatsapp}
+                    onChange={(e) => setFormPsicologo({ ...formPsicologo, whatsapp: e.target.value })}
+                    placeholder="(51) 99999-9999"
+                    className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
                   />
                 </div>
+              </div>
 
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-full bg-psi-darkest py-4 text-[12px] font-bold text-[#f4efe9] transition-all hover:bg-[var(--iris-mid)] active:scale-[0.98] disabled:opacity-50"
-                >
-                  <UserPlus className="h-4 w-4" />
-                  {isSubmitting ? 'Enviando…' : 'Enviar cadastro de psicólogo'}
-                </button>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">E-mail Profissional <span className="text-rose-500">*</span></label>
+                  <input
+                    type="email"
+                    required
+                    value={formPsicologo.email}
+                    onChange={(e) => setFormPsicologo({ ...formPsicologo, email: e.target.value })}
+                    placeholder="seuemail@exemplo.com"
+                    className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Cidade / Estado <span className="text-rose-500">*</span></label>
+                  <input
+                    type="text"
+                    required
+                    value={formPsicologo.cidadeUf}
+                    onChange={(e) => setFormPsicologo({ ...formPsicologo, cidadeUf: e.target.value })}
+                    placeholder="Ex: Porto Alegre/RS"
+                    className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
+                  />
+                </div>
+              </div>
 
-                <button
-                  type="button"
-                  onClick={goHome}
-                  className="w-full text-[11px] font-semibold text-psi-darkest/50 transition-colors hover:text-psi-darkest"
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Abordagem / Especialidade Principal <span className="text-rose-500">*</span></label>
+                <select
+                  value={formPsicologo.especialidade}
+                  onChange={(e) => setFormPsicologo({ ...formPsicologo, especialidade: e.target.value })}
+                  className="w-full border border-slate-300 bg-white rounded-xl p-3 focus:outline-none focus:border-purple-600"
                 >
-                  ← Voltar ao início
-                </button>
-              </form>
-            </div>
+                  <option value="Cognitivo-Comportamental (TCC)">Terapia Cognitivo-Comportamental (TCC)</option>
+                  <option value="Psicanálise">Psicanálise</option>
+                  <option value="Humanista / Gestalt">Humanista / Gestalt-terapia</option>
+                  <option value="Avaliação Psicológica / Neuropsicologia">Avaliação Psicológica / Neuropsicologia</option>
+                  <option value="Orientação Parental e Carreira">Orientação Parental e Carreira</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Modalidade de Interesse <span className="text-rose-500">*</span></label>
+                <div className="flex items-center gap-4 pt-1">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="modalidadeAtendimento"
+                      value="ONLINE"
+                      checked={formPsicologo.modalidadeAtendimento === 'ONLINE'}
+                      onChange={() => setFormPsicologo({ ...formPsicologo, modalidadeAtendimento: 'ONLINE' })}
+                      className="accent-purple-600"
+                    />
+                    Online
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="modalidadeAtendimento"
+                      value="PRESENCIAL"
+                      checked={formPsicologo.modalidadeAtendimento === 'PRESENCIAL'}
+                      onChange={() => setFormPsicologo({ ...formPsicologo, modalidadeAtendimento: 'PRESENCIAL' })}
+                      className="accent-purple-600"
+                    />
+                    Presencial
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="modalidadeAtendimento"
+                      value="AMBOS"
+                      checked={formPsicologo.modalidadeAtendimento === 'AMBOS'}
+                      onChange={() => setFormPsicologo({ ...formPsicologo, modalidadeAtendimento: 'AMBOS' })}
+                      className="accent-purple-600"
+                    />
+                    Ambos
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Breve Apresentação Clínica / Mini Biografia</label>
+                <textarea
+                  rows={3}
+                  value={formPsicologo.minibio}
+                  onChange={(e) => setFormPsicologo({ ...formPsicologo, minibio: e.target.value })}
+                  placeholder="Conte um pouco sobre sua trajetória clínica e área de atuação..."
+                  className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
+                ></textarea>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-purple-700 hover:bg-purple-800 text-white font-extrabold py-3.5 rounded-2xl shadow-lg shadow-purple-700/25 transition-all text-xs flex items-center justify-center gap-1.5 mt-2"
+              >
+                <UserPlus className="w-4 h-4" />
+                ENVIAR CADASTRO DE PSICÓLOGO
+              </button>
+            </form>
           </div>
         )}
 
-        {(step === 'SUCESSO' || step === 'SUCESSO_PSICOLOGO') && (
-          <div className="rise mx-auto max-w-md text-center">
-            <div className="arch border border-psi-darkest/12 bg-white/80 px-8 pb-10 pt-14 backdrop-blur-sm">
-              <span className="arch-sm mx-auto flex h-14 w-12 items-end justify-center bg-psi-darkest pb-3">
-                <Check className="h-5 w-5 text-[#f4efe9]" />
-              </span>
-
-              <h3 className="display mt-7 text-[30px] leading-tight text-psi-darkest">
-                {step === 'SUCESSO' ? 'Solicitação recebida' : 'Cadastro enviado'}
-              </h3>
-
-              <p className="mx-auto mt-4 max-w-sm text-[13px] leading-relaxed text-psi-darkest/65">
-                {step === 'SUCESSO'
-                  ? 'Nossos psicoterapeutas entrarão em contato direto no seu WhatsApp em até 24 horas para combinar o melhor dia e horário para a sua sessão.'
-                  : 'Seu acesso está sendo conferido. Entraremos em contato assim que a verificação do seu registro for concluída.'}
-              </p>
-
-              {step === 'SUCESSO' && (
-                <div className="mt-7 rounded-xl border border-psi-darkest/12 bg-psi-soft/50 px-4 py-3.5">
-                  <span className="block text-[9px] font-bold uppercase tracking-[0.2em] text-psi-darkest/50">
-                    Protocolo da solicitação
-                  </span>
-                  <span className="mt-1 block font-mono text-sm font-bold text-psi-darkest">{protocolo}</span>
-                </div>
-              )}
-
-              <button
-                type="button"
-                onClick={() => {
-                  goHome();
-                  setSelectedService(null);
-                  setSelectedModalidade(null);
-                }}
-                className="mt-8 rounded-full bg-psi-darkest px-7 py-3.5 text-[11px] font-bold text-[#f4efe9] transition-all hover:bg-[var(--iris-mid)] active:scale-[0.97]"
-              >
-                Voltar ao início
-              </button>
+        {step === 'SUCESSO_PSICOLOGO' && (
+          <div className="max-w-md mx-auto bg-white rounded-3xl p-8 border border-purple-100 shadow-xl text-center space-y-6 animate-in fade-in duration-300">
+            <div className="w-16 h-16 bg-purple-100 text-purple-600 rounded-2xl flex items-center justify-center mx-auto border border-purple-200">
+              <Check className="w-8 h-8" />
             </div>
+            <div className="space-y-3">
+              <h3 className="text-2xl font-black text-slate-900">Cadastro Enviado com Sucesso!</h3>
+              <p className="text-sm font-bold text-purple-700 bg-purple-50 p-4 rounded-2xl border border-purple-100 leading-relaxed">
+                Seu acesso esta sendo conferido e iremos fazer contato assim que verificarmos
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setStep('SERVICOS')}
+              className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-6 py-3 rounded-xl transition-all shadow-md"
+            >
+              Voltar ao Início
+            </button>
+          </div>
+        )}
+
+        {step === 'SUCESSO' && (
+          <div className="max-w-md mx-auto bg-white rounded-3xl p-8 border border-purple-100 shadow-xl text-center space-y-6 animate-in fade-in duration-300">
+            <div className="w-16 h-16 bg-purple-100 text-purple-600 rounded-2xl flex items-center justify-center mx-auto border border-purple-200">
+              <Check className="w-8 h-8" />
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-2xl font-black text-slate-900">Solicitação Recebida!</h3>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Nossos psicoterapeutas entrarão em contato direto no seu **WhatsApp** em até **24 horas** para combinar o melhor dia e horário para a sua sessão.
+              </p>
+            </div>
+            <div className="p-4 bg-purple-50 rounded-2xl border border-purple-100 font-mono text-[11px] text-purple-800">
+              Protocolo da Solicitação: <span className="font-bold text-purple-900">{protocolo}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setStep('SERVICOS');
+                setSelectedService(null);
+                setSelectedModalidade(null);
+              }}
+              className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-6 py-3 rounded-xl transition-all"
+            >
+              Voltar ao Início
+            </button>
           </div>
         )}
       </main>
-
-      {/* ————— Rodapé ————— */}
-      <footer className="relative z-10 border-t border-psi-darkest/12">
-        <div className="mx-auto grid max-w-6xl grid-cols-1 gap-8 px-6 py-12 sm:grid-cols-3">
-          <div>
-            <span className="display block text-[22px] text-psi-darkest">Viver Mais</span>
-            <span className="mt-1 block text-[9px] font-bold uppercase tracking-[0.28em] text-psi-darkest/45">
-              Psicologia
-            </span>
-            <p className="mt-4 max-w-[16rem] text-[12px] leading-relaxed text-psi-darkest/55">
-              Cuidado psicológico acessível, ético e humano — on-line ou presencial.
-            </p>
-          </div>
-
-          <div>
-            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-psi-darkest/40">Serviços</span>
-            <ul className="mt-4 space-y-2">
-              {Object.entries(precos).map(([key, service]) => (
-                <li key={key}>
-                  <a
-                    href={`#detalhes-${key}`}
-                    onClick={() => setStep('SERVICOS')}
-                    className="text-[12px] text-psi-darkest/70 transition-colors hover:text-[var(--iris-mid)]"
-                  >
-                    {service.titulo}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div>
-            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-psi-darkest/40">Para psicólogos</span>
-            <button
-              type="button"
-              onClick={() => { setStep('CADASTRO_PSICOLOGO'); scrollToMain(); }}
-              className="mt-4 flex items-center gap-1.5 text-[12px] font-semibold text-psi-darkest/70 transition-colors hover:text-[var(--iris-mid)]"
-            >
-              Quero me credenciar <ArrowUpRight className="h-3.5 w-3.5" />
-            </button>
-            <p className="mt-5 flex items-center gap-1.5 text-[11px] text-psi-darkest/50">
-              <ShieldCheck className="h-3.5 w-3.5" />
-              Sigilo CFP &amp; LGPD
-            </p>
-          </div>
-        </div>
-        <div className="mx-auto max-w-6xl px-6 pb-8">
-          <div className="rule" />
-          <p className="mt-5 text-[10px] uppercase tracking-[0.16em] text-psi-darkest/35">
-            © {new Date().getFullYear()} Viver Mais Psicologia — Todos os direitos reservados
-          </p>
-        </div>
-      </footer>
     </div>
   );
 }

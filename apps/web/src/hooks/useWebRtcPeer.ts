@@ -10,7 +10,9 @@ export interface UseWebRtcPeerOptions {
 export function useWebRtcPeer({ roomId, isHost }: UseWebRtcPeerOptions) {
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
-  const [peerId, setPeerId] = useState<string>('');
+  // Derivado das props, não estado: guardá-lo em useState só obrigava o efeito
+  // a reemitir o valor a cada montagem, com um render extra em que ficava vazio.
+  const peerId = isHost ? `host-${roomId}` : `peer-${roomId}`;
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,8 +26,7 @@ export function useWebRtcPeer({ roomId, isHost }: UseWebRtcPeerOptions) {
     });
     pcRef.current = pc;
 
-    const currentPeerId = isHost ? `host-${roomId}` : `peer-${roomId}`;
-    setPeerId(currentPeerId);
+    const currentPeerId = peerId;
 
     // Canal de sinalização WebRTC simples via BroadcastChannel (Web API nativa, zero servidor extra)
     const channelName = `tl-psi-signaling-${roomId}`;
@@ -113,7 +114,7 @@ export function useWebRtcPeer({ roomId, isHost }: UseWebRtcPeerOptions) {
             await pc.addIceCandidate(new RTCIceCandidate(candidate));
           }
         }
-      } catch (e: any) {
+      } catch (e) {
         console.warn('Erro na sinalização WebRTC:', e);
       }
     };
@@ -122,7 +123,7 @@ export function useWebRtcPeer({ roomId, isHost }: UseWebRtcPeerOptions) {
       pc.close();
       channel.close();
     };
-  }, [roomId, isHost]);
+  }, [roomId, isHost, peerId]);
 
   return {
     localStream,

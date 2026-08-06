@@ -109,7 +109,10 @@ export default function IntegracoesWorkspace() {
                   onChange={(e) =>
                     setSettings({
                       ...settings,
-                      asaas: { ...settings.asaas, environment: e.target.value as any },
+                      asaas: {
+                        ...settings.asaas,
+                        environment: e.target.value as IntegrationSettings['asaas']['environment'],
+                      },
                     })
                   }
                   className="w-full text-xs font-semibold p-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none"

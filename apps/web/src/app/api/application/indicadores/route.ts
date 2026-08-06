@@ -3,33 +3,27 @@ import { readSnapshot } from '@/server/application/persistence';
 
 export async function GET() {
   try {
-    const snapshot = readSnapshot() || {
-      triagensPacientes: [],
-      cadastrosPsicologos: [],
-      sessions: [],
-      ledger: { transactions: [], payoutSplits: [] },
-    };
+    const snapshot = readSnapshot();
 
-    const triagens = (snapshot as any).triagensPacientes || [];
-    const psicologos = (snapshot as any).cadastrosPsicologos || [];
-    const sessoes = snapshot.sessions || [];
+    const triagens = snapshot?.triagensPacientes ?? [];
+    const psicologos = snapshot?.cadastrosPsicologos ?? [];
+    const sessoes = snapshot?.sessions ?? [];
 
     const totalLeads = triagens.length;
-    
+
     // Gênero
-    const feminino = triagens.filter((t: any) => t.genero === 'FEMININO').length;
-    const masculino = triagens.filter((t: any) => t.genero === 'MASCULINO').length;
+    const feminino = triagens.filter((t) => t.genero === 'FEMININO').length;
+    const masculino = triagens.filter((t) => t.genero === 'MASCULINO').length;
     const pctFem = totalLeads > 0 ? Math.round((feminino / totalLeads) * 100) : 64;
     const pctMasc = totalLeads > 0 ? Math.round((masculino / totalLeads) * 100) : 36;
 
     // Turnos e Modalidades
-    const sociais = triagens.filter((t: any) => t.modalidade === 'SOCIAL' || !t.modalidade).length;
-    const particulares = triagens.filter((t: any) => t.modalidade === 'PARTICULAR').length;
+    const sociais = triagens.filter((t) => t.modalidade === 'SOCIAL' || !t.modalidade).length;
     const pctSocial = totalLeads > 0 ? Math.round((sociais / totalLeads) * 100) : 72;
     const pctParticular = totalLeads > 0 ? 100 - pctSocial : 28;
 
     // Convênios
-    const conveniados = triagens.filter((t: any) => t.possuiConvenio === 'SIM').length;
+    const conveniados = triagens.filter((t) => t.possuiConvenio === 'SIM').length;
 
     return NextResponse.json({
       success: true,

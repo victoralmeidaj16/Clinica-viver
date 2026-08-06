@@ -29,6 +29,14 @@ import {
 
 import { CockpitHeroCard } from '@/components/cockpit/CockpitHeroCard';
 
+/**
+ * Horário de alocação do lead de demonstração: três horas atrás, para o
+ * contador de SLA nascer no meio da janela de 24h. Fica fora do componente
+ * porque `Date.now()` durante o render é impuro — cada render produziria um
+ * instante diferente.
+ */
+const LEAD_ALOCADO_EM = new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString();
+
 export default function CockpitPage() {
   const [sessions, setSessions] = useState<ReviewSession[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string>('');
@@ -66,7 +74,7 @@ export default function CockpitPage() {
     modalidade: 'Atendimento Acessível (Social)',
     turno: 'Tarde (14h - 18h)',
     origem: 'Site Viver Mais (Formulário)',
-    alocadoEm: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
+    alocadoEm: LEAD_ALOCADO_EM,
     confirmado: false,
   });
 

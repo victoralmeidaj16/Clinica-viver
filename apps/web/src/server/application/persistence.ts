@@ -45,6 +45,48 @@ export interface AssessmentRecord {
   completedAt: string;
 }
 
+/**
+ * Lead capturado pelo formulário público da vitrine, antes de virar paciente.
+ *
+ * Os campos opcionais são os que o formulário pode deixar em branco: as rotas
+ * gravam `body.<campo>` sem valor padrão, então o registro nasce sem eles.
+ */
+export interface TriagemPacienteRecord {
+  id: string;
+  protocolo: string;
+  nomePaciente: string;
+  telefone: string;
+  idade?: string;
+  email?: string;
+  cpf?: string;
+  cep?: string;
+  possuiConvenio?: string;
+  convenioSelecionado: string;
+  origem: string;
+  turno: string;
+  servico?: string;
+  modalidade?: string;
+  /** O formulário atual da vitrine ainda não coleta gênero. */
+  genero?: string;
+  status: string;
+  criadoEm: string;
+}
+
+/** Psicólogo que se candidatou pelo formulário de credenciamento da vitrine. */
+export interface CadastroPsicologoRecord {
+  id: string;
+  nomeCompleto: string;
+  crp: string;
+  whatsapp: string;
+  email?: string;
+  cidadeUf?: string;
+  especialidade?: string;
+  modalidadeAtendimento?: string;
+  minibio?: string;
+  status: string;
+  criadoEm: string;
+}
+
 export interface PersistedSnapshot {
   version: typeof SNAPSHOT_VERSION;
   savedAt: string;
@@ -61,6 +103,47 @@ export interface PersistedSnapshot {
   assessments: readonly AssessmentRecord[];
   preferences: readonly CommunicationPreference[];
   consents: readonly CommunicationConsent[];
+  /**
+   * Opcionais porque só as rotas da vitrine escrevem estas coleções, e um
+   * snapshot gravado pelo store da aplicação não as contém.
+   */
+  triagensPacientes?: readonly TriagemPacienteRecord[];
+  cadastrosPsicologos?: readonly CadastroPsicologoRecord[];
+}
+
+/**
+ * Snapshot vazio, para as rotas que precisam gravar antes de existir estado em
+ * disco. Centralizado porque cada cópia manual do literal já divergiu do tipo:
+ * o `ledger` escrito à mão trazia `transactions`/`payoutSplits`, campos que
+ * `FinancialLedger` não tem, e o snapshot resultante quebrava a reidratação.
+ */
+export function emptySnapshot(): PersistedSnapshot {
+  return {
+    version: SNAPSHOT_VERSION,
+    savedAt: new Date().toISOString(),
+    appointments: [],
+    sessions: [],
+    records: [],
+    timeline: [],
+    checkIns: [],
+    notifications: [],
+    ledger: {
+      charges: [],
+      discounts: [],
+      payments: [],
+      refunds: [],
+      fees: [],
+      transfers: [],
+    },
+    carePlans: [],
+    moodLogs: [],
+    deliveredHandoffs: [],
+    assessments: [],
+    preferences: [],
+    consents: [],
+    triagensPacientes: [],
+    cadastrosPsicologos: [],
+  };
 }
 
 function snapshotPath(): string {

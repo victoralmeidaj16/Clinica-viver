@@ -1,31 +1,18 @@
 import { NextResponse } from 'next/server';
-import { readSnapshot, writeSnapshot } from '@/server/application/persistence';
+import {
+  emptySnapshot,
+  readSnapshot,
+  writeSnapshot,
+  type CadastroPsicologoRecord,
+} from '@/server/application/persistence';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    const snapshot = readSnapshot() || {
-      version: 1,
-      savedAt: new Date().toISOString(),
-      appointments: [],
-      sessions: [],
-      records: [],
-      timeline: [],
-      checkIns: [],
-      notifications: [],
-      ledger: { transactions: [], payoutSplits: [] },
-      carePlans: [],
-      moodLogs: [],
-      deliveredHandoffs: [],
-      assessments: [],
-      preferences: [],
-      consents: [],
-      triagensPacientes: [],
-      cadastrosPsicologos: [],
-    };
+    const snapshot = readSnapshot() ?? emptySnapshot();
 
-    const novoPsicologo = {
+    const novoPsicologo: CadastroPsicologoRecord = {
       id: `psi-cad-${Date.now()}`,
       nomeCompleto: body.nomeCompleto,
       crp: body.crp,
@@ -40,17 +27,15 @@ export async function POST(request: Request) {
     };
 
     const cadastrosAtualizados = [
-      ...((snapshot as any).cadastrosPsicologos || []),
+      ...(snapshot.cadastrosPsicologos ?? []),
       novoPsicologo,
     ];
 
-    const snapshotAtualizado = {
+    await writeSnapshot({
       ...snapshot,
       savedAt: new Date().toISOString(),
       cadastrosPsicologos: cadastrosAtualizados,
-    };
-
-    await writeSnapshot(snapshotAtualizado as any);
+    });
 
     return NextResponse.json({
       success: true,

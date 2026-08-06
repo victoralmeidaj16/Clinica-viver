@@ -17,11 +17,38 @@ import {
   ArrowRightLeft,
 } from 'lucide-react';
 
+/** Linha da fila de alocação, já resolvida para exibição na tabela. */
+interface LeadFila {
+  id: string;
+  paciente: string;
+  telefone: string;
+  modalidade: string;
+  turno: string;
+  psicologo: string;
+  alocadoEm?: string;
+  horasDecorridas: number;
+  status: string;
+  slaStatus: 'VERDE' | 'AMARELO' | 'VERMELHO';
+}
+
+/** Candidatura de credenciamento aguardando decisão da gestão. */
+interface PsicologoPendente {
+  id: string;
+  nomeCompleto: string;
+  crp: string;
+  whatsapp: string;
+  cidadeUf?: string;
+  especialidade?: string;
+  modalidadeAtendimento?: string;
+  minibio?: string;
+  status: 'EM_ANALISE' | 'APROVADO' | 'RECUSADO';
+}
+
 export default function GestaoCockpitPage() {
   const [abaAtiva, setAbaAtiva] = useState<'FILA' | 'CREDENCIAMENTOS'>('FILA');
-  
-  const [psicologosPendentes, setPsicologosPendentes] = useState<any[]>([]);
-  const [leads, setLeads] = useState<any[]>([]);
+
+  const [psicologosPendentes, setPsicologosPendentes] = useState<PsicologoPendente[]>([]);
+  const [leads, setLeads] = useState<LeadFila[]>([]);
 
   const [filtroModalidade, setFiltroModalidade] = useState<string>('TODAS');
   const [filtroTurno, setFiltroTurno] = useState<string>('TODOS');
@@ -86,7 +113,7 @@ export default function GestaoCockpitPage() {
 
   const handleCadastrarLeadManual = (e: React.FormEvent) => {
     e.preventDefault();
-    const novo = {
+    const novo: LeadFila = {
       id: `lead-manual-${Date.now()}`,
       paciente: manualForm.nome,
       telefone: manualForm.telefone,

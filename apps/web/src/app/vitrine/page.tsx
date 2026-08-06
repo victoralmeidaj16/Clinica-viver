@@ -22,9 +22,30 @@ import {
   UserPlus
 } from 'lucide-react';
 
+type ServicoKey =
+  | 'PSICOTERAPIA'
+  | 'AVALIACAO'
+  | 'ORIENTACAO_PROFISSIONAL'
+  | 'ORIENTACAO_PARENTAL';
+
+type ModalidadeKey = 'SOCIAL' | 'PARTICULAR' | 'CASAL_SOCIAL' | 'CASAL_PARTICULAR';
+
+interface OpcaoPreco {
+  tipo: ModalidadeKey;
+  label: string;
+  preco: string;
+}
+
+interface ServicoVitrine {
+  titulo: string;
+  descricao: string;
+  imagem: string;
+  opcoes: OpcaoPreco[];
+}
+
 export default function ViverMaisLandingPage() {
-  const [selectedService, setSelectedService] = useState<'PSICOTERAPIA' | 'AVALIACAO' | 'ORIENTACAO_PROFISSIONAL' | 'ORIENTACAO_PARENTAL' | null>(null);
-  const [selectedModalidade, setSelectedModalidade] = useState<'SOCIAL' | 'PARTICULAR' | 'CASAL_SOCIAL' | 'CASAL_PARTICULAR' | null>(null);
+  const [selectedService, setSelectedService] = useState<ServicoKey | null>(null);
+  const [selectedModalidade, setSelectedModalidade] = useState<ModalidadeKey | null>(null);
   const [step, setStep] = useState<'SERVICOS' | 'FORMULARIO' | 'CADASTRO_PSICOLOGO' | 'SUCESSO' | 'SUCESSO_PSICOLOGO'>('SERVICOS');
   
   const [form, setForm] = useState({
@@ -149,7 +170,7 @@ export default function ViverMaisLandingPage() {
   ];
 
   // Tabela de preços correspondente ao que foi solicitado
-  const precos = {
+  const precos: Record<ServicoKey, ServicoVitrine> = {
     PSICOTERAPIA: {
       titulo: 'Psicoterapia',
       descricao: 'Atendimento on-line ou presencial. Atendemos crianças, adolescentes, adultos e idosos, com sessões individuais, em casal ou em grupo.',
@@ -192,9 +213,9 @@ export default function ViverMaisLandingPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSelectServiceAndPrice = (serviceKey: keyof typeof precos, modalidadeType: string) => {
+  const handleSelectServiceAndPrice = (serviceKey: ServicoKey, modalidadeType: ModalidadeKey) => {
     setSelectedService(serviceKey);
-    setSelectedModalidade(modalidadeType as any);
+    setSelectedModalidade(modalidadeType);
     setStep('FORMULARIO');
   };
 
@@ -505,7 +526,7 @@ export default function ViverMaisLandingPage() {
                           </div>
                           <button
                             type="button"
-                            onClick={() => handleSelectServiceAndPrice(key as any, opcao.tipo)}
+                            onClick={() => handleSelectServiceAndPrice(key as ServicoKey, opcao.tipo)}
                             className="bg-psi-deep hover:bg-psi-darkest text-white font-extrabold text-xs px-5 py-2.5 rounded-xl transition-all shadow-sm active:scale-95"
                           >
                             Agendar

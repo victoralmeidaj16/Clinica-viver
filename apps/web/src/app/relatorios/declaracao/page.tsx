@@ -27,10 +27,11 @@ export default function DeclaracaoHorasPage() {
     nomeCoordenadora: 'GIULIANA ALANO DE OLIVEIRA',
     nomeSupervisora: 'ALINE ALVES DE ANDRADE FURLAN DE SÁ',
   });
-  const [isLoading, setIsLoading] = useState(false);
+  // Começa carregando: o efeito abaixo dispara a busca no primeiro render, e
+  // marcar o estado dentro dele apenas encadearia um render a mais.
+  const [isLoading, setIsLoading] = useState(true);
 
   React.useEffect(() => {
-    setIsLoading(true);
     fetch('/api/application/declaracao-horas')
       .then((res) => res.json())
       .then((data) => {

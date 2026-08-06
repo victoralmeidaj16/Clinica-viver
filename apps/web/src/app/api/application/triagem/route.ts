@@ -1,31 +1,18 @@
 import { NextResponse } from 'next/server';
-import { readSnapshot, writeSnapshot } from '@/server/application/persistence';
+import {
+  emptySnapshot,
+  readSnapshot,
+  writeSnapshot,
+  type TriagemPacienteRecord,
+} from '@/server/application/persistence';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    const snapshot = readSnapshot() || {
-      version: 1,
-      savedAt: new Date().toISOString(),
-      appointments: [],
-      sessions: [],
-      records: [],
-      timeline: [],
-      checkIns: [],
-      notifications: [],
-      ledger: { transactions: [], payoutSplits: [] },
-      carePlans: [],
-      moodLogs: [],
-      deliveredHandoffs: [],
-      assessments: [],
-      preferences: [],
-      consents: [],
-      triagensPacientes: [],
-      cadastrosPsicologos: [],
-    };
+    const snapshot = readSnapshot() ?? emptySnapshot();
 
-    const novaTriagem = {
+    const novaTriagem: TriagemPacienteRecord = {
       id: `triagem-${Date.now()}`,
       protocolo: body.protocolo || `VM-${Math.floor(100000 + Math.random() * 900000)}`,
       nomePaciente: body.nome,
@@ -45,17 +32,15 @@ export async function POST(request: Request) {
     };
 
     const triagensAtualizadas = [
-      ...((snapshot as any).triagensPacientes || []),
+      ...(snapshot.triagensPacientes ?? []),
       novaTriagem,
     ];
 
-    const snapshotAtualizado = {
+    await writeSnapshot({
       ...snapshot,
       savedAt: new Date().toISOString(),
       triagensPacientes: triagensAtualizadas,
-    };
-
-    await writeSnapshot(snapshotAtualizado as any);
+    });
 
     // Disparo automático via Evolution API (WhatsApp do Psicólogo)
     try {

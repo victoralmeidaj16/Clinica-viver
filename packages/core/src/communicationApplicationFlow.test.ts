@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   deliverNotification,
   enqueueNotification,
@@ -15,6 +15,10 @@ describe('Simulador da Fila de Comunicação & Evolution API WhatsApp', () => {
   const messageId = 'msg-comm-test-1';
   const idempotencyKey = 'idemp-comm-test-1';
   const createdAt = '2026-07-31T12:00:00.000Z';
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
 
   const preference: CommunicationPreference = {
     organizationId,
@@ -91,6 +95,17 @@ describe('Simulador da Fila de Comunicação & Evolution API WhatsApp', () => {
   });
 
   it('entrega a notificação utilizando o EvolutionWhatsAppDeliveryProvider com log de auditoria', async () => {
+    // O provider fala HTTP com a Evolution API. A suíte nunca pode alcançar a rede:
+    // além de deixar o teste refém de DNS, um envio real dispararia WhatsApp para o
+    // número do destinatário. O fetch é interceptado e devolve a resposta da Evolution.
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ key: { id: 'msg_stub_evolution_1' } }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
     const repository = new InMemoryNotificationRepository();
     const audit = new InMemoryCommunicationAudit();
     const provider = new EvolutionWhatsAppDeliveryProvider();
@@ -128,6 +143,16 @@ describe('Simulador da Fila de Comunicação & Evolution API WhatsApp', () => {
 
     expect(deliveryResult.message.status).toBe('delivered');
     expect(deliveryResult.message.providerMessageId).toContain('msg_');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [requestUrl, requestInit] = fetchMock.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
+    expect(requestUrl).toContain(`/message/sendText/instance_${organizationId}`);
+    expect(JSON.parse(String(requestInit.body))).toMatchObject({
+      number: '5511987654321',
+    });
 
     const auditEvents = audit.listEvents();
     expect(auditEvents.map((e) => e.action)).toContain('delivered');

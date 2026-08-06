@@ -13,8 +13,19 @@ import {
   ArrowRightLeft,
 } from 'lucide-react';
 
+/** Paciente que interrompeu o acompanhamento e entrou na fila de reengajamento. */
+interface Desistencia {
+  id: string;
+  paciente: string;
+  psicologo: string;
+  motivo: string;
+  descricao: string;
+  acaoSugestao: string;
+  reengajado: boolean;
+}
+
 export default function RetencaoPage() {
-  const [desistencias, setDesistencias] = useState<any[]>([]);
+  const [desistencias, setDesistencias] = useState<Desistencia[]>([]);
 
   const handleMarcarReengajado = (id: string) => {
     setDesistencias((prev) =>

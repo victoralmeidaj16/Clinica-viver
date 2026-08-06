@@ -7,32 +7,30 @@ export async function GET(request: Request) {
     const psicologoId = searchParams.get('psicologoId');
     const psicologoNomeQuery = searchParams.get('nome');
 
-    const snapshot = readSnapshot() || {
-      sessions: [],
-      cadastrosPsicologos: [],
-      appointments: [],
-    };
+    const snapshot = readSnapshot();
 
-    const sessoes = (snapshot.sessions || []) as any[];
-    const psicologos = (snapshot as any).cadastrosPsicologos || [];
+    const sessoes = snapshot?.sessions ?? [];
+    const psicologos = snapshot?.cadastrosPsicologos ?? [];
 
     // Busca dados do psicólogo se informado
     let psicologoEncontrado = null;
     if (psicologoId) {
-      psicologoEncontrado = psicologos.find((p: any) => p.id === psicologoId);
+      psicologoEncontrado = psicologos.find((p) => p.id === psicologoId);
     } else if (psicologoNomeQuery) {
-      psicologoEncontrado = psicologos.find(
-        (p: any) => p.nomeCompleto?.toLowerCase().includes(psicologoNomeQuery.toLowerCase())
+      psicologoEncontrado = psicologos.find((p) =>
+        p.nomeCompleto?.toLowerCase().includes(psicologoNomeQuery.toLowerCase())
       );
     }
 
     // Filtra sessões concluídas
     let sessoesDoPsicologo = sessoes.filter(
-      (s: any) => s.status === 'completed' || s.status === 'awaiting_review' || s.state === 'COMPLETED'
+      (s) => s.status === 'completed' || s.status === 'awaiting_review'
     );
 
     if (psicologoId) {
-      sessoesDoPsicologo = sessoesDoPsicologo.filter((s: any) => s.professionalId === psicologoId);
+      sessoesDoPsicologo = sessoesDoPsicologo.filter(
+        (s) => s.primaryProfessionalId === psicologoId
+      );
     }
 
     // Calcula total de horas (cada sessão = 1 hora clínica padrão de 50-60min)
@@ -44,7 +42,7 @@ export async function GET(request: Request) {
 
     if (sessoesDoPsicologo.length > 0) {
       const datas = sessoesDoPsicologo
-        .map((s: any) => s.endedAt || s.createdAt || s.date)
+        .map((s) => s.actualEnd || s.createdAt)
         .filter(Boolean)
         .sort();
 

@@ -10,11 +10,14 @@ export function CarePlanWorkspace() {
   const [alerts, setAlerts] = useState<CareAlert[]>([]);
   const [moods, setMoods] = useState<MoodCheckIn[]>([]);
 
-  const plan = plans.find((item) => item.id === selected) ?? plans[0];
-  const update = (change: (current: CarePlan) => CarePlan) =>
+  const plan = plans.length > 0 ? (plans.find((item) => item.id === selected) ?? plans[0]) : null;
+  const update = (change: (current: CarePlan) => CarePlan) => {
+    if (!plan) return;
     setPlans((items) => items.map((item) => (item.id === plan.id ? change(item) : item)));
+  };
 
-  const addTask = () =>
+  const addTask = () => {
+    if (!plan) return;
     update((current) =>
       addCareTask(
         current,
@@ -22,8 +25,10 @@ export function CarePlanWorkspace() {
         '2026-07-31T18:00:00.000Z'
       )
     );
+  };
 
   const addMood = (level: 1 | 2 | 3 | 4 | 5) => {
+    if (!plan) return;
     const result = recordMoodCheckIn({
       id: `mood-demo-${moods.length + 1}`,
       organizationId: 'org-demo',
@@ -36,7 +41,7 @@ export function CarePlanWorkspace() {
     if (result.alert) setAlerts((items) => [result.alert!, ...items]);
   };
 
-  const completed = plan.tasks.filter((task) => task.status === 'completed').length;
+  const completed = plan ? plan.tasks.filter((task) => task.status === 'completed').length : 0;
 
   return (
     <div className="mx-auto max-w-7xl space-y-5 pb-10">
@@ -54,7 +59,7 @@ export function CarePlanWorkspace() {
             key={item.id}
             onClick={() => setSelected(item.id)}
             className={`rounded-full px-4 py-2 text-xs font-bold transition-colors ${
-              item.id === plan.id ? 'bg-psi-deep text-white shadow-sm' : 'border border-psi-soft bg-white text-muted hover:bg-psi-light'
+              item.id === plan?.id ? 'bg-psi-deep text-white shadow-sm' : 'border border-psi-soft bg-white text-muted hover:bg-psi-light'
             }`}
           >
             {patientNames[item.patientId]}
@@ -73,12 +78,12 @@ export function CarePlanWorkspace() {
               <Target className="h-6 w-6 text-psi-deep" />
             </div>
             <div className="mt-5 grid gap-3 md:grid-cols-2">
-              {plan.goals.map((goal) => (
+              {plan?.goals?.map((goal) => (
                 <div key={goal.id} className="rounded-xl bg-psi-light/60 p-4 border border-psi-soft/50">
                   <p className="font-bold text-ink text-sm">{goal.title}</p>
                   <p className="mt-3 text-[10px] font-bold uppercase tracking-wider text-psi-vibrant">Em acompanhamento</p>
                 </div>
-              ))}
+              )) ?? <p className="text-xs text-muted col-span-2">Nenhum plano de cuidado selecionado.</p>}
             </div>
           </section>
 
@@ -87,16 +92,16 @@ export function CarePlanWorkspace() {
               <div>
                 <h2 className="text-xl font-bold text-ink">Tarefas no app</h2>
                 <p className="text-xs text-muted">
-                  {completed} de {plan.tasks.length} concluídas
+                  {completed} de {plan?.tasks?.length ?? 0} concluídas
                 </p>
               </div>
-              <button onClick={addTask} className="btn-outline px-3 py-2 text-xs">
+              <button onClick={addTask} disabled={!plan} className="btn-outline px-3 py-2 text-xs disabled:opacity-50">
                 <Plus className="h-4 w-4" />
                 Adicionar
               </button>
             </div>
             <div className="mt-5 space-y-2">
-              {plan.tasks.map((task) => (
+              {plan?.tasks?.map((task) => (
                 <button
                   disabled={task.status !== 'pending'}
                   onClick={() => update((current) => completeCareTask(current, task.id, '2026-07-31T18:01:00.000Z'))}

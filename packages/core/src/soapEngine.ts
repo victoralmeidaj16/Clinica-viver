@@ -3,7 +3,7 @@
  */
 
 export interface SoapPromptInput {
-  transcription: string;
+  transcription: string; // Transcrição do áudio de síntese gravado pelo psicólogo pós-sessão
   patientReference: string;
   previousContext?: string;
 }
@@ -14,21 +14,19 @@ export function buildSoapPrompt(input: SoapPromptInput): string {
     : '';
 
   return `Você é um assistente de documentação clínica para psicologia.
-Estruture um rascunho SOAP para revisão obrigatória da psicóloga ou do psicólogo responsável.
+Estruture um rascunho SOAP a partir da síntese verbal gravada pelo psicólogo pós-sessão para revisão e edição do profissional.
 
 REFERÊNCIA PSEUDONIMIZADA DO PACIENTE: "${input.patientReference}"
 
 DIRETRIZES:
-- Subjetivo (S): Relatos emocionais e queixas do paciente.
-- Objetivo (O): Registre apenas elementos audíveis ou explicitamente descritos na transcrição.
-- Não invente contato visual, postura, linguagem corporal, sinais vitais ou outros dados não observáveis em áudio.
-- Quando não houver evidência suficiente, escreva "não observável na fonte fornecida".
-- Avaliação (A): Organize hipóteses para revisão profissional, sem apresentar inferências como fatos.
-- Plano (P): Intervenções combinadas, encaminhamentos e tarefas passadas ao paciente.
-- Não substitua julgamento clínico e não aprove o prontuário automaticamente.
+- Subjetivo (S): Relatos emocionais e queixas relatas na síntese.
+- Objetivo (O): Registre observações clínicas e comportamento descritos pelo psicólogo.
+- Avaliação (A): Organize hipóteses para revisão profissional.
+- Plano (P): Intervenções combinadas, encaminhamentos e combinados para a próxima consulta.
+- Todos os campos gerados são minutas e serão revisados e editados pelo psicólogo antes da assinatura.
 ${previousContext}
 
-TRANSCRIÇÃO DA SESSÃO:
+SÍNTESE DA SESSÃO GRAVADA PELO PSICÓLOGO (TRANSCRIÇÃO):
 """
 ${input.transcription}
 """`;

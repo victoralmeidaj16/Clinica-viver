@@ -54,6 +54,7 @@ module.exports = {
       },
       fontFamily: {
         sans: ['Inter Tight', 'Inter', 'sans-serif'],
+        display: ['Fraunces', 'Iowan Old Style', 'Georgia', 'serif'],
       },
     },
   },

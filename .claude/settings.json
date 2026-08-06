@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker run *)",
+      "Bash(open -a Docker)",
+      "Bash(docker exec *)",
+      "Bash(grep -oE \"'[a-z]+-[0-9a-f-]{20,}'\" 005_seed_profissionais.sql)",
+      "Bash(awk '{print length\\($0\\)-2, $0}')",
+      "Bash(timeout 30 docker ps -a --format '{{.Names}}|{{.Status}}')",
+      "Bash(pkill -f \"Docker Desktop\")",
+      "Read(//usr/local/mysql/bin/**)",
+      "Bash(brew list *)",
+      "Bash(chmod +x 000_criar_banco_clinica.sh)",
+      "Bash(bash -n 000_criar_banco_clinica.sh)",
+      "Bash(node -e ' *)"
+    ]
+  }
+}

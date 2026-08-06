@@ -5,21 +5,18 @@
 O **Thats Life** é um ecossistema de software de saúde mental desenvolvido para transformar a prática clínica de psicólogos e clínicas, automatizando a burocracia administrativa e oferecendo um acompanhamento contínuo e elegante ao paciente.
 
 > [!IMPORTANT]
-> O repositório está em fase de protótipo. IA, Firestore, Evolution API, pagamentos e
-> sincronização mobile ainda são simulados. Não utilize dados clínicos reais.
+> O repositório está em fase de transição de arquitetura. IA, OCI MySQL, Evolution API e pagamentos
+> estão sendo unificados na base relacional OCI. Não utilize dados clínicos reais.
 
 ---
 
 ## ⚡ Diferenciais Competitivos (vs PsicoManager, PersonCare e SimplePractice)
 
-1. **Automação Pós-Sessão em 1 Clique:**
-   * Transcrição de áudio/sessão $\rightarrow$ Rascunho de Prontuário SOAP por IA $\rightarrow$ Resumo e tarefas revisados para o app do paciente $\rightarrow$ Envio de recibo/cobrança.
-   * O conteúdo destinado ao paciente possui contrato separado: nunca inclui transcrição, SOAP, hipótese diagnóstica ou notas internas.
+1. **Automação Pós-Sessão em 1 Clique (Áudio de Síntese):**
+   * Áudio de síntese pós-sessão do psicólogo $\rightarrow$ Rascunho de Prontuário SOAP por IA $\rightarrow$ Edição e validação humana $\rightarrow$ Envio de recibo/cobrança.
+   * O psicólogo grava uma breve síntese pós-sessão e a IA gera a minuta do SOAP com campos totalmente editáveis antes de salvar no prontuário oficial.
    * A linha do tempo clínica reúne evidências longitudinais com referência à
      fonte, permitindo memória verificável sem respostas inventadas.
-2. **App Mobile do Paciente (`apps/mobile`):**
-   * Diário de humor diário, controle de hábitos, tarefas terapêuticas, check-in
-     pré-sessão com assuntos opcionais e lembretes por notificação push.
 3. **Evolution API Nativa:**
    * Envio automático de confirmações de agendamento, lembretes e links de cobrança Pix via WhatsApp sem depender de plataformas proprietárias infladas.
 4. **Módulo de Supervisão Clínica:**

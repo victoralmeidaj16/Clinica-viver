@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -7,6 +8,7 @@
 @layer base {
   :root {
     --font-sans: 'Inter Tight', 'Inter', system-ui, -apple-system, sans-serif;
+    --font-display: 'Fraunces', 'Iowan Old Style', Georgia, serif;
   }
   body {
     background-color: #F9F5FC; /* Hex #F9F5FC */
@@ -77,4 +79,115 @@
   .chip-dark {
     @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-psi-darkest text-white;
   }
+}
+
+/* ============================================================
+   VITRINE — Landing pública "Consultório Editorial"
+   Papel quente + tinta íris + arcos. Escopo isolado em .vitrine
+   para não interferir no design system interno da plataforma.
+   ============================================================ */
+.vitrine {
+  --paper: #f4efe9;
+  --paper-deep: #eae2d9;
+  --iris: #43265e;
+  --iris-mid: #5c397d;
+  --iris-soft: #9e6bcf;
+  --ochre: #c9762e;
+  --ink-warm: #2a2028;
+
+  background-color: var(--paper);
+  color: var(--ink-warm);
+}
+
+/* Grão de papel: textura sutil que tira o "plástico" do fundo chapado */
+.vitrine::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.42;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.32'/%3E%3C/svg%3E");
+}
+
+.vitrine .display {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  letter-spacing: -0.022em;
+  font-variation-settings: 'SOFT' 20, 'WONK' 1;
+}
+
+/* O arco: motivo central. Soleira, abrigo, porta do consultório. */
+.arch {
+  border-radius: 999px 999px 20px 20px;
+}
+.arch-sm {
+  border-radius: 999px 999px 12px 12px;
+}
+
+/* Régua de seção — filete editorial em vez de borda de card */
+.rule {
+  height: 1px;
+  background: linear-gradient(90deg, rgba(67, 38, 94, 0.28), rgba(67, 38, 94, 0.04) 65%, transparent);
+}
+
+/* Sublinhado orgânico sob palavra-chave do título */
+.underline-brush {
+  background-image: linear-gradient(transparent 62%, rgba(201, 118, 46, 0.28) 62%, rgba(201, 118, 46, 0.28) 92%, transparent 92%);
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+}
+
+/* Entrada escalonada no load — um momento coreografado só */
+@keyframes vm-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.rise {
+  opacity: 0;
+  animation: vm-rise 0.75s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise {
+    animation-duration: 0.01ms;
+    animation-delay: 0ms !important;
+  }
+  .vitrine * {
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Campos de formulário no vocabulário do papel */
+.vitrine .field {
+  @apply w-full bg-white/70 border-b-2 border-psi-darkest/15 rounded-t-lg px-3.5 py-2.5 text-sm text-ink transition-all duration-200;
+  font-family: var(--font-sans);
+}
+.vitrine .field:focus {
+  @apply outline-none border-psi-vibrant bg-white;
+}
+.vitrine .field::placeholder {
+  @apply text-psi-darkest/35;
+}
+.vitrine .label {
+  @apply block text-[11px] font-bold uppercase tracking-[0.12em] text-psi-darkest/60 mb-1.5;
+}
+
+/* Acordeão nativo <details> com marcador próprio */
+.vitrine details summary::-webkit-details-marker {
+  display: none;
+}
+.vitrine details summary {
+  list-style: none;
+  cursor: pointer;
+}
+.vitrine details[open] .faq-plus {
+  transform: rotate(45deg);
 }

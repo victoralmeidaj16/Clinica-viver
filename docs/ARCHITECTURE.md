@@ -4,36 +4,42 @@
 
 O **Thats Life** adota uma arquitetura em Monorepo utilizando **TypeScript** de ponta a ponta, separando claramente as aplicações de front-end do pacote central de regras de negócio e integrações.
 
-> **Estado atual:** web, mobile e core constituem um protótipo. Firestore, Storage,
-> Firebase Auth, provedores de IA, Asaas e Evolution API representam a arquitetura
-> alvo e ainda não estão conectados.
+> **Estado atual (06/08/2026).** O destino é a arquitetura 100% OCI. O que já
+> está ligado é **identidade, cadastro de pacientes e agenda**, persistidos no
+> MySQL da OCI pelos adaptadores em `apps/web/src/server/persistence/mysql`.
+>
+> Prontuário, sessão clínica, linha do tempo, financeiro, comunicação,
+> check-in pré-sessão e plano terapêutico **continuam em memória**, com snapshot
+> em disco. Object Storage ainda não tem adaptador: nenhum anexo é gravado fora
+> do processo.
+>
+> Sem `DATABASE_URL` configurada, a aplicação inteira volta ao modo
+> demonstração. O que distingue os dois é o campo `meta.persistence` das
+> respostas da API (`mysql` ou `memory`) e a rota `GET /api/infra/mode`.
+>
+> Detalhes de infraestrutura, credenciais e roteiro da VM: `docs/oci-migracao.md`.
 
 ```mermaid
 flowchart TD
     subgraph ClientLayer ["Camada de Clientes"]
-        WEB["💻 Web Cockpit (Next.js 16 App Router)"]
-        MOBILE["📱 App Paciente (React Native / Expo)"]
+        WEB["💻 Web Cockpit & Gestão (Next.js 16 App Router)"]
     end
 
     subgraph ServiceLayer ["Camada Core (@thats-life/core)"]
         SOAP["🧠 AI SOAP & Clinical Engine"]
-        HANDOFF["📱 Patient Handoff seguro"]
         EVO["💬 Evolution API Client"]
-    FIN["💳 Financial & Pix Engine (Asaas)"]
-    SCHEDULE["📅 Agenda, disponibilidade e integrações de calendário"]
+        FIN["💳 Financial & Pix Engine (Asaas)"]
+        SCHEDULE["📅 Agenda, disponibilidade e triagem"]
         ANON["🛡️ Anonymization Engine"]
     end
 
-    subgraph InfraLayer ["Infraestrutura & Persistência"]
-        DB["🔥 Cloud Firestore (Multi-tenant / Security Rules)"]
-        STORAGE["🔐 Cloud Storage (Transcrições e Prontuários Encriptados)"]
-        EXT_EVO["💬 Servidor Evolution API"]
+    subgraph InfraLayer ["Infraestrutura OCI & Persistência"]
+        DB["🐬 OCI MySQL DB System (Relacional Multi-tenant / Audit)"]
+        STORAGE["🔐 OCI Object Storage (Anexos Clínicos e PDFs Encriptados)"]
+        EXT_EVO["💬 Servidor Evolution API (VM OCI)"]
     end
 
     WEB --> ServiceLayer
-    MOBILE --> ServiceLayer
-    SOAP --> HANDOFF
-    HANDOFF --> MOBILE
     WEB --> SCHEDULE
     ServiceLayer --> DB
     ServiceLayer --> STORAGE
@@ -46,20 +52,26 @@ flowchart TD
 
 1. **Aplicações Front-End:**
    * **Web:** Next.js 16 (React 19), Tailwind CSS / Vanilla CSS, Lucide Icons.
-   * **Mobile:** React Native, Expo, React Navigation, NativeWind / StyleSheet.
 2. **Pacote Core (`@thats-life/core`):**
    * TypeScript strictly-typed.
    * Regras de escore, prompts clínicos e anonimização heurística.
-   * Contrato `PatientHandoff` separado do prontuário: resumo em linguagem acessível,
-     tarefas autorizadas, próxima sessão e metadados de revisão humana.
-   * Triagem bloqueia termos internos, hipóteses diagnósticas, conteúdo de risco e
-     identificadores pessoais antes da aprovação; somente um rascunho aprovado pode
-     assumir o estado de entregue.
-   * Adaptadores reais para IA e Evolution API serão implementados apenas no servidor.
+   * Adaptadores reais para IA e Evolution API implementados no servidor.
 3. **Persistência & Backend:**
-   * Arquitetura alvo: Firebase Firestore para persistência documental em tempo real.
-   * Arquitetura alvo: Cloud Storage para áudios e anexos, com política de retenção.
-   * Arquitetura alvo: Firebase Auth com controle de acesso por organização e papel.
+   * **Persistência Relacional:** OCI MySQL DB System (Always Free), banco
+     `viver_mais`. Schema em `infra/mysql`: o `004_clinica.sql` traz o domínio
+     clínico compartilhado com o Sponteiro e o `007_thats_life_core.sql`
+     acrescenta o que os agregados do core exigem — organização, vínculos,
+     atribuição de profissionais, idempotência de comando e outbox.
+     **Ligado hoje:** cadastro e agenda. **Pendente:** prontuário SOAP,
+     financeiro e logs do WhatsApp.
+   * **Armazenamento de Objetos:** OCI Object Storage para PDFs, anexos de
+     exames e laudos — planejado, sem adaptador implementado.
+   * **Autenticação & Segurança:** **ainda não existe.** O contexto do ator é
+     resolvido pelos cabeçalhos `X-Organization-Id` e `X-User-Id`, validados
+     contra um vínculo ativo em `clinica_membros`. Isso identifica, não
+     autentica: qualquer cliente pode enviar o cabeçalho que quiser. Sessão
+     real com papéis é a próxima etapa, e a instalação não deve receber dado
+     clínico de paciente real antes dela.
 
 ---
 

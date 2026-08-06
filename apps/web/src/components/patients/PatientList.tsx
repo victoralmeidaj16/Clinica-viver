@@ -1,13 +1,31 @@
 'use client';
 
 import React from 'react';
-import { Paciente } from '@/lib/mockData';
-import { Phone, Calendar, Clock, ArrowRight, Zap, CheckCircle2, PauseCircle } from 'lucide-react';
+import type { PatientDirectoryEntry } from '@/server/application/patientDirectory';
+import { Phone, Calendar, Clock, ArrowRight, Zap, CheckCircle2, PauseCircle, UserCheck } from 'lucide-react';
 
 interface PatientListProps {
-  patients: Paciente[];
+  patients: readonly PatientDirectoryEntry[];
   onSelectForSession: (patientId: string) => void;
   onOpenNewPatientModal: () => void;
+}
+
+const STATUS_LABEL: Record<PatientDirectoryEntry['status'], string> = {
+  active: 'Ativo',
+  paused: 'Em Pausa',
+  discharged: 'Alta',
+};
+
+function formatNextAppointment(iso?: string): string {
+  if (!iso) return 'A agendar';
+  return new Date(iso).toLocaleString('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 export default function PatientList({ patients, onSelectForSession, onOpenNewPatientModal }: PatientListProps) {
@@ -30,6 +48,15 @@ export default function PatientList({ patients, onSelectForSession, onOpenNewPat
         </button>
       </div>
 
+      {patients.length === 0 && (
+        <div className="card text-center py-10 space-y-2">
+          <p className="text-sm font-bold text-ink">Nenhum paciente cadastrado</p>
+          <p className="text-xs text-muted">
+            Cadastre o primeiro paciente para que ele apareça na agenda e no cockpit.
+          </p>
+        </div>
+      )}
+
       {/* Grid de Pacientes */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {patients.map((patient) => (
@@ -37,56 +64,53 @@ export default function PatientList({ patients, onSelectForSession, onOpenNewPat
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-11 h-11 rounded-2xl bg-primary/10 text-primary font-bold flex items-center justify-center text-base border border-primary/20">
-                  {patient.nome.charAt(0)}
+                  {patient.displayName.charAt(0)}
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-sm text-ink">{patient.nome}</h3>
-                  <p className="text-xs text-muted flex items-center gap-1">
-                    <Phone className="w-3 h-3" />
-                    {patient.telefone}
-                  </p>
+                  <h3 className="font-extrabold text-sm text-ink">{patient.displayName}</h3>
+                  {patient.phone && (
+                    <p className="text-xs text-muted flex items-center gap-1">
+                      <Phone className="w-3 h-3" />
+                      {patient.phone}
+                    </p>
+                  )}
                 </div>
               </div>
 
               <span
                 className={`chip text-[11px] ${
-                  patient.status === 'ativo'
+                  patient.status === 'active'
                     ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                     : 'bg-amber-50 text-amber-700 border-amber-200'
                 }`}
               >
-                {patient.status === 'ativo' ? (
-                  <>
-                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                    Ativo
-                  </>
+                {patient.status === 'active' ? (
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                 ) : (
-                  <>
-                    <PauseCircle className="w-3 h-3 text-amber-600" />
-                    Em Pausa
-                  </>
+                  <PauseCircle className="w-3 h-3 text-amber-600" />
                 )}
+                {STATUS_LABEL[patient.status]}
               </span>
             </div>
 
-            {/* Plano de Atendimento */}
+            {/* Profissional responsável */}
             <div className="bg-canvas p-3 rounded-xl border border-line text-xs space-y-1">
-              <span className="font-bold text-muted uppercase text-[10px] tracking-wide">Plano Terapêutico</span>
-              <p className="text-ink font-medium leading-snug">{patient.planoAtendimento}</p>
+              <span className="font-bold text-muted uppercase text-[10px] tracking-wide">Profissional Responsável</span>
+              <p className="text-ink font-medium leading-snug flex items-center gap-1.5">
+                <UserCheck className="w-3.5 h-3.5 text-primary" />
+                {patient.professionalName ?? 'Não atribuído'}
+              </p>
             </div>
 
             {/* Metadados da Agenda */}
             <div className="flex items-center justify-between text-xs text-muted pt-1 border-t border-line">
               <div className="flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5 text-primary" />
-                <span>Próxima: {patient.proximaSessao}</span>
+                <span>Próxima: {formatNextAppointment(patient.nextAppointmentAt)}</span>
               </div>
-              <div className="flex items-center gap-3">
-                <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">{patient.valorSessao}</span>
-                <div className="flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-accent" />
-                  <span>{patient.historicoSessoesCount} Sessões</span>
-                </div>
+              <div className="flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5 text-accent" />
+                <span>{patient.completedSessions} Sessões</span>
               </div>
             </div>
 

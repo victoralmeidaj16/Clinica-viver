@@ -1,46 +1,75 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Paciente } from '@/lib/mockData';
+import React, { useEffect, useState } from 'react';
+import type { ProfessionalProfile } from '@thats-life/core';
+import { applicationRequest, commandHeaders } from '@/lib/applicationApi';
 import { UserPlus, X, Save } from 'lucide-react';
 
 interface NewPatientModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddPatient: (newPatient: Paciente) => void;
+  /** Chamado após o cadastro persistir, para a lista recarregar da API. */
+  onPatientCreated: () => void | Promise<void>;
 }
 
-export default function NewPatientModal({ isOpen, onClose, onAddPatient }: NewPatientModalProps) {
+export default function NewPatientModal({ isOpen, onClose, onPatientCreated }: NewPatientModalProps) {
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [telefone, setTelefone] = useState('');
   const [dataNascimento, setDataNascimento] = useState('');
-  const [planoAtendimento, setPlanoAtendimento] = useState('');
+  const [professionals, setProfessionals] = useState<readonly ProfessionalProfile[]>([]);
+  const [professionalId, setProfessionalId] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Todo paciente nasce atribuído a um profissional: é essa atribuição que
+  // decide, depois, quem pode abrir o prontuário dele.
+  useEffect(() => {
+    if (!isOpen) return;
+    let mounted = true;
+    applicationRequest<ProfessionalProfile[]>('/professionals')
+      .then((items) => {
+        if (!mounted) return;
+        setProfessionals(items);
+        setProfessionalId((current) => current || items[0]?.id || '');
+      })
+      .catch(() => undefined);
+    return () => {
+      mounted = false;
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nome || !telefone) return;
+    if (!nome || !telefone || saving) return;
 
-    const newPatient: Paciente = {
-      id: `pac_${Date.now()}`,
-      nome,
-      email: email || `${nome.toLowerCase().replace(/\s+/g, '.')}@email.com`,
-      telefone,
-      dataNascimento: dataNascimento || '1998-05-20',
-      dataInicioTratamento: new Date().toISOString().split('T')[0],
-      status: 'ativo',
-      ultimaSessao: 'Nenhuma',
-      proximaSessao: 'A agendar',
-      planoAtendimento: planoAtendimento || 'Avaliação Psicológica Inicial',
-      historicoSessoesCount: 0,
-      tarefasAtivasCount: 0,
-      valorSessao: 'R$ 250,00',
-    };
-
-    onAddPatient(newPatient);
-    onClose();
+    setSaving(true);
+    setError(null);
+    try {
+      await applicationRequest('/patients', {
+        method: 'POST',
+        headers: commandHeaders(),
+        body: JSON.stringify({
+          displayName: nome,
+          phone: telefone,
+          email: email || undefined,
+          birthDate: dataNascimento || undefined,
+          professionalId: professionalId || undefined,
+        }),
+      });
+      await onPatientCreated();
+      setNome('');
+      setEmail('');
+      setTelefone('');
+      setDataNascimento('');
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível cadastrar o paciente.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -108,23 +137,40 @@ export default function NewPatientModal({ isOpen, onClose, onAddPatient }: NewPa
           </div>
 
           <div>
-            <label className="font-bold text-ink mb-1 block">Plano Terapêutico Inicial</label>
-            <input
-              type="text"
-              value={planoAtendimento}
-              onChange={(e) => setPlanoAtendimento(e.target.value)}
-              placeholder="Ex: TCC para Ansiedade Social..."
+            <label className="font-bold text-ink mb-1 block">Profissional Responsável *</label>
+            <select
+              required
+              value={professionalId}
+              onChange={(e) => setProfessionalId(e.target.value)}
               className="input"
-            />
+            >
+              {professionals.length === 0 && <option value="">Nenhum profissional cadastrado</option>}
+              {professionals.map((professional) => (
+                <option key={professional.id} value={professional.id}>
+                  {professional.displayName} — {professional.councilType} {professional.councilRegistration}
+                </option>
+              ))}
+            </select>
+            {professionals.length === 0 && (
+              <p className="text-[11px] text-muted mt-1">
+                Cadastre um profissional antes de registrar pacientes.
+              </p>
+            )}
           </div>
 
+          {error && (
+            <p className="text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-2.5">
+              {error}
+            </p>
+          )}
+
           <div className="pt-2 flex items-center justify-end gap-3">
-            <button type="button" onClick={onClose} className="btn-ghost text-xs">
+            <button type="button" onClick={onClose} className="btn-ghost text-xs" disabled={saving}>
               Cancelar
             </button>
-            <button type="submit" className="btn-primary text-xs py-2.5">
+            <button type="submit" className="btn-primary text-xs py-2.5" disabled={saving}>
               <Save className="w-4 h-4" />
-              <span>Salvar Paciente</span>
+              <span>{saving ? 'Salvando…' : 'Salvar Paciente'}</span>
             </button>
           </div>
         </form>

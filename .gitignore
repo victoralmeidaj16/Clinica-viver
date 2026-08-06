@@ -22,6 +22,12 @@ coverage/
 .env.*
 !.env.example
 
+# Certificados e chaves — a CA do MySQL da OCI e as chaves SSH da VM ficam
+# fora do repositório, no Mac e na própria VM.
+*.pem
+*.key
+!*.pub
+
 # Logs
 *.log
 npm-debug.log*

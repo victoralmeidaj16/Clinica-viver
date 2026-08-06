@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   Calendar,
   LayoutGrid,
+  Award,
 } from 'lucide-react';
 
 export default function Relatorios11IndicadoresPage() {
@@ -217,6 +218,14 @@ export default function Relatorios11IndicadoresPage() {
               Ver em Gráficos
             </button>
           </div>
+
+          <a
+            href="/relatorios/declaracao"
+            className="bg-surface hover:bg-slate-50 text-psi-deep border border-psi-vibrant/30 font-bold text-xs px-4 py-3 rounded-2xl shadow-sm transition-all flex items-center gap-2"
+          >
+            <Award className="w-4 h-4 text-psi-vibrant" />
+            Gerar Declaração de Horas
+          </a>
 
           <button
             type="button"

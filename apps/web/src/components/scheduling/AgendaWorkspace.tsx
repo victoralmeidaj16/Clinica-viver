@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { CalendarDays, Check, Clock3, Link2, LoaderCircle, Plus, RotateCw, Video, X, CreditCard } from 'lucide-react';
 import type { Appointment } from '@thats-life/core';
 import { applicationRequest, commandHeaders } from '@/lib/applicationApi';
-import { patientNames } from './demoScheduling';
+import type { PatientDirectoryEntry } from '@/server/application/patientDirectory';
 import { AppointmentBookingModal } from './AppointmentBookingModal';
 
 const day = (value: string) => new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit', timeZone: 'UTC' }).format(new Date(value));
@@ -12,6 +12,7 @@ type MutationResult = { appointment: Appointment; idempotentReplay: boolean };
 
 export function AgendaWorkspace() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [patientNames, setPatientNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string>();
   const [error, setError] = useState<string>();
@@ -35,6 +36,15 @@ export function AgendaWorkspace() {
       .then((items) => { if (mounted) setAppointments(items); })
       .catch((caught: unknown) => { if (mounted) setError(caught instanceof Error ? caught.message : 'Falha ao carregar agenda.'); })
       .finally(() => { if (mounted) setLoading(false); });
+
+    // Nome do paciente vem do cadastro, não de um dicionário no bundle. Falhar
+    // aqui não derruba a agenda: o horário continua legível pelo id.
+    applicationRequest<PatientDirectoryEntry[]>('/patients')
+      .then((items) => {
+        if (mounted) setPatientNames(Object.fromEntries(items.map((item) => [item.id, item.displayName])));
+      })
+      .catch(() => undefined);
+
     return () => { mounted = false; };
   }, []);
 

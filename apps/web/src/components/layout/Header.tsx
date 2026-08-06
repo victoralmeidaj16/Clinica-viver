@@ -3,7 +3,7 @@
 import React from 'react';
 import { Bell, Search, ShieldCheck, UserCheck, Sparkles } from 'lucide-react';
 
-export default function Header() {
+export default function Header({ displayName, role }: { displayName: string; role: 'admin' | 'psicologo' }) {
   return (
     <header className="h-20 bg-white border-b border-psi-soft/60 px-8 flex items-center justify-between sticky top-0 z-30 shadow-card">
       <div className="flex items-center gap-4 w-1/3">
@@ -38,14 +38,14 @@ export default function Header() {
 
         <div className="h-6 w-[1px] bg-psi-soft" />
 
-        {/* Usuário Psicólogo */}
+        {/* Usuário autenticado */}
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-psi-soft border border-psi-vibrant/30 flex items-center justify-center font-bold text-psi-darkest shadow-sm">
             <UserCheck className="w-5 h-5 text-psi-deep" />
           </div>
           <div className="hidden sm:block text-left">
-            <p className="text-xs font-bold text-ink leading-tight">Dra. Camila Vasconcelos</p>
-            <p className="text-[10px] text-muted font-medium">CRP 06/148293 • Psicóloga</p>
+            <p className="text-xs font-bold text-ink leading-tight">{displayName}</p>
+            <p className="text-[10px] text-muted font-medium">{role === 'admin' ? 'Administrador da clínica' : 'Psicólogo da clínica'}</p>
           </div>
         </div>
       </div>

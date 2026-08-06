@@ -9,6 +9,7 @@ import {
   InMemoryAppointmentRepository,
   InMemoryExternalCalendarConnectionRepository,
   beginGoogleCalendarConnection,
+  cancelAppointmentCommand,
   cancelAppointment,
   completeGoogleCalendarConnection,
   confirmAppointment,
@@ -99,6 +100,27 @@ describe('appointment commands', () => {
     expect(replay.idempotentReplay).toBe(true);
     await expect(scheduleAppointmentCommand(dependencies, actor, input({ id: 'appointment-2', startsAt: '2026-08-03T12:30:00.000Z', endsAt: '2026-08-03T13:20:00.000Z' }), { ...metadata('2026-08-01T10:01:00.000Z'), commandId: 'command-2' })).rejects.toThrow('conflito');
     expect(appointments.listOutboxEvents()).toHaveLength(1);
+  });
+
+  it('libera o horário depois do cancelamento', async () => {
+    const appointments = new InMemoryAppointmentRepository();
+    const dependencies = { appointments, identities: identities() };
+    const first = await scheduleAppointmentCommand(dependencies, actor, input(), {
+      ...metadata('2026-08-01T10:00:00.000Z'), commandId: 'cancel-slot-1',
+    });
+
+    await cancelAppointmentCommand(
+      dependencies,
+      actor,
+      first.appointment.id,
+      'PATIENT_REQUEST',
+      { ...metadata('2026-08-01T10:01:00.000Z'), commandId: 'cancel-slot-2' }
+    );
+
+    const replacement = await scheduleAppointmentCommand(dependencies, actor, input({ id: 'appointment-2' }), {
+      ...metadata('2026-08-01T10:02:00.000Z'), commandId: 'cancel-slot-3',
+    });
+    expect(replacement.appointment.status).toBe('scheduled');
   });
 
   it('bloqueia organização diferente antes de consultar os dados', async () => {

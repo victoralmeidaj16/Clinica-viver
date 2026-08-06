@@ -1,23 +1,43 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import PatientList from '@/components/patients/PatientList';
 import NewPatientModal from '@/components/patients/NewPatientModal';
-import { INITIAL_PATIENTS, Paciente } from '@/lib/mockData';
+import { applicationRequest } from '@/lib/applicationApi';
+import type { PatientDirectoryEntry } from '@/server/application/patientDirectory';
 import { useRouter } from 'next/navigation';
-import { ShieldCheck, Lock } from 'lucide-react';
+import { ShieldCheck, Lock, AlertTriangle } from 'lucide-react';
 
 export default function PacientesPage() {
-  const [patients, setPatients] = useState<Paciente[]>(INITIAL_PATIENTS);
+  const [patients, setPatients] = useState<readonly PatientDirectoryEntry[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+
+  // Cadeia de promessa em vez de `await` no corpo: todo `setState` acontece
+  // dentro de callback, nunca de forma síncrona no efeito. O estado já nasce
+  // carregando, então não há `setLoading(true)` aqui.
+  const load = useCallback(
+    () =>
+      applicationRequest<PatientDirectoryEntry[]>('/patients')
+        .then((items) => {
+          setPatients(items);
+          setError(null);
+        })
+        .catch((err: unknown) => {
+          setError(err instanceof Error ? err.message : 'Não foi possível carregar os pacientes.');
+        })
+        .finally(() => setLoading(false)),
+    []
+  );
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const handleSelectForSession = (patientId: string) => {
     router.push(`/cockpit?patient=${encodeURIComponent(patientId)}`);
-  };
-
-  const handleAddPatient = (newPatient: Paciente) => {
-    setPatients([newPatient, ...patients]);
   };
 
   return (
@@ -39,16 +59,27 @@ export default function PacientesPage() {
         </span>
       </div>
 
-      <PatientList
-        patients={patients}
-        onSelectForSession={handleSelectForSession}
-        onOpenNewPatientModal={() => setIsModalOpen(true)}
-      />
+      {error && (
+        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex items-center gap-3 text-rose-900">
+          <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
+          <p className="text-xs font-semibold">{error}</p>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="card text-center py-10 text-xs text-muted">Carregando pacientes…</div>
+      ) : (
+        <PatientList
+          patients={patients}
+          onSelectForSession={handleSelectForSession}
+          onOpenNewPatientModal={() => setIsModalOpen(true)}
+        />
+      )}
 
       <NewPatientModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onAddPatient={handleAddPatient}
+        onPatientCreated={load}
       />
     </div>
   );

@@ -67,7 +67,7 @@ export function AiCopilotSidebar({
           </div>
           <div>
             <h3 className="text-sm font-semibold text-slate-100">Copiloto Clínico de IA</h3>
-            <p className="text-[10px] text-slate-400">Análise em tempo real • Transcrição ativa</p>
+            <p className="text-[10px] text-slate-400">Apoio a notas & síntese pós-sessão</p>
           </div>
         </div>
         <button

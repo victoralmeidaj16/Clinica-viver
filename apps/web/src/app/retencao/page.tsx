@@ -14,28 +14,7 @@ import {
 } from 'lucide-react';
 
 export default function RetencaoPage() {
-  const [desistencias, setDesistencias] = useState([
-    {
-      id: 'DES-001',
-      paciente: 'Guilherme Castro',
-      psicologo: 'Dr. Lucas Silva',
-      motivo: 'FINANCEIRO',
-      descricao: 'Não conseguirá arcar com as mensalidades após perda de renda.',
-      data: '02/08/2026',
-      reengajado: false,
-      acaoSugestao: 'Oferecer migração para Atendimento Acessível (Social)',
-    },
-    {
-      id: 'DES-002',
-      paciente: 'Vanessa Almeida',
-      psicologo: 'Dra. Mariana Costa',
-      motivo: 'TROCA_ABORDAGEM',
-      descricao: 'Prefere migrar de TCC para Psicanálise.',
-      data: '29/07/2026',
-      reengajado: true,
-      acaoSugestao: 'Troca de psicólogo realizada com sucesso.',
-    },
-  ]);
+  const [desistencias, setDesistencias] = useState<any[]>([]);
 
   const handleMarcarReengajado = (id: string) => {
     setDesistencias((prev) =>

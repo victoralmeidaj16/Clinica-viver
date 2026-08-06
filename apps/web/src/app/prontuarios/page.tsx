@@ -15,59 +15,7 @@ import {
 import NewSoapRecordModal, { SoapRecordItem } from '@/components/prontuarios/NewSoapRecordModal';
 import ViewSoapRecordModal from '@/components/prontuarios/ViewSoapRecordModal';
 
-const INITIAL_SOAP_RECORDS: SoapRecordItem[] = [
-  {
-    id: 'SOAP-2026-001',
-    paciente: 'Mariana Silva de Oliveira',
-    patientId: 'pac_01',
-    data: '29/07/2026 às 14:30',
-    tipo: 'Consulta Individual (TCC)',
-    status: 'Aprovado & Criptografado',
-    hash: 'e2b6fbef007f46c29340193a1250c0e18c71a48e7b554de0f00b0a6a22d7d37e',
-    subjective:
-      'Paciente relata semana intensa de trabalho com reestruturação de metas e reuniões de alinhamento com a nova diretoria. Menciona oscilações de humor (registro 2/5 em 27/07) acompanhadas de insônia inicial e pensamentos automáticos de autocobrança ("tenho que entregar tudo com perfeição").',
-    objective:
-      'Apresenta-se orientada no tempo e espaço, afeto congruente com o relato, comunicação fluida. Aplicado rastreio GAD-7 pré-sessão com escore total 12 (Ansiedade Moderada). Sem sinais de ideação de risco.',
-    assessment:
-      'Evolução dentro da hipótese de Ansiedade Ocupacional / Transtorno de Ansiedade Generalizada em grau moderado. Boa capacidade de reflexão e adesão às técnicas de reestruturação cognitiva. Mantida a meta de construção de limites interpessoais sustentáveis.',
-    plan:
-      '1. Manter diário RPD focando em episódios de cobrança no trabalho.\n2. Praticar 10 min de respiração diafragmática ao acordar (hábito ativo).\n3. Rascunhar tópicos de alinhamento assertivo com a gerência antes do próximo atendimento.',
-  },
-  {
-    id: 'SOAP-2026-002',
-    paciente: 'Lucas Ramos Oliveira',
-    patientId: 'pac_02',
-    data: '28/07/2026 às 16:30',
-    tipo: 'Existencialismo Clínico',
-    status: 'Aprovado & Criptografado',
-    hash: 'a571f900192848c29340193a1250c0f94e57862d886557d1d3ccf9ec142234f5',
-    subjective:
-      'Paciente trouxe reflexões sobre a proposta de transição de carreira recebida durante a semana. Relata alívio ao perceber que seus valores pessoais estão desalinhados da cultura atual da empresa.',
-    objective:
-      'Postura relaxada, tom de voz sereno e engajado. Demonstra maior clareza de propósito em relação aos atendimentos anteriores.',
-    assessment:
-      'Avanço significativo na tomada de decisão consciente. Redução de ruminação relacionada ao medo de frustrar expectativas de terceiros.',
-    plan:
-      '1. Mapear prós e contras financeiros da transição para a próxima sessão.\n2. Manter diário de valores e projeto de vida.',
-  },
-  {
-    id: 'SOAP-2026-003',
-    paciente: 'Beatriz Santos Guimarães',
-    patientId: 'pac_03',
-    data: '27/07/2026 às 10:00',
-    tipo: 'Terapia de Aceitação (ACT)',
-    status: 'Aprovado & Criptografado',
-    hash: 'c881fa22001948c29340193a1250c0aa9f8e7d6c5b4a0123456789abcdef0123',
-    subjective:
-      'Relata início da nova rotina de estudos para concurso. Menciona momentos de desatenção e frustração com o ritmo de leitura.',
-    objective:
-      'Aplicada escala de rastreio de TDAH. Escore ASRS-18 com indicativo moderado para desatenção sem hiperatividade motora expressiva.',
-    assessment:
-      'Trabalhada a desfusão cognitiva em relação a pensamentos de "não vou conseguir manter a constância".',
-    plan:
-      '1. Aplicar técnica Pomodoro de 25 minutos com blocos de descanso ativo.\n2. Prática diária de mindfulness focada na ancoragem respiratória.',
-  },
-];
+const INITIAL_SOAP_RECORDS: SoapRecordItem[] = [];
 
 export default function ProntuariosPage() {
   const [records, setRecords] = useState<SoapRecordItem[]>(INITIAL_SOAP_RECORDS);

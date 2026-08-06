@@ -31,7 +31,7 @@ export default function AvaliacoesPage() {
   const [activeQuizCode, setActiveQuizCode] = useState<SupportedAssessmentCode>('PHQ-9');
   const [assignmentCode, setAssignmentCode] = useState<SupportedAssessmentCode | null>(null);
   const [activeAssignment, setActiveAssignment] = useState<AssessmentAssignment | null>(null);
-  const [selectedPatientId, setSelectedPatientId] = useState(INITIAL_PATIENTS[0].id);
+  const [selectedPatientId, setSelectedPatientId] = useState(INITIAL_PATIENTS[0]?.id ?? '');
   const demoState = useSyncExternalStore(
     subscribeDemoAssessments,
     getDemoAssessmentSnapshot,

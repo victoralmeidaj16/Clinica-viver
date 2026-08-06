@@ -1,0 +1,99 @@
+# Evolution API — canal de WhatsApp da clínica.
+#
+# Nenhuma porta é publicada para fora do host. A API escuta apenas em
+# 127.0.0.1, e quem fala com ela é a aplicação, pela rede interna do Compose.
+# O pareamento por QR é feito por túnel SSH (ver README.md).
+#
+# Postgres e Redis aqui são exclusivos do Evolution. Não apontar para o MySQL
+# da OCI: o schema do Evolution não tem nada a ver com o domínio clínico, e o
+# usuário viver_mais_app nem tem DDL para criá-lo.
+
+name: viver-mais-evolution
+
+services:
+  evolution:
+    # Imagem fixa por versão. A partir da v2.3.0 o repositório oficial passou a
+    # ser evoapicloud/ (antes era atendai/). Há build arm64, o que importa se a
+    # VM da OCI for A1 Flex.
+    image: evoapicloud/evolution-api:v2.3.7
+    platform: linux/amd64
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - CORS_ORIGIN=*
+    ports:
+      # Bind explícito em loopback. Trocar por 0.0.0.0 expõe a API do WhatsApp
+      # da clínica na internet — não fazer, nem "só para testar".
+      - "127.0.0.1:8080:8080"
+    volumes:
+      # Estado de autenticação da sessão. Perder este volume significa novo
+      # pareamento presencial por QR. Entra no backup (README.md).
+      - evolution_instances:/evolution/instances
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - evolution
+    healthcheck:
+      test: ["CMD", "sh", "-c", "wget -qO- http://localhost:8080/ >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - evolution_postgres:/var/lib/postgresql/data
+    networks:
+      - evolution
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  redis:
+    image: redis:7-bookworm
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - evolution_redis:/data
+    networks:
+      - evolution
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  evolution_instances:
+  evolution_postgres:
+  evolution_redis:
+
+networks:
+  evolution:
+    driver: bridge

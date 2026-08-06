@@ -12,7 +12,7 @@ Bem-vindo ao repositório do **Thats Life (TL - Psi)**. Este repositório foi pr
 │   ├── web/            # Aplicação Web (Next.js 16 App Router) - Cockpit do Psicólogo & Clínicas
 │   └── mobile/         # Aplicação Mobile (React Native / Expo) - App do Paciente
 ├── packages/
-│   └── core/           # Regras puras, IA Engine (SOAP), Evolution API client, Firestore Schemas
+│   └── core/           # Regras puras, IA Engine (SOAP), Evolution API client, Schemas MySQL (OCI)
 └── docs/               # Especificações técnicas, PRD e benchmarks
 ```
 

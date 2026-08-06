@@ -3,17 +3,21 @@ import {
   InMemoryClinicalSessionRepository, InMemoryClinicalTimelineRepository,
   InMemoryClinicalTimelineAccessAudit, InMemoryCommunicationAudit, InMemoryIdentityRepository,
   InMemoryFinancialRepository, InMemoryNotificationRepository, InMemoryPreSessionCheckInRepository, addCareTask,
-  createCarePlan, createFinancialCharge, createOrganization, createPatientProfile,
-  createProfessionalProfile, createClinicalTimelineEntry, scheduleAppointment, type CommunicationConsent,
+  createCarePlan, createFinancialCharge, createIdentityUser, createOrganization, createOrganizationMembership, createPatientProfile,
+  createProfessionalProfile, createClinicalTimelineEntry, scheduleAppointment, type AppointmentRepository,
+  type CommunicationConsent, type IdentityRepository,
   type CarePlan, type CommunicationPreference, type OrganizationMembership,
   type MoodCheckIn, type PatientHandoff, type PreSessionCheckIn,
 } from '@thats-life/core';
+import { isMysqlConfigured } from '@/server/oci/runtime';
+import { MysqlAppointmentRepository } from '@/server/persistence/mysql/appointmentRepository';
+import { MysqlIdentityRepository } from '@/server/persistence/mysql/identityRepository';
 import { seedSessionAwaitingReview } from './sessionSeed';
 import { readSnapshot, writeSnapshot, type PersistedSnapshot } from './persistence';
 
 interface DemoApplicationState {
-  identities: InMemoryIdentityRepository;
-  appointments: InMemoryAppointmentRepository;
+  identities: IdentityRepository;
+  appointments: AppointmentRepository;
   sessions: InMemoryClinicalSessionRepository;
   records: InMemoryClinicalRecordRepository;
   timeline: InMemoryClinicalTimelineRepository;
@@ -36,230 +40,35 @@ const createdAt = '2026-07-31T12:00:00.000Z';
 function createState(): DemoApplicationState {
   const organization = createOrganization({ id: 'org-demo', type: 'clinic', displayName: 'Clínica Thats Life', timezone: 'America/Sao_Paulo', createdAt });
   const professional = createProfessionalProfile({ id: 'professional-1', organizationId: organization.id, userId: 'user-demo', displayName: 'Dra. Camila', councilType: 'CRP', councilRegistration: '06/148293', specialties: ['TCC'], createdAt });
+  const adminUser = createIdentityUser({ id: 'admin-demo', displayName: 'Coordenação Viver Mais', normalizedEmail: 'admin@vivermais.local', createdAt });
+  const adminMembership = { ...createOrganizationMembership({ id: 'membership-admin-demo', organizationId: organization.id, userId: adminUser.id, roles: ['owner', 'admin'], createdAt }), status: 'active' as const };
   // Consultório autônomo: a mesma pessoa atende e fatura. O papel clínico
   // permanece isolado do papel financeiro para que o vínculo com o paciente
   // continue sendo exigido nas permissões clínicas.
   const membership: OrganizationMembership = { id: 'membership-demo', organizationId: organization.id, userId: professional.userId, roles: ['professional', 'billing'], status: 'active', professionalProfileId: professional.id, createdAt, updatedAt: createdAt };
-  const patients = [
-    createPatientProfile({ id: 'patient-1', userId: 'user-patient-demo', organizationId: organization.id, displayName: 'Mariana Silva de Oliveira', primaryProfessionalId: professional.id, assignedProfessionalIds: [professional.id], createdAt }),
-    createPatientProfile({ id: 'pac-01', userId: 'user-pac-01', organizationId: organization.id, displayName: 'Mariana Silva de Oliveira', primaryProfessionalId: professional.id, assignedProfessionalIds: [professional.id], createdAt }),
-    createPatientProfile({ id: 'patient-2', organizationId: organization.id, displayName: 'Lucas Ramos Oliveira', primaryProfessionalId: professional.id, assignedProfessionalIds: [professional.id], createdAt }),
-    createPatientProfile({ id: 'patient-3', organizationId: organization.id, displayName: 'Beatriz Santos Guimarães', primaryProfessionalId: professional.id, assignedProfessionalIds: [professional.id], createdAt }),
-    createPatientProfile({ id: 'patient-4', organizationId: organization.id, displayName: 'Rodrigo Costa Ferreira', primaryProfessionalId: professional.id, assignedProfessionalIds: [professional.id], createdAt }),
-    createPatientProfile({ id: 'patient-5', organizationId: organization.id, displayName: 'Camila Alencar de Souza', primaryProfessionalId: professional.id, assignedProfessionalIds: [professional.id], createdAt }),
-    createPatientProfile({ id: 'patient-6', organizationId: organization.id, displayName: 'Gabriel Mendes Prado', primaryProfessionalId: professional.id, assignedProfessionalIds: [professional.id], createdAt }),
-  ];
-  const rows = [
-    ['appointment-1', 'patient-1', '2026-08-03T12:00:00.000Z', '2026-08-03T12:50:00.000Z'],
-    ['appointment-pac-01', 'pac-01', '2026-08-03T14:00:00.000Z', '2026-08-03T14:50:00.000Z'],
-    ['appointment-2', 'patient-2', '2026-08-03T15:00:00.000Z', '2026-08-03T15:50:00.000Z'],
-    ['appointment-3', 'patient-3', '2026-08-04T10:00:00.000Z', '2026-08-04T10:50:00.000Z'],
-    ['appointment-5', 'patient-5', '2026-08-04T11:00:00.000Z', '2026-08-04T11:50:00.000Z'],
-    ['appointment-6', 'patient-6', '2026-08-04T15:00:00.000Z', '2026-08-04T15:50:00.000Z'],
-  ] as const;
-  const appointments = rows.map(([id, patientId, startsAt, endsAt]) => scheduleAppointment({ id, organizationId: organization.id, patientId, professionalId: professional.id, startsAt, endsAt, timezone: organization.timezone, mode: 'video', reminders: [{ id: `${id}-reminder`, channel: 'whatsapp', minutesBefore: 60 }], createdAt }, { actorUserId: professional.userId, occurredAt: createdAt, correlationId: `seed-${id}` }).appointment);
-  
-  const basePlan = createCarePlan({ id: 'plan-1', organizationId: organization.id, patientId: 'patient-1', professionalId: professional.id, goals: [{ id: 'goal-1', title: 'Construir rotina sustentável de autocuidado', status: 'active' }], createdAt });
-  const carePlan = addCareTask(
-    addCareTask(
-      addCareTask(basePlan, { id: 'task-1', title: '📝 Preencher RPD ao perceber gatilhos de ansiedade' }, createdAt),
-      { id: 'task-2', title: '🧘 Praticar 10 min de respiração diafragmática ao acordar' }, createdAt
-    ),
-    { id: 'task-3', title: '✉️ Escrever rascunho de alinhamento de demandas com a gerência' }, createdAt
-  );
-
-  const basePlanPac01 = createCarePlan({ id: 'plan-pac-01', organizationId: organization.id, patientId: 'pac-01', professionalId: professional.id, goals: [{ id: 'goal-pac-1', title: 'Gestão de ansiedade ocupacional', status: 'active' }], createdAt });
-  const carePlanPac01 = addCareTask(
-    addCareTask(
-      addCareTask(basePlanPac01, { id: 'demo-pac-01-session-01-task-1', title: '📝 Preencher RPD ao perceber gatilhos de ansiedade' }, createdAt),
-      { id: 'demo-pac-01-session-01-task-2', title: '🧘 Praticar 10 min de respiração diafragmática ao acordar' }, createdAt
-    ),
-    { id: 'demo-pac-01-session-01-task-3', title: '✉️ Escrever rascunho de alinhamento de demandas com a gerência' }, createdAt
-  );
-
-  const charge = createFinancialCharge({ id: 'charge-1', organizationId: organization.id, sessionId: 'session-0', patientId: 'patient-1', professionalId: professional.id, issuedAt: '2026-07-30T12:00:00.000Z', dueAt: '2026-08-05T23:59:00.000Z', amountCents: 25000, createdAt: '2026-07-30T12:00:00.000Z' });
-  const seeded = seedSessionAwaitingReview({
-    sessionId: 'session-1', recordId: 'record-1', organizationId: organization.id, patientId: 'patient-1',
-    professionalId: professional.id, actorUserId: professional.userId,
-    scheduledStart: '2026-07-31T13:00:00.000Z', scheduledEnd: '2026-07-31T13:50:00.000Z', createdAt,
-  });
-
-  const deliveredHandoffs: PatientHandoff[] = [
-    {
-      schemaVersion: 1,
-      patientId: 'patient-1',
-      sessionId: 'session-prev',
-      summary: 'Nesta sessão vocês trabalharam estratégias para lidar com a ansiedade em situações profissionais, reconhecer limites na rotina e fortalecer formas mais assertivas de comunicação.',
-      tasks: [
-        { id: 'task-1', title: '📝 Preencher RPD ao perceber gatilhos de ansiedade', completed: true },
-        { id: 'task-2', title: '🧘 Praticar 10 min de respiração diafragmática ao acordar', completed: false },
-        { id: 'task-3', title: '✉️ Escrever rascunho de alinhamento de demandas com a gerência', completed: false },
-      ],
-      nextSessionLabel: 'Quarta-feira, 05 de Agosto às 14:00',
-      professionalName: 'Dra. Camila',
-      status: 'delivered',
-      humanReviewRequired: true,
-      safetyWarnings: [],
-      approvedBy: professional.userId,
-      approvedAt: createdAt,
-      deliveredAt: createdAt,
-    },
-    {
-      schemaVersion: 1,
-      patientId: 'pac-01',
-      sessionId: 'demo-pac-01-session-01',
-      summary: 'Nesta sessão vocês trabalharam estratégias para lidar com a ansiedade em situações profissionais, reconhecer limites na rotina e fortalecer formas mais assertivas de comunicação.',
-      tasks: [
-        { id: 'demo-pac-01-session-01-task-1', title: '📝 Preencher RPD ao perceber gatilhos de ansiedade', completed: true },
-        { id: 'demo-pac-01-session-01-task-2', title: '🧘 Praticar 10 min de respiração diafragmática ao acordar', completed: false },
-        { id: 'demo-pac-01-session-01-task-3', title: '✉️ Escrever rascunho de alinhamento de demandas com a gerência', completed: false },
-      ],
-      nextSessionLabel: 'Quarta-feira, 05 de Agosto às 14:00',
-      professionalName: 'Dra. Camila Vasconcelos',
-      status: 'delivered',
-      humanReviewRequired: true,
-      safetyWarnings: [],
-      approvedBy: professional.userId,
-      approvedAt: createdAt,
-      deliveredAt: createdAt,
-    },
-  ];
-
-  const moodLogs: MoodCheckIn[] = [
-    { id: 'mood-1', organizationId: organization.id, patientId: 'patient-1', recordedAt: '2026-07-30T20:00:00.000Z', level: 4, emotions: ['Tranquila', 'Focada'], note: 'Dia produtivo no trabalho.' },
-    { id: 'mood-2', organizationId: organization.id, patientId: 'patient-1', recordedAt: '2026-07-31T09:00:00.000Z', level: 3, emotions: ['Ansiosa'], note: 'Apresentação importante à tarde.' },
-    { id: 'mood-3', organizationId: organization.id, patientId: 'patient-2', recordedAt: '2026-08-01T18:00:00.000Z', level: 4, emotions: ['Reflexivo', 'Determinado'], note: 'Avanços na proposta de transição.' },
-    { id: 'mood-4', organizationId: organization.id, patientId: 'patient-3', recordedAt: '2026-08-02T10:00:00.000Z', level: 3, emotions: ['Desatenta', 'Empolgada'], note: 'Nova rotina de estudos iniciada.' },
-    { id: 'mood-pac-1', organizationId: organization.id, patientId: 'pac-01', recordedAt: '2026-07-30T20:00:00.000Z', level: 4, emotions: ['Tranquila', 'Focada'], note: 'Dia produtivo no trabalho.' },
-  ];
-
-  const seededCheckIns: PreSessionCheckIn[] = [
-    {
-      schemaVersion: 1,
-      id: 'checkin-appointment-1',
-      organizationId: organization.id,
-      appointmentId: 'appointment-1',
-      patientId: 'patient-1',
-      professionalId: professional.id,
-      availableFrom: '2026-08-01T00:00:00.000Z',
-      expiresAt: '2026-08-03T12:00:00.000Z',
-      status: 'submitted',
-      response: {
-        moodLevel: 3,
-        topicsToDiscuss: 'Gostaria de falar sobre estratégias para gerenciar a sobrecarga no trabalho e ansiedade com reuniões.',
-        assessment: {
-          responseId: 'resp-1',
-          instrumentCode: 'GAD-7',
-          totalScore: 8,
-          severityLabel: 'Ansiedade leve',
-          hasRiskAlert: false,
-        },
-      },
-      reviewReasons: [],
-      submittedAt: '2026-08-02T18:00:00.000Z',
-      version: 2,
-      createdAt,
-      updatedAt: createdAt,
-    },
-    {
-      schemaVersion: 1,
-      id: 'checkin-appointment-pac-01',
-      organizationId: organization.id,
-      appointmentId: 'appointment-pac-01',
-      patientId: 'pac-01',
-      professionalId: professional.id,
-      availableFrom: '2026-08-01T00:00:00.000Z',
-      expiresAt: '2026-08-03T14:00:00.000Z',
-      status: 'available',
-      reviewReasons: [],
-      version: 1,
-      createdAt,
-      updatedAt: createdAt,
-    },
-  ];
-
-  const seededTimelineEntries = [
-    createClinicalTimelineEntry({
-      id: 'timeline-entry-1',
-      organizationId: organization.id,
-      patientId: 'patient-1',
-      authorizedProfessionalIds: [professional.id],
-      category: 'clinical_record',
-      importance: 'milestone',
-      occurredAt: '2026-07-30T13:00:00.000Z',
-      recordedAt: createdAt,
-      title: 'Prontuário Aprovado — Sessão de Anamnese & Ansiedade',
-      summary: 'Evolução clínica SOAP aprovada. Trabalhadas estratégias de regulação emocional e manejo de ansiedade ocupacional.',
-      evidenceExcerpt: 'Paciente relata oscilações de ansiedade ligadas à rotina de trabalho e reuniões. Aplicadas técnicas de respiração diafragmática.',
-      tags: ['ansiedade', 'trabalho', 'soap', 'anamnese'],
-      evidence: {
-        sourceType: 'clinical_record_revision',
-        sourceId: 'record-prev',
-        sourceVersion: 1,
-        sourceRevisionId: 'record-prev-rev-1',
-        sourceField: 'content.assessment',
-        contentHashSha256: 'a1b2c3d4e5f60123456789abcdef0123456789abcdef0123456789abcdef0123',
-      },
-    }),
-    createClinicalTimelineEntry({
-      id: 'timeline-entry-2',
-      organizationId: organization.id,
-      patientId: 'patient-1',
-      authorizedProfessionalIds: [professional.id],
-      category: 'assessment',
-      importance: 'routine',
-      occurredAt: '2026-07-30T12:00:00.000Z',
-      recordedAt: createdAt,
-      title: 'Escala GAD-7 — Ansiedade Leve',
-      summary: 'Resultado da avaliação pré-sessão. Escore total 8 de 21 pontos (Ansiedade leve). Sem alertas de risco elevado.',
-      evidenceExcerpt: 'Escore total: 8 pontos. Sintomas moderados nos últimos 14 dias.',
-      tags: ['gad-7', 'escala', 'ansiedade'],
-      evidence: {
-        sourceType: 'assessment_response',
-        sourceId: 'resp-1',
-        sourceField: 'totalScore',
-      },
-    }),
-    createClinicalTimelineEntry({
-      id: 'timeline-entry-3',
-      organizationId: organization.id,
-      patientId: 'pac-01',
-      authorizedProfessionalIds: [professional.id],
-      category: 'clinical_record',
-      importance: 'milestone',
-      occurredAt: '2026-07-30T13:00:00.000Z',
-      recordedAt: createdAt,
-      title: 'Prontuário Aprovado — Ansiedade Ocupacional',
-      summary: 'Evolução clínica SOAP aprovada. Trabalhadas estratégias de regulação emocional e respiração diafragmática.',
-      evidenceExcerpt: 'Paciente relata oscilações de ansiedade ligadas à rotina de trabalho. Aplicadas práticas de respiração diafragmática.',
-      tags: ['ansiedade', 'trabalho', 'soap'],
-      evidence: {
-        sourceType: 'clinical_record_revision',
-        sourceId: 'demo-pac-01-record',
-        sourceVersion: 1,
-        sourceRevisionId: 'demo-pac-01-rev-1',
-        sourceField: 'content.assessment',
-        contentHashSha256: '9f8e7d6c5b4a0123456789abcdef0123456789abcdef0123456789abcdef0123',
-      },
-    }),
-  ];
+  const patients: ReturnType<typeof createPatientProfile>[] = [];
+  const appointments: ReturnType<typeof scheduleAppointment>['appointment'][] = [];
+  const deliveredHandoffs: PatientHandoff[] = [];
+  const moodLogs: MoodCheckIn[] = [];
+  const seededCheckIns: PreSessionCheckIn[] = [];
+  const seededTimelineEntries: ReturnType<typeof createClinicalTimelineEntry>[] = [];
 
   return {
-    identities: new InMemoryIdentityRepository({ organizations: [organization], memberships: [membership], professionals: [professional], patients }),
-    appointments: new InMemoryAppointmentRepository(appointments), notifications: new InMemoryNotificationRepository(), communicationAudit: new InMemoryCommunicationAudit(),
-    sessions: new InMemoryClinicalSessionRepository([seeded.session]), records: new InMemoryClinicalRecordRepository([seeded.record]),
-    timeline: new InMemoryClinicalTimelineRepository(seededTimelineEntries),
+    identities: new InMemoryIdentityRepository({ organizations: [organization], users: [adminUser], memberships: [membership, adminMembership], professionals: [professional], patients: [] }),
+    appointments: new InMemoryAppointmentRepository([]), notifications: new InMemoryNotificationRepository(), communicationAudit: new InMemoryCommunicationAudit(),
+    sessions: new InMemoryClinicalSessionRepository([]), records: new InMemoryClinicalRecordRepository([]),
+    timeline: new InMemoryClinicalTimelineRepository([]),
     timelineAudit: new InMemoryClinicalTimelineAccessAudit(),
-    preferences: patients.map((patient) => ({ organizationId: organization.id, patientId: patient.id, enabledChannels: ['whatsapp'], disabledCategories: [], updatedAt: createdAt })),
-    consents: patients.map((patient) => ({ id: `consent-${patient.id}`, organizationId: organization.id, patientId: patient.id, channel: 'whatsapp', status: 'granted', policyVersion: '2026-07', capturedAt: createdAt })),
-    carePlans: [carePlan, carePlanPac01], financial: new InMemoryFinancialRepository({ charges: [charge] }),
-    checkIns: new InMemoryPreSessionCheckInRepository(seededCheckIns),
-    moodLogs, deliveredHandoffs, assessments: [],
+    preferences: [],
+    consents: [],
+    carePlans: [], financial: new InMemoryFinancialRepository({ charges: [] }),
+    checkIns: new InMemoryPreSessionCheckInRepository([]),
+    moodLogs: [], deliveredHandoffs: [], assessments: [],
   };
 }
 
 const DEMO_ORGANIZATION_ID = 'org-demo';
-const DEMO_PATIENT_IDS = ['patient-1', 'pac-01', 'patient-2', 'patient-3'] as const;
+const DEMO_PATIENT_IDS: readonly string[] = [];
 
 /**
  * Reconstrói o estado a partir de um snapshot gravado em disco.
@@ -330,15 +139,40 @@ export async function captureSnapshot(): Promise<PersistedSnapshot> {
  * Grava o estado corrente. Chamado depois das mutações; falhas de escrita são
  * registradas mas nunca derrubam a requisição — o estado em memória segue
  * válido e a próxima gravação tenta de novo.
+ *
+ * Com MySQL configurado a chamada é um no-op: o banco é a fonte de verdade dos
+ * módulos migrados, e um snapshot parcial em disco só criaria uma segunda
+ * versão da mesma agenda, livre para divergir.
  */
 export async function persistApplicationState(): Promise<void> {
+  if (isMysqlConfigured()) return;
   await writeSnapshot(await captureSnapshot());
+}
+
+/**
+ * Identidade e agenda no MySQL da OCI; os demais módulos seguem em memória até
+ * o 008 trazer o resto do schema.
+ *
+ * A mistura é deliberada e temporária. O seed continua sendo construído porque
+ * ele ainda alimenta prontuário, financeiro, timeline e comunicação — o que
+ * muda é de onde vêm paciente, profissional, vínculo e agendamento.
+ */
+function createMysqlBackedState(): DemoApplicationState {
+  return {
+    ...createState(),
+    identities: new MysqlIdentityRepository(),
+    appointments: new MysqlAppointmentRepository(),
+  };
 }
 
 export function getApplicationStore(): DemoApplicationState {
   if (!globalStore.__thatsLifeApplication) {
-    const snapshot = readSnapshot();
-    globalStore.__thatsLifeApplication = snapshot ? stateFromSnapshot(snapshot) : createState();
+    if (isMysqlConfigured()) {
+      globalStore.__thatsLifeApplication = createMysqlBackedState();
+    } else {
+      const snapshot = readSnapshot();
+      globalStore.__thatsLifeApplication = snapshot ? stateFromSnapshot(snapshot) : createState();
+    }
   }
   return globalStore.__thatsLifeApplication;
 }

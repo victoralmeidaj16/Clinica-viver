@@ -1,11 +1,16 @@
 import { NextResponse } from 'next/server';
+import { isMysqlConfigured } from '@/server/oci/runtime';
 
 export class ApplicationError extends Error {
   constructor(public readonly code: string, message: string, public readonly status: number) { super(message); }
 }
 
 export function success<T>(data: T, status = 200) {
-  return NextResponse.json({ ok: true, data, meta: { generatedAt: new Date().toISOString(), persistence: 'memory' } }, { status, headers: { 'Cache-Control': 'no-store' } });
+  // `persistence` é o que distingue uma resposta apoiada no banco de uma
+  // resposta de demonstração. Mantê-lo fixo em 'memory' tornaria impossível,
+  // do lado do cliente, saber se o dado sobrevive ao próximo restart.
+  const persistence = isMysqlConfigured() ? 'mysql' : 'memory';
+  return NextResponse.json({ ok: true, data, meta: { generatedAt: new Date().toISOString(), persistence } }, { status, headers: { 'Cache-Control': 'no-store' } });
 }
 
 export function failure(error: unknown) {

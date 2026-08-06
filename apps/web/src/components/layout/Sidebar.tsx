@@ -25,12 +25,12 @@ import {
   Sparkles,
   Inbox,
   UserPlus,
+  LogOut,
 } from 'lucide-react';
 
-export default function Sidebar() {
+export default function Sidebar({ role, onLogout }: { role: 'admin' | 'psicologo'; onLogout: () => void }) {
   const pathname = usePathname();
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [activeRole, setActiveRole] = useState<'psicologo' | 'gestao'>('psicologo');
 
   const psicologoItems = [
     {
@@ -113,7 +113,8 @@ export default function Sidebar() {
     },
   ];
 
-  const navItems = activeRole === 'psicologo' ? psicologoItems : gestaoItems;
+  const isProfessional = role === 'psicologo';
+  const navItems = isProfessional ? psicologoItems : gestaoItems;
 
   return (
     <aside
@@ -148,32 +149,12 @@ export default function Sidebar() {
           </button>
         </div>
 
-        {/* Seletor de Perfil (Psicólogo vs Gestão) */}
+        {/* O perfil vem da sessão; não é um seletor visual. */}
         {!isCollapsed && (
           <div className="p-3 border-b border-white/10">
-            <div className="bg-white/5 p-1 rounded-xl flex items-center gap-1 border border-white/10">
-              <button
-                type="button"
-                onClick={() => setActiveRole('psicologo')}
-                className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all ${
-                  activeRole === 'psicologo'
-                    ? 'bg-psi-vibrant text-white shadow-sm'
-                    : 'text-psi-soft/70 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                Psicólogo
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveRole('gestao')}
-                className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all ${
-                  activeRole === 'gestao'
-                    ? 'bg-psi-vibrant text-white shadow-sm'
-                    : 'text-psi-soft/70 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                Gestão
-              </button>
+            <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+              <p className="text-[10px] uppercase tracking-widest text-psi-soft/50">Perfil ativo</p>
+              <p className="mt-1 text-xs font-bold text-white">{isProfessional ? 'Psicólogo da clínica' : 'Administrador da clínica'}</p>
             </div>
           </div>
         )}
@@ -182,7 +163,7 @@ export default function Sidebar() {
         <nav className="p-3 space-y-1">
           {!isCollapsed && (
             <div className="px-3 py-1.5 text-[10px] font-black text-psi-soft/50 uppercase tracking-widest animate-in fade-in flex items-center justify-between">
-              <span>{activeRole === 'psicologo' ? 'Portal do Psicólogo' : 'Cockpit de Gestão'}</span>
+              <span>{isProfessional ? 'Portal do Psicólogo' : 'Cockpit de Gestão'}</span>
             </div>
           )}
           {navItems.map((item) => {
@@ -205,6 +186,12 @@ export default function Sidebar() {
             );
           })}
         </nav>
+      </div>
+      <div className="border-t border-white/10 p-3">
+        <button type="button" onClick={onLogout} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-bold text-psi-soft/80 transition-colors hover:bg-white/10 hover:text-white ${isCollapsed ? 'justify-center px-0' : ''}`}>
+          <LogOut className="h-4 w-4 shrink-0" />
+          {!isCollapsed && <span>Sair da conta</span>}
+        </button>
       </div>
     </aside>
   );

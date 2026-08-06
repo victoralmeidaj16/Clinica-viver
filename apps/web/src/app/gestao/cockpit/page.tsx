@@ -20,61 +20,8 @@ import {
 export default function GestaoCockpitPage() {
   const [abaAtiva, setAbaAtiva] = useState<'FILA' | 'CREDENCIAMENTOS'>('FILA');
   
-  const [psicologosPendentes, setPsicologosPendentes] = useState([
-    {
-      id: 'psi-cad-1',
-      nomeCompleto: 'Dra. Vanessa Ferreira',
-      crp: 'CRP 07/88912',
-      whatsapp: '(51) 99876-1234',
-      email: 'vanessa.ferreira@psi.com',
-      cidadeUf: 'Porto Alegre/RS',
-      especialidade: 'Cognitivo-Comportamental (TCC)',
-      modalidadeAtendimento: 'AMBOS',
-      minibio: '10 anos de experiência clínica com foco em quadros de ansiedade e transtorno do pânico.',
-      status: 'EM_ANALISE',
-      criadoEm: '05/08/2026 14:20',
-    },
-    {
-      id: 'psi-cad-2',
-      nomeCompleto: 'Dr. Fernando Albuquerque',
-      crp: 'CRP 07/34190',
-      whatsapp: '(51) 99123-5566',
-      email: 'fernando.albuquerque@psi.com',
-      cidadeUf: 'Canoas/RS',
-      especialidade: 'Psicanálise',
-      modalidadeAtendimento: 'ONLINE',
-      minibio: 'Mestre em Psicologia Clínica, atuando com adultos e supervisão acadêmica.',
-      status: 'EM_ANALISE',
-      criadoEm: '05/08/2026 16:45',
-    },
-  ]);
-
-  const [leads, setLeads] = useState([
-    {
-      id: 'lead-101',
-      paciente: 'João Pedro Severo',
-      telefone: '(51) 99823-4411',
-      modalidade: 'Atendimento Acessível (Social)',
-      turno: 'Tarde',
-      psicologo: 'Dr. Lucas Silva',
-      alocadoEm: '05/08/2026 08:30',
-      horasDecorridas: 3.5,
-      status: 'AGUARDANDO_CONTATO',
-      slaStatus: 'VERDE',
-    },
-    {
-      id: 'lead-102',
-      paciente: 'Camila Fernandes',
-      telefone: '(51) 99711-2233',
-      modalidade: 'Atendimento Particular',
-      turno: 'Manhã',
-      psicologo: 'Dra. Mariana Costa',
-      alocadoEm: '04/08/2026 14:00',
-      horasDecorridas: 21.5,
-      status: 'AGUARDANDO_CONTATO',
-      slaStatus: 'AMARELO',
-    },
-  ]);
+  const [psicologosPendentes, setPsicologosPendentes] = useState<any[]>([]);
+  const [leads, setLeads] = useState<any[]>([]);
 
   const [filtroModalidade, setFiltroModalidade] = useState<string>('TODAS');
   const [filtroTurno, setFiltroTurno] = useState<string>('TODOS');

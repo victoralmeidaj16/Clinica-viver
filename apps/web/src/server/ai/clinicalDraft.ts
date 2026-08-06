@@ -28,7 +28,7 @@ const SOAP_SCHEMA = {
     objective: {
       type: 'string',
       description:
-        'Apenas o que é audível ou explicitamente descrito na transcrição. Nunca postura, contato visual ou linguagem corporal.',
+        'Elementos observáveis e relato de comportamento clínico sintetizados pelo psicólogo pós-sessão.',
     },
     assessment: {
       type: 'string',

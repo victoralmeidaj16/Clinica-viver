@@ -64,27 +64,21 @@ fornecedor isso seria integração entre dois sistemas; aqui é um `SELECT`.
 
 ## 2. Decisões de arquitetura
 
-**D1 — O prontuário nasce direto no MySQL OCI, sem passar pelo Firestore.**
-Paciente e agenda toleram o modelo atual, prontuário não. Ele exige retenção
+**D1 — O sistema opera 100% no MySQL OCI (sem Firestore).**
+Prontuário, agendamentos, triagem e dados cadastrais rodam nativamente no MySQL. Isso garante retenção
 legal com prazo, trilha de auditoria de leitura, registro imutável com
-retificação rastreável e consulta relacional por profissional e período. Nada
-disso é confortável em regras de segurança avaliadas no cliente. Criar no
-Firestore para migrar depois seria pagar duas vezes pelo mesmo trabalho.
+retificação rastreável e consultas relacionais diretas.
 
-**D2 — Paciente e agendamento permanecem no Firestore até o corte, com espelho
-no MySQL.** Repetir o padrão já validado em `lib/oci/financeiro-migration.ts`:
-importação idempotente, comparação de consistência antes de virar a leitura,
-escrita dupla só depois da comparação bater. As telas atuais não param.
+**D2 — Paciente, agendamento e prontuário nascem nativamente no MySQL.**
+Sem necessidade de espelhamento ou escrita dupla. A aplicação Web consulta e persiste diretamente nas rotas de servidor (API) conectadas ao MySQL OCI.
 
 **D3 — Paciente e aluno são entidades distintas com vínculo opcional.**
 `clinica_pacientes.pessoa_ref` aponta para o aluno ou egresso quando existir. É
 esse campo que habilita, depois, matching e ocupação. Sem ele, a clínica vira
 um silo dentro da própria casa — exatamente o defeito da proposta externa.
 
-**D4 — Todo acesso a prontuário passa por rota de servidor.** Nenhuma leitura de
-evolução pelo SDK cliente do Firebase, nem quando a coleção estiver espelhada. A
-regra do Firestore para prontuário é `allow read, write: if false`; o acesso
-legítimo entra por API autenticada que registra em `clinica_acessos_prontuario`.
+**D4 — Todo acesso aos dados clínicos passa obrigatoriamente por rotas de servidor.**
+Qualquer leitura ou alteração de prontuários entra por API autenticada no Next.js Server Side que registra auditoria em `clinica_acessos_prontuario`.
 
 **D5 — Anexos clínicos não vão para o MySQL.** O DB System Always Free tem 50 GiB
 e é o ativo mais caro de substituir. Áudio, imagem e PDF ficam em Object Storage

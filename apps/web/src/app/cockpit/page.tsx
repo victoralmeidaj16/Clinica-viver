@@ -152,17 +152,13 @@ export default function CockpitPage() {
 
     // Disparar WhatsApp via Evolution API para o paciente
     try {
-      const evoUrl = process.env.NEXT_PUBLIC_EVOLUTION_API_URL || 'http://localhost:8080';
-      const evoApiKey = process.env.NEXT_PUBLIC_EVOLUTION_API_KEY || '7c49eaa59c3631963fe335f99b3860f5d6b0e0751afcdda4b8c00c9ef08e52e6';
-      const evoInstance = process.env.NEXT_PUBLIC_EVOLUTION_INSTANCE || 'viver_mais_clinica';
-
       const textoPaciente = `Olá, ${pendingLead.nomePaciente}! 👋✨\n\nAqui é o Dr. Lucas da *Viver Mais Psicologia*.\n\nSua sessão de *${pendingLead.modalidade}* foi confirmada para o turno da *${pendingLead.turno}*!\n\n💳 Para concluir o agendamento e efetuar o pagamento da sessão (R$ 75,00), acesse seu link exclusivo:\n${linkUrl}\n\nEstou ansioso para nosso atendimento!🧠`;
 
-      await fetch(`${evoUrl}/message/sendText/${evoInstance}`, {
+      await fetch('/api/application/communication/send-text', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'apikey': evoApiKey,
+          'Idempotency-Key': crypto.randomUUID(),
         },
         body: JSON.stringify({
           number: pendingLead.telefone.replace(/\D/g, ''),

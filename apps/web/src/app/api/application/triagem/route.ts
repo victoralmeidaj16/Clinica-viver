@@ -44,24 +44,28 @@ export async function POST(request: Request) {
 
     // Disparo automático via Evolution API (WhatsApp do Psicólogo)
     try {
-      const evoUrl = process.env.EVOLUTION_API_URL || 'http://localhost:8080';
-      const evoApiKey = process.env.EVOLUTION_API_KEY || '7c49eaa59c3631963fe335f99b3860f5d6b0e0751afcdda4b8c00c9ef08e52e6';
-      const evoInstance = process.env.EVOLUTION_INSTANCE_NAME || 'viver_mais_clinica';
+      const evoUrl = process.env.EVOLUTION_API_URL;
+      const evoApiKey = process.env.EVOLUTION_API_KEY;
+      const evoInstance = process.env.EVOLUTION_INSTANCE_NAME;
 
       const psiTelefone = process.env.PSICOLOGO_FILA_WHATSAPP || body.whatsapp; // Se não configurado envia para o número de teste
       const textoWhatsApp = `Olá, Dr. Lucas! 🧠✨\n\nVocê recebeu um novo paciente de *${body.servico || 'Psicoterapia'}* (${body.modalidade || 'Social'}) no turno da *${body.turno || 'Tarde'}*.\n\n👤 *Paciente:* ${body.nome}\n📱 *WhatsApp:* ${body.whatsapp}\n\nClique no link abaixo para confirmar o atendimento e gerar o link de pagamento em até 24h:\nhttps://vivermaispsicologia.com.br/cockpit`;
 
-      fetch(`${evoUrl}/message/sendText/${evoInstance}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': evoApiKey,
-        },
-        body: JSON.stringify({
-          number: psiTelefone.replace(/\D/g, ''),
-          text: textoWhatsApp,
-        }),
-      }).catch((err) => console.warn('[EvolutionAPI Disparo] Servidor offline ou desconfigurado:', err));
+      if (evoUrl && evoApiKey && evoInstance) {
+        fetch(`${evoUrl}/message/sendText/${evoInstance}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': evoApiKey,
+          },
+          body: JSON.stringify({
+            number: psiTelefone.replace(/\D/g, ''),
+            text: textoWhatsApp,
+          }),
+        }).catch((err) => console.warn('[EvolutionAPI Disparo] Servidor offline ou desconfigurado:', err));
+      } else {
+        console.warn('[EvolutionAPI Disparo] Variáveis de ambiente não configuradas.');
+      }
     } catch (e) {
       console.warn('[EvolutionAPI Notification] Ignorado:', e);
     }

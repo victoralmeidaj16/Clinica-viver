@@ -37,8 +37,12 @@ interface DemoGlobal { __thatsLifeApplication?: DemoApplicationState; }
 const globalStore = globalThis as typeof globalThis & DemoGlobal;
 const createdAt = '2026-07-31T12:00:00.000Z';
 
+function applicationOrganizationId(): string {
+  return process.env.NEXT_PUBLIC_ORGANIZATION_ID?.trim() || 'org-demo';
+}
+
 function createState(): DemoApplicationState {
-  const organization = createOrganization({ id: 'org-demo', type: 'clinic', displayName: 'Clínica Thats Life', timezone: 'America/Sao_Paulo', createdAt });
+  const organization = createOrganization({ id: applicationOrganizationId(), type: 'clinic', displayName: 'Clínica Thats Life', timezone: 'America/Sao_Paulo', createdAt });
   const professional = createProfessionalProfile({ id: 'professional-1', organizationId: organization.id, userId: 'user-demo', displayName: 'Dra. Camila', councilType: 'CRP', councilRegistration: '06/148293', specialties: ['TCC'], createdAt });
   const adminUser = createIdentityUser({ id: 'admin-demo', displayName: 'Coordenação Viver Mais', normalizedEmail: 'admin@vivermais.local', createdAt });
   const adminMembership = { ...createOrganizationMembership({ id: 'membership-admin-demo', organizationId: organization.id, userId: adminUser.id, roles: ['owner', 'admin'], createdAt }), status: 'active' as const };
@@ -66,9 +70,6 @@ function createState(): DemoApplicationState {
     moodLogs: [], deliveredHandoffs: [], assessments: [],
   };
 }
-
-const DEMO_ORGANIZATION_ID = 'org-demo';
-const DEMO_PATIENT_IDS: readonly string[] = [];
 
 /**
  * Reconstrói o estado a partir de um snapshot gravado em disco.
@@ -101,11 +102,7 @@ function stateFromSnapshot(snapshot: PersistedSnapshot): DemoApplicationState {
 /** Lê o estado corrente pelas APIs públicas dos repositórios. */
 export async function captureSnapshot(): Promise<PersistedSnapshot> {
   const state = getApplicationStore();
-  const organizationId = DEMO_ORGANIZATION_ID;
-
-  const timelinePerPatient = await Promise.all(
-    DEMO_PATIENT_IDS.map((patientId) => state.timeline.list({ organizationId, patientId }))
-  );
+  const organizationId = applicationOrganizationId();
 
   const [appointments, sessions, records, checkIns, notifications, ledger] = await Promise.all([
     state.appointments.list({ organizationId }),
@@ -115,6 +112,19 @@ export async function captureSnapshot(): Promise<PersistedSnapshot> {
     state.notifications.list({ organizationId }),
     state.financial.getLedger({ organizationId }),
   ]);
+
+  // A timeline entry is always scoped to a patient. Derive the set from the
+  // aggregates already being snapshotted so newly-created patients are not
+  // silently omitted from the durable fallback store.
+  const patientIds = new Set([
+    ...appointments.map((item) => item.patientId),
+    ...sessions.map((item) => item.patientId),
+    ...records.map((item) => item.patientId),
+    ...checkIns.map((item) => item.patientId),
+  ]);
+  const timelinePerPatient = await Promise.all(
+    [...patientIds].map((patientId) => state.timeline.list({ organizationId, patientId }))
+  );
 
   return {
     version: 1,
@@ -140,26 +150,29 @@ export async function captureSnapshot(): Promise<PersistedSnapshot> {
  * registradas mas nunca derrubam a requisição — o estado em memória segue
  * válido e a próxima gravação tenta de novo.
  *
- * Com MySQL configurado a chamada é um no-op: o banco é a fonte de verdade dos
- * módulos migrados, e um snapshot parcial em disco só criaria uma segunda
- * versão da mesma agenda, livre para divergir.
+ * O MySQL é a fonte de verdade para identidade e agenda. Os módulos clínicos
+ * que ainda usam as portas em memória são gravados neste snapshot em um
+ * volume persistente da instalação, para que um restart do container não
+ * apague prontuário, pós-sessão, financeiro ou comunicação.
  */
 export async function persistApplicationState(): Promise<void> {
-  if (isMysqlConfigured()) return;
   await writeSnapshot(await captureSnapshot());
 }
 
 /**
- * Identidade e agenda no MySQL da OCI; os demais módulos seguem em memória até
- * o 008 trazer o resto do schema.
+ * Identidade e agenda no MySQL da OCI; os demais módulos usam um snapshot
+ * durável enquanto os adaptadores MySQL específicos de cada agregado são
+ * migrados.
  *
  * A mistura é deliberada e temporária. O seed continua sendo construído porque
  * ele ainda alimenta prontuário, financeiro, timeline e comunicação — o que
  * muda é de onde vêm paciente, profissional, vínculo e agendamento.
  */
 function createMysqlBackedState(): DemoApplicationState {
+  const snapshot = readSnapshot();
+  const state = snapshot ? stateFromSnapshot(snapshot) : createState();
   return {
-    ...createState(),
+    ...state,
     identities: new MysqlIdentityRepository(),
     appointments: new MysqlAppointmentRepository(),
   };

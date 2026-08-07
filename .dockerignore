@@ -1,0 +1,13 @@
+.git
+.next
+node_modules
+apps/web/.next
+apps/web/node_modules
+apps/mobile/node_modules
+.demo-state
+*.env
+*.pem
+*.key
+coverage
+dist
+tmp

@@ -56,29 +56,6 @@ export default function CheckoutLinkUnicoPage() {
 
   const handleSimularPagamentoWebhook = async () => {
     setPago(true);
-
-    // Enviar notificação de confirmação via Evolution API para a clínica/psicólogo
-    try {
-      const evoUrl = process.env.NEXT_PUBLIC_EVOLUTION_API_URL || 'http://localhost:8080';
-      const evoApiKey = process.env.NEXT_PUBLIC_EVOLUTION_API_KEY || '7c49eaa59c3631963fe335f99b3860f5d6b0e0751afcdda4b8c00c9ef08e52e6';
-      const evoInstance = process.env.NEXT_PUBLIC_EVOLUTION_INSTANCE || 'viver_mais_clinica';
-
-      const textoConfirmacao = `🎉 *PAGAMENTO CONFIRMADO!* 🎉\n\nA cobrança *#${idCobranca}* no valor de *R$ ${valorSessao.toFixed(2)}* foi liquidada com sucesso via Pix Conciliado!\n\nStatus da Sessão: AGENDADA & CONFIRMADA.`;
-
-      fetch(`${evoUrl}/message/sendText/${evoInstance}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': evoApiKey,
-        },
-        body: JSON.stringify({
-          number: '5551998234411',
-          text: textoConfirmacao,
-        }),
-      }).catch((e) => console.warn('[Evolution API Checkout] Servidor indisponível:', e));
-    } catch (e) {
-      console.warn('[Evolution API Checkout] Ignorado:', e);
-    }
   };
 
   return (

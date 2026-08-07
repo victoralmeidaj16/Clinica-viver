@@ -42,6 +42,8 @@ interface PsicologoPendente {
   modalidadeAtendimento?: string;
   minibio?: string;
   status: 'EM_ANALISE' | 'APROVADO' | 'RECUSADO';
+}
+
 interface PsicologoCadastrado {
   id: string;
   nome: string;
@@ -565,6 +567,9 @@ export default function GestaoCockpitPage() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
       {/* Conteúdo da Aba 3: Gestão de Profissionais & Toggle Manual */}
       {abaAtiva === 'PROFISSIONAIS' && (
         <div className="bg-surface rounded-3xl border border-line shadow-card overflow-hidden space-y-4">

@@ -16,7 +16,7 @@ services:
     # ser evoapicloud/ (antes era atendai/). Há build arm64, o que importa se a
     # VM da OCI for A1 Flex.
     image: evoapicloud/evolution-api:v2.3.7
-    platform: linux/amd64
+    platform: linux/arm64
     restart: unless-stopped
     env_file: .env
     environment:

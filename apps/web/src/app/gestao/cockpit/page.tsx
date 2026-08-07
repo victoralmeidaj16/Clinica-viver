@@ -42,13 +42,70 @@ interface PsicologoPendente {
   modalidadeAtendimento?: string;
   minibio?: string;
   status: 'EM_ANALISE' | 'APROVADO' | 'RECUSADO';
+interface PsicologoCadastrado {
+  id: string;
+  nome: string;
+  nomeSocial?: string;
+  crp: string;
+  whatsapp: string;
+  email: string;
+  fotoUrl?: string;
+  turmaViverMais?: string;
+  posGraduacaoViverMais?: string;
+  exibirNaVitrine: boolean;
+  motivoDesativacao?: string;
+  pacientesAtivosCount: number;
 }
 
 export default function GestaoCockpitPage() {
-  const [abaAtiva, setAbaAtiva] = useState<'FILA' | 'CREDENCIAMENTOS'>('FILA');
+  const [abaAtiva, setAbaAtiva] = useState<'FILA' | 'CREDENCIAMENTOS' | 'PROFISSIONAIS'>('FILA');
 
   const [psicologosPendentes, setPsicologosPendentes] = useState<PsicologoPendente[]>([]);
   const [leads, setLeads] = useState<LeadFila[]>([]);
+  const [profissionais, setProfissionais] = useState<PsicologoCadastrado[]>([
+    {
+      id: 'psi-1',
+      nome: 'Dra. Camila Santos',
+      nomeSocial: 'Camila Santos',
+      crp: 'CRP 06/148293',
+      whatsapp: '(51) 99888-7766',
+      email: 'camila.santos@vivermais.com.br',
+      turmaViverMais: '23A',
+      posGraduacaoViverMais: 'Especialização em Psicoterapia Cognitivo-Comportamental',
+      exibirNaVitrine: true,
+      pacientesAtivosCount: 4,
+    },
+    {
+      id: 'psi-2',
+      nome: 'Dr. Lucas Silva',
+      crp: 'CRP 06/152341',
+      whatsapp: '(51) 99777-6655',
+      email: 'lucas.silva@vivermais.com.br',
+      turmaViverMais: '24B',
+      posGraduacaoViverMais: 'Especialização em Avaliação Psicológica',
+      exibirNaVitrine: false,
+      motivoDesativacao: 'Limite de Pacientes Atingido (5/5)',
+      pacientesAtivosCount: 5,
+    },
+  ]);
+
+  const [modalEdicaoPsi, setModalEdicaoPsi] = useState<PsicologoCadastrado | null>(null);
+
+  const toggleAtivoPsicologo = (id: string, motivoDefault: string = 'Desativação Manual') => {
+    setProfissionais((prev) =>
+      prev.map((p) => {
+        if (p.id === id) {
+          const novoStatus = !p.exibirNaVitrine;
+          return {
+            ...p,
+            exibirNaVitrine: novoStatus,
+            motivoDesativacao: novoStatus ? undefined : motivoDefault,
+          };
+        }
+        return p;
+      })
+    );
+  };
 
   const [filtroModalidade, setFiltroModalidade] = useState<string>('TODAS');
   const [filtroTurno, setFiltroTurno] = useState<string>('TODOS');
@@ -285,6 +342,19 @@ export default function GestaoCockpitPage() {
 
         <button
           type="button"
+          onClick={() => setAbaAtiva('PROFISSIONAIS')}
+          className={`px-5 py-2.5 rounded-2xl text-xs font-extrabold transition-all flex items-center gap-2 ${
+            abaAtiva === 'PROFISSIONAIS'
+              ? 'bg-psi-vibrant text-white shadow-md'
+              : 'bg-surface text-muted hover:text-ink hover:bg-slate-100 border border-line'
+          }`}
+        >
+          <Users className="w-4 h-4" />
+          Gestão de Psicólogos (Ativar/Desativar)
+        </button>
+
+        <button
+          type="button"
           onClick={() => setAbaAtiva('CREDENCIAMENTOS')}
           className={`px-5 py-2.5 rounded-2xl text-xs font-extrabold transition-all flex items-center gap-2 ${
             abaAtiva === 'CREDENCIAMENTOS'
@@ -489,6 +559,77 @@ export default function GestaoCockpitPage() {
                       ) : (
                         <span className="text-[11px] font-bold text-slate-400">Concluído</span>
                       )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+      {/* Conteúdo da Aba 3: Gestão de Profissionais & Toggle Manual */}
+      {abaAtiva === 'PROFISSIONAIS' && (
+        <div className="bg-surface rounded-3xl border border-line shadow-card overflow-hidden space-y-4">
+          <div className="p-6 border-b border-line flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h3 className="font-extrabold text-base text-ink">Psicólogos da Clínica (Visibilidade & Rodízio)</h3>
+              <p className="text-xs text-muted">Ative ou desative manualmente a exibição no carrossel e no rodízio de novos pacientes</p>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-line">
+                <tr>
+                  <th className="px-6 py-4">Psicólogo(a)</th>
+                  <th className="px-6 py-4">CRP</th>
+                  <th className="px-6 py-4">Turma / Pós-Graduação</th>
+                  <th className="px-6 py-4">Pacientes Ativos</th>
+                  <th className="px-6 py-4">Status no Rodízio</th>
+                  <th className="px-6 py-4 text-right">Ação / Toggle</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {profissionais.map((psi) => (
+                  <tr key={psi.id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="font-extrabold text-ink">{psi.nomeSocial || psi.nome}</div>
+                      <div className="text-[10px] text-muted">{psi.email} • {psi.whatsapp}</div>
+                    </td>
+                    <td className="px-6 py-4 font-mono font-bold text-psi-vibrant">{psi.crp}</td>
+                    <td className="px-6 py-4">
+                      <div className="font-bold text-ink">Turma {psi.turmaViverMais || '24A'}</div>
+                      <div className="text-[10px] text-muted line-clamp-1">{psi.posGraduacaoViverMais}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-extrabold text-ink">{psi.pacientesAtivosCount} / 5 pacientes</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      {psi.exibirNaVitrine ? (
+                        <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full flex items-center gap-1 w-max">
+                          ● Ativo na Vitrine
+                        </span>
+                      ) : (
+                        <div>
+                          <span className="bg-rose-100 text-rose-800 border border-rose-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full inline-block">
+                            ○ Desativado do Rodízio
+                          </span>
+                          {psi.motivoDesativacao && (
+                            <p className="text-[10px] text-rose-600 font-semibold mt-1">{psi.motivoDesativacao}</p>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <button
+                        type="button"
+                        onClick={() => toggleAtivoPsicologo(psi.id, 'Pausa Solicitada pela Gestão')}
+                        className={`font-extrabold text-[11px] px-4 py-2 rounded-xl transition-all shadow-sm ${
+                          psi.exibirNaVitrine
+                            ? 'bg-rose-100 hover:bg-rose-200 text-rose-800 border border-rose-300'
+                            : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                        }`}
+                      >
+                        {psi.exibirNaVitrine ? 'Desativar Perfil' : 'Ativar no Rodízio'}
+                      </button>
                     </td>
                   </tr>
                 ))}

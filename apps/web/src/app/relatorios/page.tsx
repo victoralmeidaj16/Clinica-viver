@@ -18,6 +18,7 @@ import {
 
 export default function Relatorios11IndicadoresPage() {
   const [modoVisualizacao, setModoVisualizacao] = useState<'CARDS' | 'GRAFICOS'>('CARDS');
+  const [filtroModalidadeServico, setFiltroModalidadeServico] = useState<string>('TODAS');
 
   const [indicadores, setIndicadores] = useState({
     filaEsperaPsicologos: 3,
@@ -34,7 +35,7 @@ export default function Relatorios11IndicadoresPage() {
   });
 
   useEffect(() => {
-    fetch('/api/application/indicadores')
+    fetch(`/api/application/indicadores?modalidade=${filtroModalidadeServico}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success && data.data) {
@@ -42,7 +43,7 @@ export default function Relatorios11IndicadoresPage() {
         }
       })
       .catch((err) => console.warn('Usando dados de baseline:', err));
-  }, []);
+  }, [filtroModalidadeServico]);
 
   const handleExportarRelatorio = () => {
     const htmlReport = `
@@ -190,7 +191,23 @@ export default function Relatorios11IndicadoresPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Seletor de Modalidade de Atendimento */}
+          <div className="bg-surface border border-line p-1 rounded-2xl flex items-center shadow-sm">
+            <select
+              value={filtroModalidadeServico}
+              onChange={(e) => setFiltroModalidadeServico(e.target.value)}
+              className="bg-transparent text-xs font-bold text-ink px-3 py-1.5 outline-none cursor-pointer"
+            >
+              <option value="TODAS">Todas as Modalidades</option>
+              <option value="ACESSIVEL_SOCIAL">Atendimento Acessível / Social</option>
+              <option value="PARTICULAR">Atendimento Particular</option>
+              <option value="AVALIACAO_PSICOLOGICA">Avaliação Psicológica</option>
+              <option value="ORIENTACAO_PROFISSIONAL">Orientação Profissional / Vocacional</option>
+              <option value="ORIENTACAO_PARENTAL">Orientação Parental</option>
+            </select>
+          </div>
+
           {/* Alternador de Modo de Visualização */}
           <div className="bg-surface border border-line p-1 rounded-2xl flex items-center gap-1 shadow-sm">
             <button

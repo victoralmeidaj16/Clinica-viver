@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { VitrineCarrossel, PsicologoVitrineItem } from '@/components/vitrineCarrossel';
 import {
   Sparkles,
   Heart,
@@ -64,15 +65,23 @@ export default function ViverMaisLandingPage() {
 
   const [formPsicologo, setFormPsicologo] = useState({
     nomeCompleto: '',
+    nomeSocial: '',
     crp: '',
     whatsapp: '',
     email: '',
+    fotoUrl: '',
     modalidadeAtendimento: 'AMBOS',
     especialidade: 'Cognitivo-Comportamental (TCC)',
     cidadeUf: 'Porto Alegre/RS',
+    turmaViverMais: '24A',
+    posGraduacaoViverMais: 'Especialização em Psicoterapia Cognitivo-Comportamental',
+    outrasPosGraduacoes: [] as string[],
+    servicosHabilitados: ['PSICOTERAPIA'] as string[],
     disponibilidadeTurnos: ['MANHA', 'TARDE'],
     minibio: '',
   });
+
+  const [novaPosInput, setNovaPosInput] = useState('');
 
   const [protocolo, setProtocolo] = useState('');
   const [enderecoInfo, setEnderecoInfo] = useState({ logradouro: '', bairro: '', cidade: '', uf: '' });
@@ -449,6 +458,42 @@ export default function ViverMaisLandingPage() {
                 ))}
               </div>
             </div>
+
+            {/* Carrossel de Psicólogos Credenciados */}
+            <VitrineCarrossel
+              psicologos={[
+                {
+                  id: 'psi-1',
+                  nome: 'Dra. Camila Santos',
+                  nomeSocial: 'Camila Santos',
+                  crp: 'CRP 06/148293',
+                  turmaViverMais: '23A',
+                  posGraduacaoViverMais: 'Especialização em Psicoterapia Cognitivo-Comportamental',
+                  especialidades: ['TCC'],
+                  servicosHabilitados: ['PSICOTERAPIA', 'ORIENTACAO_PROFISSIONAL'],
+                },
+                {
+                  id: 'psi-2',
+                  nome: 'Dr. Lucas Silva',
+                  nomeSocial: 'Lucas Silva',
+                  crp: 'CRP 06/152341',
+                  turmaViverMais: '24B',
+                  posGraduacaoViverMais: 'Especialização em Avaliação Psicológica',
+                  especialidades: ['Avaliação Psicológica'],
+                  servicosHabilitados: ['AVALIACAO', 'PSICOTERAPIA'],
+                },
+                {
+                  id: 'psi-3',
+                  nome: 'Dra. Patricia Lima',
+                  nomeSocial: 'Patricia Lima',
+                  crp: 'CRP 06/164821',
+                  turmaViverMais: '24A',
+                  posGraduacaoViverMais: 'Especialização em Psicanálise e Clínica Contemporânea',
+                  especialidades: ['Psicanálise'],
+                  servicosHabilitados: ['PSICOTERAPIA', 'ORIENTACAO_PARENTAL'],
+                },
+              ]}
+            />
 
             {/* Banner Informativo Psicoterapia com Equipe */}
             <div className="bg-surface rounded-3xl p-8 border border-line shadow-card grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
@@ -836,14 +881,37 @@ export default function ViverMaisLandingPage() {
               onSubmit={handleSubmitPsicologo}
               className="space-y-4 text-xs"
             >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Nome Completo <span className="text-rose-500">*</span></label>
+                  <input
+                    type="text"
+                    required
+                    value={formPsicologo.nomeCompleto}
+                    onChange={(e) => setFormPsicologo({ ...formPsicologo, nomeCompleto: e.target.value })}
+                    placeholder="Seu nome completo"
+                    className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Nome Social <span className="text-slate-400 font-normal">(opcional)</span></label>
+                  <input
+                    type="text"
+                    value={formPsicologo.nomeSocial}
+                    onChange={(e) => setFormPsicologo({ ...formPsicologo, nomeSocial: e.target.value })}
+                    placeholder="Como prefere ser chamado(a)"
+                    className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
+                  />
+                </div>
+              </div>
+
               <div>
-                <label className="font-bold text-slate-700 block mb-1">Nome Completo <span className="text-rose-500">*</span></label>
+                <label className="font-bold text-slate-700 block mb-1">Link / URL da Foto de Perfil <span className="text-slate-400 font-normal">(opcional)</span></label>
                 <input
-                  type="text"
-                  required
-                  value={formPsicologo.nomeCompleto}
-                  onChange={(e) => setFormPsicologo({ ...formPsicologo, nomeCompleto: e.target.value })}
-                  placeholder="Seu nome completo"
+                  type="url"
+                  value={formPsicologo.fotoUrl}
+                  onChange={(e) => setFormPsicologo({ ...formPsicologo, fotoUrl: e.target.value })}
+                  placeholder="https://suafoto.com/imagem.jpg"
                   className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
                 />
               </div>
@@ -861,15 +929,119 @@ export default function ViverMaisLandingPage() {
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">WhatsApp com DDD <span className="text-rose-500">*</span></label>
+                  <label className="font-bold text-slate-700 block mb-1">Turma Viver Mais <span className="text-rose-500">*</span></label>
+                  <select
+                    value={formPsicologo.turmaViverMais}
+                    onChange={(e) => setFormPsicologo({ ...formPsicologo, turmaViverMais: e.target.value })}
+                    className="w-full border border-slate-300 bg-white rounded-xl p-3 focus:outline-none focus:border-purple-600 font-bold"
+                  >
+                    <option value="23A">Turma 23A</option>
+                    <option value="23B">Turma 23B</option>
+                    <option value="24A">Turma 24A</option>
+                    <option value="24B">Turma 24B</option>
+                    <option value="25A">Turma 25A</option>
+                    <option value="25B">Turma 25B</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Pós-Graduação Principal Viver Mais */}
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Pós-Graduação na Viver Mais Psicologia <span className="text-rose-500">*</span></label>
+                <select
+                  value={formPsicologo.posGraduacaoViverMais}
+                  onChange={(e) => setFormPsicologo({ ...formPsicologo, posGraduacaoViverMais: e.target.value })}
+                  className="w-full border border-slate-300 bg-white rounded-xl p-3 focus:outline-none focus:border-purple-600 font-medium"
+                >
+                  <option value="Especialização em Psicoterapia Cognitivo-Comportamental">Especialização em Psicoterapia Cognitivo-Comportamental</option>
+                  <option value="Especialização em Avaliação Psicológica">Especialização em Avaliação Psicológica</option>
+                  <option value="Especialização em Psicanálise e Clínica Contemporânea">Especialização em Psicanálise e Clínica Contemporânea</option>
+                  <option value="Especialização em Terapia Sistêmica de Casal e Família">Especialização em Terapia Sistêmica de Casal e Família</option>
+                </select>
+              </div>
+
+              {/* Outras Pós-Graduações (Lista Dinâmica) */}
+              <div className="bg-purple-50/60 p-4 rounded-2xl border border-purple-100 space-y-3">
+                <label className="font-bold text-purple-900 block">Possui Outras Pós-Graduações?</label>
+                <div className="flex gap-2">
                   <input
                     type="text"
-                    required
-                    value={formPsicologo.whatsapp}
-                    onChange={(e) => setFormPsicologo({ ...formPsicologo, whatsapp: e.target.value })}
-                    placeholder="(51) 99999-9999"
-                    className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
+                    value={novaPosInput}
+                    onChange={(e) => setNovaPosInput(e.target.value)}
+                    placeholder="Digite o nome da pós-graduação..."
+                    className="flex-1 border border-purple-200 bg-white rounded-xl p-2.5 text-xs outline-none focus:border-purple-600"
                   />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (novaPosInput.trim()) {
+                        setFormPsicologo({
+                          ...formPsicologo,
+                          outrasPosGraduacoes: [...formPsicologo.outrasPosGraduacoes, novaPosInput.trim()],
+                        });
+                        setNovaPosInput('');
+                      }
+                    }}
+                    className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition-all"
+                  >
+                    + Adicionar
+                  </button>
+                </div>
+
+                {formPsicologo.outrasPosGraduacoes.length > 0 && (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {formPsicologo.outrasPosGraduacoes.map((item, idx) => (
+                      <span
+                        key={idx}
+                        className="bg-white border border-purple-200 text-purple-900 px-3 py-1 rounded-full text-[11px] font-semibold flex items-center gap-1.5 shadow-sm"
+                      >
+                        {item}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setFormPsicologo({
+                              ...formPsicologo,
+                              outrasPosGraduacoes: formPsicologo.outrasPosGraduacoes.filter((_, i) => i !== idx),
+                            })
+                          }
+                          className="text-rose-500 hover:text-rose-700 font-bold"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Tipos de Atendimento e Serviços Habilitados */}
+              <div className="space-y-2">
+                <label className="font-bold text-slate-700 block">Serviços que está habilitado a atender:</label>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  {[
+                    { key: 'PSICOTERAPIA', label: 'Psicoterapia Individual' },
+                    { key: 'AVALIACAO', label: 'Avaliação Psicológica' },
+                    { key: 'ORIENTACAO_PROFISSIONAL', label: 'Orientação Profissional/Vocacional' },
+                    { key: 'ORIENTACAO_PARENTAL', label: 'Orientação Parental' },
+                  ].map((servico) => {
+                    const checked = formPsicologo.servicosHabilitados.includes(servico.key);
+                    return (
+                      <label key={servico.key} className="flex items-center gap-2 cursor-pointer bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            const newServicos = checked
+                              ? formPsicologo.servicosHabilitados.filter((s) => s !== servico.key)
+                              : [...formPsicologo.servicosHabilitados, servico.key];
+                            setFormPsicologo({ ...formPsicologo, servicosHabilitados: newServicos });
+                          }}
+                          className="accent-purple-600"
+                        />
+                        <span className="font-medium text-slate-800">{servico.label}</span>
+                      </label>
+                    );
+                  })}
                 </div>
               </div>
 

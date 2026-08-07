@@ -47,6 +47,7 @@ export interface LeadTriagem {
   psicologoAlocadoId?: string;
   dataAlocacao?: string;
   status: StatusLead;
+  nomeSocial?: string;
   confirmadoPeloPsicologoEm?: string;
   slaExpirado: boolean;
 }
@@ -54,6 +55,7 @@ export interface LeadTriagem {
 export interface PsicologoPerfil {
   id: string;
   nome: string;
+  nomeSocial?: string;
   crp: string;
   telefoneWhatsApp: string;
   email: string;
@@ -61,9 +63,14 @@ export interface PsicologoPerfil {
   apresentacaoCurta?: string;
   turnosDisponiveis: TurnoAtendimento[];
   modalidadesAtendidas: ModalidadeAtendimento[];
+  servicosHabilitados?: string[]; // Ex: ['PSICOTERAPIA', 'AVALIACAO', 'ORIENTACAO_PROFISSIONAL', 'ORIENTACAO_PARENTAL']
+  turmaViverMais?: string; // Ex: '23A', '23B', '24A', '25B'
+  posGraduacaoViverMais?: string;
+  outrasPosGraduacoes?: string[];
   limitePacientesAtivos: number; // Padrão: 33
   pacientesAtivosCount: number;
   exibirNaVitrine: boolean; // Gestão pode privar/desativar ao atingir capacidade
+  motivoDesativacao?: string; // Ex: 'Férias', 'Limite de Pacientes', 'Pausa Solicitada'
   posicaoFilaRoundRobin: number;
   ultimoLeadRecebidoEm?: string;
   saldoCreditoAbatimento: number; // 70% acumulado para abatimento no boleto

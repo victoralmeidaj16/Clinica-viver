@@ -14,15 +14,19 @@ export function selecionarPsicologoRoundRobin(
   psicologos: PsicologoPerfil[],
   turnoDesejado: TurnoAtendimento,
   modalidadeDesejada: ModalidadeAtendimento,
-  psicologoIgnoradoId?: string
+  psicologoIgnoradoId?: string,
+  servicoDesejado?: string
 ): PsicologoPerfil | null {
-  // Filtrar psicólogos ativos, que atendam o turno e modalidade, e com capacidade livre (< 33)
+  // Filtrar psicólogos ativos, que atendam o turno, modalidade e serviço específico
   const elegiveis = psicologos.filter((p) => {
     if (psicologoIgnoradoId && p.id === psicologoIgnoradoId) return false;
     if (!p.exibirNaVitrine) return false;
     if (p.pacientesAtivosCount >= p.limitePacientesAtivos) return false;
     if (!p.turnosDisponiveis.includes(turnoDesejado)) return false;
     if (!p.modalidadesAtendidas.includes(modalidadeDesejada)) return false;
+    if (servicoDesejado && p.servicosHabilitados && p.servicosHabilitados.length > 0) {
+      if (!p.servicosHabilitados.includes(servicoDesejado)) return false;
+    }
     return true;
   });
 

@@ -39,9 +39,9 @@ function configuredUsers(): LoginUser[] {
 
   // Credenciais de demonstração de fallback caso AUTH_USERS_JSON e DATABASE_URL não estejam definidos
   return [
-    { email: 'admin@vivermais.local', password: 'Admin@123', userId: 'usr-coordenacao', organizationId: 'org-demo' },
-    { email: 'psicologo@vivermais.local', password: 'Psi@123', userId: 'usr-psicologo-1', organizationId: 'org-demo' },
-    { email: 'admin@vivermaispsicologia.com.br', password: 'Admin@123', userId: 'usr-coordenacao', organizationId: 'org-demo' },
+    { email: 'admin@vivermais.local', password: 'Admin@123', userId: 'admin-demo', organizationId: 'org-demo' },
+    { email: 'psicologo@vivermais.local', password: 'Psi@123', userId: 'user-demo', organizationId: 'org-demo' },
+    { email: 'admin@vivermaispsicologia.com.br', password: 'Admin@123', userId: 'admin-demo', organizationId: 'org-demo' },
   ];
 }
 

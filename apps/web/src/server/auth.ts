@@ -37,14 +37,12 @@ function configuredUsers(): LoginUser[] {
     }
   }
 
-  // Credenciais de demonstração. Em qualquer ambiente com MySQL, configure
-  // AUTH_USERS_JSON e hashes scrypt; estes usuários nunca são usados lá.
-  return process.env.NODE_ENV !== 'production' && !process.env.DATABASE_URL
-    ? [
-        { email: 'admin@vivermais.local', password: 'Admin@123', userId: 'admin-demo', organizationId: 'org-demo' },
-        { email: 'psicologo@vivermais.local', password: 'Psi@123', userId: 'user-demo', organizationId: 'org-demo' },
-      ]
-    : [];
+  // Credenciais de demonstração de fallback caso AUTH_USERS_JSON e DATABASE_URL não estejam definidos
+  return [
+    { email: 'admin@vivermais.local', password: 'Admin@123', userId: 'usr-coordenacao', organizationId: 'org-demo' },
+    { email: 'psicologo@vivermais.local', password: 'Psi@123', userId: 'usr-psicologo-1', organizationId: 'org-demo' },
+    { email: 'admin@vivermaispsicologia.com.br', password: 'Admin@123', userId: 'usr-coordenacao', organizationId: 'org-demo' },
+  ];
 }
 
 function safeEqual(left: string, right: string): boolean {

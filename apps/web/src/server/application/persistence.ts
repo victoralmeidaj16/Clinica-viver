@@ -46,6 +46,19 @@ export interface AssessmentRecord {
 }
 
 /**
+ * Situação do lead na fila de alocação.
+ *
+ * `PENDENTE_ATRIBUICAO` é o estado de quem chegou e não achou profissional
+ * elegível: fica visível para a gestão decidir, em vez de sumir.
+ */
+export type StatusTriagem =
+  | 'PENDENTE_ATRIBUICAO'
+  | 'AGUARDANDO_CONTATO'
+  | 'CONTATO_CONFIRMADO'
+  | 'DESISTENTE'
+  | 'FINALIZADO';
+
+/**
  * Lead capturado pelo formulário público da vitrine, antes de virar paciente.
  *
  * Os campos opcionais são os que o formulário pode deixar em branco: as rotas
@@ -64,18 +77,51 @@ export interface TriagemPacienteRecord {
   convenioSelecionado: string;
   origem: string;
   turno: string;
+  /** Título legível do serviço, como aparece na vitrine. */
   servico?: string;
+  /** Chave do serviço (`PSICOTERAPIA`, `AVALIACAO`, …), que o rodízio compara. */
+  servicoKey?: string;
   modalidade?: string;
   /** O formulário atual da vitrine ainda não coleta gênero. */
   genero?: string;
-  status: string;
+  status: StatusTriagem;
   criadoEm: string;
+
+  /**
+   * Estado da alocação. Opcionais porque um lead que chegou sem profissional
+   * elegível nunca chega a ter nenhum deles — e porque leads gravados antes
+   * destes campos existirem continuam válidos.
+   */
+  psicologoAlocadoId?: string;
+  psicologoNome?: string;
+  /** Início da contagem do SLA de 24h. O relógio é sempre derivado daqui. */
+  alocadoEm?: string;
+  confirmadoEm?: string;
+  slaExpirado?: boolean;
+  transbordos?: number;
+  /** Quem já teve a chance neste lead, para o transbordo não voltar ao mesmo. */
+  psicologosJaTentados?: readonly string[];
 }
 
-/** Psicólogo que se candidatou pelo formulário de credenciamento da vitrine. */
+/** Situação do psicólogo no credenciamento. `APROVADO` significa "no rodízio". */
+export type StatusCadastroPsicologo = 'EM_ANALISE' | 'APROVADO' | 'RECUSADO';
+
+/**
+ * Psicólogo que se candidatou pelo formulário de credenciamento da vitrine.
+ *
+ * É também o cadastro que alimenta o rodízio: um profissional `APROVADO` é um
+ * profissional na roda. Ter uma segunda lista de "quem atende" seria ter duas
+ * verdades sobre a mesma pessoa.
+ *
+ * Os campos de rodízio são opcionais porque a candidatura pública não os
+ * coleta — quem os preenche é a gestão, ao aprovar. Sem eles o profissional
+ * simplesmente não casa com nenhum lead, que é o comportamento correto para um
+ * cadastro incompleto.
+ */
 export interface CadastroPsicologoRecord {
   id: string;
   nomeCompleto: string;
+  nomeSocial?: string;
   crp: string;
   whatsapp: string;
   email?: string;
@@ -83,8 +129,50 @@ export interface CadastroPsicologoRecord {
   especialidade?: string;
   modalidadeAtendimento?: string;
   minibio?: string;
-  status: string;
+  status: StatusCadastroPsicologo;
   criadoEm: string;
+
+  /** Critérios que o rodízio cruza. Ver `viverMaisRodizio.ts`. */
+  turnosDisponiveis?: readonly string[];
+  modalidadesAtendidas?: readonly string[];
+  servicosHabilitados?: readonly string[];
+  limitePacientesAtivos?: number;
+  pacientesAtivosCount?: number;
+  /** Chave manual da gestão: desliga do rodízio e da vitrine sem apagar nada. */
+  exibirNaVitrine?: boolean;
+  motivoDesativacao?: string;
+  /** Atualizado a cada alocação; é o que faz o rodízio girar. */
+  ultimoLeadRecebidoEm?: string;
+  turmaViverMais?: string;
+  posGraduacaoViverMais?: string;
+}
+
+export interface LancamentoLedgerAluno {
+  id: string;
+  psicologoId: string;
+  psicologoNome: string;
+  pacienteNome: string;
+  sessaoId?: string;
+  valorTotal: number;
+  valorCreditoAluno: number; // 70%
+  valorReceitaClinica: number; // 30%
+  status: 'PENDENTE' | 'CREDITADO';
+  dataLancamento: string;
+}
+
+export interface AuditoriaDesistenciaRecord {
+  id: string;
+  pacienteId?: string;
+  pacienteNome: string;
+  psicologoId?: string;
+  psicologoNome: string;
+  motivo: 'FINANCEIRO' | 'INSATISFACAO_CONDUTA' | 'TROCA_ABORDAGEM' | 'MOTIVOS_PESSOAIS' | 'OUTRO';
+  descricaoDetalhada?: string;
+  acaoSugestao?: string;
+  dataDesistencia: string;
+  reengajado: boolean;
+  observacoesReengajamento?: string;
+  permitirTrocaPsicologo?: boolean;
 }
 
 export interface PersistedSnapshot {
@@ -109,6 +197,8 @@ export interface PersistedSnapshot {
    */
   triagensPacientes?: readonly TriagemPacienteRecord[];
   cadastrosPsicologos?: readonly CadastroPsicologoRecord[];
+  ledgerAlunos?: readonly LancamentoLedgerAluno[];
+  auditoriaDesistencias?: readonly AuditoriaDesistenciaRecord[];
 }
 
 /**

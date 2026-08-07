@@ -5,6 +5,12 @@ import {
   writeSnapshot,
   type TriagemPacienteRecord,
 } from '@/server/application/persistence';
+import { alocarLead, classificarSla, horasDesdeAlocacao, varrerSla } from '@/server/application/viverMaisRodizio';
+import { avisarAlocacao, avisarTransbordo } from '@/server/application/viverMaisWhatsApp';
+import { exigirGestao, NaoAutorizadoError } from '@/server/viverMaisGestaoAuth';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
@@ -23,60 +29,83 @@ export async function POST(request: Request) {
       cep: body.cep,
       possuiConvenio: body.possuiConvenio,
       convenioSelecionado: body.convenioSelecionado || 'Nenhum',
-      origem: body.origem || 'Facebook',
+      origem: body.origem || 'Formulário Vitrine',
       turno: body.turno || 'VESPERTINO',
       servico: body.servico,
+      servicoKey: body.servicoKey,
       modalidade: body.modalidade,
+      genero: body.genero || 'FEMININO',
       status: 'PENDENTE_ATRIBUICAO',
       criadoEm: new Date().toISOString(),
     };
 
-    const triagensAtualizadas = [
-      ...(snapshot.triagensPacientes ?? []),
-      novaTriagem,
-    ];
-
-    await writeSnapshot({
+    // A alocação decide antes de qualquer gravação: o lead nasce já com o
+    // profissional da vez, ou explicitamente pendente de decisão humana quando
+    // ninguém atende aos critérios.
+    const comFila = {
       ...snapshot,
-      savedAt: new Date().toISOString(),
-      triagensPacientes: triagensAtualizadas,
-    });
+      triagensPacientes: [...(snapshot.triagensPacientes ?? []), novaTriagem],
+    };
+    const resultado = alocarLead(comFila, novaTriagem);
 
-    // Disparo automático via Evolution API (WhatsApp do Psicólogo)
-    try {
-      const evoUrl = process.env.EVOLUTION_API_URL;
-      const evoApiKey = process.env.EVOLUTION_API_KEY;
-      const evoInstance = process.env.EVOLUTION_INSTANCE_NAME;
+    await writeSnapshot({ ...resultado.snapshot, savedAt: new Date().toISOString() });
 
-      const psiTelefone = process.env.PSICOLOGO_FILA_WHATSAPP || body.whatsapp; // Se não configurado envia para o número de teste
-      const textoWhatsApp = `Olá, Dr. Lucas! 🧠✨\n\nVocê recebeu um novo paciente de *${body.servico || 'Psicoterapia'}* (${body.modalidade || 'Social'}) no turno da *${body.turno || 'Tarde'}*.\n\n👤 *Paciente:* ${body.nome}\n📱 *WhatsApp:* ${body.whatsapp}\n\nClique no link abaixo para confirmar o atendimento e gerar o link de pagamento em até 24h:\nhttps://vivermaispsicologia.com.br/cockpit`;
-
-      if (evoUrl && evoApiKey && evoInstance) {
-        fetch(`${evoUrl}/message/sendText/${evoInstance}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': evoApiKey,
-          },
-          body: JSON.stringify({
-            number: psiTelefone.replace(/\D/g, ''),
-            text: textoWhatsApp,
-          }),
-        }).catch((err) => console.warn('[EvolutionAPI Disparo] Servidor offline ou desconfigurado:', err));
-      } else {
-        console.warn('[EvolutionAPI Disparo] Variáveis de ambiente não configuradas.');
-      }
-    } catch (e) {
-      console.warn('[EvolutionAPI Notification] Ignorado:', e);
+    // Aviso depois de gravar, e sem travar a resposta ao paciente: a alocação
+    // já está persistida, então uma falha de WhatsApp não perde o lead.
+    if (resultado.psicologo) {
+      void avisarAlocacao(resultado.lead, resultado.psicologo);
+    } else {
+      console.warn(
+        `[triagem] Lead ${novaTriagem.protocolo} sem profissional elegível; aguardando decisão da gestão.`
+      );
     }
 
     return NextResponse.json({
       success: true,
       protocolo: novaTriagem.protocolo,
-      data: novaTriagem,
+      data: resultado.lead,
     });
   } catch (error) {
     console.error('Erro ao salvar triagem de paciente:', error);
     return NextResponse.json({ success: false, error: 'Falha ao salvar no banco.' }, { status: 500 });
+  }
+}
+
+/**
+ * Fila de triagem para o cockpit.
+ *
+ * A varredura do SLA roda aqui, antes de responder. É o que garante o
+ * transbordo funcionando desde o primeiro dia, sem depender de agendador
+ * nenhum: quem abre o cockpit paga o custo de manter a fila em dia. Quando um
+ * cron for pendurado em `/api/application/triagem/sla-sweep`, os dois convivem
+ * — a varredura é idempotente.
+ */
+export async function GET() {
+  try {
+    await exigirGestao();
+
+    const snapshot = readSnapshot() ?? emptySnapshot();
+    const { snapshot: varrido, transbordos, alterado } = varrerSla(snapshot);
+
+    if (alterado) {
+      await writeSnapshot({ ...varrido, savedAt: new Date().toISOString() });
+    }
+    for (const transbordo of transbordos) {
+      void avisarTransbordo(transbordo.lead, transbordo.psicologoNovo);
+    }
+
+    const fila = (varrido.triagensPacientes ?? []).map((lead) => ({
+      ...lead,
+      slaStatus: classificarSla(lead.alocadoEm),
+      horasDecorridas: horasDesdeAlocacao(lead.alocadoEm),
+    }));
+
+    return NextResponse.json({ success: true, data: fila, transbordosExecutados: transbordos.length });
+  } catch (error) {
+    if (error instanceof NaoAutorizadoError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: error.status });
+    }
+    console.error('Erro ao listar a fila de triagem:', error);
+    return NextResponse.json({ success: false, error: 'Falha ao carregar a fila.' }, { status: 500 });
   }
 }

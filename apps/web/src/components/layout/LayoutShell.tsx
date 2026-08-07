@@ -13,7 +13,13 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   const [auth, setAuth] = useState<{ role: 'admin' | 'psicologo'; displayName: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const isVitrinePage = pathname === '/vitrine';
-  const isPublicPage = pathname === '/login' || pathname === '/' || isVitrinePage;
+  // O psicólogo abre a confirmação de contato a partir do link do WhatsApp,
+  // frequentemente de outro aparelho e sem sessão. Exigir login aqui faria a
+  // confirmação de 24h depender de lembrar uma senha no meio de uma conversa —
+  // quem autoriza a página é o token assinado no próprio link.
+  const isConfirmacaoContato = pathname.startsWith('/confirmar-contato/');
+  const isPublicPage =
+    pathname === '/login' || pathname === '/' || isVitrinePage || isConfirmacaoContato;
 
   useEffect(() => {
     if (isPublicPage) {

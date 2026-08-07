@@ -22,16 +22,21 @@ export default function Relatorios11IndicadoresPage() {
 
   const [indicadores, setIndicadores] = useState({
     filaEsperaPsicologos: 3,
-    slaPercentual: 98.2,
-    generoPct: { feminino: 64, masculino: 36 },
-    faixaEtariaPredominante: '18 a 28 anos (58%)',
-    origemLeads: 'Formulário Vitrine (52%) | Instagram (28%)',
-    totalAtendimentosMes: 348,
-    modalidadesPct: { social: 72, particular: 28 },
+    slaPercentual: 100,
+    generoPct: { feminino: 0, masculino: 0 },
+    faixaEtariaPredominante: 'Sem registros suficientes',
+    origemLeads: 'Formulário Vitrine (100%)',
+    totalAtendimentosMes: 0,
+    modalidadesPct: { social: 0, particular: 0 },
     faixaValor: 'R$ 75,00 a R$ 130,00',
-    cacEstimado: 'R$ 18,40 / Lead',
-    conveniosAtivosCount: 2,
-    totalLogsAuditados: 348,
+    cacEstimado: 'R$ 0,00 / Lead',
+    conveniosAtivosCount: 0,
+    totalLogsAuditados: 0,
+    split7030: {
+      creditoAlunosTotal: 0,
+      receitaClinicaTotal: 0,
+      faturamentoBrutoTotal: 0,
+    },
   });
 
   useEffect(() => {
@@ -158,9 +163,9 @@ export default function Relatorios11IndicadoresPage() {
       </tr>
     </thead>
     <tbody>
-      <tr><td>Faturamento Bruto Total</td><td>348 Sessões + Convênios PJ</td><td><strong>R$ 40.977,60</strong></td></tr>
-      <tr><td>Repasse Acumulado dos Alunos (70%)</td><td>Crédito Abatimento Boleto</td><td style="color: #059669; font-weight: 800;">R$ 28.684,32</td></tr>
-      <tr><td>Receita Institucional Viver Mais (30%)</td><td>Infraestrutura e Plataforma</td><td style="color: #5C397D; font-weight: 800;">R$ 12.293,28</td></tr>
+      <tr><td>Faturamento Bruto Total</td><td>${indicadores.totalAtendimentosMes} Sessões Realizadas</td><td><strong>R$ ${(indicadores.split7030?.faturamentoBrutoTotal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong></td></tr>
+      <tr><td>Repasse Acumulado dos Alunos (70%)</td><td>Crédito Abatimento Boleto</td><td style="color: #059669; font-weight: 800;">R$ ${(indicadores.split7030?.creditoAlunosTotal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td></tr>
+      <tr><td>Receita Institucional Viver Mais (30%)</td><td>Infraestrutura e Plataforma</td><td style="color: #5C397D; font-weight: 800;">R$ ${(indicadores.split7030?.receitaClinicaTotal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td></tr>
     </tbody>
   </table>
 

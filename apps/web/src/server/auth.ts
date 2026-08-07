@@ -42,6 +42,7 @@ function configuredUsers(): LoginUser[] {
     { email: 'admin@vivermais.local', password: 'Admin@123', userId: 'admin-demo', organizationId: 'org-demo' },
     { email: 'psicologo@vivermais.local', password: 'Psi@123', userId: 'user-demo', organizationId: 'org-demo' },
     { email: 'admin@vivermaispsicologia.com.br', password: 'Admin@123', userId: 'admin-demo', organizationId: 'org-demo' },
+    { email: 'psicologo@vivermaispsicologia.com.br', password: 'Psi@123', userId: 'user-demo', organizationId: 'org-demo' },
   ];
 }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Shield,
   Clock,
@@ -9,185 +9,250 @@ import {
   RefreshCw,
   AlertTriangle,
   CheckCircle2,
-  Phone,
   Search,
-  Filter,
   Users,
-  Building2,
   ArrowRightLeft,
 } from 'lucide-react';
 
-/** Linha da fila de alocação, já resolvida para exibição na tabela. */
+/** Linha da fila, como o `GET /api/application/triagem` a devolve. */
 interface LeadFila {
   id: string;
-  paciente: string;
+  protocolo: string;
+  nomePaciente: string;
   telefone: string;
-  modalidade: string;
+  modalidade?: string;
+  servico?: string;
   turno: string;
-  psicologo: string;
-  alocadoEm?: string;
-  horasDecorridas: number;
   status: string;
+  psicologoAlocadoId?: string;
+  psicologoNome?: string;
+  alocadoEm?: string;
+  confirmadoEm?: string;
+  slaExpirado?: boolean;
+  transbordos?: number;
   slaStatus: 'VERDE' | 'AMARELO' | 'VERMELHO';
+  horasDecorridas: number | null;
 }
 
-/** Candidatura de credenciamento aguardando decisão da gestão. */
-interface PsicologoPendente {
+/** Cadastro de psicólogo, em qualquer etapa do credenciamento. */
+interface PsicologoCadastro {
   id: string;
   nomeCompleto: string;
+  nomeSocial?: string;
   crp: string;
   whatsapp: string;
+  email?: string;
   cidadeUf?: string;
   especialidade?: string;
   modalidadeAtendimento?: string;
   minibio?: string;
   status: 'EM_ANALISE' | 'APROVADO' | 'RECUSADO';
-}
-
-interface PsicologoCadastrado {
-  id: string;
-  nome: string;
-  nomeSocial?: string;
-  crp: string;
-  whatsapp: string;
-  email: string;
-  fotoUrl?: string;
+  turnosDisponiveis?: string[];
+  modalidadesAtendidas?: string[];
+  servicosHabilitados?: string[];
+  limitePacientesAtivos?: number;
+  pacientesAtivosCount?: number;
+  exibirNaVitrine?: boolean;
+  motivoDesativacao?: string;
   turmaViverMais?: string;
   posGraduacaoViverMais?: string;
-  exibirNaVitrine: boolean;
-  motivoDesativacao?: string;
-  pacientesAtivosCount: number;
 }
+
+const nomeExibicao = (psi: PsicologoCadastro): string => psi.nomeSocial?.trim() || psi.nomeCompleto;
+
+const LIMITE_PADRAO = 33;
+
+/**
+ * Um profissional aprovado só entra no rodízio depois que a gestão define a
+ * faixa de valor e o turno que ele atende — o formulário de candidatura não
+ * coleta isso. Sem o aviso, o cadastro pareceria pronto e nunca receberia
+ * ninguém, sem explicação em lugar nenhum.
+ */
+const cadastroIncompletoParaRodizio = (psi: PsicologoCadastro): boolean =>
+  psi.status === 'APROVADO' &&
+  ((psi.modalidadesAtendidas ?? []).length === 0 || (psi.turnosDisponiveis ?? []).length === 0);
 
 export default function GestaoCockpitPage() {
   const [abaAtiva, setAbaAtiva] = useState<'FILA' | 'CREDENCIAMENTOS' | 'PROFISSIONAIS'>('FILA');
 
-  const [psicologosPendentes, setPsicologosPendentes] = useState<PsicologoPendente[]>([]);
   const [leads, setLeads] = useState<LeadFila[]>([]);
-  const [profissionais, setProfissionais] = useState<PsicologoCadastrado[]>([
-    {
-      id: 'psi-1',
-      nome: 'Dra. Camila Santos',
-      nomeSocial: 'Camila Santos',
-      crp: 'CRP 06/148293',
-      whatsapp: '(51) 99888-7766',
-      email: 'camila.santos@vivermais.com.br',
-      turmaViverMais: '23A',
-      posGraduacaoViverMais: 'Especialização em Psicoterapia Cognitivo-Comportamental',
-      exibirNaVitrine: true,
-      pacientesAtivosCount: 4,
-    },
-    {
-      id: 'psi-2',
-      nome: 'Dr. Lucas Silva',
-      crp: 'CRP 06/152341',
-      whatsapp: '(51) 99777-6655',
-      email: 'lucas.silva@vivermais.com.br',
-      turmaViverMais: '24B',
-      posGraduacaoViverMais: 'Especialização em Avaliação Psicológica',
-      exibirNaVitrine: false,
-      motivoDesativacao: 'Limite de Pacientes Atingido (5/5)',
-      pacientesAtivosCount: 5,
-    },
-  ]);
+  const [cadastros, setCadastros] = useState<PsicologoCadastro[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [erroCarga, setErroCarga] = useState<string | null>(null);
 
-  const [modalEdicaoPsi, setModalEdicaoPsi] = useState<PsicologoCadastrado | null>(null);
+  /**
+   * Recarrega fila e cadastros das rotas de gestão.
+   *
+   * O `GET` da fila varre o SLA antes de responder, então abrir ou atualizar o
+   * cockpit é também o que mantém os transbordos em dia enquanto não há um
+   * agendador pendurado na varredura.
+   */
+  const recarregar = useCallback(async () => {
+    try {
+      const [respFila, respCadastros] = await Promise.all([
+        fetch('/api/application/triagem', { cache: 'no-store' }),
+        fetch('/api/application/credenciamento-psicologo', { cache: 'no-store' }),
+      ]);
 
-  const toggleAtivoPsicologo = (id: string, motivoDefault: string = 'Desativação Manual') => {
-    setProfissionais((prev) =>
-      prev.map((p) => {
-        if (p.id === id) {
-          const novoStatus = !p.exibirNaVitrine;
-          return {
-            ...p,
-            exibirNaVitrine: novoStatus,
-            motivoDesativacao: novoStatus ? undefined : motivoDefault,
-          };
-        }
-        return p;
-      })
-    );
+      const fila = await respFila.json();
+      const psis = await respCadastros.json();
+
+      if (!fila.success || !psis.success) {
+        setErroCarga(fila.error ?? psis.error ?? 'Não foi possível carregar os dados.');
+        return;
+      }
+
+      setLeads(fila.data as LeadFila[]);
+      setCadastros(psis.data as PsicologoCadastro[]);
+      // O aviso só some quando a carga volta a dar certo: apagá-lo no início da
+      // tentativa faria o erro piscar e sumir antes de alguém ler.
+      setErroCarga(null);
+    } catch {
+      setErroCarga('Falha de conexão ao carregar o cockpit.');
+    } finally {
+      setCarregando(false);
+    }
+  }, []);
+
+  // A carga sai do corpo do efeito para um microtask: assim o primeiro
+  // `setState` acontece depois do render, e não dentro dele.
+  useEffect(() => {
+    void Promise.resolve().then(recarregar);
+  }, [recarregar]);
+
+  const psicologosPendentes = cadastros.filter((psi) => psi.status !== 'APROVADO');
+  const profissionais = cadastros.filter((psi) => psi.status === 'APROVADO');
+
+  const atualizarCadastro = async (id: string, mudancas: Record<string, unknown>) => {
+    const resposta = await fetch(`/api/application/credenciamento-psicologo/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(mudancas),
+    });
+    const corpo = await resposta.json();
+    if (!corpo.success) {
+      setErroCarga(corpo.error ?? 'Não foi possível salvar a alteração.');
+      return;
+    }
+    await recarregar();
   };
+
+  const toggleAtivoPsicologo = (psi: PsicologoCadastro) =>
+    atualizarCadastro(psi.id, {
+      exibirNaVitrine: !(psi.exibirNaVitrine ?? true),
+      motivoDesativacao: 'Pausa solicitada à gestão',
+    });
 
   const [filtroModalidade, setFiltroModalidade] = useState<string>('TODAS');
   const [filtroTurno, setFiltroTurno] = useState<string>('TODOS');
   const [filtroBusca, setFiltroBusca] = useState<string>('');
 
   const leadsFiltrados = leads.filter((item) => {
+    const modalidade = (item.modalidade ?? '').toUpperCase();
     const matchModalidade =
       filtroModalidade === 'TODAS' ||
-      (filtroModalidade === 'SOCIAL' && item.modalidade.toLowerCase().includes('social')) ||
-      (filtroModalidade === 'PARTICULAR' && item.modalidade.toLowerCase().includes('particular')) ||
-      (filtroModalidade === 'AVALIACAO' && item.modalidade.toLowerCase().includes('avaliação'));
+      (filtroModalidade === 'SOCIAL' && modalidade.includes('SOCIAL')) ||
+      (filtroModalidade === 'PARTICULAR' && modalidade.includes('PARTICULAR')) ||
+      (filtroModalidade === 'AVALIACAO' && (item.servico ?? '').toLowerCase().includes('avaliação'));
 
+    const turno = item.turno.toUpperCase();
     const matchTurno =
       filtroTurno === 'TODOS' ||
-      item.turno.toLowerCase().includes(filtroTurno.toLowerCase());
+      (filtroTurno === 'MANHA' && (turno.includes('MATUTINO') || turno.includes('MANH'))) ||
+      (filtroTurno === 'TARDE' && (turno.includes('VESPERTINO') || turno.includes('TARDE'))) ||
+      (filtroTurno === 'NOITE' && (turno.includes('NOTURNO') || turno.includes('NOITE')));
 
+    const busca = filtroBusca.trim().toLowerCase();
     const matchBusca =
-      !filtroBusca.trim() ||
-      item.paciente.toLowerCase().includes(filtroBusca.toLowerCase()) ||
-      item.psicologo.toLowerCase().includes(filtroBusca.toLowerCase()) ||
-      item.telefone.includes(filtroBusca);
+      !busca ||
+      item.nomePaciente.toLowerCase().includes(busca) ||
+      (item.psicologoNome ?? '').toLowerCase().includes(busca) ||
+      item.telefone.includes(filtroBusca) ||
+      item.protocolo.toLowerCase().includes(busca);
 
     return matchModalidade && matchTurno && matchBusca;
   });
 
   const [novoLeadModal, setNovoLeadModal] = useState(false);
+  const [enviandoLead, setEnviandoLead] = useState(false);
   const [manualForm, setManualForm] = useState({
     nome: '',
     telefone: '',
-    modalidade: 'ACESSIVEL_SOCIAL',
-    turno: 'TARDE',
+    modalidade: 'SOCIAL',
+    turno: 'VESPERTINO',
   });
 
-  const handleAprovarPsicologo = (id: string) => {
-    setPsicologosPendentes((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, status: 'APROVADO' } : item))
-    );
-    alert('Psicólogo aprovado com sucesso! Acesso liberado no sistema.');
+  const handleAprovarPsicologo = (id: string) => atualizarCadastro(id, { status: 'APROVADO' });
+  const handleRecusarPsicologo = (id: string) => atualizarCadastro(id, { status: 'RECUSADO' });
+
+  /**
+   * Transbordo manual pela mesma varredura do automático.
+   *
+   * O lead só troca de profissional se as 24h realmente tiverem passado — o
+   * botão antecipa a checagem, não o prazo. Um atalho que pulasse a regra seria
+   * uma segunda regra, e a primeira a divergir da automática.
+   */
+  const handleForcarTransbordo = async (leadId: string) => {
+    const resposta = await fetch('/api/application/triagem/sla-sweep', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leadId }),
+    });
+    const corpo = await resposta.json();
+
+    if (!corpo.success) {
+      setErroCarga(corpo.error ?? 'Não foi possível executar o transbordo.');
+      return;
+    }
+    if (corpo.transbordosExecutados === 0) {
+      setErroCarga(
+        'Nada a transbordar: o prazo de 24h ainda não venceu ou não há outro profissional elegível.'
+      );
+    }
+    await recarregar();
   };
 
-  const handleRecusarPsicologo = (id: string) => {
-    setPsicologosPendentes((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, status: 'RECUSADO' } : item))
-    );
-  };
-
-  const handleForcarTransbordo = (leadId: string) => {
-    setLeads((prev) =>
-      prev.map((item) =>
-        item.id === leadId
-          ? {
-              ...item,
-              psicologo: 'Dra. Patricia Lima (Transbordado)',
-              status: 'AGUARDANDO_CONTATO',
-              horasDecorridas: 0.1,
-              slaStatus: 'VERDE',
-            }
-          : item
-      )
-    );
-  };
-
-  const handleCadastrarLeadManual = (e: React.FormEvent) => {
+  /**
+   * Cadastro manual de lead — quem chegou por WhatsApp ou indicação.
+   *
+   * Passa pela mesma rota da vitrine de propósito: o rodízio, o SLA e o disparo
+   * duplo valem igual para quem entrou pelo site e para quem chamou no
+   * WhatsApp. Cadastro manual que não entra na fila é a planilha paralela de
+   * volta.
+   */
+  const handleCadastrarLeadManual = async (e: React.FormEvent) => {
     e.preventDefault();
-    const novo: LeadFila = {
-      id: `lead-manual-${Date.now()}`,
-      paciente: manualForm.nome,
-      telefone: manualForm.telefone,
-      modalidade: manualForm.modalidade === 'ACESSIVEL_SOCIAL' ? 'Atendimento Acessível' : 'Particular',
-      turno: manualForm.turno,
-      psicologo: 'Dr. Lucas Silva (Fila Circular)',
-      alocadoEm: 'Hoje (Manual)',
-      horasDecorridas: 0.1,
-      status: 'AGUARDANDO_CONTATO',
-      slaStatus: 'VERDE',
-    };
-    setLeads([novo, ...leads]);
-    setNovoLeadModal(false);
-    setManualForm({ nome: '', telefone: '', modalidade: 'ACESSIVEL_SOCIAL', turno: 'TARDE' });
+    setEnviandoLead(true);
+    try {
+      const resposta = await fetch('/api/application/triagem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nome: manualForm.nome,
+          whatsapp: manualForm.telefone,
+          modalidade: manualForm.modalidade,
+          turno: manualForm.turno,
+          origem: 'Cadastro manual (WhatsApp/indicação)',
+        }),
+      });
+      const corpo = await resposta.json();
+
+      if (!corpo.success) {
+        setErroCarga(corpo.error ?? 'Não foi possível cadastrar o lead.');
+        return;
+      }
+
+      setNovoLeadModal(false);
+      setManualForm({ nome: '', telefone: '', modalidade: 'SOCIAL', turno: 'VESPERTINO' });
+      await recarregar();
+    } finally {
+      setEnviandoLead(false);
+    }
   };
+
+  const aguardandoContato = leads.filter((item) => item.status === 'AGUARDANDO_CONTATO');
+  const slasEstourados = aguardandoContato.filter((item) => item.slaStatus === 'VERMELHO').length;
+  const semProfissional = leads.filter((item) => item.status === 'PENDENTE_ATRIBUICAO').length;
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
@@ -204,14 +269,25 @@ export default function GestaoCockpitPage() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setNovoLeadModal(true)}
-          className="bg-psi-vibrant hover:bg-psi-vibrant/90 text-white font-extrabold text-xs px-5 py-3 rounded-2xl shadow-lg shadow-psi-vibrant/30 transition-all flex items-center gap-2"
-        >
-          <UserPlus className="w-4 h-4" />
-          Cadastro Manual de Lead (WhatsApp)
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void recarregar()}
+            className="bg-surface hover:bg-slate-100 border border-line text-ink font-extrabold text-xs px-4 py-3 rounded-2xl transition-all flex items-center gap-2"
+          >
+            <RefreshCw className="w-4 h-4 text-psi-vibrant" />
+            Atualizar fila
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setNovoLeadModal(true)}
+            className="bg-psi-vibrant hover:bg-psi-vibrant/90 text-white font-extrabold text-xs px-5 py-3 rounded-2xl shadow-lg shadow-psi-vibrant/30 transition-all flex items-center gap-2"
+          >
+            <UserPlus className="w-4 h-4" />
+            Cadastro Manual de Lead (WhatsApp)
+          </button>
+        </div>
       </div>
 
       {/* Modal de Cadastrar Lead Manual */}
@@ -262,7 +338,7 @@ export default function GestaoCockpitPage() {
                     onChange={(e) => setManualForm({ ...manualForm, modalidade: e.target.value })}
                     className="w-full bg-slate-50 border border-line rounded-xl p-2.5 text-ink focus:outline-none focus:border-psi-vibrant"
                   >
-                    <option value="ACESSIVEL_SOCIAL">Acessível / Social</option>
+                    <option value="SOCIAL">Acessível / Social</option>
                     <option value="PARTICULAR">Particular</option>
                   </select>
                 </div>
@@ -274,21 +350,29 @@ export default function GestaoCockpitPage() {
                     onChange={(e) => setManualForm({ ...manualForm, turno: e.target.value })}
                     className="w-full bg-slate-50 border border-line rounded-xl p-2.5 text-ink focus:outline-none focus:border-psi-vibrant"
                   >
-                    <option value="MANHA">Manhã</option>
-                    <option value="TARDE">Tarde</option>
-                    <option value="NOITE">Noite</option>
+                    <option value="MATUTINO">Manhã</option>
+                    <option value="VESPERTINO">Tarde</option>
+                    <option value="NOTURNO">Noite</option>
                   </select>
                 </div>
               </div>
 
               <button
                 type="submit"
-                className="w-full bg-psi-vibrant text-white font-extrabold py-3 rounded-2xl shadow-md hover:bg-psi-vibrant/90 transition-all"
+                disabled={enviandoLead}
+                className="w-full bg-psi-vibrant text-white font-extrabold py-3 rounded-2xl shadow-md hover:bg-psi-vibrant/90 transition-all disabled:opacity-60"
               >
-                ALOCAR NA FILA ROUND-ROBIN
+                {enviandoLead ? 'ALOCANDO…' : 'ALOCAR NA FILA ROUND-ROBIN'}
               </button>
             </form>
           </div>
+        </div>
+      )}
+
+      {erroCarga && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl px-5 py-3 text-xs font-bold flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          {erroCarga}
         </div>
       )}
 
@@ -296,8 +380,15 @@ export default function GestaoCockpitPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         <div className="bg-surface p-5 rounded-3xl border border-line shadow-card flex items-center justify-between">
           <div>
-            <span className="text-xs font-bold text-muted">Aguardando Contato (&lt; 12h)</span>
-            <h3 className="text-2xl font-black text-emerald-600 mt-1">1 Lead</h3>
+            <span className="text-xs font-bold text-muted">Aguardando contato</span>
+            <h3 className="text-2xl font-black text-emerald-600 mt-1">
+              {aguardandoContato.length} {aguardandoContato.length === 1 ? 'lead' : 'leads'}
+            </h3>
+            {semProfissional > 0 && (
+              <p className="text-[10px] font-bold text-amber-700 mt-1">
+                + {semProfissional} sem profissional elegível
+              </p>
+            )}
           </div>
           <div className="p-3 bg-emerald-100 text-emerald-700 rounded-2xl">
             <CheckCircle2 className="w-5 h-5" />
@@ -306,9 +397,9 @@ export default function GestaoCockpitPage() {
 
         <div className="bg-surface p-5 rounded-3xl border border-line shadow-card flex items-center justify-between">
           <div>
-            <span className="text-xs font-bold text-muted">Credenciamentos em Análise</span>
+            <span className="text-xs font-bold text-muted">Credenciamentos em análise</span>
             <h3 className="text-2xl font-black text-purple-600 mt-1">
-              {psicologosPendentes.filter((p) => p.status === 'EM_ANALISE').length} Psicólogos
+              {psicologosPendentes.filter((p) => p.status === 'EM_ANALISE').length} psicólogos
             </h3>
           </div>
           <div className="p-3 bg-purple-100 text-purple-700 rounded-2xl">
@@ -318,8 +409,10 @@ export default function GestaoCockpitPage() {
 
         <div className="bg-surface p-5 rounded-3xl border border-line shadow-card flex items-center justify-between">
           <div>
-            <span className="text-xs font-bold text-muted">SLA Estourado (&gt; 24h)</span>
-            <h3 className="text-2xl font-black text-rose-600 mt-1">0 Transbordos</h3>
+            <span className="text-xs font-bold text-muted">SLA estourado (&gt; 24h)</span>
+            <h3 className="text-2xl font-black text-rose-600 mt-1">
+              {slasEstourados} {slasEstourados === 1 ? 'lead' : 'leads'}
+            </h3>
           </div>
           <div className="p-3 bg-rose-100 text-rose-700 rounded-2xl">
             <AlertTriangle className="w-5 h-5" />
@@ -437,43 +530,80 @@ export default function GestaoCockpitPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {leadsFiltrados.length === 0 ? (
+                {carregando ? (
                   <tr>
                     <td colSpan={7} className="px-6 py-8 text-center text-muted font-semibold">
-                      Nenhum lead encontrado com os filtros selecionados.
+                      Carregando a fila…
+                    </td>
+                  </tr>
+                ) : leadsFiltrados.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-8 text-center text-muted font-semibold">
+                      {leads.length === 0
+                        ? 'Nenhuma solicitação recebida até agora.'
+                        : 'Nenhum lead encontrado com os filtros selecionados.'}
                     </td>
                   </tr>
                 ) : (
                   leadsFiltrados.map((item) => (
                     <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="px-6 py-4 font-extrabold text-ink">{item.paciente}</td>
+                      <td className="px-6 py-4">
+                        <div className="font-extrabold text-ink">{item.nomePaciente}</div>
+                        <div className="text-[10px] text-muted font-mono">{item.protocolo}</div>
+                      </td>
                       <td className="px-6 py-4 text-muted">{item.telefone}</td>
                       <td className="px-6 py-4">
-                        <div className="font-semibold text-ink">{item.modalidade}</div>
+                        <div className="font-semibold text-ink">{item.servico || item.modalidade || '—'}</div>
                         <div className="text-[10px] text-muted">{item.turno}</div>
                       </td>
-                      <td className="px-6 py-4 font-bold text-psi-vibrant">{item.psicologo}</td>
-                      <td className="px-6 py-4 font-mono font-bold text-ink">{item.horasDecorridas}h</td>
                       <td className="px-6 py-4">
-                        {item.slaStatus === 'VERDE' ? (
+                        {item.psicologoNome ? (
+                          <>
+                            <span className="font-bold text-psi-vibrant">{item.psicologoNome}</span>
+                            {(item.transbordos ?? 0) > 0 && (
+                              <div className="text-[10px] text-amber-700 font-bold">
+                                após {item.transbordos}{' '}
+                                {item.transbordos === 1 ? 'transbordo' : 'transbordos'}
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <span className="font-bold text-amber-700">Sem profissional elegível</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 font-mono font-bold text-ink">
+                        {item.horasDecorridas === null ? '—' : `${item.horasDecorridas.toFixed(1)}h`}
+                      </td>
+                      <td className="px-6 py-4">
+                        {item.confirmadoEm ? (
+                          <span className="bg-sky-100 text-sky-800 border border-sky-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full">
+                            Contato confirmado
+                          </span>
+                        ) : item.slaStatus === 'VERDE' ? (
                           <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full">
                             Normal (&lt; 12h)
                           </span>
-                        ) : (
+                        ) : item.slaStatus === 'AMARELO' ? (
                           <span className="bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full">
-                            Atenção (21h)
+                            Atenção (&gt; 12h)
+                          </span>
+                        ) : (
+                          <span className="bg-rose-100 text-rose-800 border border-rose-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full">
+                            Estourado (&gt; 24h)
                           </span>
                         )}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button
-                          type="button"
-                          onClick={() => handleForcarTransbordo(item.id)}
-                          className="bg-surface hover:bg-slate-100 border border-line text-ink font-bold text-[11px] px-3 py-1.5 rounded-xl transition-all inline-flex items-center gap-1"
-                        >
-                          <ArrowRightLeft className="w-3.5 h-3.5 text-psi-vibrant" />
-                          Forçar Transbordo
-                        </button>
+                        {!item.confirmadoEm && item.psicologoAlocadoId && (
+                          <button
+                            type="button"
+                            onClick={() => handleForcarTransbordo(item.id)}
+                            className="bg-surface hover:bg-slate-100 border border-line text-ink font-bold text-[11px] px-3 py-1.5 rounded-xl transition-all inline-flex items-center gap-1"
+                          >
+                            <ArrowRightLeft className="w-3.5 h-3.5 text-psi-vibrant" />
+                            Forçar Transbordo
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))
@@ -507,10 +637,17 @@ export default function GestaoCockpitPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
+                {psicologosPendentes.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-8 text-center text-muted font-semibold">
+                      {carregando ? 'Carregando…' : 'Nenhuma solicitação de credenciamento pendente.'}
+                    </td>
+                  </tr>
+                )}
                 {psicologosPendentes.map((psi) => (
                   <tr key={psi.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="px-6 py-4">
-                      <div className="font-extrabold text-ink">{psi.nomeCompleto}</div>
+                      <div className="font-extrabold text-ink">{nomeExibicao(psi)}</div>
                       <div className="text-[10px] text-muted italic line-clamp-1">{psi.minibio}</div>
                     </td>
                     <td className="px-6 py-4 font-mono font-bold text-psi-vibrant">{psi.crp}</td>
@@ -593,51 +730,94 @@ export default function GestaoCockpitPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {profissionais.map((psi) => (
-                  <tr key={psi.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="font-extrabold text-ink">{psi.nomeSocial || psi.nome}</div>
-                      <div className="text-[10px] text-muted">{psi.email} • {psi.whatsapp}</div>
-                    </td>
-                    <td className="px-6 py-4 font-mono font-bold text-psi-vibrant">{psi.crp}</td>
-                    <td className="px-6 py-4">
-                      <div className="font-bold text-ink">Turma {psi.turmaViverMais || '24A'}</div>
-                      <div className="text-[10px] text-muted line-clamp-1">{psi.posGraduacaoViverMais}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="font-extrabold text-ink">{psi.pacientesAtivosCount} / 5 pacientes</span>
-                    </td>
-                    <td className="px-6 py-4">
-                      {psi.exibirNaVitrine ? (
-                        <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full flex items-center gap-1 w-max">
-                          ● Ativo na Vitrine
-                        </span>
-                      ) : (
-                        <div>
-                          <span className="bg-rose-100 text-rose-800 border border-rose-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full inline-block">
-                            ○ Desativado do Rodízio
-                          </span>
-                          {psi.motivoDesativacao && (
-                            <p className="text-[10px] text-rose-600 font-semibold mt-1">{psi.motivoDesativacao}</p>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <button
-                        type="button"
-                        onClick={() => toggleAtivoPsicologo(psi.id, 'Pausa Solicitada pela Gestão')}
-                        className={`font-extrabold text-[11px] px-4 py-2 rounded-xl transition-all shadow-sm ${
-                          psi.exibirNaVitrine
-                            ? 'bg-rose-100 hover:bg-rose-200 text-rose-800 border border-rose-300'
-                            : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                        }`}
-                      >
-                        {psi.exibirNaVitrine ? 'Desativar Perfil' : 'Ativar no Rodízio'}
-                      </button>
+                {profissionais.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-8 text-center text-muted font-semibold">
+                      {carregando
+                        ? 'Carregando…'
+                        : 'Nenhum psicólogo aprovado ainda. Aprove um credenciamento para que ele entre no rodízio.'}
                     </td>
                   </tr>
-                ))}
+                )}
+                {profissionais.map((psi) => {
+                  const ativo = psi.exibirNaVitrine ?? true;
+                  const teto = psi.limitePacientesAtivos ?? LIMITE_PADRAO;
+                  const ativos = psi.pacientesAtivosCount ?? 0;
+                  const noTeto = ativos >= teto;
+
+                  return (
+                    <tr key={psi.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="font-extrabold text-ink">{nomeExibicao(psi)}</div>
+                        <div className="text-[10px] text-muted">
+                          {[psi.email, psi.whatsapp].filter(Boolean).join(' • ')}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 font-mono font-bold text-psi-vibrant">{psi.crp}</td>
+                      <td className="px-6 py-4">
+                        <div className="font-bold text-ink">
+                          {psi.turmaViverMais ? `Turma ${psi.turmaViverMais}` : 'Turma não informada'}
+                        </div>
+                        <div className="text-[10px] text-muted line-clamp-1">{psi.posGraduacaoViverMais}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`font-extrabold ${noTeto ? 'text-rose-700' : 'text-ink'}`}>
+                          {ativos} / {teto} pacientes
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        {/* Três estados distintos, porque pedem ações distintas: pausa é
+                            decisão da gestão, teto é consequência da agenda, e cadastro
+                            incompleto é trabalho que ficou pela metade. */}
+                        {!ativo ? (
+                          <div>
+                            <span className="bg-rose-100 text-rose-800 border border-rose-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full inline-block">
+                              ○ Desativado do rodízio
+                            </span>
+                            {psi.motivoDesativacao && (
+                              <p className="text-[10px] text-rose-600 font-semibold mt-1">{psi.motivoDesativacao}</p>
+                            )}
+                          </div>
+                        ) : noTeto ? (
+                          <div>
+                            <span className="bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full inline-block">
+                              ◐ Fora da vez
+                            </span>
+                            <p className="text-[10px] text-amber-700 font-semibold mt-1">
+                              Teto de pacientes atingido
+                            </p>
+                          </div>
+                        ) : cadastroIncompletoParaRodizio(psi) ? (
+                          <div>
+                            <span className="bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full inline-block">
+                              ◐ Cadastro incompleto
+                            </span>
+                            <p className="text-[10px] text-amber-700 font-semibold mt-1">
+                              Falta definir turno e faixa de valor
+                            </p>
+                          </div>
+                        ) : (
+                          <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full flex items-center gap-1 w-max">
+                            ● Ativo no rodízio
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          type="button"
+                          onClick={() => void toggleAtivoPsicologo(psi)}
+                          className={`font-extrabold text-[11px] px-4 py-2 rounded-xl transition-all shadow-sm ${
+                            ativo
+                              ? 'bg-rose-100 hover:bg-rose-200 text-rose-800 border border-rose-300'
+                              : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                          }`}
+                        >
+                          {ativo ? 'Desativar perfil' : 'Ativar no rodízio'}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

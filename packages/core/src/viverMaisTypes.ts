@@ -30,8 +30,15 @@ export interface LeadTriagem {
   nomePaciente: string;
   telefoneWhatsApp: string;
   email?: string;
-  cpf: string;
-  endereco: {
+  /**
+   * CPF e endereço completo são exigência da emissão da nota fiscal, não da
+   * triagem: o formulário público coleta apenas o CEP, e o resto entra depois,
+   * quando o lead vira paciente. Opcionais aqui para que o registro represente
+   * o que de fato se sabe da pessoa neste ponto — nenhum critério de indicação
+   * depende deles.
+   */
+  cpf?: string;
+  endereco?: {
     logradouro: string;
     numero: string;
     bairro: string;

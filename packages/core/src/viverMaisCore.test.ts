@@ -3,6 +3,7 @@ import {
   LeadTriagem,
   PsicologoPerfil,
   processarTriagemLead,
+  selecionarPsicologoRoundRobin,
   checarEExecutarTransbordoSla,
   calcularSplit7030,
   gerarLinkCobrancaAsaas,
@@ -116,5 +117,140 @@ describe('Domínio Clínica Viver Mais Psicologia (Core Engine & Regras Giuliana
 
     expect(split.creditoAluno).toBe(70.00);
     expect(split.receitaClinica).toBe(30.00);
+  });
+
+  describe('Elegibilidade do rodízio', () => {
+    /** Base de um psicólogo elegível; cada teste desliga só o que quer provar. */
+    const perfilBase = (sobrescrever: Partial<PsicologoPerfil>): PsicologoPerfil => ({
+      id: 'psi-base',
+      nome: 'Dra. Mariana Costa',
+      crp: '07/67890',
+      telefoneWhatsApp: '51999990002',
+      email: 'mariana@vivermais.com.br',
+      turnosDisponiveis: ['TARDE'],
+      modalidadesAtendidas: ['ACESSIVEL_SOCIAL'],
+      limitePacientesAtivos: 33,
+      pacientesAtivosCount: 0,
+      exibirNaVitrine: true,
+      posicaoFilaRoundRobin: 1,
+      saldoCreditoAbatimento: 0,
+      ...sobrescrever,
+    });
+
+    it('pula quem não é habilitado no serviço pedido', () => {
+      const psicoterapeuta = perfilBase({ id: 'psi-a', servicosHabilitados: ['PSICOTERAPIA'] });
+      const avaliador = perfilBase({ id: 'psi-b', servicosHabilitados: ['AVALIACAO'] });
+
+      const escolhido = selecionarPsicologoRoundRobin(
+        [psicoterapeuta, avaliador],
+        'TARDE',
+        'ACESSIVEL_SOCIAL',
+        undefined,
+        'AVALIACAO'
+      );
+
+      expect(escolhido?.id).toBe('psi-b');
+    });
+
+    it('mantém no rodízio quem não declarou serviços, porque a lista vazia é ausência de restrição', () => {
+      const semDeclaracao = perfilBase({ id: 'psi-a', servicosHabilitados: [] });
+
+      const escolhido = selecionarPsicologoRoundRobin(
+        [semDeclaracao],
+        'TARDE',
+        'ACESSIVEL_SOCIAL',
+        undefined,
+        'AVALIACAO'
+      );
+
+      expect(escolhido?.id).toBe('psi-a');
+    });
+
+    it('não aloca para perfil desativado pela gestão', () => {
+      const desativado = perfilBase({ id: 'psi-a', exibirNaVitrine: false });
+
+      expect(selecionarPsicologoRoundRobin([desativado], 'TARDE', 'ACESSIVEL_SOCIAL')).toBeNull();
+    });
+
+    it('não aloca para quem atingiu o teto de pacientes ativos', () => {
+      const noTeto = perfilBase({ id: 'psi-a', limitePacientesAtivos: 5, pacientesAtivosCount: 5 });
+
+      expect(selecionarPsicologoRoundRobin([noTeto], 'TARDE', 'ACESSIVEL_SOCIAL')).toBeNull();
+    });
+
+    it('coloca quem nunca recebeu ninguém à frente de quem já recebeu', () => {
+      const veterano = perfilBase({ id: 'psi-veterano', ultimoLeadRecebidoEm: '2026-08-01T10:00:00.000Z' });
+      const estreante = perfilBase({ id: 'psi-estreante', ultimoLeadRecebidoEm: undefined });
+
+      // Nas duas ordens de entrada, para provar que é a regra decidindo e não a
+      // posição no array.
+      expect(selecionarPsicologoRoundRobin([veterano, estreante], 'TARDE', 'ACESSIVEL_SOCIAL')?.id)
+        .toBe('psi-estreante');
+      expect(selecionarPsicologoRoundRobin([estreante, veterano], 'TARDE', 'ACESSIVEL_SOCIAL')?.id)
+        .toBe('psi-estreante');
+    });
+  });
+
+  describe('SLA de 24h e transbordo', () => {
+    const horasAtras = (horas: number): string =>
+      new Date(Date.now() - horas * 60 * 60 * 1000).toISOString();
+
+    const leadAlocado = (horas: number): LeadTriagem => ({
+      ...leadMock,
+      psicologoAlocadoId: 'psi-1',
+      dataAlocacao: horasAtras(horas),
+      status: 'AGUARDANDO_CONTATO',
+    });
+
+    it('não transborda lead ainda dentro do prazo', () => {
+      const resultado = checarEExecutarTransbordoSla(leadAlocado(23), psicologosMock);
+
+      expect(resultado.sucesso).toBe(false);
+      expect(resultado.leadAtualizado.psicologoAlocadoId).toBe('psi-1');
+      expect(resultado.leadAtualizado.slaExpirado).toBe(false);
+    });
+
+    it('passa o lead para outro profissional depois de 24h, nunca de volta para o mesmo', () => {
+      const resultado = checarEExecutarTransbordoSla(leadAlocado(25), psicologosMock);
+
+      expect(resultado.sucesso).toBe(true);
+      expect(resultado.leadAtualizado.psicologoAlocadoId).toBe('psi-2');
+      expect(resultado.leadAtualizado.slaExpirado).toBe(true);
+      // Prazo novo para quem acabou de receber.
+      expect(resultado.leadAtualizado.status).toBe('AGUARDANDO_CONTATO');
+    });
+
+    it('não devolve o lead a quem já teve a chance nele', () => {
+      const resultado = checarEExecutarTransbordoSla(leadAlocado(25), psicologosMock, 24, {
+        psicologosJaTentados: ['psi-1', 'psi-2'],
+      });
+
+      expect(resultado.sucesso).toBe(false);
+      expect(resultado.psicologoAlocado).toBeUndefined();
+    });
+
+    it('sem ninguém para receber, o lead continua aguardando contato e marcado como estourado', () => {
+      const resultado = checarEExecutarTransbordoSla(leadAlocado(25), [psicologosMock[0]]);
+
+      expect(resultado.sucesso).toBe(false);
+      // Continua na fila para a gestão ver — não some para um estado terminal.
+      expect(resultado.leadAtualizado.status).toBe('AGUARDANDO_CONTATO');
+      expect(resultado.leadAtualizado.psicologoAlocadoId).toBe('psi-1');
+      expect(resultado.leadAtualizado.slaExpirado).toBe(true);
+    });
+
+    it('respeita o serviço pedido ao escolher para quem transbordar', () => {
+      const psicologos: PsicologoPerfil[] = [
+        { ...psicologosMock[0], servicosHabilitados: ['PSICOTERAPIA'] },
+        { ...psicologosMock[1], servicosHabilitados: ['PSICOTERAPIA'] },
+      ];
+
+      const resultado = checarEExecutarTransbordoSla(leadAlocado(25), psicologos, 24, {
+        servicoDesejado: 'AVALIACAO',
+      });
+
+      expect(resultado.sucesso).toBe(false);
+      expect(resultado.psicologoAlocado).toBeUndefined();
+    });
   });
 });

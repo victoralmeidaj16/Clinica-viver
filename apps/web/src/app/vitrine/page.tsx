@@ -61,6 +61,7 @@ export default function ViverMaisLandingPage() {
     convenioSelecionado: '',
     origem: 'Facebook',
     turno: 'VESPERTINO',
+    genero: 'FEMININO',
   });
 
   const [formPsicologo, setFormPsicologo] = useState({
@@ -242,6 +243,9 @@ export default function ViverMaisLandingPage() {
         body: JSON.stringify({
           ...form,
           servico: selectedService ? precos[selectedService]?.titulo : '',
+          // O título é para ler; a chave é para o rodízio comparar com os
+          // serviços que cada profissional declarou atender.
+          servicoKey: selectedService,
           modalidade: selectedModalidade,
         }),
       });
@@ -678,8 +682,8 @@ export default function ViverMaisLandingPage() {
                 </div>
               </div>
 
-              {/* Idade e E-mail */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Idade, Gênero e E-mail */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">Idade <span className="text-rose-500">*</span></label>
                   <input
@@ -690,6 +694,18 @@ export default function ViverMaisLandingPage() {
                     placeholder="Idade"
                     className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
                   />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Gênero <span className="text-rose-500">*</span></label>
+                  <select
+                    value={form.genero}
+                    onChange={(e) => setForm({ ...form, genero: e.target.value })}
+                    className="w-full border border-slate-300 bg-white rounded-xl p-3 focus:outline-none focus:border-purple-600 font-medium"
+                  >
+                    <option value="FEMININO">Feminino</option>
+                    <option value="MASCULINO">Masculino</option>
+                    <option value="OUTRO">Outro / Prefiro não informar</option>
+                  </select>
                 </div>
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">E-mail <span className="text-rose-500">*</span></label>

@@ -32,12 +32,24 @@ export function selecionarPsicologoRoundRobin(
 
   if (elegiveis.length === 0) return null;
 
-  // Ordena por menor data de último lead recebido (rodízio circular mais justo)
-  elegiveis.sort((a, b) => {
-    if (!a.ultimoLeadRecebidoEm) return -1;
-    if (!b.ultimoLeadRecebidoEm) return 1;
-    return new Date(a.ultimoLeadRecebidoEm).getTime() - new Date(b.ultimoLeadRecebidoEm).getTime();
-  });
+  // Ordena por menor data de último lead recebido (rodízio circular mais justo).
+  //
+  // Quem nunca recebeu ninguém vem primeiro — sem isso, o profissional recém
+  // aprovado nunca entraria na roda. A ausência de data vira `0` (epoch), que
+  // é anterior a qualquer recebimento real, em vez de um retorno direto de
+  // -1/1: um comparador que responde "a vem antes de b" e "b vem antes de a"
+  // para o mesmo par (o caso de ambos sem data) não é consistente, e a ordem
+  // final passa a depender do algoritmo de ordenação em vez da regra.
+  const ultimoRecebimentoMs = (psicologo: PsicologoPerfil): number => {
+    if (!psicologo.ultimoLeadRecebidoEm) return 0;
+    const ms = new Date(psicologo.ultimoLeadRecebidoEm).getTime();
+    // Data ilegível é tratada como ausente: `NaN` no comparador embaralharia a
+    // fila inteira, não só a linha com o defeito.
+    return Number.isFinite(ms) ? ms : 0;
+  };
+
+  // `sort` é estável, então empate preserva a ordem de cadastro.
+  elegiveis.sort((a, b) => ultimoRecebimentoMs(a) - ultimoRecebimentoMs(b));
 
   return elegiveis[0];
 }
@@ -47,9 +59,16 @@ export function selecionarPsicologoRoundRobin(
  */
 export function processarTriagemLead(
   lead: LeadTriagem,
-  psicologos: PsicologoPerfil[]
+  psicologos: PsicologoPerfil[],
+  servicoDesejado?: string
 ): MatchingResult {
-  const selecionado = selecionarPsicologoRoundRobin(psicologos, lead.turno, lead.modalidade);
+  const selecionado = selecionarPsicologoRoundRobin(
+    psicologos,
+    lead.turno,
+    lead.modalidade,
+    undefined,
+    servicoDesejado
+  );
 
   if (!selecionado) {
     return {
@@ -89,7 +108,8 @@ export function processarTriagemLead(
 export function checarEExecutarTransbordoSla(
   lead: LeadTriagem,
   psicologos: PsicologoPerfil[],
-  tempoLimiteHoras = 24
+  tempoLimiteHoras = 24,
+  opcoes: { servicoDesejado?: string; psicologosJaTentados?: readonly string[] } = {}
 ): MatchingResult {
   if (lead.status !== 'AGUARDANDO_CONTATO' || !lead.dataAlocacao) {
     return {
@@ -111,23 +131,31 @@ export function checarEExecutarTransbordoSla(
     };
   }
 
-  // Transbordo: Buscar próximo psicólogo ignorando o atual que estourou o SLA
+  // Transbordo: buscar o próximo psicólogo ignorando o atual, que estourou o
+  // SLA, e todos os que já tiveram a chance neste mesmo lead.
+  const jaTentados = opcoes.psicologosJaTentados ?? [];
+  const candidatos = psicologos.filter((p) => !jaTentados.includes(p.id));
+
   const novoPsicologo = selecionarPsicologoRoundRobin(
-    psicologos,
+    candidatos,
     lead.turno,
     lead.modalidade,
-    lead.psicologoAlocadoId
+    lead.psicologoAlocadoId,
+    opcoes.servicoDesejado
   );
 
   const agoraIso = new Date().toISOString();
 
   if (!novoPsicologo) {
+    // Sem ninguém para receber, o lead **continua aguardando contato** com o
+    // profissional atual, marcado como estourado. Movê-lo para `TRANSBORDADO`
+    // aqui diria que alguém assumiu quando ninguém assumiu, e o tiraria da
+    // varredura — a pessoa ficaria esquecida numa fila que ninguém relê.
     return {
       sucesso: false,
       leadAtualizado: {
         ...lead,
         slaExpirado: true,
-        status: 'TRANSBORDADO',
       },
       mensagem: 'SLA expirado em 24h. Fila sem outro psicólogo disponível para transbordo automático.',
     };

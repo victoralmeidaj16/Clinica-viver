@@ -3,7 +3,7 @@
  */
 
 export interface SoapPromptInput {
-  transcription: string; // Transcrição do áudio de síntese gravado pelo psicólogo pós-sessão
+  transcription: string; // Síntese/anotações clínicas da sessão fornecidas pelo psicólogo pós-sessão
   patientReference: string;
   previousContext?: string;
 }
@@ -14,7 +14,7 @@ export function buildSoapPrompt(input: SoapPromptInput): string {
     : '';
 
   return `Você é um assistente de documentação clínica para psicologia.
-Estruture um rascunho SOAP a partir da síntese verbal gravada pelo psicólogo pós-sessão, para revisão obrigatória e edição do profissional responsável.
+Estruture um rascunho SOAP a partir da síntese clínica fornecida pelo psicólogo pós-sessão, para revisão obrigatória e edição do profissional responsável.
 
 REFERÊNCIA PSEUDONIMIZADA DO PACIENTE: "${input.patientReference}"
 
@@ -28,7 +28,7 @@ DIRETRIZES:
 - Todos os campos gerados são minutas: não substitua o julgamento clínico e não aprove o prontuário automaticamente.
 ${previousContext}
 
-SÍNTESE DA SESSÃO GRAVADA PELO PSICÓLOGO (TRANSCRIÇÃO):
+SÍNTESE DA SESSÃO FORNECIDA PELO PSICÓLOGO:
 """
 ${input.transcription}
 """`;

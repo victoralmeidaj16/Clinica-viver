@@ -1,11 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { reviewPatientHandoffContent } from '@thats-life/core';
 import { FileText, Send, Zap } from 'lucide-react';
 import { formatCents, type SoapView } from '@/lib/soapAiEngine';
 import ExtractedTasksEditor from './ExtractedTasksEditor';
-import PatientHandoffEditor from './PatientHandoffEditor';
 import SoapFieldsGrid from './SoapFieldsGrid';
 
 interface SoapEditorProps {
@@ -52,37 +50,20 @@ export default function SoapEditor({
     );
   }
 
-  const patientTasks = tasks.filter((task) => selectedPatientTasks.includes(task));
-  // A mesma validação roda no servidor antes de aprovar o prontuário. Aqui ela
-  // é apenas antecipada, para o profissional corrigir antes de disparar o fluxo.
-  const safetyWarnings = reviewPatientHandoffContent(patientSummary, patientTasks);
-  const patientDeliveryReady =
-    !shareWithPatient || (handoffReviewed && safetyWarnings.length === 0);
-
   const handleAddTask = (task: string) => {
     setTasks((current) => (current.includes(task) ? current : [...current, task]));
-    setSelectedPatientTasks((current) =>
-      current.includes(task) ? current : [...current, task]
-    );
-    setHandoffReviewed(false);
   };
 
   const handleRemoveTask = (index: number) => {
-    const removedTask = tasks[index];
     setTasks((current) => current.filter((_, taskIndex) => taskIndex !== index));
-    setSelectedPatientTasks((selected) =>
-      selected.filter((task) => task !== removedTask)
-    );
-    setHandoffReviewed(false);
   };
 
   const handleTriggerOneClick = () => {
-    if (!patientDeliveryReady) return;
     onOpenOneClickModal(
       { ...soapView, subjetivo, objetivo, avaliacao, plano, tarefasPacientes: tasks },
       patientSummary,
-      patientTasks,
-      shareWithPatient,
+      [],
+      false,
       sendWhatsAppBilling
     );
   };
@@ -102,16 +83,11 @@ export default function SoapEditor({
         <button
           type="button"
           onClick={handleTriggerOneClick}
-          disabled={!patientDeliveryReady}
-          className="btn-primary px-5 py-2.5 text-sm shadow-md disabled:cursor-not-allowed disabled:opacity-50"
-          title={
-            patientDeliveryReady
-              ? 'Abrir confirmação'
-              : 'Revise e autorize o conteúdo destinado ao paciente'
-          }
+          className="btn-primary px-5 py-2.5 text-sm shadow-md"
+          title="Salvar prontuário e gerar registros de cobrança"
         >
           <Zap className="h-4 w-4 fill-amber-300 text-amber-300" />
-          <span>Aprovar em 1 Clique</span>
+          <span>Aprovar Prontuário em 1 Clique</span>
         </button>
       </header>
 
@@ -132,32 +108,28 @@ export default function SoapEditor({
         onRemove={handleRemoveTask}
       />
 
-      <PatientHandoffEditor
-        summary={patientSummary}
-        selectedTaskTitles={patientTasks}
-        safetyWarnings={safetyWarnings}
-        availableTasks={tasks}
-        selectedTasks={selectedPatientTasks}
-        shareWithPatient={shareWithPatient}
-        reviewConfirmed={handoffReviewed}
-        onSummaryChange={(summary) => {
-          setPatientSummary(summary);
-          setHandoffReviewed(false);
-        }}
-        onToggleTask={(task) => {
-          setSelectedPatientTasks((current) =>
-            current.includes(task)
-              ? current.filter((selected) => selected !== task)
-              : [...current, task]
-          );
-          setHandoffReviewed(false);
-        }}
-        onShareChange={(share) => {
-          setShareWithPatient(share);
-          setHandoffReviewed(false);
-        }}
-        onReviewChange={setHandoffReviewed}
-      />
+      {/* Recibo & Cobrança WhatsApp (Apenas psicólogo) */}
+      <section className="flex items-center justify-between rounded-xl border border-line bg-soft p-4">
+        <div className="flex items-center gap-3">
+          <Send className="h-5 w-5 text-emerald-600" />
+          <div>
+            <p className="text-xs font-bold text-ink">Enviar recibo e lembrete de cobrança via WhatsApp</p>
+            <p className="text-[11px] text-muted">
+              Valor da sessão: {formatCents(soapView.valorSessaoCentavos)}
+            </p>
+          </div>
+        </div>
+        <label className="relative inline-flex cursor-pointer items-center">
+          <span className="sr-only">Enviar cobrança por WhatsApp</span>
+          <input
+            type="checkbox"
+            checked={sendWhatsAppBilling}
+            onChange={(event) => setSendWhatsAppBilling(event.target.checked)}
+            className="peer sr-only"
+          />
+          <span className="h-6 w-11 rounded-full bg-slate-300 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-emerald-500 peer-checked:after:translate-x-full peer-checked:after:border-white" />
+        </label>
+      </section>
 
       <section className="flex items-center justify-between rounded-xl border border-line bg-soft p-4">
         <div className="flex items-center gap-3">

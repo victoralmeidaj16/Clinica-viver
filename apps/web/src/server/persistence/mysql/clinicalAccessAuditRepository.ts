@@ -34,9 +34,8 @@ type AcaoProntuario = ClinicalRecordAccessAuditEvent['action'];
 type AcaoLinhaDoTempo = Parameters<ClinicalTimelineAccessAuditPort['append']>[0]['action'];
 
 export class MysqlClinicalAccessAudit
-  implements ClinicalRecordAccessAuditPort, ClinicalTimelineAccessAuditPort
-{
-  constructor(private readonly pool: Pool = getMysqlPool()) {}
+  implements ClinicalRecordAccessAuditPort, ClinicalTimelineAccessAuditPort {
+  constructor(private readonly pool: Pool = getMysqlPool()) { }
 
   private async gravar(input: {
     id: string;

@@ -51,7 +51,7 @@ export function gerarLinkCobrancaAsaas(params: CriarCobrancaParams): LinkCobranc
     valorTotal: params.valorTotal,
     valorCreditoAluno: creditoAluno,
     valorReceitaClinica: receitaClinica,
-    checkoutUrl: `https://vivermais.com.br/p/${idCobranca}`,
+    checkoutUrl: `https://vivermaispsicologia.com.br/cobranca/${idCobranca}`,
     pixCopiaECola: `00020126580014BR.GOV.BCB.PIX0136vivermais-${idCobranca}520400005303986540${params.valorTotal.toFixed(2)}5802BR`,
     pixQrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=vivermais-${idCobranca}`,
     status: 'PENDENTE',

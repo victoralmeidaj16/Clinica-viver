@@ -101,7 +101,7 @@ describe('Domínio Clínica Viver Mais Psicologia (Core Engine & Regras Giuliana
     expect(mensagem).toContain('João Pedro');
     expect(mensagem).toContain('Dr. Lucas Silva');
     expect(mensagem).toContain('R$ 75,00');
-    expect(mensagem).toContain('https://vivermais.com.br/p/PAY-');
+    expect(mensagem).toContain('https://vivermaispsicologia.com.br/cobranca/PAY-');
   });
 
   it('aloca o lead na Fila Circular (Round-Robin) para o psicólogo com maior tempo de espera', () => {

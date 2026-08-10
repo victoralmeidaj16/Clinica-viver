@@ -96,7 +96,7 @@ export default function MeuFinanceiroPage() {
             Meu Financeiro & Relatório de Atendimentos
           </h1>
           <p className="text-xs text-muted">
-            Acompanhe o split de 70% das suas consultas e o abatimento automático no boleto da Viver Mais por período.
+            Acompanhe o registro de 70% de crédito das suas consultas para o demonstrativo de abatimento da mensalidade por período.
           </p>
         </div>
 

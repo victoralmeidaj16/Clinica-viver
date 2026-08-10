@@ -236,26 +236,16 @@ flowchart TB
 
 ---
 
-### 10. 📱 Aplicativo Mobile do Paciente (`apps/mobile` - React Native/Expo)
-* **Fluxo de Navegação:**
-  * App nativo para Android e iOS voltado para o paciente.
-* **Funcionalidades Principais:**
-  * **Minhas Consultas:** Agendamento e confirmação de presença em sessões.
-  * **Plano de Ação / Tarefas Pós-Sessão:** Acompanhamento interativo das tarefas recomendadas pelo psicólogo no SOAP.
-  * **Histórico Financeiro e Pagamentos:** Visualização de faturas, emissão de Pix Copia e Cola e comprovantes.
-
----
-
 ## 🔒 Matriz de Permissões de Acesso (RBAC)
 
-| Módulo / Tela | Psicólogo | Gestão da Clínica | Paciente (App) |
-|---|:---:|:---:|:---:|
-| **Agenda (`/agenda`)** | Ver/Editar própria agenda | Ver todas as agendas | Ver seus horários |
-| **Cockpit SOAP (`/cockpit`)** | Acesso completo | Apenas com permissão | Sem acesso |
-| **Pacientes (`/pacientes`)** | Apenas seus pacientes | Todos os pacientes | Próprio perfil |
-| **Valores & Duração** | 🔒 Somente Leitura | ✏️ Alteração Permitida | 🔒 Somente Leitura |
-| **Relatórios Global (`/relatorios`)** | Visão individualizada | Visão consolidada 11 indicadores | Sem acesso |
-| **Financeiro Global (`/financeiro`)** | Sem acesso | Completo | Apenas faturas próprias |
-| **Supervisão (`/supervisao`)** | Criar/Ver seus casos | Validar & Assinar todos | Sem acesso |
-| **Retenção (`/retencao`)** | Ver seus pacientes em risco | Ver métricas gerais | Sem acesso |
+| Módulo / Tela | Psicólogo | Gestão da Clínica |
+|---|:---:|:---:|
+| **Agenda (`/agenda`)** | Ver/Editar própria agenda | Ver todas as agendas |
+| **Cockpit SOAP (`/cockpit`)** | Acesso completo | Apenas com permissão |
+| **Pacientes (`/pacientes`)** | Apenas seus pacientes | Todos os pacientes |
+| **Valores & Duração** | 🔒 Somente Leitura | ✏️ Alteração Permitida |
+| **Relatórios Global (`/relatorios`)** | Visão individualizada | Visão consolidada 11 indicadores |
+| **Financeiro Global (`/financeiro`)** | Sem acesso | Completo |
+| **Supervisão (`/supervisao`)** | Criar/Ver seus casos | Validar & Assinar todos |
+| **Retenção (`/retencao`)** | Ver seus pacientes em risco | Ver métricas gerais |
 

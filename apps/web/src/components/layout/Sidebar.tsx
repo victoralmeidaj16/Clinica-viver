@@ -54,11 +54,6 @@ export default function Sidebar({ role, onLogout }: { role: 'admin' | 'psicologo
       icon: FileText,
     },
     {
-      label: 'Supervisão Clínica',
-      href: '/supervisao',
-      icon: UserCheck,
-    },
-    {
       label: 'Meu Financeiro (70%)',
       href: '/meu-financeiro',
       icon: CreditCard,

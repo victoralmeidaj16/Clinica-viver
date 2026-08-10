@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import AudioRecorder from '@/components/cockpit/AudioRecorder';
+import ClinicalSynthesisInput from '@/components/cockpit/ClinicalSynthesisInput';
 import SoapEditor from '@/components/cockpit/SoapEditor';
 import OneClickApprovalModal from '@/components/cockpit/OneClickApprovalModal';
 import {
@@ -654,7 +654,7 @@ export default function CockpitPage() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => alert('Sessão iniciada! Redirecionando para o gravador SOAP...')}
+                  onClick={() => alert('Sessão iniciada! Ao finalizar, insira a síntese clínica para estruturação SOAP.')}
                   className="bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow transition-all"
                 >
                   Iniciar Consulta ao Vivo
@@ -755,7 +755,7 @@ export default function CockpitPage() {
             </div>
           ) : (
             <>
-              <AudioRecorder
+              <ClinicalSynthesisInput
                 sessions={sessions}
                 selectedSessionId={selectedSessionId}
                 onSelectSession={handleSelectSession}

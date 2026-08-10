@@ -1,6 +1,6 @@
 # 🤖 Guia para Agentes de IA — Thats Life (TL - Psi)
 
-Bem-vindo ao repositório do **Thats Life (TL - Psi)**. Este repositório foi projetado com uma arquitetura limpa, focada em inteligência clínica, automação de prontuários via IA, aplicativo mobile do paciente e comunicação via Evolution API.
+Bem-vindo ao repositório do **Thats Life (TL - Psi)**. Este repositório foi projetado com uma arquitetura limpa, focada em inteligência clínica, automação de prontuários via IA e comunicação via Evolution API.
 
 ---
 

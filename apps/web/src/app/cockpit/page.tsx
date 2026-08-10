@@ -4,8 +4,6 @@ import { useCallback, useEffect, useState } from 'react';
 import AudioRecorder from '@/components/cockpit/AudioRecorder';
 import SoapEditor from '@/components/cockpit/SoapEditor';
 import OneClickApprovalModal from '@/components/cockpit/OneClickApprovalModal';
-import PreSessionBriefingCard from '@/components/cockpit/PreSessionBriefingCard';
-import { DEMO_PRE_SESSION_BRIEFINGS } from '@/lib/demoPreSessionCheckIn';
 import {
   fetchReviewSessions,
   type PostSessionResult,
@@ -47,8 +45,10 @@ export default function CockpitPage() {
 
   // Modal de Adicionar Paciente Manual (Psicólogo)
   const [modalNovoPaciente, setModalNovoPaciente] = useState(false);
+  const [temNomeSocialManual, setTemNomeSocialManual] = useState(false);
   const [manualPaciente, setManualPaciente] = useState({
     nome: '',
+    nomeSocial: '',
     telefone: '',
     cpf: '',
     modalidade: 'ACESSIVEL_SOCIAL',
@@ -182,7 +182,8 @@ export default function CockpitPage() {
     e.preventDefault();
     alert(`Paciente ${manualPaciente.nome} adicionado com sucesso pelo psicólogo com valor de R$ ${manualPaciente.valorFixado.toFixed(2)} (Valores e duração travados pelo sistema).`);
     setModalNovoPaciente(false);
-    setManualPaciente({ nome: '', telefone: '', cpf: '', modalidade: 'ACESSIVEL_SOCIAL', valorFixado: 75.00, duracaoFixada: 50 });
+    setTemNomeSocialManual(false);
+    setManualPaciente({ nome: '', nomeSocial: '', telefone: '', cpf: '', modalidade: 'ACESSIVEL_SOCIAL', valorFixado: 75.00, duracaoFixada: 50 });
   };
 
   const handleOpenOneClickModal = (
@@ -326,7 +327,7 @@ export default function CockpitPage() {
 
             <form onSubmit={handleSalvarPacienteManual} className="space-y-4 text-xs">
               <div>
-                <label className="font-bold text-ink block mb-1">Nome do Paciente</label>
+                <label className="font-bold text-ink block mb-1">Nome do Paciente *</label>
                 <input
                   type="text"
                   required
@@ -335,7 +336,37 @@ export default function CockpitPage() {
                   placeholder="Ex: Ana Clara Lima"
                   className="w-full bg-slate-50 border border-line rounded-xl p-2.5 text-ink focus:outline-none focus:border-psi-vibrant"
                 />
+                <div className="mt-2">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-ink select-none">
+                    <input
+                      type="checkbox"
+                      checked={temNomeSocialManual}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setTemNomeSocialManual(checked);
+                        if (!checked) setManualPaciente((prev) => ({ ...prev, nomeSocial: '' }));
+                      }}
+                      className="w-4 h-4 rounded border-line text-primary focus:ring-primary accent-primary cursor-pointer"
+                    />
+                    <span>Possui Nome Social?</span>
+                  </label>
+                </div>
               </div>
+
+              {temNomeSocialManual && (
+                <div className="animate-in fade-in duration-200">
+                  <label className="font-bold text-ink block mb-1">
+                    Nome Social <span className="text-muted font-normal">(como prefere ser chamado)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={manualPaciente.nomeSocial}
+                    onChange={(e) => setManualPaciente({ ...manualPaciente, nomeSocial: e.target.value })}
+                    placeholder="Digite o nome social..."
+                    className="w-full bg-slate-50 border border-line rounded-xl p-2.5 text-ink focus:outline-none focus:border-psi-vibrant"
+                  />
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -732,9 +763,7 @@ export default function CockpitPage() {
                 isProcessing={isProcessing}
               />
 
-              <PreSessionBriefingCard
-                briefing={selectedSession ? DEMO_PRE_SESSION_BRIEFINGS[selectedSession.patientId] ?? null : null}
-              />
+
 
               <SoapEditor
                 key={selectedSessionId}

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Bell, Search, ShieldCheck, UserCheck, Sparkles } from 'lucide-react';
+import { Bell, Search, UserCheck } from 'lucide-react';
 
 export default function Header({ displayName, role }: { displayName: string; role: 'admin' | 'psicologo' }) {
   return (
@@ -18,18 +18,6 @@ export default function Header({ displayName, role }: { displayName: string; rol
       </div>
 
       <div className="flex items-center gap-5">
-        {/* Compliance status */}
-        <div className="hidden lg:flex items-center gap-2 text-xs font-semibold text-psi-darkest bg-psi-light px-4 py-2 rounded-xl border border-psi-soft">
-          <ShieldCheck className="w-4 h-4 text-psi-deep" />
-          <span>CFP & LGPD Compliant</span>
-        </div>
-
-        {/* Status de IA */}
-        <div className="hidden md:flex items-center gap-2 px-4 py-2 rounded-xl bg-psi-soft text-psi-darkest text-xs font-bold border border-psi-vibrant/20">
-          <Sparkles className="w-3.5 h-3.5 text-psi-vibrant animate-pulse" />
-          <span>Motor de IA Ativo</span>
-        </div>
-
         {/* Notificações */}
         <button className="relative p-2.5 rounded-xl text-muted hover:text-ink hover:bg-psi-light transition-colors" title="Notificações">
           <Bell className="w-4 h-4" />

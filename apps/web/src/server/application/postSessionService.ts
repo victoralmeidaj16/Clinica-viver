@@ -1,5 +1,5 @@
 import {
-  addCareTask, approveClinicalRecordRevisionCommand, approvePatientHandoff, assertStaffAuthorized,
+  approveClinicalRecordRevisionCommand, approvePatientHandoff, assertStaffAuthorized,
   approveClinicalRecordCommand, completeClinicalSessionCommand,
   computeSoapContentHash, createFinancialCharge, createPatientHandoffDraft,
   enqueueNotification, linkDeliveredPatientHandoffCommand, linkSessionChargeCommand,
@@ -250,18 +250,5 @@ async function deliverHandoff(
     approvePatientHandoff(draft, context.actor.userId, input.occurredAt), input.occurredAt
   );
 
-  const index = store.carePlans.findIndex(
-    (plan) => plan.organizationId === context.actor.organizationId && plan.patientId === session.patientId
-  );
-  if (index >= 0) {
-    // A repetição do comando não deve duplicar tarefas já entregues.
-    store.carePlans[index] = delivered.tasks.reduce(
-      (plan, task) =>
-        plan.tasks.some((existing) => existing.id === `${key}:${task.id}`)
-          ? plan
-          : addCareTask(plan, { id: `${key}:${task.id}`, title: task.title }, input.occurredAt),
-      store.carePlans[index]
-    );
-  }
   return delivered;
 }

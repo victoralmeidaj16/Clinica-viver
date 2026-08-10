@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
+import type { TriagemPacienteRecord } from '@/server/application/persistence';
 import {
-  emptySnapshot,
-  readSnapshot,
-  writeSnapshot,
-  type TriagemPacienteRecord,
-} from '@/server/application/persistence';
+  captureStateAsSnapshot,
+  getCaptureRepository,
+} from '@/server/persistence/captureRepository';
 import { alocarLead, classificarSla, horasDesdeAlocacao, varrerSla } from '@/server/application/viverMaisRodizio';
 import { avisarAlocacao, avisarTransbordo } from '@/server/application/viverMaisWhatsApp';
 import { exigirGestao, NaoAutorizadoError } from '@/server/viverMaisGestaoAuth';
+import { validateGender } from '@/lib/gender';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -15,8 +15,13 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-
-    const snapshot = readSnapshot() ?? emptySnapshot();
+    const genero = validateGender(body.genero, body.generoOutro);
+    if (!genero) {
+      return NextResponse.json(
+        { success: false, error: 'Selecione o gênero e informe a descrição quando escolher Outro.' },
+        { status: 400 }
+      );
+    }
 
     const novaTriagem: TriagemPacienteRecord = {
       id: `triagem-${Date.now()}`,
@@ -34,21 +39,34 @@ export async function POST(request: Request) {
       servico: body.servico,
       servicoKey: body.servicoKey,
       modalidade: body.modalidade,
-      genero: body.genero || 'FEMININO',
+      genero: genero.gender,
+      generoOutro: genero.other,
       status: 'PENDENTE_ATRIBUICAO',
       criadoEm: new Date().toISOString(),
     };
 
-    // A alocação decide antes de qualquer gravação: o lead nasce já com o
-    // profissional da vez, ou explicitamente pendente de decisão humana quando
-    // ninguém atende aos critérios.
-    const comFila = {
-      ...snapshot,
-      triagensPacientes: [...(snapshot.triagensPacientes ?? []), novaTriagem],
-    };
-    const resultado = alocarLead(comFila, novaTriagem);
+    // A alocação decide dentro da mutação: ler a fila, escolher o profissional
+    // da vez e gravar precisam acontecer sem que outro formulário entre no meio
+    // — dois pedidos simultâneos alocados a partir da mesma leitura cairiam no
+    // mesmo psicólogo.
+    const resultado = await getCaptureRepository().mutate((state) => {
+      const snapshot = captureStateAsSnapshot(state);
+      const alocado = alocarLead(
+        {
+          ...snapshot,
+          triagensPacientes: [...(snapshot.triagensPacientes ?? []), novaTriagem],
+        },
+        novaTriagem
+      );
 
-    await writeSnapshot({ ...resultado.snapshot, savedAt: new Date().toISOString() });
+      return {
+        next: {
+          triagensPacientes: alocado.snapshot.triagensPacientes ?? [],
+          cadastrosPsicologos: alocado.snapshot.cadastrosPsicologos ?? [],
+        },
+        result: alocado,
+      };
+    });
 
     // Aviso depois de gravar, e sem travar a resposta ao paciente: a alocação
     // já está persistida, então uma falha de WhatsApp não perde o lead.
@@ -84,23 +102,32 @@ export async function GET() {
   try {
     await exigirGestao();
 
-    const snapshot = readSnapshot() ?? emptySnapshot();
-    const { snapshot: varrido, transbordos, alterado } = varrerSla(snapshot);
+    const varrido = await getCaptureRepository().mutate((state) => {
+      const resultado = varrerSla(captureStateAsSnapshot(state));
+      return {
+        next: {
+          triagensPacientes: resultado.snapshot.triagensPacientes ?? [],
+          cadastrosPsicologos: resultado.snapshot.cadastrosPsicologos ?? [],
+        },
+        result: resultado,
+      };
+    });
 
-    if (alterado) {
-      await writeSnapshot({ ...varrido, savedAt: new Date().toISOString() });
-    }
-    for (const transbordo of transbordos) {
+    for (const transbordo of varrido.transbordos) {
       void avisarTransbordo(transbordo.lead, transbordo.psicologoNovo);
     }
 
-    const fila = (varrido.triagensPacientes ?? []).map((lead) => ({
+    const fila = (varrido.snapshot.triagensPacientes ?? []).map((lead) => ({
       ...lead,
       slaStatus: classificarSla(lead.alocadoEm),
       horasDecorridas: horasDesdeAlocacao(lead.alocadoEm),
     }));
 
-    return NextResponse.json({ success: true, data: fila, transbordosExecutados: transbordos.length });
+    return NextResponse.json({
+      success: true,
+      data: fila,
+      transbordosExecutados: varrido.transbordos.length,
+    });
   } catch (error) {
     if (error instanceof NaoAutorizadoError) {
       return NextResponse.json({ success: false, error: error.message }, { status: error.status });

@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { readSnapshot } from '@/server/application/persistence';
+import { isMysqlConfigured } from '@/server/oci/runtime';
+import { MysqlCaptureRepository } from '@/server/persistence/mysql/captureRepository';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -10,10 +12,11 @@ export async function GET(request: Request) {
     const modalidadeFiltro = searchParams.get('modalidade') || 'TODAS';
 
     const snapshot = readSnapshot();
+    const capture = isMysqlConfigured() ? await new MysqlCaptureRepository().read() : null;
 
-    let triagens = snapshot?.triagensPacientes ?? [];
-    let sessoes = snapshot?.sessions ?? [];
-    const psicologos = snapshot?.cadastrosPsicologos ?? [];
+    let triagens = capture?.triagensPacientes ?? snapshot?.triagensPacientes ?? [];
+    const sessoes = snapshot?.sessions ?? [];
+    const psicologos = capture?.cadastrosPsicologos ?? snapshot?.cadastrosPsicologos ?? [];
     const ledgerAlunos = snapshot?.ledgerAlunos ?? [];
 
     // Aplicar filtro de modalidade se fornecido

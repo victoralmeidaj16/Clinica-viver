@@ -1,6 +1,5 @@
 import type { CompletedAssessment } from '../../assessmentWorkflow';
 import type { ClinicalRecord } from '../../clinicalRecord';
-import type { PreSessionCheckIn } from '../../preSessionCheckIn';
 import { createClinicalTimelineEntry, timelineEntryId } from '../entryFactory';
 import type { ClinicalTimelineEntry } from '../types';
 
@@ -88,32 +87,4 @@ export function projectCompletedAssessment(
       sourceField: 'score',
     },
   });
-}
-
-export function projectPreSessionCheckIn(
-  checkIn: PreSessionCheckIn
-): readonly ClinicalTimelineEntry[] {
-  if (!checkIn.response?.topicsToDiscuss || !checkIn.submittedAt) return [];
-  return [
-    createClinicalTimelineEntry({
-      id: timelineEntryId('pre_session_check_in', checkIn.id, 'topics'),
-      organizationId: checkIn.organizationId,
-      patientId: checkIn.patientId,
-      authorizedProfessionalIds: [checkIn.professionalId],
-      category: 'pre_session',
-      importance: checkIn.reviewReasons.length > 0 ? 'attention' : 'routine',
-      occurredAt: checkIn.submittedAt,
-      recordedAt: checkIn.updatedAt,
-      title: 'Assunto informado antes da sessão',
-      summary: 'Texto opcional enviado pelo paciente para preparação do atendimento.',
-      evidenceExcerpt: checkIn.response.topicsToDiscuss,
-      tags: ['pré-sessão', 'paciente'],
-      evidence: {
-        sourceType: 'pre_session_check_in',
-        sourceId: checkIn.id,
-        sourceVersion: checkIn.version,
-        sourceField: 'response.topicsToDiscuss',
-      },
-    }),
-  ];
 }

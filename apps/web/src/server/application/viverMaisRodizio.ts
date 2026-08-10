@@ -36,7 +36,7 @@ export const SLA_CONTATO_HORAS = 24;
 const SLA_ATENCAO_HORAS = 12;
 
 /** Teto padrão de pacientes por profissional, quando a gestão não define outro. */
-const LIMITE_PACIENTES_PADRAO = 33;
+const LIMITE_PACIENTES_PADRAO = 5;
 
 export type SlaStatus = 'VERDE' | 'AMARELO' | 'VERMELHO';
 
@@ -204,10 +204,29 @@ function registrarRecebimento(
         ? {
             ...psi,
             ultimoLeadRecebidoEm: quandoIso,
-            pacientesAtivosCount: (psi.pacientesAtivosCount ?? 0) + 1,
           }
         : psi
     ),
+  };
+}
+
+/**
+ * A capacidade é derivada dos contatos confirmados, nunca de um acumulador.
+ * Assim transbordo e tentativas sem confirmação não consomem vaga.
+ */
+export function recalcularPacientesAtivos(snapshot: PersistedSnapshot): PersistedSnapshot {
+  const contagem = new Map<string, number>();
+  for (const lead of snapshot.triagensPacientes ?? []) {
+    if (lead.status !== 'CONTATO_CONFIRMADO' || !lead.psicologoAlocadoId) continue;
+    contagem.set(lead.psicologoAlocadoId, (contagem.get(lead.psicologoAlocadoId) ?? 0) + 1);
+  }
+  return {
+    ...snapshot,
+    cadastrosPsicologos: (snapshot.cadastrosPsicologos ?? []).map((psi) => ({
+      ...psi,
+      limitePacientesAtivos: Math.min(5, Math.max(1, psi.limitePacientesAtivos ?? LIMITE_PACIENTES_PADRAO)),
+      pacientesAtivosCount: contagem.get(psi.id) ?? 0,
+    })),
   };
 }
 
@@ -222,6 +241,7 @@ export function alocarLead(
   snapshot: PersistedSnapshot,
   leadRecord: TriagemPacienteRecord
 ): ResultadoAlocacao {
+  snapshot = recalcularPacientesAtivos(snapshot);
   const lead = paraLeadTriagem(leadRecord);
   const roster = rosterAtivo(snapshot);
 
@@ -307,12 +327,12 @@ export function varrerSla(
   apenasLeadId?: string
 ): { snapshot: PersistedSnapshot; transbordos: TransbordoOcorrido[]; alterado: boolean } {
   const transbordos: TransbordoOcorrido[] = [];
-  let atual = snapshot;
+  let atual = recalcularPacientesAtivos(snapshot);
   // Nem toda alteração é um transbordo: marcar um lead como estourado quando
   // não há para quem passá-lo também muda o estado, e precisa ser gravado.
   let alterado = false;
 
-  const pendentes = (snapshot.triagensPacientes ?? []).filter(
+  const pendentes = (atual.triagensPacientes ?? []).filter(
     (lead) =>
       lead.status === 'AGUARDANDO_CONTATO' &&
       Boolean(lead.alocadoEm) &&

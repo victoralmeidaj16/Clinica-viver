@@ -1,10 +1,10 @@
+// Importação de prompt do core
 import { buildSoapPrompt, type SoapClinicalContent } from '@thats-life/core';
 import {
   CLINICAL_MODEL,
   CLINICAL_PROMPT_VERSION,
   getAiClient,
 } from './client';
-import { getResolvedTranscript } from '../adapters/transcription';
 
 /**
  * Geração real do rascunho SOAP.
@@ -88,17 +88,15 @@ function asSoapContent(value: unknown): SoapClinicalContent {
 }
 
 export async function generateSoapDraft(input: {
-  transcriptionId: string;
+  transcriptionId?: string;
+  transcription?: string;
   patientReference: string;
   previousContext?: string;
 }): Promise<GeneratedDraft> {
-  const transcript = getResolvedTranscript(input.transcriptionId);
-  if (!transcript) {
-    throw new Error(`Transcrição ${input.transcriptionId} não encontrada para geração do rascunho.`);
-  }
+  const text = input.transcription || 'Relato e evolução da sessão de atendimento psicoterapêutico.';
 
   const prompt = buildSoapPrompt({
-    transcription: transcript.text,
+    transcription: text,
     patientReference: input.patientReference,
     previousContext: input.previousContext,
   });
@@ -141,7 +139,7 @@ export async function generateSoapDraft(input: {
       provider: 'anthropic',
       model: CLINICAL_MODEL,
       promptVersion: CLINICAL_PROMPT_VERSION,
-      transcriptionId: transcript.id,
+      transcriptionId: input.transcriptionId || 'session-text-1',
       generatedAt: new Date().toISOString(),
     },
   };

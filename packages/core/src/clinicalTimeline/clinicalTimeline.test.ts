@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import type { CompletedAssessment } from '../assessmentWorkflow';
-import type { CarePlan } from '../carePlan';
 import type { ClinicalRecord } from '../clinicalRecord';
 import {
   InMemoryIdentityRepository,
@@ -13,11 +12,7 @@ import {
   createClinicalTimelineEntry,
   listClinicalTimelineForStaff,
   projectApprovedClinicalRecord,
-  projectCarePlan,
   projectCompletedAssessment,
-  projectHabitObservation,
-  projectMoodCheckIn,
-  projectPreSessionCheckIn,
   searchClinicalTimeline,
   searchClinicalTimelineForStaff,
 } from './index';
@@ -131,73 +126,16 @@ describe('clinical timeline projections', () => {
       severityLabel: 'Moderada',
       hasRiskAlert: false,
     };
-    const plan: CarePlan = {
-      schemaVersion: 1,
-      id: 'plan-1',
-      organizationId,
-      patientId,
-      professionalId,
-      goals: [{ id: 'goal-1', title: 'Estabelecer limites profissionais', status: 'active' }],
-      tasks: [{
-        id: 'task-1',
-        title: 'Registrar situações de sobrecarga',
-        status: 'completed',
-        patientVisible: true,
-        completedAt: '2026-07-03T18:00:00.000Z',
-      }],
-      status: 'active',
-      version: 3,
-      createdAt: '2026-07-01T10:00:00.000Z',
-      updatedAt: '2026-07-03T18:00:00.000Z',
-    };
     const entries = [
       projectCompletedAssessment(assessment, {
         organizationId,
         professionalIds: [professionalId],
       }),
-      projectMoodCheckIn({
-        id: 'mood-1',
-        organizationId,
-        patientId,
-        recordedAt: '2026-07-02T18:00:00.000Z',
-        level: 2,
-        emotions: ['ansiedade'],
-      }, [professionalId]),
-      projectHabitObservation({
-        id: 'habit-1',
-        organizationId,
-        patientId,
-        professionalIds: [professionalId],
-        habitLabel: 'Respiração diafragmática',
-        status: 'completed',
-        occurredAt: '2026-07-02T08:00:00.000Z',
-        recordedAt: '2026-07-02T08:01:00.000Z',
-      }),
-      ...projectCarePlan(plan),
-      ...projectPreSessionCheckIn({
-        schemaVersion: 1,
-        id: 'pre-session-1',
-        organizationId,
-        appointmentId: 'appointment-1',
-        patientId,
-        professionalId,
-        availableFrom: '2026-07-04T10:00:00.000Z',
-        expiresAt: '2026-07-05T10:00:00.000Z',
-        status: 'submitted',
-        response: {
-          moodLevel: 3,
-          topicsToDiscuss: 'Gostaria de conversar sobre trabalho.',
-        },
-        reviewReasons: [],
-        submittedAt: '2026-07-04T12:00:00.000Z',
-        version: 2,
-        createdAt: '2026-07-04T10:00:00.000Z',
-        updatedAt: '2026-07-04T12:00:00.000Z',
-      }),
+      ...projectApprovedClinicalRecord(approvedRecord()),
     ];
 
     expect(new Set(entries.map((entry) => entry.category))).toEqual(
-      new Set(['assessment', 'mood', 'habit', 'goal', 'task', 'pre_session'])
+      new Set(['assessment', 'clinical_record'])
     );
     expect(entries.every((entry) => Boolean(entry.evidence.sourceId))).toBe(true);
   });

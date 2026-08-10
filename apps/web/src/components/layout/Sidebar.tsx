@@ -39,6 +39,11 @@ export default function Sidebar({ role, onLogout }: { role: 'admin' | 'psicologo
       icon: Zap,
     },
     {
+      label: 'Meu Cadastro',
+      href: '/meu-cadastro',
+      icon: UserPlus,
+    },
+    {
       label: 'Meus Pacientes',
       href: '/pacientes',
       icon: Users,
@@ -72,11 +77,6 @@ export default function Sidebar({ role, onLogout }: { role: 'admin' | 'psicologo
       label: 'Site / Vitrine de Serviços',
       href: '/vitrine',
       icon: Sparkles,
-    },
-    {
-      label: 'Sessão Zoom ao Vivo',
-      href: '/sessao/demo',
-      icon: Video,
     },
   ];
 

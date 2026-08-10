@@ -2,6 +2,9 @@ import 'server-only';
 
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { cookies } from 'next/headers';
+import type { RowDataPacket } from 'mysql2';
+import { getMysqlPool, isMysqlConfigured } from '@/server/oci/runtime';
+import { instituicaoId } from '@/server/persistence/mysql/mappers';
 
 export const SESSION_COOKIE = 'viver_mais_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 8;
@@ -62,6 +65,43 @@ function verifyPassword(password: string, user: LoginUser): boolean {
   return typeof user.password === 'string' && safeEqual(password, user.password);
 }
 
+interface DatabaseLoginRow extends RowDataPacket {
+  ref_core: string;
+  email_normalizado: string;
+  senha_hash: string | null;
+  organizacao_ref: string | null;
+}
+
+async function authenticateFromDatabase(
+  normalizedEmail: string,
+  password: string
+): Promise<{ found: boolean; hasDatabasePassword: boolean; user: LoginUser | null }> {
+  if (!isMysqlConfigured()) return { found: false, hasDatabasePassword: false, user: null };
+  const [rows] = await getMysqlPool().query<DatabaseLoginRow[]>(
+    `SELECT u.ref_core, u.email_normalizado, u.senha_hash, o.ref_core AS organizacao_ref
+       FROM clinica_usuarios u
+       LEFT JOIN clinica_membros m
+         ON m.instituicao_id = u.instituicao_id AND m.usuario_ref = u.ref_core
+       LEFT JOIN clinica_organizacoes o ON o.id = m.organizacao_id
+      WHERE u.instituicao_id = ? AND u.email_normalizado = ?
+      ORDER BY (m.status = 'active') DESC
+      LIMIT 1`,
+    [instituicaoId(), normalizedEmail]
+  );
+  const row = rows[0];
+  if (!row) return { found: false, hasDatabasePassword: false, user: null };
+  if (!row.senha_hash || !row.organizacao_ref) {
+    return { found: true, hasDatabasePassword: Boolean(row.senha_hash), user: null };
+  }
+  const user: LoginUser = {
+    email: row.email_normalizado,
+    userId: row.ref_core,
+    organizationId: row.organizacao_ref,
+    passwordHash: row.senha_hash,
+  };
+  return { found: true, hasDatabasePassword: true, user: verifyPassword(password, user) ? user : null };
+}
+
 function encode(value: string): string {
   return Buffer.from(value).toString('base64url');
 }
@@ -91,8 +131,10 @@ function deserialize(value: string): AuthSession | null {
   }
 }
 
-export function authenticate(email: string, password: string): LoginUser | null {
+export async function authenticate(email: string, password: string): Promise<LoginUser | null> {
   const normalizedEmail = email.trim().toLocaleLowerCase('pt-BR');
+  const database = await authenticateFromDatabase(normalizedEmail, password);
+  if (database.user || database.hasDatabasePassword) return database.user;
   const user = configuredUsers().find((candidate) => candidate.email.toLocaleLowerCase() === normalizedEmail);
   return user && verifyPassword(password, user) ? user : null;
 }

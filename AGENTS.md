@@ -7,10 +7,9 @@ Bem-vindo ao repositório do **Thats Life (TL - Psi)**. Este repositório foi pr
 ## 🗺️ Estrutura de Pastas e Módulos
 
 ```text
-/TL - Psi
+/Clinica Viver Mais
 ├── apps/
-│   ├── web/            # Aplicação Web (Next.js 16 App Router) - Cockpit do Psicólogo & Clínicas
-│   └── mobile/         # Aplicação Mobile (React Native / Expo) - App do Paciente
+│   └── web/            # Aplicação Web (Next.js 16 App Router) - Cockpit do Psicólogo & Vitrine
 ├── packages/
 │   └── core/           # Regras puras, IA Engine (SOAP), Evolution API client, Schemas MySQL (OCI)
 └── docs/               # Especificações técnicas, PRD e benchmarks

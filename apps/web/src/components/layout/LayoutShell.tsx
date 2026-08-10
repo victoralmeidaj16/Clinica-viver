@@ -19,7 +19,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   // quem autoriza a página é o token assinado no próprio link.
   const isConfirmacaoContato = pathname.startsWith('/confirmar-contato/');
   const isPublicPage =
-    pathname === '/login' || pathname === '/' || isVitrinePage || isConfirmacaoContato;
+    pathname === '/login' || pathname === '/ativar-conta' || pathname === '/' || isVitrinePage || isConfirmacaoContato;
 
   useEffect(() => {
     if (isPublicPage) {
@@ -38,7 +38,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   useEffect(() => {
     if (!auth || isPublicPage) return;
     const adminPage = ['/gestao', '/relatorios', '/convenios', '/retencao', '/configuracoes'].some((prefix) => pathname.startsWith(prefix));
-    const professionalPage = ['/cockpit', '/pacientes', '/prontuarios', '/supervisao', '/meu-financeiro', '/agenda', '/avaliacoes', '/sessao'].some((prefix) => pathname.startsWith(prefix));
+    const professionalPage = ['/cockpit', '/meu-cadastro', '/pacientes', '/prontuarios', '/supervisao', '/meu-financeiro', '/agenda', '/avaliacoes', '/sessao'].some((prefix) => pathname.startsWith(prefix));
     const allowed = auth.role === 'admin' ? adminPage : professionalPage;
     if (!allowed) router.replace(auth.role === 'admin' ? '/gestao/cockpit' : '/cockpit');
   }, [auth, isPublicPage, pathname, router]);

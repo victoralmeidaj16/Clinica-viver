@@ -7,8 +7,13 @@ import { readSessionValue } from '@/server/auth';
 // continua no LayoutShell e, principalmente, nas APIs.
 export function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
-  const publicPage = pathname === '/' || pathname === '/login' || pathname === '/vitrine' || pathname.startsWith('/_next') || pathname.startsWith('/api/auth');
+  const publicPage = pathname === '/' || pathname === '/login' || pathname === '/ativar-conta' || pathname === '/vitrine' || pathname.startsWith('/_next') || pathname.startsWith('/api/auth');
   if (publicPage || pathname.startsWith('/api/')) return NextResponse.next();
+  // No Vercel the domínio público é apenas um proxy para a VM OCI. A sessão
+  // é assinada e validada pelo backend da VM; tentar validá-la novamente com
+  // o segredo local do Vercel faria páginas internas redirecionarem ao login,
+  // mesmo quando `/api/auth/me` já confirma a sessão na origem.
+  if (process.env.VERCEL) return NextResponse.next();
   const session = readSessionValue(request.cookies.get('viver_mais_session')?.value);
   if (!session) {
     const login = new URL('/login', request.url);

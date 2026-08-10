@@ -6,6 +6,7 @@ import {
 } from '@/server/adapters/whatsappAllowlist';
 import { gerarTokenConfirmacao } from '@/server/viverMaisConfirmToken';
 import type { CadastroPsicologoRecord, TriagemPacienteRecord } from './persistence';
+import { normalizeBrazilPhone } from '@/lib/brazilPhone';
 import { nomeDeExibicao, SLA_CONTATO_HORAS } from './viverMaisRodizio';
 
 /**
@@ -28,7 +29,7 @@ import { nomeDeExibicao, SLA_CONTATO_HORAS } from './viverMaisRodizio';
  * já decidida e gravada.
  */
 
-export type FinalidadeMensagem = 'alocacao_psicologo' | 'recebimento_paciente';
+export type FinalidadeMensagem = 'alocacao_psicologo' | 'recebimento_paciente' | 'boas_vindas_psicologo';
 
 export interface ResultadoEnvio {
   finalidade: FinalidadeMensagem;
@@ -66,22 +67,25 @@ async function enviarTexto(
   telefone: string,
   texto: string,
   finalidade: FinalidadeMensagem,
-  chaveDedupe: string
+  chaveDedupe: string,
+  autorizadoPelaGestao = false
 ): Promise<ResultadoEnvio> {
   if (jaDisparado.has(chaveDedupe)) {
     return { finalidade, chaveDedupe, situacao: 'enviada' };
   }
 
-  try {
-    assertWhatsAppRecipientAllowed(telefone);
-  } catch (erro) {
-    if (erro instanceof RecipientNotAllowedError) {
-      // Recusa explícita e sem o número no log — bloqueio registrado não é
-      // falha silenciosa, e log não é lugar de contato de paciente.
-      console.warn(`[whatsapp] Envio "${finalidade}" bloqueado: destinatário fora da allowlist.`);
-      return { finalidade, chaveDedupe, situacao: 'bloqueada_allowlist' };
+  if (!autorizadoPelaGestao) {
+    try {
+      assertWhatsAppRecipientAllowed(telefone);
+    } catch (erro) {
+      if (erro instanceof RecipientNotAllowedError) {
+        // Recusa explícita e sem o número no log — bloqueio registrado não é
+        // falha silenciosa, e log não é lugar de contato de paciente.
+        console.warn(`[whatsapp] Envio "${finalidade}" bloqueado: destinatário fora da allowlist.`);
+        return { finalidade, chaveDedupe, situacao: 'bloqueada_allowlist' };
+      }
+      throw erro;
     }
-    throw erro;
   }
 
   const config = evolutionConfig();
@@ -94,7 +98,7 @@ async function enviarTexto(
     const resposta = await fetch(`${config.url}/message/sendText/${config.instancia}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', apikey: config.apiKey },
-      body: JSON.stringify({ number: telefone.replace(/\D/g, ''), text: texto }),
+      body: JSON.stringify({ number: normalizeBrazilPhone(telefone) ?? telefone.replace(/\D/g, ''), text: texto }),
     });
 
     if (!resposta.ok) {
@@ -108,6 +112,37 @@ async function enviarTexto(
     console.warn(`[whatsapp] Falha ao enviar "${finalidade}":`, erro);
     return { finalidade, chaveDedupe, situacao: 'falha' };
   }
+}
+
+/**
+ * Convite de acesso enviado apenas depois da aprovação autenticada da gestão.
+ * Esse destinatário não depende da allowlist do piloto: o telefone foi
+ * informado pelo próprio profissional e conferido pela administração.
+ */
+export async function avisarBoasVindasPsicologo(
+  psicologo: CadastroPsicologoRecord,
+  activationUrl: string
+): Promise<ResultadoEnvio> {
+  const nome = psicologo.nomeSocial?.trim() || psicologo.nomeCompleto.trim();
+  const texto = [
+    `Olá, ${nome}! Seu cadastro profissional foi aprovado pela Viver Mais Psicologia.`,
+    '',
+    'Seu acesso à plataforma já está disponível.',
+    `Login: ${psicologo.email}`,
+    '',
+    'Crie sua senha pessoal pelo link seguro abaixo:',
+    activationUrl,
+    '',
+    'O link é individual, expira em 72 horas e pode ser usado uma única vez.',
+    'A Viver Mais nunca solicitará sua senha pelo WhatsApp.',
+  ].join('\n');
+  return enviarTexto(
+    psicologo.whatsapp,
+    texto,
+    'boas_vindas_psicologo',
+    `boas-vindas:${psicologo.id}`,
+    true
+  );
 }
 
 function baseUrl(): string {

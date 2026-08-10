@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server';
 import { emptySnapshot, readSnapshot, writeSnapshot } from '@/server/application/persistence';
+import { isMysqlConfigured } from '@/server/oci/runtime';
+import {
+  captureStateAsSnapshot,
+  MysqlCaptureRepository,
+} from '@/server/persistence/mysql/captureRepository';
 import { varrerSla } from '@/server/application/viverMaisRodizio';
 import { avisarTransbordo } from '@/server/application/viverMaisWhatsApp';
 import { exigirVarreduraAutorizada, NaoAutorizadoError } from '@/server/viverMaisGestaoAuth';
@@ -29,6 +34,33 @@ export async function POST(request: Request) {
 
     const corpo = await request.json().catch(() => ({}));
     const leadId = typeof corpo?.leadId === 'string' ? corpo.leadId : undefined;
+
+    if (isMysqlConfigured()) {
+      const resultado = await new MysqlCaptureRepository().mutate((state) => {
+        const varrido = varrerSla(captureStateAsSnapshot(state), leadId);
+        return {
+          next: {
+            triagensPacientes: varrido.snapshot.triagensPacientes ?? [],
+            cadastrosPsicologos: varrido.snapshot.cadastrosPsicologos ?? [],
+          },
+          result: varrido,
+        };
+      });
+
+      for (const transbordo of resultado.transbordos) {
+        void avisarTransbordo(transbordo.lead, transbordo.psicologoNovo);
+      }
+
+      return NextResponse.json({
+        success: true,
+        transbordosExecutados: resultado.transbordos.length,
+        leads: resultado.transbordos.map((item) => ({
+          protocolo: item.lead.protocolo,
+          psicologoAnteriorId: item.psicologoAnteriorId,
+          psicologoNovoId: item.psicologoNovo.id,
+        })),
+      });
+    }
 
     const snapshot = readSnapshot() ?? emptySnapshot();
     const { snapshot: varrido, transbordos, alterado } = varrerSla(snapshot, leadId);

@@ -14,6 +14,8 @@ interface NewPatientModalProps {
 
 export default function NewPatientModal({ isOpen, onClose, onPatientCreated }: NewPatientModalProps) {
   const [nome, setNome] = useState('');
+  const [nomeSocial, setNomeSocial] = useState('');
+  const [temNomeSocial, setTemNomeSocial] = useState(false);
   const [email, setEmail] = useState('');
   const [telefone, setTelefone] = useState('');
   const [dataNascimento, setDataNascimento] = useState('');
@@ -52,7 +54,9 @@ export default function NewPatientModal({ isOpen, onClose, onPatientCreated }: N
         method: 'POST',
         headers: commandHeaders(),
         body: JSON.stringify({
-          displayName: nome,
+          displayName: temNomeSocial && nomeSocial ? nomeSocial : nome,
+          legalName: nome,
+          socialName: temNomeSocial ? nomeSocial : undefined,
           phone: telefone,
           email: email || undefined,
           birthDate: dataNascimento || undefined,
@@ -61,6 +65,8 @@ export default function NewPatientModal({ isOpen, onClose, onPatientCreated }: N
       });
       await onPatientCreated();
       setNome('');
+      setNomeSocial('');
+      setTemNomeSocial(false);
       setEmail('');
       setTelefone('');
       setDataNascimento('');
@@ -100,7 +106,37 @@ export default function NewPatientModal({ isOpen, onClose, onPatientCreated }: N
               placeholder="Ex: Gabriel Alves..."
               className="input"
             />
+            <div className="mt-2">
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-ink select-none">
+                <input
+                  type="checkbox"
+                  checked={temNomeSocial}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setTemNomeSocial(checked);
+                    if (!checked) setNomeSocial('');
+                  }}
+                  className="w-4 h-4 rounded border-line text-primary focus:ring-primary accent-primary cursor-pointer"
+                />
+                <span>Possui Nome Social?</span>
+              </label>
+            </div>
           </div>
+
+          {temNomeSocial && (
+            <div className="animate-in fade-in duration-200">
+              <label className="font-bold text-ink mb-1 block">
+                Nome Social <span className="text-muted font-normal">(como prefere ser chamado)</span>
+              </label>
+              <input
+                type="text"
+                value={nomeSocial}
+                onChange={(e) => setNomeSocial(e.target.value)}
+                placeholder="Digite o nome social..."
+                className="input"
+              />
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>

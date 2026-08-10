@@ -5,7 +5,10 @@ import {
   writeSnapshot,
   type AuditoriaDesistenciaRecord,
 } from '@/server/application/persistence';
+import { isMysqlConfigured } from '@/server/oci/runtime';
+import { captureStateAsSnapshot, captureStateFromSnapshot, MysqlCaptureRepository } from '@/server/persistence/mysql/captureRepository';
 import { exigirGestao, NaoAutorizadoError } from '@/server/viverMaisGestaoAuth';
+import { recalcularPacientesAtivos } from '@/server/application/viverMaisRodizio';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,12 +20,13 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     const snapshot = readSnapshot() ?? emptySnapshot();
+    const capture = isMysqlConfigured() ? await new MysqlCaptureRepository().read() : null;
 
     // 1. Desistências registradas na coleção dedicada
     const directes = snapshot.auditoriaDesistencias ?? [];
 
     // 2. Desistências registradas na fila de triagem (status DESISTENTE)
-    const triagensDesistentes = (snapshot.triagensPacientes ?? [])
+    const triagensDesistentes = (capture?.triagensPacientes ?? snapshot.triagensPacientes ?? [])
       .filter((t) => t.status === 'DESISTENTE')
       .map((t) => ({
         id: `desistencia-${t.id}`,
@@ -114,6 +118,31 @@ export async function POST(request: Request) {
       auditoriaDesistencias: desistenciasAtuais,
       savedAt: new Date().toISOString(),
     });
+
+    // Quando a desistência referencia uma triagem, libera imediatamente a
+    // vaga confirmada daquele profissional no mesmo banco usado pelo rodízio.
+    if (body.action !== 'MARCAR_REENGAJADO' && body.pacienteId) {
+      if (isMysqlConfigured()) {
+        await new MysqlCaptureRepository().mutate((state) => {
+          const next = recalcularPacientesAtivos({
+            ...captureStateAsSnapshot(state),
+            triagensPacientes: state.triagensPacientes.map((lead) =>
+              lead.id === body.pacienteId ? { ...lead, status: 'DESISTENTE' as const } : lead
+            ),
+          });
+          return { next: captureStateFromSnapshot(next), result: true };
+        });
+      } else {
+        const next = recalcularPacientesAtivos({
+          ...snapshot,
+          triagensPacientes: (snapshot.triagensPacientes ?? []).map((lead) =>
+            lead.id === body.pacienteId ? { ...lead, status: 'DESISTENTE' as const } : lead
+          ),
+          auditoriaDesistencias: desistenciasAtuais,
+        });
+        await writeSnapshot({ ...next, savedAt: new Date().toISOString() });
+      }
+    }
 
     return NextResponse.json({ success: true, data: desistenciasAtuais });
   } catch (error) {

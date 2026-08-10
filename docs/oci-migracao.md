@@ -61,6 +61,7 @@ Sequência de **produção**, aplicada com credencial administrativa no banco
 | `004_clinica.sql` | domínio clínico: pacientes, profissionais, agenda, evoluções, documentos, consentimentos, auditoria | pendente |
 | `007_thats_life_core.sql` | organização, usuários, vínculos, atribuição de profissionais, lembretes, `clinica_comandos`, `clinica_outbox` e ALTERs no 004 | pendente |
 | `008_seed_organizacao.sql` | organização Viver Mais e vínculo de coordenação. **Sem pacientes e sem profissionais** | pendente |
+| `009_captacao.sql` | triagem pública de pacientes e credenciamento de psicólogos, usados pela vitrine e pelo cockpit da gestão | pendente |
 
 Dois arquivos **fora** da sequência de produção:
 

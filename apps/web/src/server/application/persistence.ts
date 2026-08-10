@@ -3,17 +3,14 @@ import { mkdir, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type {
   Appointment,
-  CarePlan,
   ClinicalRecord,
   ClinicalSession,
   ClinicalTimelineEntry,
   CommunicationConsent,
   CommunicationPreference,
   FinancialLedger,
-  MoodCheckIn,
   NotificationMessage,
   PatientHandoff,
-  PreSessionCheckIn,
 } from '@thats-life/core';
 
 /**
@@ -82,8 +79,8 @@ export interface TriagemPacienteRecord {
   /** Chave do serviço (`PSICOTERAPIA`, `AVALIACAO`, …), que o rodízio compara. */
   servicoKey?: string;
   modalidade?: string;
-  /** O formulário atual da vitrine ainda não coleta gênero. */
   genero?: string;
+  generoOutro?: string;
   status: StatusTriagem;
   criadoEm: string;
 
@@ -125,7 +122,15 @@ export interface CadastroPsicologoRecord {
   crp: string;
   whatsapp: string;
   email?: string;
+  usuarioRef?: string;
+  profissionalRef?: string;
+  acessoCriadoEm?: string;
+  boasVindasEnviadaEm?: string;
   cidadeUf?: string;
+  estadoUf?: string;
+  cidade?: string;
+  genero?: string;
+  generoOutro?: string;
   especialidade?: string;
   modalidadeAtendimento?: string;
   minibio?: string;
@@ -145,6 +150,7 @@ export interface CadastroPsicologoRecord {
   ultimoLeadRecebidoEm?: string;
   turmaViverMais?: string;
   posGraduacaoViverMais?: string;
+  segundaPosGraduacao?: string;
 }
 
 export interface LancamentoLedgerAluno {
@@ -182,31 +188,18 @@ export interface PersistedSnapshot {
   sessions: readonly ClinicalSession[];
   records: readonly ClinicalRecord[];
   timeline: readonly ClinicalTimelineEntry[];
-  checkIns: readonly PreSessionCheckIn[];
   notifications: readonly NotificationMessage[];
   ledger: FinancialLedger;
-  carePlans: readonly CarePlan[];
-  moodLogs: readonly MoodCheckIn[];
   deliveredHandoffs: readonly PatientHandoff[];
   assessments: readonly AssessmentRecord[];
   preferences: readonly CommunicationPreference[];
   consents: readonly CommunicationConsent[];
-  /**
-   * Opcionais porque só as rotas da vitrine escrevem estas coleções, e um
-   * snapshot gravado pelo store da aplicação não as contém.
-   */
   triagensPacientes?: readonly TriagemPacienteRecord[];
   cadastrosPsicologos?: readonly CadastroPsicologoRecord[];
   ledgerAlunos?: readonly LancamentoLedgerAluno[];
   auditoriaDesistencias?: readonly AuditoriaDesistenciaRecord[];
 }
 
-/**
- * Snapshot vazio, para as rotas que precisam gravar antes de existir estado em
- * disco. Centralizado porque cada cópia manual do literal já divergiu do tipo:
- * o `ledger` escrito à mão trazia `transactions`/`payoutSplits`, campos que
- * `FinancialLedger` não tem, e o snapshot resultante quebrava a reidratação.
- */
 export function emptySnapshot(): PersistedSnapshot {
   return {
     version: SNAPSHOT_VERSION,
@@ -215,7 +208,6 @@ export function emptySnapshot(): PersistedSnapshot {
     sessions: [],
     records: [],
     timeline: [],
-    checkIns: [],
     notifications: [],
     ledger: {
       charges: [],
@@ -225,8 +217,6 @@ export function emptySnapshot(): PersistedSnapshot {
       fees: [],
       transfers: [],
     },
-    carePlans: [],
-    moodLogs: [],
     deliveredHandoffs: [],
     assessments: [],
     preferences: [],

@@ -28,7 +28,7 @@ export function CockpitHeroCard() {
         </h1>
 
         <p className="text-xs sm:text-sm text-psi-soft font-medium leading-relaxed drop-shadow-sm">
-          Assine o Viver Mais e desbloqueie uma nova jornada de automação de prontuários SOAP, atendimento Zoom-Like e inteligência em 1-clique.
+          Gerencie seus atendimentos na Viver Mais com automação de prontuários SOAP, triagens e inteligência clínica em 1-clique.
         </p>
 
         {/* Recursos com Checkmarks alinhados à direita */}
@@ -38,7 +38,7 @@ export function CockpitHeroCard() {
             <CheckCircle2 className="w-4 h-4 text-psi-vibrant shrink-0" />
           </div>
           <div className="flex items-center justify-end space-x-2">
-            <span>Atendimento de telepsicoterapia ao vivo</span>
+            <span>Gestão de pacientes e agendamentos</span>
             <CheckCircle2 className="w-4 h-4 text-psi-vibrant shrink-0" />
           </div>
           <div className="flex items-center justify-end space-x-2">
@@ -49,18 +49,6 @@ export function CockpitHeroCard() {
             <span>Evolução contínua da prática clínica</span>
             <CheckCircle2 className="w-4 h-4 text-psi-vibrant shrink-0" />
           </div>
-        </div>
-
-        {/* Botões de Ação Rápida */}
-        <div className="flex items-center justify-end space-x-3 pt-3">
-          <Link
-            href="/sessao/demo"
-            className="px-5 py-3 bg-psi-vibrant hover:bg-psi-deep text-white font-bold text-xs rounded-xl shadow-lg shadow-psi-vibrant/30 transition-all flex items-center space-x-2"
-          >
-            <Video className="w-4 h-4" />
-            <span>Iniciar Sessão Zoom</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
         </div>
       </div>
     </div>

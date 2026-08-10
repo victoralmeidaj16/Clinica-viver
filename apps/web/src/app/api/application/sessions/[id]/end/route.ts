@@ -2,7 +2,6 @@ import { resolveRequestContext } from '@/server/application/context';
 import { failure, success } from '@/server/application/http';
 import { getApplicationStore, persistApplicationState } from '@/server/application/store';
 import { CLINICAL_RECORD_RETENTION } from '@/server/application/retention';
-import { buildDemoTranscription } from '@/server/adapters/transcription';
 import { generateSoapDraft } from '@/server/ai/clinicalDraft';
 import { pseudonymizePatient } from '@/server/ai/pseudonym';
 import type { ClinicalSession, ClinicalRecord } from '@thats-life/core';
@@ -86,15 +85,9 @@ export async function POST(
     //    o resultado nasce como rascunho e exige aprovação humana.
     let record = await store.records.findBySessionId(context.actor.organizationId, sessionId);
     if (!record) {
-      const transcription = buildDemoTranscription({
-        organizationId: context.actor.organizationId,
-        sessionId,
-        patientId,
-        producedAt: occurredAt,
-      });
-
       const draft = await generateSoapDraft({
-        transcriptionId: transcription.id,
+        transcriptionId: `session-${sessionId}`,
+        transcription: 'Sessão de psicoterapia realizada.',
         patientReference: pseudonymizePatient({
           organizationId: context.actor.organizationId,
           patientId,

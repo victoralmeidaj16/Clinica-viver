@@ -8,6 +8,8 @@ export interface PsicologoVitrineItem {
   nome: string;
   nomeSocial?: string;
   crp: string;
+  estadoUf?: string;
+  cidade?: string;
   fotoUrl?: string;
   turmaViverMais?: string;
   posGraduacaoViverMais?: string;

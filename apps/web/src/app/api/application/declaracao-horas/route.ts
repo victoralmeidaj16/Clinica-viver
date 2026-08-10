@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { readSnapshot } from '@/server/application/persistence';
+import { isMysqlConfigured } from '@/server/oci/runtime';
+import { MysqlCaptureRepository } from '@/server/persistence/mysql/captureRepository';
 
 export async function GET(request: Request) {
   try {
@@ -8,9 +10,10 @@ export async function GET(request: Request) {
     const psicologoNomeQuery = searchParams.get('nome');
 
     const snapshot = readSnapshot();
+    const capture = isMysqlConfigured() ? await new MysqlCaptureRepository().read() : null;
 
     const sessoes = snapshot?.sessions ?? [];
-    const psicologos = snapshot?.cadastrosPsicologos ?? [];
+    const psicologos = capture?.cadastrosPsicologos ?? snapshot?.cadastrosPsicologos ?? [];
 
     // Busca dados do psicólogo se informado
     let psicologoEncontrado = null;

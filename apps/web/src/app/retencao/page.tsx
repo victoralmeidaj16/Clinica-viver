@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   TrendingDown,
   AlertTriangle,
@@ -34,8 +34,7 @@ export default function RetencaoPage() {
     acaoSugestao: '',
   });
 
-  const carregarDesistencias = () => {
-    setLoading(true);
+  const carregarDesistencias = useCallback(() => {
     fetch('/api/application/desistencias')
       .then((res) => res.json())
       .then((data) => {
@@ -45,11 +44,11 @@ export default function RetencaoPage() {
       })
       .catch((err) => console.error('Erro ao carregar desistências:', err))
       .finally(() => setLoading(false));
-  };
+  }, []);
 
   useEffect(() => {
     carregarDesistencias();
-  }, []);
+  }, [carregarDesistencias]);
 
   const handleMarcarReengajado = async (item: DesistenciaItem) => {
     try {

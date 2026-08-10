@@ -5,7 +5,13 @@ import {
   writeSnapshot,
   type CadastroPsicologoRecord,
 } from '@/server/application/persistence';
+import { isMysqlConfigured } from '@/server/oci/runtime';
+import { MysqlCaptureRepository } from '@/server/persistence/mysql/captureRepository';
 import { exigirGestao, NaoAutorizadoError } from '@/server/viverMaisGestaoAuth';
+import { normalizeBrazilPhone } from '@/lib/brazilPhone';
+import { isBrazilUf } from '@/lib/brazilLocations';
+import { municipioPertenceAoEstado } from '@/server/application/ibgeLocations';
+import { validateGender } from '@/lib/gender';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -20,6 +26,10 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     await exigirGestao();
+    if (isMysqlConfigured()) {
+      const state = await new MysqlCaptureRepository().read();
+      return NextResponse.json({ success: true, data: state.cadastrosPsicologos });
+    }
     const snapshot = readSnapshot();
     return NextResponse.json({ success: true, data: snapshot?.cadastrosPsicologos ?? [] });
   } catch (error) {
@@ -34,17 +44,41 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    const whatsapp = normalizeBrazilPhone(body.whatsapp);
+    const estadoUf = String(body.estadoUf ?? '').trim().toUpperCase();
+    const cidade = String(body.cidade ?? '').trim();
+    const genero = validateGender(body.genero, body.generoOutro);
 
-    const snapshot = readSnapshot() ?? emptySnapshot();
+    if (!whatsapp) {
+      return NextResponse.json({ success: false, error: 'Informe um telefone brasileiro válido com DDD.' }, { status: 400 });
+    }
+    if (!isBrazilUf(estadoUf) || !cidade) {
+      return NextResponse.json({ success: false, error: 'Selecione o estado e a cidade.' }, { status: 400 });
+    }
+    if (!genero) {
+      return NextResponse.json({ success: false, error: 'Selecione o gênero e informe a descrição quando escolher Outro.' }, { status: 400 });
+    }
+    try {
+      if (!(await municipioPertenceAoEstado(estadoUf, cidade))) {
+        return NextResponse.json({ success: false, error: 'Selecione uma cidade oficial da UF informada.' }, { status: 400 });
+      }
+    } catch (error) {
+      console.error('Erro ao validar município no IBGE:', error);
+      return NextResponse.json({ success: false, error: 'Não foi possível validar a cidade agora. Tente novamente.' }, { status: 503 });
+    }
 
     const novoPsicologo: CadastroPsicologoRecord = {
       id: `psi-cad-${Date.now()}`,
       nomeCompleto: body.nomeCompleto,
       nomeSocial: body.nomeSocial || undefined,
       crp: body.crp,
-      whatsapp: body.whatsapp,
+      whatsapp,
       email: body.email,
-      cidadeUf: body.cidadeUf,
+      estadoUf,
+      cidade,
+      genero: genero.gender,
+      generoOutro: genero.other,
+      cidadeUf: `${cidade}/${estadoUf}`,
       especialidade: body.especialidade,
       modalidadeAtendimento: body.modalidadeAtendimento,
       minibio: body.minibio,
@@ -58,15 +92,28 @@ export async function POST(request: Request) {
       servicosHabilitados: Array.isArray(body.servicosHabilitados) ? body.servicosHabilitados : [],
       turmaViverMais: body.turmaViverMais || undefined,
       posGraduacaoViverMais: body.posGraduacaoViverMais || undefined,
+      segundaPosGraduacao: body.segundaPosGraduacao || undefined,
 
-      // Faixa de valor (acessível/particular) é decisão da clínica, não
-      // declaração do candidato: fica em branco até a gestão definir na
-      // aprovação. Sem ela o profissional não casa com lead nenhum — que é o
-      // comportamento certo para quem ainda não foi habilitado a uma tabela.
-      modalidadesAtendidas: [],
+      // Faixa de valor (acessível/particular): inicializa habilitado para ambas por padrão
+      modalidadesAtendidas: ['SOCIAL', 'PARTICULAR'],
       exibirNaVitrine: true,
+      limitePacientesAtivos: 5,
       pacientesAtivosCount: 0,
     };
+
+    if (isMysqlConfigured()) {
+      await new MysqlCaptureRepository().mutate((state) => ({
+        next: {
+          ...state,
+          cadastrosPsicologos: [...state.cadastrosPsicologos, novoPsicologo],
+        },
+        result: novoPsicologo,
+      }));
+
+      return NextResponse.json({ success: true, data: novoPsicologo });
+    }
+
+    const snapshot = readSnapshot() ?? emptySnapshot();
 
     const cadastrosAtualizados = [
       ...(snapshot.cadastrosPsicologos ?? []),

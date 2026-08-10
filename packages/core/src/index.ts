@@ -47,11 +47,8 @@ export * from './identity';
 export * from './clinicalSession';
 export * from './clinicalRecord';
 export * from './scheduling';
-export * from './carePlan';
 export * from './communication';
-export * from './preSessionCheckIn';
 export * from './clinicalTimeline';
-export * from './transcription';
 
 // Viver Mais Psicologia Core Domain
 export * from './viverMaisTypes';

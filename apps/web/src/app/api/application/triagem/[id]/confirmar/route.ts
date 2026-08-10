@@ -1,9 +1,77 @@
 import { NextResponse } from 'next/server';
-import { readSnapshot, writeSnapshot } from '@/server/application/persistence';
+import { emptySnapshot, readSnapshot, writeSnapshot, type CadastroPsicologoRecord, type PersistedSnapshot, type TriagemPacienteRecord } from '@/server/application/persistence';
+import { isMysqlConfigured } from '@/server/oci/runtime';
+import { captureStateAsSnapshot, captureStateFromSnapshot, MysqlCaptureRepository } from '@/server/persistence/mysql/captureRepository';
 import { validarTokenConfirmacao } from '@/server/viverMaisConfirmToken';
+import { alocarLead, recalcularPacientesAtivos } from '@/server/application/viverMaisRodizio';
+import { avisarTransbordo } from '@/server/application/viverMaisWhatsApp';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+type ConfirmacaoResult =
+  | { kind: 'not_found' }
+  | { kind: 'conflict' }
+  | { kind: 'capacity_reallocated'; lead: TriagemPacienteRecord; psicologo: CadastroPsicologoRecord }
+  | { kind: 'capacity_pending'; lead: TriagemPacienteRecord; psicologo?: undefined }
+  | { kind: 'already_confirmed'; data: { nomePaciente: string; telefone: string; confirmadoEm: string } }
+  | { kind: 'confirmed'; data: { nomePaciente: string; telefone: string; confirmadoEm: string } };
+
+function confirmarContato(
+  snapshot: PersistedSnapshot,
+  id: string,
+  psicologoId: string
+): { next: PersistedSnapshot; result: ConfirmacaoResult } {
+  const atual = recalcularPacientesAtivos(snapshot);
+  const lead = atual.triagensPacientes?.find((item) => item.id === id);
+  if (!lead) return { next: atual, result: { kind: 'not_found' } };
+  if (lead.psicologoAlocadoId !== psicologoId) return { next: atual, result: { kind: 'conflict' } };
+
+  if (lead.confirmadoEm) {
+    return {
+      next: atual,
+      result: { kind: 'already_confirmed', data: { nomePaciente: lead.nomePaciente, telefone: lead.telefone, confirmadoEm: lead.confirmadoEm } },
+    };
+  }
+
+  const psicologo = atual.cadastrosPsicologos?.find((item) => item.id === psicologoId);
+  if (psicologo && (psicologo.pacientesAtivosCount ?? 0) >= (psicologo.limitePacientesAtivos ?? 5)) {
+    const paraRealocar: TriagemPacienteRecord = {
+      ...lead,
+      status: 'PENDENTE_ATRIBUICAO',
+      psicologoAlocadoId: undefined,
+      psicologoNome: undefined,
+      alocadoEm: undefined,
+      confirmadoEm: undefined,
+      slaExpirado: false,
+    };
+    const base = {
+      ...atual,
+      triagensPacientes: (atual.triagensPacientes ?? []).map((item) => item.id === id ? paraRealocar : item),
+    };
+    const realocado = alocarLead(base, paraRealocar);
+    return realocado.psicologo
+      ? {
+          next: realocado.snapshot,
+          result: { kind: 'capacity_reallocated', lead: realocado.lead, psicologo: realocado.psicologo },
+        }
+      : {
+          next: realocado.snapshot,
+          result: { kind: 'capacity_pending', lead: realocado.lead },
+        };
+  }
+
+  const confirmadoEm = new Date().toISOString();
+  const confirmado: TriagemPacienteRecord = { ...lead, status: 'CONTATO_CONFIRMADO', confirmadoEm };
+  const next = recalcularPacientesAtivos({
+    ...atual,
+    triagensPacientes: (atual.triagensPacientes ?? []).map((item) => item.id === id ? confirmado : item),
+  });
+  return {
+    next,
+    result: { kind: 'confirmed', data: { nomePaciente: confirmado.nomePaciente, telefone: confirmado.telefone, confirmadoEm } },
+  };
+}
 
 /**
  * Confirmação de primeiro contato pelo psicólogo.
@@ -31,56 +99,64 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       );
     }
 
-    const snapshot = readSnapshot();
-    const lead = snapshot?.triagensPacientes?.find((item) => item.id === id);
+    if (isMysqlConfigured()) {
+      const resultado = await new MysqlCaptureRepository().mutate<ConfirmacaoResult>((state) => {
+        const handled = confirmarContato(captureStateAsSnapshot(state), id, psicologoId);
+        return { next: captureStateFromSnapshot(handled.next), result: handled.result };
+      });
 
-    if (!snapshot || !lead) {
-      return NextResponse.json({ success: false, error: 'Solicitação não encontrada.' }, { status: 404 });
-    }
-
-    // O lead pode ter transbordado entre o envio da mensagem e o clique. Nesse
-    // caso a confirmação é recusada: quem responde agora não é mais o
-    // responsável, e aceitar devolveria o paciente a quem já perdeu o prazo.
-    if (lead.psicologoAlocadoId !== psicologoId) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Este atendimento já foi encaminhado a outro profissional pelo prazo de 24h.',
-        },
-        { status: 409 }
-      );
-    }
-
-    if (lead.confirmadoEm) {
+      if (resultado.kind === 'not_found') {
+        return NextResponse.json({ success: false, error: 'Solicitação não encontrada.' }, { status: 404 });
+      }
+      if (resultado.kind === 'conflict') {
+        return NextResponse.json(
+          { success: false, error: 'Este atendimento já foi encaminhado a outro profissional pelo prazo de 24h.' },
+          { status: 409 }
+        );
+      }
+      if (resultado.kind === 'capacity_reallocated' || resultado.kind === 'capacity_pending') {
+        if (resultado.psicologo) void avisarTransbordo(resultado.lead, resultado.psicologo);
+        return NextResponse.json(
+          {
+            success: false,
+            realocado: resultado.kind === 'capacity_reallocated',
+            error: resultado.kind === 'capacity_reallocated'
+              ? 'Seu limite de 5 pacientes ativos foi atingido. O atendimento foi encaminhado ao próximo profissional.'
+              : 'Seu limite de 5 pacientes ativos foi atingido. O atendimento retornou para a fila da gestão.',
+          },
+          { status: 409 }
+        );
+      }
       return NextResponse.json({
         success: true,
-        jaConfirmado: true,
-        data: { nomePaciente: lead.nomePaciente, telefone: lead.telefone, confirmadoEm: lead.confirmadoEm },
+        jaConfirmado: resultado.kind === 'already_confirmed',
+        data: resultado.data,
       });
     }
 
-    const confirmado = {
-      ...lead,
-      status: 'CONTATO_CONFIRMADO' as const,
-      confirmadoEm: new Date().toISOString(),
-    };
+    const snapshot = readSnapshot() ?? emptySnapshot();
+    const handled = confirmarContato(snapshot, id, psicologoId);
+    const resultado = handled.result;
 
-    await writeSnapshot({
-      ...snapshot,
-      savedAt: new Date().toISOString(),
-      triagensPacientes: (snapshot.triagensPacientes ?? []).map((item) =>
-        item.id === id ? confirmado : item
-      ),
-    });
+    if (resultado.kind === 'not_found') {
+      return NextResponse.json({ success: false, error: 'Solicitação não encontrada.' }, { status: 404 });
+    }
+    if (resultado.kind === 'conflict') {
+      return NextResponse.json(
+        { success: false, error: 'Este atendimento já foi encaminhado a outro profissional pelo prazo de 24h.' },
+        { status: 409 }
+      );
+    }
+    await writeSnapshot({ ...handled.next, savedAt: new Date().toISOString() });
+    if (resultado.kind === 'capacity_reallocated' || resultado.kind === 'capacity_pending') {
+      if (resultado.psicologo) void avisarTransbordo(resultado.lead, resultado.psicologo);
+      return NextResponse.json({ success: false, realocado: resultado.kind === 'capacity_reallocated', error: resultado.kind === 'capacity_reallocated' ? 'Seu limite de 5 pacientes ativos foi atingido. O atendimento foi encaminhado ao próximo profissional.' : 'Seu limite de 5 pacientes ativos foi atingido. O atendimento retornou para a fila da gestão.' }, { status: 409 });
+    }
 
     return NextResponse.json({
       success: true,
-      jaConfirmado: false,
-      data: {
-        nomePaciente: confirmado.nomePaciente,
-        telefone: confirmado.telefone,
-        confirmadoEm: confirmado.confirmadoEm,
-      },
+      jaConfirmado: resultado.kind === 'already_confirmed',
+      data: resultado.data,
     });
   } catch (error) {
     console.error('Erro ao confirmar contato:', error);

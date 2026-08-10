@@ -1,7 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { VitrineCarrossel, PsicologoVitrineItem } from '@/components/vitrineCarrossel';
+import { BrazilLocationFields } from '@/components/forms/BrazilLocationFields';
+import { GenderFields } from '@/components/forms/GenderFields';
+import { maskBrazilPhoneInput, normalizeBrazilPhone } from '@/lib/brazilPhone';
+import { validateGender, type GenderValue } from '@/lib/gender';
 import {
   Sparkles,
   Heart,
@@ -49,8 +53,14 @@ export default function ViverMaisLandingPage() {
   const [selectedModalidade, setSelectedModalidade] = useState<ModalidadeKey | null>(null);
   const [step, setStep] = useState<'SERVICOS' | 'FORMULARIO' | 'CADASTRO_PSICOLOGO' | 'SUCESSO' | 'SUCESSO_PSICOLOGO'>('SERVICOS');
   
+  const [temNomeSocialPaciente, setTemNomeSocialPaciente] = useState(false);
+  const [temNomeSocialPsicologo, setTemNomeSocialPsicologo] = useState(false);
+  const [temSegundaPos, setTemSegundaPos] = useState(false);
+  const [segundaPosGraduacao, setSegundaPosGraduacao] = useState('');
+
   const [form, setForm] = useState({
     nome: '',
+    nomeSocial: '',
     whatsapp: '',
     whatsappConfirmacao: '',
     idade: '',
@@ -61,7 +71,8 @@ export default function ViverMaisLandingPage() {
     convenioSelecionado: '',
     origem: 'Facebook',
     turno: 'VESPERTINO',
-    genero: 'FEMININO',
+    genero: '' as GenderValue | '',
+    generoOutro: '',
   });
 
   const [formPsicologo, setFormPsicologo] = useState({
@@ -73,20 +84,30 @@ export default function ViverMaisLandingPage() {
     fotoUrl: '',
     modalidadeAtendimento: 'AMBOS',
     especialidade: 'Cognitivo-Comportamental (TCC)',
-    cidadeUf: 'Porto Alegre/RS',
+    estadoUf: '',
+    cidade: '',
+    genero: '' as GenderValue | '',
+    generoOutro: '',
     turmaViverMais: '24A',
     posGraduacaoViverMais: 'Especialização em Psicoterapia Cognitivo-Comportamental',
-    outrasPosGraduacoes: [] as string[],
     servicosHabilitados: ['PSICOTERAPIA'] as string[],
     disponibilidadeTurnos: ['MANHA', 'TARDE'],
     minibio: '',
   });
 
-  const [novaPosInput, setNovaPosInput] = useState('');
-
   const [protocolo, setProtocolo] = useState('');
   const [enderecoInfo, setEnderecoInfo] = useState({ logradouro: '', bairro: '', cidade: '', uf: '' });
   const [loadingCep, setLoadingCep] = useState(false);
+  const [psicologosCredenciados, setPsicologosCredenciados] = useState<PsicologoVitrineItem[]>([]);
+
+  useEffect(() => {
+    fetch('/api/application/credenciamento-psicologo/public', { cache: 'no-store' })
+      .then((response) => response.json())
+      .then((body: { success?: boolean; data?: PsicologoVitrineItem[] }) => {
+        if (body.success && Array.isArray(body.data)) setPsicologosCredenciados(body.data);
+      })
+      .catch(() => undefined);
+  }, []);
 
   // Máscara CPF: 000.000.000-00
   const maskCPF = (val: string) => {
@@ -221,6 +242,7 @@ export default function ViverMaisLandingPage() {
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSelectServiceAndPrice = (serviceKey: ServicoKey, modalidadeType: ModalidadeKey) => {
@@ -233,6 +255,10 @@ export default function ViverMaisLandingPage() {
     e.preventDefault();
     if (form.whatsapp !== form.whatsappConfirmacao) {
       alert('Os números de telefone informados não coincidem!');
+      return;
+    }
+    if (!validateGender(form.genero, form.generoOutro)) {
+      alert('Selecione o gênero e, se escolher Outro, informe a descrição.');
       return;
     }
     setIsSubmitting(true);
@@ -266,12 +292,27 @@ export default function ViverMaisLandingPage() {
 
   const handleSubmitPsicologo = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!normalizeBrazilPhone(formPsicologo.whatsapp)) {
+      alert('Informe um telefone brasileiro válido com DDD.');
+      return;
+    }
+    if (!formPsicologo.estadoUf || !formPsicologo.cidade) {
+      alert('Selecione o estado e uma cidade da lista.');
+      return;
+    }
+    if (!validateGender(formPsicologo.genero, formPsicologo.generoOutro)) {
+      alert('Selecione o gênero e, se escolher Outro, informe a descrição.');
+      return;
+    }
     setIsSubmitting(true);
     try {
       const resp = await fetch('/api/application/credenciamento-psicologo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formPsicologo),
+        body: JSON.stringify({
+          ...formPsicologo,
+          segundaPosGraduacao: temSegundaPos ? segundaPosGraduacao : undefined,
+        }),
       });
       const data = await resp.json();
       if (data.success) {
@@ -465,38 +506,7 @@ export default function ViverMaisLandingPage() {
 
             {/* Carrossel de Psicólogos Credenciados */}
             <VitrineCarrossel
-              psicologos={[
-                {
-                  id: 'psi-1',
-                  nome: 'Dra. Camila Santos',
-                  nomeSocial: 'Camila Santos',
-                  crp: 'CRP 06/148293',
-                  turmaViverMais: '23A',
-                  posGraduacaoViverMais: 'Especialização em Psicoterapia Cognitivo-Comportamental',
-                  especialidades: ['TCC'],
-                  servicosHabilitados: ['PSICOTERAPIA', 'ORIENTACAO_PROFISSIONAL'],
-                },
-                {
-                  id: 'psi-2',
-                  nome: 'Dr. Lucas Silva',
-                  nomeSocial: 'Lucas Silva',
-                  crp: 'CRP 06/152341',
-                  turmaViverMais: '24B',
-                  posGraduacaoViverMais: 'Especialização em Avaliação Psicológica',
-                  especialidades: ['Avaliação Psicológica'],
-                  servicosHabilitados: ['AVALIACAO', 'PSICOTERAPIA'],
-                },
-                {
-                  id: 'psi-3',
-                  nome: 'Dra. Patricia Lima',
-                  nomeSocial: 'Patricia Lima',
-                  crp: 'CRP 06/164821',
-                  turmaViverMais: '24A',
-                  posGraduacaoViverMais: 'Especialização em Psicanálise e Clínica Contemporânea',
-                  especialidades: ['Psicanálise'],
-                  servicosHabilitados: ['PSICOTERAPIA', 'ORIENTACAO_PARENTAL'],
-                },
-              ]}
+              psicologos={psicologosCredenciados}
             />
 
             {/* Banner Informativo Psicoterapia com Equipe */}
@@ -652,7 +662,40 @@ export default function ViverMaisLandingPage() {
                   placeholder="Nome Completo"
                   className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-200"
                 />
+                <div className="mt-2">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 select-none">
+                    <input
+                      type="checkbox"
+                      checked={temNomeSocialPaciente}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setTemNomeSocialPaciente(checked);
+                        if (!checked) {
+                          setForm((prev) => ({ ...prev, nomeSocial: '' }));
+                        }
+                      }}
+                      className="w-4 h-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500 accent-purple-600 cursor-pointer"
+                    />
+                    <span>Possui Nome Social?</span>
+                  </label>
+                </div>
               </div>
+
+              {/* Nome Social (exibido apenas após marcar o campo) */}
+              {temNomeSocialPaciente && (
+                <div className="animate-in fade-in duration-200">
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Nome Social <span className="text-slate-400 font-normal">(como prefere ser chamado)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={form.nomeSocial}
+                    onChange={(e) => setForm({ ...form, nomeSocial: e.target.value })}
+                    placeholder="Digite seu nome social"
+                    className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-200"
+                  />
+                </div>
+              )}
 
               {/* Telefone e Confirme Telefone com Máscara */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -682,8 +725,8 @@ export default function ViverMaisLandingPage() {
                 </div>
               </div>
 
-              {/* Idade, Gênero e E-mail */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Idade e E-mail */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">Idade <span className="text-rose-500">*</span></label>
                   <input
@@ -694,18 +737,6 @@ export default function ViverMaisLandingPage() {
                     placeholder="Idade"
                     className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
                   />
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Gênero <span className="text-rose-500">*</span></label>
-                  <select
-                    value={form.genero}
-                    onChange={(e) => setForm({ ...form, genero: e.target.value })}
-                    className="w-full border border-slate-300 bg-white rounded-xl p-3 focus:outline-none focus:border-purple-600 font-medium"
-                  >
-                    <option value="FEMININO">Feminino</option>
-                    <option value="MASCULINO">Masculino</option>
-                    <option value="OUTRO">Outro / Prefiro não informar</option>
-                  </select>
                 </div>
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">E-mail <span className="text-rose-500">*</span></label>
@@ -719,6 +750,14 @@ export default function ViverMaisLandingPage() {
                   />
                 </div>
               </div>
+
+              <GenderFields
+                idPrefix="paciente"
+                gender={form.genero}
+                other={form.generoOutro}
+                onGenderChange={(genero) => setForm((current) => ({ ...current, genero }))}
+                onOtherChange={(generoOutro) => setForm((current) => ({ ...current, generoOutro }))}
+              />
 
               {/* CPF e CEP com Máscara e ViaCEP */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -897,7 +936,7 @@ export default function ViverMaisLandingPage() {
               onSubmit={handleSubmitPsicologo}
               className="space-y-4 text-xs"
             >
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-3">
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">Nome Completo <span className="text-rose-500">*</span></label>
                   <input
@@ -908,17 +947,39 @@ export default function ViverMaisLandingPage() {
                     placeholder="Seu nome completo"
                     className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
                   />
+                  <div className="mt-2">
+                    <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 select-none">
+                      <input
+                        type="checkbox"
+                        checked={temNomeSocialPsicologo}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setTemNomeSocialPsicologo(checked);
+                          if (!checked) {
+                            setFormPsicologo((prev) => ({ ...prev, nomeSocial: '' }));
+                          }
+                        }}
+                        className="w-4 h-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500 accent-purple-600 cursor-pointer"
+                      />
+                      <span>Possui Nome Social?</span>
+                    </label>
+                  </div>
                 </div>
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Nome Social <span className="text-slate-400 font-normal">(opcional)</span></label>
-                  <input
-                    type="text"
-                    value={formPsicologo.nomeSocial}
-                    onChange={(e) => setFormPsicologo({ ...formPsicologo, nomeSocial: e.target.value })}
-                    placeholder="Como prefere ser chamado(a)"
-                    className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
-                  />
-                </div>
+
+                {temNomeSocialPsicologo && (
+                  <div className="animate-in fade-in duration-200">
+                    <label className="font-bold text-slate-700 block mb-1">
+                      Nome Social <span className="text-slate-400 font-normal">(como prefere ser chamado)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formPsicologo.nomeSocial}
+                      onChange={(e) => setFormPsicologo({ ...formPsicologo, nomeSocial: e.target.value })}
+                      placeholder="Digite seu nome social"
+                      className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
+                    />
+                  </div>
+                )}
               </div>
 
               <div>
@@ -974,61 +1035,48 @@ export default function ViverMaisLandingPage() {
                   <option value="Especialização em Psicanálise e Clínica Contemporânea">Especialização em Psicanálise e Clínica Contemporânea</option>
                   <option value="Especialização em Terapia Sistêmica de Casal e Família">Especialização em Terapia Sistêmica de Casal e Família</option>
                 </select>
-              </div>
 
-              {/* Outras Pós-Graduações (Lista Dinâmica) */}
-              <div className="bg-purple-50/60 p-4 rounded-2xl border border-purple-100 space-y-3">
-                <label className="font-bold text-purple-900 block">Possui Outras Pós-Graduações?</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={novaPosInput}
-                    onChange={(e) => setNovaPosInput(e.target.value)}
-                    placeholder="Digite o nome da pós-graduação..."
-                    className="flex-1 border border-purple-200 bg-white rounded-xl p-2.5 text-xs outline-none focus:border-purple-600"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (novaPosInput.trim()) {
-                        setFormPsicologo({
-                          ...formPsicologo,
-                          outrasPosGraduacoes: [...formPsicologo.outrasPosGraduacoes, novaPosInput.trim()],
-                        });
-                        setNovaPosInput('');
-                      }
-                    }}
-                    className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition-all"
-                  >
-                    + Adicionar
-                  </button>
+                {/* Checkbox para Segunda Pós-Graduação */}
+                <div className="mt-3">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 select-none">
+                    <input
+                      type="checkbox"
+                      checked={temSegundaPos}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setTemSegundaPos(checked);
+                        if (!checked) {
+                          setSegundaPosGraduacao('');
+                        } else if (!segundaPosGraduacao) {
+                          setSegundaPosGraduacao('Especialização em Avaliação Psicológica');
+                        }
+                      }}
+                      className="w-4 h-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500 accent-purple-600 cursor-pointer"
+                    />
+                    <span>Possui 2ª Pós-Graduação?</span>
+                  </label>
                 </div>
-
-                {formPsicologo.outrasPosGraduacoes.length > 0 && (
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {formPsicologo.outrasPosGraduacoes.map((item, idx) => (
-                      <span
-                        key={idx}
-                        className="bg-white border border-purple-200 text-purple-900 px-3 py-1 rounded-full text-[11px] font-semibold flex items-center gap-1.5 shadow-sm"
-                      >
-                        {item}
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setFormPsicologo({
-                              ...formPsicologo,
-                              outrasPosGraduacoes: formPsicologo.outrasPosGraduacoes.filter((_, i) => i !== idx),
-                            })
-                          }
-                          className="text-rose-500 hover:text-rose-700 font-bold"
-                        >
-                          ×
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
               </div>
+
+              {/* Campo para Selecionar a Segunda Pós-Graduação */}
+              {temSegundaPos && (
+                <div className="animate-in fade-in duration-200 bg-purple-50/60 p-4 rounded-2xl border border-purple-100 space-y-2">
+                  <label className="font-bold text-purple-900 block mb-1">
+                    Selecione a Segunda Pós-Graduação <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={segundaPosGraduacao}
+                    onChange={(e) => setSegundaPosGraduacao(e.target.value)}
+                    className="w-full border border-purple-200 bg-white rounded-xl p-3 focus:outline-none focus:border-purple-600 font-medium text-slate-800"
+                  >
+                    <option value="Especialização em Avaliação Psicológica">Especialização em Avaliação Psicológica</option>
+                    <option value="Especialização em Psicoterapia Cognitivo-Comportamental">Especialização em Psicoterapia Cognitivo-Comportamental</option>
+                    <option value="Especialização em Psicanálise e Clínica Contemporânea">Especialização em Psicanálise e Clínica Contemporânea</option>
+                    <option value="Especialização em Terapia Sistêmica de Casal e Família">Especialização em Terapia Sistêmica de Casal e Família</option>
+                    <option value="Outra Pós-Graduação">Outra Pós-Graduação</option>
+                  </select>
+                </div>
+              )}
 
               {/* Tipos de Atendimento e Serviços Habilitados */}
               <div className="space-y-2">
@@ -1074,17 +1122,34 @@ export default function ViverMaisLandingPage() {
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Cidade / Estado <span className="text-rose-500">*</span></label>
+                  <label className="font-bold text-slate-700 block mb-1">Telefone / WhatsApp <span className="text-rose-500">*</span></label>
                   <input
-                    type="text"
+                    type="tel"
                     required
-                    value={formPsicologo.cidadeUf}
-                    onChange={(e) => setFormPsicologo({ ...formPsicologo, cidadeUf: e.target.value })}
-                    placeholder="Ex: Porto Alegre/RS"
+                    value={formPsicologo.whatsapp}
+                    onChange={(e) => setFormPsicologo({ ...formPsicologo, whatsapp: maskBrazilPhoneInput(e.target.value) })}
+                    placeholder="(48) 99999-9999"
+                    inputMode="tel"
+                    autoComplete="tel"
                     className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
                   />
                 </div>
               </div>
+
+              <GenderFields
+                idPrefix="psicologo"
+                gender={formPsicologo.genero}
+                other={formPsicologo.generoOutro}
+                onGenderChange={(genero) => setFormPsicologo((current) => ({ ...current, genero }))}
+                onOtherChange={(generoOutro) => setFormPsicologo((current) => ({ ...current, generoOutro }))}
+              />
+
+              <BrazilLocationFields
+                estadoUf={formPsicologo.estadoUf}
+                cidade={formPsicologo.cidade}
+                onEstadoChange={(estadoUf) => setFormPsicologo((current) => ({ ...current, estadoUf, cidade: '' }))}
+                onCidadeChange={(cidade) => setFormPsicologo((current) => ({ ...current, cidade }))}
+              />
 
               <div>
                 <label className="font-bold text-slate-700 block mb-1">Abordagem / Especialidade Principal <span className="text-rose-500">*</span></label>

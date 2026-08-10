@@ -61,3 +61,27 @@ npm run web:dev
 - `npm test`: testes unitários do domínio clínico.
 - `npm run web:build`: build de produção do Next.js.
 - `npm run check`: executa todas as verificações acima.
+
+---
+
+## Deploy na Vercel
+
+O projeto `clinica-viver-web` deve ser publicado a partir da **raiz deste
+monorepo**, usando o [`vercel.json`](./vercel.json) da raiz.
+
+```bash
+npm run typecheck
+npm run web:build
+git push origin main
+npx vercel inspect https://clinica-viver-web.vercel.app --wait --timeout 3m
+```
+
+> [!WARNING]
+> A aplicação da Vercel deve servir o Next.js deste repositório diretamente.
+> Não adicione um `rewrite` global de `/:path*` para
+> `app.vivermaispsicologia.com.br` em `next.config.mjs` ou `vercel.json`.
+> Esse proxy faz o deploy terminar com sucesso, mas mantém o domínio exibindo
+> a versão antiga hospedada no servidor externo.
+
+Se um deploy estiver como `Ready`, mas o site continuar antigo, consulte o
+[guia de deploy e diagnóstico da Vercel](./docs/vercel-setup-guia.md).

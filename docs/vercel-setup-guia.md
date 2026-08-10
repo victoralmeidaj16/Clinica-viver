@@ -6,9 +6,36 @@ Este documento contém o passo a passo para configurar e testar a plataforma no 
 
 Ao importar o repositório no Vercel, certifique-se das seguintes opções:
 
-* **Root Directory:** `apps/web` *(Essencial para monorepo)*
+* **Git Repository:** `victoralmeidaj16/Clinica-viver`
+* **Production Branch:** `main`
+* **Root Directory:** raiz do repositório (`.`)
 * **Framework Preset:** `Next.js`
 * **Node.js Version:** `20.x`
+* **Build Command:** `npm run web:build`
+* **Output Directory:** `apps/web/.next`
+
+O arquivo autoritativo para o build é o `vercel.json` da raiz. A raiz precisa
+ser usada para que a Vercel enxergue os workspaces `apps/*` e `packages/*`.
+
+### Regra crítica: não encaminhar todas as rotas
+
+A Vercel deve executar e servir a aplicação Next.js deste repositório. Não
+configure nenhuma destas regras:
+
+```text
+/:path* -> https://app.vivermaispsicologia.com.br/:path*
+```
+
+```js
+async rewrites() {
+  // Não adicionar um rewrite global para o servidor externo.
+}
+```
+
+Um rewrite global pode deixar o deploy com status `Ready`, mas faz
+`clinica-viver-web.vercel.app` exibir o código antigo do servidor externo. Se
+for necessário integrar serviços da OCI, encaminhe apenas rotas de API
+específicas; nunca use `/:path*`.
 
 ---
 
@@ -55,3 +82,63 @@ ORGANIZATION_SLUG=viver-mais-psicologia
 3. [ ] Testar Cockpit do Psicólogo (`/cockpit`).
 4. [ ] Testar Prontuários e Linha do Tempo (`/prontuarios`).
 5. [ ] Efetuar disparo de WhatsApp de teste para um número liberado no `WHATSAPP_ALLOWED_NUMBERS`.
+
+---
+
+## 5. Fluxo correto de publicação
+
+Antes do push:
+
+```bash
+npm run typecheck
+npm run web:build
+git status --short --branch
+```
+
+Depois, publique na branch de produção:
+
+```bash
+git push origin main
+```
+
+A integração do GitHub inicia o deploy automaticamente. Acompanhe até o
+status mudar para `Ready`:
+
+```bash
+npx vercel inspect https://clinica-viver-web.vercel.app --wait --timeout 3m
+```
+
+Por fim, acesse o domínio de produção e valide visualmente a funcionalidade
+alterada. Um build local aprovado não substitui essa última verificação.
+
+## 6. Diagnóstico: deploy pronto, site antigo
+
+Siga esta ordem:
+
+1. Confirme que o commit local e o remoto são o mesmo:
+
+   ```bash
+   git rev-parse HEAD
+   git ls-remote origin refs/heads/main
+   ```
+
+2. Confirme que o domínio aponta para o deploy mais recente:
+
+   ```bash
+   npx vercel inspect https://clinica-viver-web.vercel.app
+   ```
+
+3. Procure por proxies globais acidentais:
+
+   ```bash
+   rg -n "rewrites|app\\.vivermaispsicologia\\.com\\.br|/:path\\*" \
+     vercel.json apps/web/vercel.json apps/web/next.config.mjs
+   ```
+
+4. Se existir encaminhamento global para o servidor externo, remova-o, rode o
+   build novamente e faça um novo commit. Limpar o cache do navegador não
+   corrige esse problema.
+
+5. Após trocar a origem que atende o domínio, pode ser necessário entrar
+   novamente, pois a sessão anterior pode não ser reconhecida pela aplicação
+   recém-publicada.

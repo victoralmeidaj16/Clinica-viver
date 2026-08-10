@@ -3,11 +3,5 @@
   "framework": "nextjs",
   "buildCommand": "next build",
   "installCommand": "npm install",
-  "regions": ["gru1"],
-  "rewrites": [
-    {
-      "source": "/:path*",
-      "destination": "https://app.vivermaispsicologia.com.br/:path*"
-    }
-  ]
+  "regions": ["gru1"]
 }

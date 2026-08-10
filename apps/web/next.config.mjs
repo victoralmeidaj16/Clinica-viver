@@ -7,19 +7,6 @@ const appDirectory = path.dirname(fileURLToPath(import.meta.url));
 const nextConfig = {
   outputFileTracingRoot: path.join(appDirectory, '../..'),
   transpilePackages: ['@thats-life/core'],
-  async rewrites() {
-    if (!process.env.VERCEL) return [];
-    return {
-      beforeFiles: [
-        {
-          source: '/:path*',
-          destination: 'https://app.vivermaispsicologia.com.br/:path*',
-        },
-      ],
-      afterFiles: [],
-      fallback: [],
-    };
-  },
 };
 
 export default nextConfig;

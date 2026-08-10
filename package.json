@@ -8,6 +8,8 @@
     "apps/*"
   ],
   "scripts": {
+    "build": "npm run web:build",
+    "vercel-build": "npm run web:build",
     "web:dev": "npm run dev --workspace @thats-life/web",
     "web:build": "npm run build --workspace @thats-life/web",
     "lint": "npm run lint --workspace @thats-life/web",

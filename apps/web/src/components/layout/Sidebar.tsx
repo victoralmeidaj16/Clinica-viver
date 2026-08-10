@@ -6,7 +6,6 @@ import { usePathname } from 'next/navigation';
 import {
   Zap,
   Users,
-  FileText,
   UserCheck,
   CreditCard,
   ClipboardList,
@@ -47,11 +46,6 @@ export default function Sidebar({ role, onLogout }: { role: 'admin' | 'psicologo
       label: 'Meus Pacientes',
       href: '/pacientes',
       icon: Users,
-    },
-    {
-      label: 'Prontuários SOAP',
-      href: '/prontuarios',
-      icon: FileText,
     },
     {
       label: 'Meu Financeiro',

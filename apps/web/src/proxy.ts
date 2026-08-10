@@ -21,7 +21,7 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(login);
   }
   const adminPage = ['/gestao', '/relatorios', '/convenios', '/retencao', '/configuracoes'].some((prefix) => pathname.startsWith(prefix));
-  const professionalPage = ['/cockpit', '/pacientes', '/prontuarios', '/meu-financeiro', '/agenda', '/avaliacoes', '/sessao'].some((prefix) => pathname.startsWith(prefix));
+  const professionalPage = ['/cockpit', '/pacientes', '/meu-financeiro', '/agenda', '/avaliacoes', '/sessao'].some((prefix) => pathname.startsWith(prefix));
   const allowed = session.role === 'admin' ? adminPage : professionalPage;
   if (!allowed) return NextResponse.redirect(new URL(session.role === 'admin' ? '/gestao/cockpit' : '/cockpit', request.url));
   return NextResponse.next();

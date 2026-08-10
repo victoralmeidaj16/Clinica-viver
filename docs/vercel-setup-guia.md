@@ -80,8 +80,7 @@ ORGANIZATION_SLUG=viver-mais-psicologia
 1. [ ] Acessar `https://<seu-link>.vercel.app/api/infra/mode` e confirmar `{"persistence":"memory"}`.
 2. [ ] Testar navegação na Agenda (`/agenda`).
 3. [ ] Testar Cockpit do Psicólogo (`/cockpit`).
-4. [ ] Testar Prontuários e Linha do Tempo (`/prontuarios`).
-5. [ ] Efetuar disparo de WhatsApp de teste para um número liberado no `WHATSAPP_ALLOWED_NUMBERS`.
+4. [ ] Efetuar disparo de WhatsApp de teste para um número liberado no `WHATSAPP_ALLOWED_NUMBERS`.
 
 ---
 

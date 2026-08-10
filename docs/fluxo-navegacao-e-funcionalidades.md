@@ -227,15 +227,6 @@ flowchart TB
 
 ---
 
-### 9. 📝 Documentos Clínicos & Atestados (`/prontuarios` / `/documentos`)
-* **Fluxo de Navegação:**
-  * Módulo de emissão de declarações, atestados e relatórios psicológicos.
-* **Funcionalidades Principais:**
-  * **Conjunto de Modelos Oficiais:** Emissão de Atestado Psicológico, Declaração de Comparecimento e Relatório Multidisciplinar.
-  * **Validação Pública por Token/QR Code:** Motor de autenticidade que permite a terceiros verificarem a veracidade do documento emitido.
-
----
-
 ## 🔒 Matriz de Permissões de Acesso (RBAC)
 
 | Módulo / Tela | Psicólogo | Gestão da Clínica |
@@ -248,4 +239,3 @@ flowchart TB
 | **Financeiro Global (`/financeiro`)** | Sem acesso | Completo |
 | **Supervisão (`/supervisao`)** | Criar/Ver seus casos | Validar & Assinar todos |
 | **Retenção (`/retencao`)** | Ver seus pacientes em risco | Ver métricas gerais |
-

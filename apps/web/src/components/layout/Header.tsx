@@ -11,7 +11,7 @@ export default function Header({ displayName, role }: { displayName: string; rol
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted w-4 h-4" />
           <input
             type="text"
-            placeholder="Buscar paciente, prontuário ou sessão..."
+            placeholder="Buscar paciente ou sessão..."
             className="w-full bg-psi-light border border-psi-soft/80 rounded-xl pl-10 pr-4 py-2.5 text-xs text-ink placeholder:text-muted focus:outline-none focus:bg-white focus:ring-2 focus:ring-psi-vibrant/20 focus:border-psi-vibrant transition-all shadow-sm"
           />
         </div>

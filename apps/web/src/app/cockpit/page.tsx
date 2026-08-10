@@ -293,7 +293,7 @@ export default function CockpitPage() {
           }`}
         >
           <Lock className="w-4 h-4" />
-          4. Desconto na Mensalidade (70%)
+          4. Desconto na Mensalidade
         </button>
 
         <button

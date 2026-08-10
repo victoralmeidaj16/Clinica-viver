@@ -143,11 +143,11 @@ export default function MeuFinanceiroPage() {
         </button>
       </form>
 
-      {/* KPI Cards de Saldos & Abatimento */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+      {/* KPI Card de Saldo de Crédito */}
+      <div className="grid grid-cols-1 gap-5">
         <div className="bg-gradient-to-br from-psi-darkest to-slate-900 text-white rounded-3xl p-6 shadow-contrast relative overflow-hidden">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-psi-soft/80">Saldo de Crédito (70%)</span>
+            <span className="text-xs font-bold text-psi-soft/80">Saldo de Crédito de Atendimentos (70%)</span>
             <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
               <Percent className="w-4 h-4" />
             </div>
@@ -158,41 +158,7 @@ export default function MeuFinanceiroPage() {
             </h2>
             <p className="text-[11px] text-emerald-400 font-semibold mt-1 flex items-center gap-1">
               <CheckCircle2 className="w-3.5 h-3.5" />
-              Acumulado no período selecionado
-            </p>
-          </div>
-        </div>
-
-        <div className="bg-surface rounded-3xl p-6 border border-line shadow-card">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-muted">Mensalidade do Instituto</span>
-            <div className="p-2 rounded-xl bg-psi-soft/10 text-psi-vibrant">
-              <Building2 className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-4">
-            <h2 className="text-3xl font-black text-ink">
-              R$ {extrato.proximaMensalidadeBruta.toFixed(2).replace('.', ',')}
-            </h2>
-            <p className="text-[11px] text-muted font-medium mt-1">
-              Vencimento: {extrato.dataVencimentoBoleto}
-            </p>
-          </div>
-        </div>
-
-        <div className="bg-gradient-to-br from-emerald-600 to-teal-700 text-white rounded-3xl p-6 shadow-contrast">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-emerald-100">Valor Líquido a Pagar</span>
-            <div className="p-2 rounded-xl bg-white/20 text-white">
-              <DollarSign className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-4">
-            <h2 className="text-3xl font-black text-white">
-              R$ {extrato.proximaMensalidadeLiquida.toFixed(2).replace('.', ',')}
-            </h2>
-            <p className="text-[11px] text-emerald-100 font-semibold mt-1">
-              Economia de R$ {extrato.saldoAcumulado70.toFixed(2).replace('.', ',')} aplicada automaticamente!
+              Acumulado no período selecionado para registro de controle
             </p>
           </div>
         </div>

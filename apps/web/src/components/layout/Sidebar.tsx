@@ -54,7 +54,7 @@ export default function Sidebar({ role, onLogout }: { role: 'admin' | 'psicologo
       icon: FileText,
     },
     {
-      label: 'Meu Financeiro (70%)',
+      label: 'Meu Financeiro',
       href: '/meu-financeiro',
       icon: CreditCard,
     },

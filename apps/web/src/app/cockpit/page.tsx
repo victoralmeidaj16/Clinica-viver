@@ -681,23 +681,11 @@ export default function CockpitPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              <div className="bg-white/10 p-5 rounded-2xl border border-white/10 space-y-2">
-                <span className="text-[10px] font-bold text-indigo-300 uppercase">Mensalidade Bruta do Aluno</span>
-                <div className="text-2xl font-black text-white">R$ 890,00</div>
-                <span className="text-[10px] text-indigo-300 block">Vencimento: 10/08/2026</span>
-              </div>
-
+            <div className="grid grid-cols-1 gap-5">
               <div className="bg-emerald-500/20 p-5 rounded-2xl border border-emerald-400/30 space-y-2">
                 <span className="text-[10px] font-bold text-emerald-300 uppercase">Crédito Acumulado (70% das Sessões)</span>
-                <div className="text-2xl font-black text-emerald-300">- R$ 441,00</div>
-                <span className="text-[10px] text-emerald-200 block">Base de 6 atendimentos efetuados</span>
-              </div>
-
-              <div className="bg-psi-vibrant/40 p-5 rounded-2xl border border-psi-vibrant/50 space-y-2">
-                <span className="text-[10px] font-bold text-psi-light uppercase">Valor Líquido a Pagar no Boleto</span>
-                <div className="text-2xl font-black text-white">R$ 449,00</div>
-                <span className="text-[10px] text-psi-light block font-semibold">Economia de R$ 441,00 garantida</span>
+                <div className="text-2xl font-black text-emerald-300">R$ 441,00</div>
+                <span className="text-[10px] text-emerald-200 block">Base de 6 atendimentos efetuados para registro de controle</span>
               </div>
             </div>
 

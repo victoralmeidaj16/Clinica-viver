@@ -676,7 +676,7 @@ export default function CockpitPage() {
                 </span>
                 <h3 className="text-xl font-black mt-2 text-white">Extrato de Crédito & Abatimento na Mensalidade (70% / 30%)</h3>
                 <p className="text-xs text-indigo-200">
-                  Cada atendimento realizado gera 70% do valor em crédito para abater diretamente na sua próxima mensalidade/boleto.
+                  Cada atendimento realizado gera 70% do valor em crédito.
                 </p>
               </div>
             </div>

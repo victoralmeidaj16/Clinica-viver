@@ -3,7 +3,7 @@ import 'server-only';
 import { createHash } from 'node:crypto';
 
 /**
- * Identificadores do MySQL da OCI derivados dos ids do domínio.
+ * Identificadores do MySQL derivados dos ids do domínio.
  *
  * As tabelas usam `CHAR(36)`, mas os agregados do core trabalham com ids
  * livres (`patient-1`, `org-demo`, `appointment-3`). A ponte entre os dois

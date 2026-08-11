@@ -5,8 +5,9 @@
 O **Thats Life** é um ecossistema de software de saúde mental desenvolvido para transformar a prática clínica de psicólogos e clínicas, automatizando a burocracia administrativa.
 
 > [!IMPORTANT]
-> O repositório está em fase de transição de arquitetura. IA, OCI MySQL, Evolution API e pagamentos
-> estão sendo unificados na base relacional OCI. Não utilize dados clínicos reais.
+> A produção usa Vercel no frontend e MySQL em Docker na VPS Hostinger. Não
+> utilize dados clínicos reais até que os controles de segurança e operação
+> estejam homologados pela clínica.
 
 ---
 
@@ -74,11 +75,10 @@ Depois, configure `DATABASE_URL`, `ORGANIZATION_ID` e as variáveis de sessão n
 
 ---
 
-## Produção com MySQL na OCI
+## Produção com MySQL na VPS Hostinger
 
-O DB System usa endereço privado dentro da VCN. Por isso, a aplicação que
-acessa dados reais deve rodar na VM da OCI (ou em outro runtime dentro da VCN),
-com `DATABASE_URL` server-side e TLS configurado. O fluxo de atualização é:
+O MySQL e o backend rodam na mesma rede Docker privada na VPS. A porta do banco
+não é exposta; somente o container web a acessa. O fluxo de atualização é:
 
 ```bash
 npm ci
@@ -90,14 +90,14 @@ npm run start --workspace @thats-life/web
 
 Credenciais administrativas são usadas somente pelo runner de migrations; a
 aplicação opera com um usuário restrito a DML. Veja
-[`docs/oci-migracao.md`](./docs/oci-migracao.md) para a sequência completa.
+[`docs/hostinger-vps.md`](./docs/hostinger-vps.md) para o roteiro vigente.
 
-## Vercel (modo sem acesso ao banco privado)
+## Vercel + backend permanente
 
 O projeto `clinica-viver-web` continua sendo publicado a partir da **raiz deste
-monorepo**, usando o [`vercel.json`](./vercel.json) da raiz. Sem conectividade
-privada com a VCN ele serve apenas o modo demonstração, não a operação clínica
-com MySQL.
+monorepo**, usando o [`vercel.json`](./vercel.json) da raiz. `BACKEND_ORIGIN`
+encaminha somente as APIs persistentes para `app.clinicavivermais.cloud`; as
+páginas e assets continuam sendo servidos pela Vercel.
 
 ```bash
 npm run typecheck
@@ -109,9 +109,12 @@ npx vercel inspect https://clinica-viver-web.vercel.app --wait --timeout 3m
 > [!WARNING]
 > A aplicação da Vercel deve servir o Next.js deste repositório diretamente.
 > Não adicione um `rewrite` global de `/:path*` para
-> `app.vivermaispsicologia.com.br` em `next.config.mjs` ou `vercel.json`.
+> `app.clinicavivermais.cloud` em `next.config.mjs` ou `vercel.json`.
 > Esse proxy faz o deploy terminar com sucesso, mas mantém o domínio exibindo
 > a versão antiga hospedada no servidor externo.
 
 Se um deploy estiver como `Ready`, mas o site continuar antigo, consulte o
 [guia de deploy e diagnóstico da Vercel](./docs/vercel-setup-guia.md).
+
+> O material OCI foi mantido em [`docs/oci-migracao.md`](./docs/oci-migracao.md)
+> exclusivamente como histórico; ele não descreve a produção atual.

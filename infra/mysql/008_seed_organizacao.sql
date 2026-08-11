@@ -9,14 +9,14 @@
 -- A tentação de semear "dez profissionais de exemplo" é o que produz uma base
 -- que parece cheia e não é. Pior: com WhatsApp ligado, telefone de exemplo é
 -- telefone de alguém. O 005 existe para desenvolvimento e não deve ser aplicado
--- na OCI.
+-- na infraestrutura de produção.
 --
 -- Rodar duas vezes não duplica nada.
 
 -- ---------------------------------------------------------------------------
 -- Derivação de id
 -- ---------------------------------------------------------------------------
--- Réplica em SQL de `uuidDeterministico()` (apps/web/src/server/oci/identidade.ts).
+-- Réplica em SQL de `uuidDeterministico()` (o diretório mantém o nome legado `oci`).
 -- A aplicação deriva a PK CHAR(36) do id do agregado; o seed precisa derivar
 -- exatamente igual, senão cria linhas que a aplicação nunca encontra.
 

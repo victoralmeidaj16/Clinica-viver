@@ -4,9 +4,9 @@
 
 O **Thats Life** adota uma arquitetura em Monorepo utilizando **TypeScript** de ponta a ponta, separando claramente as aplicações de front-end do pacote central de regras de negócio e integrações.
 
-> **Estado atual (06/08/2026).** O destino é a arquitetura 100% OCI. O que já
-> está ligado é **identidade, cadastro de pacientes e agenda**, persistidos no
-> MySQL da OCI pelos adaptadores em `apps/web/src/server/persistence/mysql`.
+> **Estado atual (11/08/2026).** A produção usa Vercel para páginas e assets,
+> e uma VPS Hostinger para o backend e MySQL privado. Os dados persistentes são
+> acessados pelos adaptadores em `apps/web/src/server/persistence/mysql`.
 >
 > Prontuário, sessão clínica, linha do tempo, financeiro, comunicação,
 > check-in pré-sessão e plano terapêutico **continuam em memória**, com snapshot
@@ -17,7 +17,7 @@ O **Thats Life** adota uma arquitetura em Monorepo utilizando **TypeScript** de 
 > demonstração. O que distingue os dois é o campo `meta.persistence` das
 > respostas da API (`mysql` ou `memory`) e a rota `GET /api/infra/mode`.
 >
-> Detalhes de infraestrutura, credenciais e roteiro da VM: `docs/oci-migracao.md`.
+> Detalhes de infraestrutura e roteiro vigente: `docs/hostinger-vps.md`.
 
 ```mermaid
 flowchart TD
@@ -33,13 +33,20 @@ flowchart TD
         ANON["🛡️ Anonymization Engine"]
     end
 
-    subgraph InfraLayer ["Infraestrutura OCI & Persistência"]
-        DB["🐬 OCI MySQL DB System (Relacional Multi-tenant / Audit)"]
-        STORAGE["🔐 OCI Object Storage (Anexos Clínicos e PDFs Encriptados)"]
-        EXT_EVO["💬 Servidor Evolution API (VM OCI)"]
+    subgraph EdgeLayer ["Entrega web"]
+        VERCEL["▲ Vercel (páginas, assets e CDN)"]
     end
 
-    WEB --> ServiceLayer
+    subgraph InfraLayer ["VPS Hostinger & Persistência"]
+        PROXY["🔒 Caddy HTTPS"]
+        DB["🐬 MySQL 8.4 Docker (rede privada)"]
+        STORAGE["🔐 Object Storage futuro (provedor a definir)"]
+        EXT_EVO["💬 Evolution API (container dedicado)"]
+    end
+
+    WEB --> VERCEL
+    VERCEL --> PROXY
+    PROXY --> ServiceLayer
     WEB --> SCHEDULE
     ServiceLayer --> DB
     ServiceLayer --> STORAGE
@@ -57,14 +64,15 @@ flowchart TD
    * Regras de escore, prompts clínicos e anonimização heurística.
    * Adaptadores reais para IA e Evolution API implementados no servidor.
 3. **Persistência & Backend:**
-   * **Persistência Relacional:** OCI MySQL DB System (Always Free), banco
-     `viver_mais`. Schema em `infra/mysql`: o `004_clinica.sql` traz o domínio
+   * **Persistência Relacional:** MySQL 8.4 em container Docker na VPS
+     Hostinger, banco `viver_mais_clinica`. Schema em `infra/mysql`: o
+     `004_clinica.sql` traz o domínio
      clínico compartilhado com o Sponteiro e o `007_thats_life_core.sql`
      acrescenta o que os agregados do core exigem — organização, vínculos,
      atribuição de profissionais, idempotência de comando e outbox.
      **Ligado hoje:** cadastro e agenda. **Pendente:** prontuário SOAP,
      financeiro e logs do WhatsApp.
-   * **Armazenamento de Objetos:** OCI Object Storage para PDFs, anexos de
+   * **Armazenamento de Objetos:** provedor ainda a definir para PDFs, anexos de
      exames e laudos — planejado, sem adaptador implementado.
    * **Autenticação & Segurança:** **ainda não existe.** O contexto do ator é
      resolvido pelos cabeçalhos `X-Organization-Id` e `X-User-Id`, validados

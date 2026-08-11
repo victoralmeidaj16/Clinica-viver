@@ -34,7 +34,7 @@ async rewrites() {
 
 Um rewrite global pode deixar o deploy com status `Ready`, mas faz
 `clinica-viver-web.vercel.app` exibir o código antigo do servidor externo. Se
-for necessário integrar serviços da OCI, encaminhe apenas rotas de API
+for necessário integrar o backend da VPS, encaminhe apenas rotas de API
 específicas; nunca use `/:path*`.
 
 ---
@@ -43,10 +43,10 @@ específicas; nunca use `/:path*`.
 
 Adicione as variáveis abaixo no painel **Settings > Environment Variables** do Vercel:
 
-### Backend permanente na OCI
+### Backend permanente na VPS Hostinger
 
 ```env
-BACKEND_ORIGIN=https://app.vivermaispsicologia.com.br
+BACKEND_ORIGIN=https://app.clinicavivermais.cloud
 ```
 
 Essa variável encaminha somente `/api/application/*`, `/api/auth/*` e
@@ -84,7 +84,9 @@ ORGANIZATION_SLUG=viver-mais-psicologia
 ## 3. Modos de Persistência no Vercel
 
 * **Sem `DATABASE_URL`:** O Vercel responde no endpoint `/api/infra/mode` com `{"persistence": "memory"}`. O aplicativo opera normalmente com dados simulados em memória, ideal para validação rápida da equipe.
-* **Com `DATABASE_URL`:** Requer que o MySQL privado na OCI esteja acessível (ex: via Cloudflare Tunnel ou VM da OCI).
+* **Com `BACKEND_ORIGIN`:** A Vercel encaminha as APIs persistentes ao backend
+  HTTPS da VPS, que é o único componente com acesso ao MySQL privado. Não é
+  necessário nem recomendado colocar `DATABASE_URL` na Vercel.
 
 ---
 

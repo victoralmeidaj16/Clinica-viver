@@ -1,13 +1,10 @@
 #!/usr/bin/env bash
 #
-# Cria o banco desta aplicação no DB System da OCI e concede acesso ao usuário
-# restrito.
+# Cria o banco desta aplicação no MySQL da VPS e concede acesso ao usuário
+# restrito. Execute dentro da rede Docker de produção.
 #
-# A instância, a VCN, o TLS e a credencial administrativa são os mesmos que o
-# Sponteiro já usa — é infraestrutura paga uma vez. O que **não** se compartilha
-# é dado: o Sponteiro carrega um schema exercitado com dados de teste, e esta
-# clínica não nasce em cima disso. Daí um banco próprio, `viver_mais_clinica`,
-# com grants próprios.
+# O banco clínico não compartilha dados com nenhum outro sistema. Esta clínica
+# usa o banco próprio `viver_mais_clinica`, com grants próprios.
 #
 # O usuário da aplicação continua sem DDL. Este script é o único momento em que
 # uma credencial administrativa é usada, e ele não guarda senha nenhuma.
@@ -23,12 +20,12 @@
 
 set -euo pipefail
 
-DB_HOST="${MYSQL_HOST:-10.20.1.132}"
+DB_HOST="${MYSQL_HOST:-mysql}"
 DB_PORT="${MYSQL_PORT:-3306}"
 DB_NAME="${MYSQL_DATABASE:-viver_mais_clinica}"
-DB_ADMIN_USER="${MYSQL_ADMIN_USER:-vivermais_admin}"
+DB_ADMIN_USER="${MYSQL_ADMIN_USER:-root}"
 APP_USER="${MYSQL_APP_USER:-viver_mais_app}"
-APP_HOST="${MYSQL_APP_HOST:-10.20.%}"
+APP_HOST="${MYSQL_APP_HOST:-%}"
 
 read -r -s -p "Senha administrativa do MySQL: " ADMIN_PASSWORD
 printf '\n'
@@ -50,7 +47,8 @@ printf '%s\n' \
   "password=${ADMIN_PASSWORD}" \
   > "${ADMIN_CNF}"
 
-mysql --defaults-extra-file="${ADMIN_CNF}" --ssl-mode=REQUIRED <<SQL
+# A comunicação ocorre na rede Docker privada; não há porta MySQL pública.
+mysql --defaults-extra-file="${ADMIN_CNF}" <<SQL
 CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\`
   CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 GRANT SELECT, INSERT, UPDATE, DELETE ON \`${DB_NAME}\`.* TO '${APP_USER}'@'${APP_HOST}';

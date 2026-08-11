@@ -1,5 +1,5 @@
 -- Fundação MySQL 8 para o primeiro domínio migrado: financeiro + jobs.
--- Execute somente no banco OCI MySQL dedicado à Viver Mais.
+-- Execute somente no banco MySQL dedicado à Viver Mais.
 --
 -- Neste repositório o arquivo entra por **estrutura, não por dado**. Ele é
 -- aplicado no banco próprio `viver_mais_clinica`, criado pelo

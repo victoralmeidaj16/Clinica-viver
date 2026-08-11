@@ -9,7 +9,8 @@ export const dynamic = 'force-dynamic';
  *
  * Público de propósito, e por isso responde uma palavra só: se os dados estão
  * num banco ou em memória. Não informa endpoint, versão nem saúde — para isso
- * existe `/api/infra/oci/status`, que exige `CRON_SECRET`.
+ * existe uma rota protegida de diagnóstico de infraestrutura, que exige
+ * `CRON_SECRET` (o caminho atual mantém o nome legado `oci`).
  *
  * Quem consome é o aviso de demonstração no layout: um banner que diz "dados
  * simulados" sobre uma clínica em produção é pior do que banner nenhum.

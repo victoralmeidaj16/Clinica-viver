@@ -1,4 +1,4 @@
--- ⚠️ DADOS FICTÍCIOS — SOMENTE DESENVOLVIMENTO. NÃO APLICAR NA OCI.
+-- ⚠️ DADOS FICTÍCIOS — SOMENTE DESENVOLVIMENTO. NÃO APLICAR EM PRODUÇÃO.
 --
 -- Os dez profissionais aqui são inventados, e os telefones (+5511999990001…)
 -- também. Com o Evolution API ligado, telefone de exemplo é telefone de

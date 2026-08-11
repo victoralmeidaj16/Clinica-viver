@@ -171,7 +171,7 @@ export async function persistApplicationState(): Promise<void> {
 }
 
 /**
- * Estado com MySQL da OCI como fonte de verdade.
+ * Estado com MySQL de produção como fonte de verdade.
  *
  * Prontuário, linha do tempo, sessão clínica, financeiro, identidade e agenda
  * vêm do banco. O que sobra no snapshot é resíduo — preferências,

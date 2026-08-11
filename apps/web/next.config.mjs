@@ -17,7 +17,7 @@ const nextConfig = {
 
     // A Vercel continua servindo páginas, assets e o bundle desta aplicação.
     // Apenas as rotas que dependem do estado permanente atravessam HTTPS até
-    // o backend dentro da OCI, onde o MySQL privado é alcançável.
+    // o backend na VPS Hostinger, onde o MySQL privado é alcançável.
     return [
       {
         source: '/api/application/:path*',

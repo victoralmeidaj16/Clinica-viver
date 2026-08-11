@@ -237,6 +237,6 @@ A sessão pareada é o ativo em risco. Nunca atualizar direto em produção:
   cabeçalho do `env.example`.
 - Subir `LOG_LEVEL` para `DEBUG` ou `LOG_BAILEYS` acima de `error` em produção:
   passa a registrar conteúdo de mensagem em log.
-- Apontar o Evolution para o MySQL da OCI. O schema dele não tem relação com o
+- Apontar o Evolution para o PostgreSQL próprio dele. O schema não tem relação com o
   domínio clínico, e `viver_mais_app` não tem DDL.
 - Usar o número pessoal de alguém da equipe para parear.

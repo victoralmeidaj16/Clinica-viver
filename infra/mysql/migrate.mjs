@@ -3,7 +3,7 @@
  * Aplicador de migrações do MySQL.
  *
  * Até aqui os DDLs eram aplicados à mão, na ordem descrita em prosa no
- * cabeçalho do 000_criar_banco_clinica.sh e numa tabela do docs/oci-migracao.md
+ * cabeçalho do 000_criar_banco_clinica.sh e numa tabela histórica de migrations
  * que parou no 009. Não havia como saber, olhando um banco, o que já tinha sido
  * aplicado — e a resposta importava, porque alguns arquivos existem só para
  * instalações antigas.
@@ -160,7 +160,7 @@ async function main() {
     console.error(
       'MYSQL_ADMIN_URL não definida.\n' +
         'Dev:  MYSQL_ADMIN_URL=mysql://root:dev-root-local@127.0.0.1:3307/viver_mais_clinica\n' +
-        'Prod: use a credencial administrativa da OCI, nunca a da aplicação.'
+        'Prod: use a credencial administrativa da VPS, nunca a da aplicação.'
     );
     process.exit(1);
   }

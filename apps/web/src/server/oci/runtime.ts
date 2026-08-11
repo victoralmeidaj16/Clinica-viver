@@ -4,15 +4,15 @@ import { readFileSync } from 'node:fs';
 import { createPool, type Pool, type PoolOptions } from 'mysql2/promise';
 
 /**
- * Conexão com o MySQL da OCI.
+ * Conexão com o MySQL de produção.
  *
  * Portado de `Sponteiro/apps/viver-mais-web/src/lib/oci/runtime.ts`, sem o
  * cliente Redis: o primeiro recorte de migração usa MySQL também para jobs, e
  * cache distribuído só entra quando houver necessidade comprovada.
  *
- * O endpoint do DB System não tem IP público. Em produção a aplicação roda
- * dentro da VCN; em desenvolvimento, por túnel SSH até a VM. Em nenhum dos dois
- * casos o banco é exposto por load balancer.
+ * O diretório mantém o nome `oci` apenas para compatibilidade de imports; a
+ * produção atual usa MySQL na rede Docker privada da VPS Hostinger. Em nenhum
+ * caso o banco é exposto por load balancer.
  */
 
 type Health = 'not_configured' | 'ok' | 'error';
@@ -54,7 +54,7 @@ function readSslCa(): string | undefined {
     return readFileSync(file, 'utf8');
   } catch (err) {
     // Sem o caminho no texto do erro: ele aponta para onde o segredo está.
-    console.error('[oci] Não foi possível ler MYSQL_SSL_CA_FILE:', (err as NodeJS.ErrnoException).code);
+    console.error('[mysql] Não foi possível ler MYSQL_SSL_CA_FILE:', (err as NodeJS.ErrnoException).code);
     return undefined;
   }
 }
@@ -79,7 +79,7 @@ export function isMysqlConfigured(): boolean {
 
 export function getMysqlPool(): Pool {
   if (!isMysqlConfigured()) {
-    throw new Error('MySQL OCI não está configurado.');
+    throw new Error('MySQL não está configurado.');
   }
   if (!globalForOci.thatsLifeOci) globalForOci.thatsLifeOci = {};
   if (globalForOci.thatsLifeOci.mysql) return globalForOci.thatsLifeOci.mysql;

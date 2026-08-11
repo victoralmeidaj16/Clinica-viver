@@ -25,7 +25,7 @@ SET @schema_name = DATABASE();
 
 -- `foto_url` guarda hoje uma data URL base64 vinda do FileReader (até ~5 MB).
 -- MEDIUMTEXT é ponte, não destino: o lugar da imagem é o Object Storage, já
--- listado como pendência em docs/oci-migracao.md. Enquanto for assim, evitar
+-- listado como pendência de object storage. Enquanto for assim, evitar
 -- selecionar esta coluna em listagens.
 SET @sql = IF(
   EXISTS(SELECT 1 FROM information_schema.columns

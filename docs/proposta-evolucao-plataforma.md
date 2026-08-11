@@ -1,4 +1,9 @@
-# Proposta de evolução — plataforma Viver Mais
+# Histórico — proposta de evolução da plataforma Viver Mais
+
+> Avaliação de 07/08/2026 preservada para rastreabilidade. Referências à OCI,
+> snapshot em arquivo e pendências daquele momento não são o estado atual de
+> produção. Consulte [`hostinger-vps.md`](./hostinger-vps.md) para a
+> infraestrutura vigente.
 
 Documento interno. Consolida os quatro documentos de origem — reunião com
 Giuliana (05/08/2026), plano de implantação, resumo da transcrição da clínica

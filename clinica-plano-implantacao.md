@@ -1,4 +1,9 @@
-# Plano técnico — operação clínica dentro do Sponteiro
+# Histórico — plano técnico de operação clínica dentro do Sponteiro
+
+> Registro de levantamento de julho de 2026. As premissas de OCI, Oracle e
+> Sponteiro abaixo não descrevem a produção atual da Clínica Viver Mais, que
+> usa Hostinger VPS. Para infraestrutura vigente, consulte
+> [`docs/hostinger-vps.md`](./docs/hostinger-vps.md).
 
 Documento interno. Referência: proposta comercial da Bells Clinic à Viver Mais
 (26/07/2026, R$ 890/mês, instância Oracle dedicada em `vivermais.bellsclinic.com.br`).

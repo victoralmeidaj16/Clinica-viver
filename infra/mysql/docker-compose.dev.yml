@@ -1,12 +1,12 @@
 # MySQL local para desenvolvimento.
 #
-# O DB System da OCI não tem IP público e não vai ter: em produção a aplicação
-# roda dentro da VCN. Sem uma instância local, nenhum fluxo que dependa do banco
-# é testável antes de subir para a VM — e o fallback de snapshot em arquivo
-# esconde justamente as regressões que só aparecem no MySQL.
+# Em produção, o banco roda na rede Docker privada da VPS Hostinger. Sem uma
+# instância local, nenhum fluxo que dependa do banco é testável antes de subir
+# para a VPS — e o fallback de snapshot em arquivo esconde justamente as
+# regressões que só aparecem no MySQL.
 #
 # A porta é 3307 para não disputar com um MySQL de sistema nem com o túnel SSH
-# até a OCI, que ocupa a 3306 por convenção do .env.example.
+# de um MySQL de sistema; produção não publica a porta do banco.
 #
 #   docker compose -f infra/mysql/docker-compose.dev.yml up -d
 #   npm run db:migrate

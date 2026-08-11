@@ -1,4 +1,9 @@
-# Infraestrutura OCI
+# Histórico — Infraestrutura OCI (não vigente)
+
+> Este documento registra a arquitetura planejada/antiga na Oracle Cloud
+> Infrastructure. A produção atual usa a VPS Hostinger; consulte
+> [`hostinger-vps.md`](./hostinger-vps.md). Não seguir este roteiro para novos
+> deploys, migrations ou configuração de segredos.
 
 Portado de `Sponteiro/docs/oci-migracao.md` e atualizado para este repositório.
 Lá o documento descreve uma migração Firebase → OCI; aqui não há Firebase para

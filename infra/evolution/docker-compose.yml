@@ -5,7 +5,7 @@
 # O pareamento por QR é feito por túnel SSH (ver README.md).
 #
 # Postgres e Redis aqui são exclusivos do Evolution. Não apontar para o MySQL
-# da OCI: o schema do Evolution não tem nada a ver com o domínio clínico, e o
+# clínico: o schema do Evolution não tem nada a ver com o domínio clínico, e o
 # usuário viver_mais_app nem tem DDL para criá-lo.
 
 name: viver-mais-evolution
@@ -14,7 +14,7 @@ services:
   evolution:
     # Imagem fixa por versão. A partir da v2.3.0 o repositório oficial passou a
     # ser evoapicloud/ (antes era atendai/). Há build arm64, o que importa se a
-    # VM da OCI for A1 Flex.
+    # VPS Hostinger.
     image: evoapicloud/evolution-api:v2.3.7
     platform: linux/arm64
     restart: unless-stopped

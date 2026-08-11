@@ -81,17 +81,28 @@ export async function promoverLeadEmPaciente(
   const organizationId = organizacaoDoStore();
   const id = idDoPacientePromovido(lead.id);
 
-  const paciente = await ensurePatientFromExternalSource({ repository: store.identities }, {
-    id,
-    organizationId,
-    // O protocolo é o que a pessoa recebeu por WhatsApp e é por ele que ela se
-    // identifica ao ligar para a clínica.
-    externalReference: lead.protocolo,
-    displayName: lead.nomePaciente,
-    primaryProfessionalId: professionalId,
-    assignedProfessionalIds: [professionalId],
-    createdAt: lead.confirmadoEm ?? new Date().toISOString(),
-  });
+  // `ensurePatientFromExternalSource` lança se o profissional não existir ou
+  // estiver inativo no cadastro clínico. Aqui isso não pode virar erro para
+  // quem clicou no link do WhatsApp: a confirmação é dele e já é válida. O lead
+  // fica sem `pacienteRef` e a reconciliação tenta de novo depois que a gestão
+  // arrumar o vínculo.
+  let paciente;
+  try {
+    paciente = await ensurePatientFromExternalSource({ repository: store.identities }, {
+      id,
+      organizationId,
+      // O protocolo é o que a pessoa recebeu por WhatsApp e é por ele que ela se
+      // identifica ao ligar para a clínica.
+      externalReference: lead.protocolo,
+      displayName: lead.nomePaciente,
+      primaryProfessionalId: professionalId,
+      assignedProfessionalIds: [professionalId],
+      createdAt: lead.confirmadoEm ?? new Date().toISOString(),
+    });
+  } catch (erro) {
+    console.warn(`[promoção] Lead ${lead.id} não pôde virar paciente agora:`, erro);
+    return null;
+  }
 
   const contato = contatos(store.identities);
   if (contato) {

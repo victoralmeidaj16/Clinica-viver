@@ -9,6 +9,7 @@ RUN npm ci
 
 COPY packages/core packages/core
 COPY apps/web apps/web
+COPY infra/mysql infra/mysql
 
 RUN npm run web:build
 

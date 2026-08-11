@@ -17,7 +17,8 @@ import {
   Filter,
   GraduationCap,
   ShieldCheck,
-  ChevronDown
+  ChevronDown,
+  Copy
 } from 'lucide-react';
 import { LISTA_NECESSIDADES } from '@/app/vitrine/page';
 import { BrazilLocationFields } from '@/components/forms/BrazilLocationFields';
@@ -55,8 +56,28 @@ export default function GestaoPsicologosPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'TODOS' | 'ATIVOS' | 'INATIVOS'>('TODOS');
+  const [copiedLink, setCopiedLink] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleCopyFormLink = () => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const link = `${origin}/vitrine?cadastro=psicologo`;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      void navigator.clipboard.writeText(link);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = link;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 3000);
+  };
 
   // Form de novo psicólogo (Admin)
   const [form, setForm] = useState({
@@ -177,13 +198,28 @@ export default function GestaoPsicologosPage() {
           </p>
         </div>
 
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs px-5 py-3 rounded-2xl transition-all shadow-md flex items-center gap-2 active:scale-95 shrink-0"
-        >
-          <UserPlus className="w-4 h-4" />
-          <span>Cadastrar Novo Psicólogo</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-3 shrink-0">
+          <button
+            onClick={handleCopyFormLink}
+            className={`font-extrabold text-xs px-5 py-3 rounded-2xl transition-all shadow-md flex items-center gap-2 active:scale-95 ${
+              copiedLink
+                ? 'bg-emerald-600 text-white shadow-emerald-600/30'
+                : 'bg-purple-600 hover:bg-purple-700 text-white shadow-purple-600/30'
+            }`}
+          >
+            {copiedLink ? <CheckCircle2 className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+            <span>{copiedLink ? 'Link Copiado com Sucesso!' : 'Cadastrar Novo Psicólogo (Copiar Link)'}</span>
+          </button>
+          
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 font-extrabold text-xs px-4 py-3 rounded-2xl transition-all flex items-center gap-1.5 active:scale-95"
+            title="Cadastrar psicólogo manualmente pelo painel admin"
+          >
+            <UserPlus className="w-4 h-4 text-purple-600" />
+            <span>Cadastrar Manualmente</span>
+          </button>
+        </div>
       </div>
 
       {/* KPI Cards de Resumo */}

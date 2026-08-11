@@ -293,6 +293,16 @@ export default function ViverMaisLandingPage() {
   const [psicologosCredenciados, setPsicologosCredenciados] = useState<PsicologoVitrineItem[]>([]);
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const searchParams = new URLSearchParams(window.location.search);
+      if (
+        searchParams.get('cadastro') === 'psicologo' ||
+        searchParams.get('step') === 'CADASTRO_PSICOLOGO' ||
+        window.location.hash === '#cadastro-psicologo'
+      ) {
+        setStep('CADASTRO_PSICOLOGO');
+      }
+    }
     fetch('/api/application/credenciamento-psicologo/public', { cache: 'no-store' })
       .then((response) => response.json())
       .then((body: { success?: boolean; data?: PsicologoVitrineItem[] }) => {

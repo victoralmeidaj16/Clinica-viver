@@ -749,10 +749,10 @@ export default function ViverMaisLandingPage() {
             {/* Banner Informativo Psicoterapia com Equipe */}
             <div className="bg-surface rounded-3xl p-8 border border-line shadow-card grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
               <div className="lg:col-span-7 space-y-4">
-                <span className="chip-accent text-[11px]">Equipe Credenciada</span>
+                <span className="chip-accent text-[11px]">Equipe Qualificada</span>
                 <h3 className="text-2xl font-black text-ink">Por que fazer Psicoterapia na Viver Mais?</h3>
                 <p className="text-xs sm:text-sm text-muted leading-relaxed">
-                  A psicoterapia é um ambiente seguro e sigiloso de escuta técnica para superar desafios emocionais, ansiedade e momentos de transição. Nossos profissionais passam por rigoroso processo de credenciamento e supervisão clínica contínua.
+                  A psicoterapia é um espaço de escuta técnica e acolhimento, conduzido por profissionais devidamente registrados no Conselho Regional de Psicologia (CRP). Isso significa que todos os psicólogos da Clínica Viver Mais possuem registro profissional ativo e estão habilitados a exercer a profissão, seguindo as normas éticas e técnicas da profissão, garantindo responsabilidade e segurança em todo o processo.
                 </p>
                 <div className="flex flex-wrap gap-2 pt-2">
                   <span className="bg-psi-soft text-psi-darkest font-extrabold text-[11px] px-3 py-1 rounded-full border border-psi-soft">

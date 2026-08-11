@@ -23,6 +23,8 @@ services:
     build:
       context: ../..
       dockerfile: infra/clinic/Dockerfile
+      args:
+        APP_VERSION: ${APP_VERSION:-unknown}
     restart: unless-stopped
     env_file: .env
     environment:
@@ -42,6 +44,26 @@ services:
     networks:
       - clinic
       - evolution
+
+  # Executa a varredura periodicamente na rede privada. Não há porta publicada
+  # nem acesso ao banco: a mutação continua concentrada na rota autenticada do
+  # backend, com um token específico para este processo.
+  sla-sweeper:
+    build:
+      context: ../..
+      dockerfile: infra/clinic/Dockerfile
+      args:
+        APP_VERSION: ${APP_VERSION:-unknown}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      SLA_SWEEP_URL: http://web:3000/api/application/triagem/sla-sweep
+    command: ["node", "infra/clinic/sla-sweep.mjs"]
+    depends_on:
+      web:
+        condition: service_started
+    networks:
+      - clinic
 
 volumes:
   clinic_mysql:

@@ -44,7 +44,11 @@ export async function POST(request: Request) {
     });
 
     for (const transbordo of resultado.transbordos) {
-      void avisarTransbordo(transbordo.lead, transbordo.psicologoNovo);
+      void avisarTransbordo(
+        transbordo.lead,
+        transbordo.psicologoNovo,
+        transbordo.psicologoAnteriorNome
+      );
     }
     const pacientesPromovidos = await reconciliarPacientes(repositorio);
 

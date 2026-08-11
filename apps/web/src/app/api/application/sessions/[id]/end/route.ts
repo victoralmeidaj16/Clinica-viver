@@ -1,5 +1,5 @@
 import { resolveRequestContext } from '@/server/application/context';
-import { failure, success } from '@/server/application/http';
+import { ApplicationError, failure, readJson, success } from '@/server/application/http';
 import { getApplicationStore, persistApplicationState } from '@/server/application/store';
 import { CLINICAL_RECORD_RETENTION } from '@/server/application/retention';
 import { generateSoapDraft } from '@/server/ai/clinicalDraft';
@@ -14,55 +14,30 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const context = await resolveRequestContext(request);
+    const context = await resolveRequestContext(request, true);
     const { id: sessionId } = await params;
     const store = getApplicationStore();
+    const body = await readJson(request);
+    const synthesis = String(body.synthesis ?? '').trim();
+    if (!synthesis || synthesis.length > 20_000) {
+      throw new ApplicationError(
+        'INVALID_SYNTHESIS',
+        'Informe uma síntese clínica entre 1 e 20.000 caracteres para gerar a minuta SOAP.',
+        400
+      );
+    }
 
     const occurredAt = new Date().toISOString();
-    const patientId = 'patient-1'; // Mariana Costa
     const professionalId = context.actor.professionalProfileId || 'professional-1';
 
-    // 1. Busca ou instancia a sessão no repositório de memória
+    // 1. A sessão precisa existir e pertencer ao profissional. Nunca crie uma
+    // sessão artificial aqui: isso ligaria uma nota clínica ao paciente errado.
     let session = await store.sessions.getById(context.actor.organizationId, sessionId);
     if (!session) {
-      session = {
-        schemaVersion: 1,
-        id: sessionId,
-        organizationId: context.actor.organizationId,
-        patientId,
-        primaryProfessionalId: professionalId,
-        assignedProfessionalIds: [professionalId],
-        status: 'awaiting_review',
-        mode: 'video',
-        scheduledStart: occurredAt,
-        scheduledEnd: occurredAt,
-        consentRecords: [],
-        automationPlan: {
-          transcription: true,
-          patientHandoff: true,
-          billing: true,
-          receipt: true,
-          notification: true,
-        },
-        automation: {
-          transcription: { status: 'completed', attemptCount: 1, updatedAt: occurredAt },
-          clinicalDraft: { status: 'requires_review', attemptCount: 1, updatedAt: occurredAt },
-          patientHandoff: { status: 'idle', attemptCount: 0, updatedAt: occurredAt },
-          billing: { status: 'idle', attemptCount: 0, updatedAt: occurredAt },
-          receipt: { status: 'idle', attemptCount: 0, updatedAt: occurredAt },
-          notification: { status: 'idle', attemptCount: 0, updatedAt: occurredAt },
-        },
-        artifacts: {},
-        version: 1,
-        createdAt: occurredAt,
-        updatedAt: occurredAt,
-      };
-      await store.sessions.commit({
-        session,
-        expectedVersion: 0,
-        commandId: `cmd-session-create-${sessionId}`,
-        events: [],
-      });
+      throw new ApplicationError('NOT_FOUND', 'Sessão não encontrada.', 404);
+    }
+    if (session.primaryProfessionalId !== professionalId) {
+      throw new ApplicationError('FORBIDDEN', 'Você não é o profissional responsável por esta sessão.', 403);
     } else if (session.status !== 'awaiting_review') {
       const updatedSession: ClinicalSession = {
         ...session,
@@ -87,10 +62,10 @@ export async function POST(
     if (!record) {
       const draft = await generateSoapDraft({
         transcriptionId: `session-${sessionId}`,
-        transcription: 'Sessão de psicoterapia realizada.',
+        transcription: synthesis,
         patientReference: pseudonymizePatient({
           organizationId: context.actor.organizationId,
-          patientId,
+          patientId: session.patientId,
         }),
       });
 
@@ -100,7 +75,7 @@ export async function POST(
         id: recordId,
         organizationId: context.actor.organizationId,
         sessionId,
-        patientId,
+        patientId: session.patientId,
         responsibleProfessionalId: professionalId,
         assignedProfessionalIds: [professionalId],
         status: 'draft',

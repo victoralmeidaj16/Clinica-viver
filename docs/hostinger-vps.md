@@ -27,8 +27,64 @@ Não colocar `DATABASE_URL`, senha de MySQL ou chave root na Vercel.
 
 ## Atualização da VPS
 
-O código fonte da VPS fica em `/opt/viver-mais`; o `.env` do compose fica em
+O código fonte da VPS fica em `/opt/viver-mais`; ele é uma cópia publicada por
+`rsync`, e não um clone Git. O `.env` do compose fica em
 `/opt/viver-mais/infra/clinic/.env` e não pertence ao Git.
+
+Cada publicação deve gravar o SHA do commit em `/opt/viver-mais/.deploy-sha` e
+passá-lo como `APP_VERSION` no build. O endpoint protegido
+`/api/infra/oci/status` devolve esse SHA no campo `version`; isso é a fonte de
+verdade para saber o que está em produção, sem depender de `.git` na VPS.
+
+Da raiz do repositório, o roteiro reproduzível é:
+
+```sh
+npm run check
+VPS_HOST=root@SEU_HOST ./infra/clinic/deploy-vps.sh
+```
+
+O script sincroniza os arquivos sem `.git`, `.env`, dependências ou artefatos,
+grava o SHA, constrói a imagem, aplica migrations e reinicia `web` e o worker
+interno de SLA.
+Ele recusa uma árvore local alterada: faça commit antes de publicar, para que o
+SHA informado corresponda exatamente aos arquivos enviados.
+`MYSQL_ADMIN_URL` deve existir exclusivamente no `.env` da VPS e é consumida
+no container efêmero de migration; nunca a defina na Vercel.
+
+Depois do deploy, valide com a credencial de infraestrutura:
+
+```sh
+curl -sS -H "Authorization: Bearer $CRON_SECRET" \
+  https://app.clinicavivermais.cloud/api/infra/oci/status
+```
+
+O resultado precisa trazer `"ready": true`, `"mysql": "ok"` e o `version`
+igual a `.deploy-sha`.
+
+### Transbordo automático do SLA
+
+O serviço `sla-sweeper` do Compose chama, pela rede Docker privada, a rota
+idempotente `POST /api/application/triagem/sla-sweep` a cada cinco minutos.
+Não é necessário cron no host e nenhuma porta adicional é publicada. Antes do
+primeiro deploy, acrescente ao `.env` da VPS:
+
+```sh
+SLA_SWEEP_TOKEN=<openssl rand -hex 32>
+SLA_SWEEP_INTERVAL_SECONDS=300
+WHATSAPP_COORDINATION_NUMBERS=55DDDNUMERO
+```
+
+O número da coordenação também deve estar em `WHATSAPP_ALLOWED_NUMBERS` durante
+o piloto. O alerta contém somente protocolo e troca de profissional; telefone,
+nome e dados clínicos do paciente não são enviados à coordenação. Confira o
+worker com `docker compose -f infra/clinic/docker-compose.yml logs sla-sweeper`.
+
+### Migrações já aplicadas
+
+O checksum atual considera somente os comandos SQL, ignorando comentários e
+prosa. O `--rebaseline` foi uma transição única para registros gravados pelo
+checksum antigo; não deve fazer parte do roteiro de deploy. Alterações de DDL
+em migration já aplicada continuam sendo erro: crie uma migration nova.
 
 1. Execute as verificações locais (`npm run check`).
 2. Envie o código e gere a imagem `clinic-web` na VPS.

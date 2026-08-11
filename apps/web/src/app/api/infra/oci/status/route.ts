@@ -24,5 +24,8 @@ export async function GET(request: Request) {
   const services = await ociRuntimeHealth();
   const ready = services.mysql === 'ok';
 
-  return NextResponse.json({ ready, services }, { status: ready ? 200 : 503 });
+  return NextResponse.json(
+    { ready, services, version: process.env.APP_VERSION ?? 'unknown' },
+    { status: ready ? 200 : 503 }
+  );
 }

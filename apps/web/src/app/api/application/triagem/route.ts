@@ -120,7 +120,11 @@ export async function GET() {
     });
 
     for (const transbordo of varrido.transbordos) {
-      void avisarTransbordo(transbordo.lead, transbordo.psicologoNovo);
+      void avisarTransbordo(
+        transbordo.lead,
+        transbordo.psicologoNovo,
+        transbordo.psicologoAnteriorNome
+      );
     }
 
     const fila = (varrido.snapshot.triagensPacientes ?? []).map((lead) => ({

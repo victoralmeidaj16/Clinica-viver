@@ -5,6 +5,7 @@ import ClinicalSynthesisInput from '@/components/cockpit/ClinicalSynthesisInput'
 import SoapEditor from '@/components/cockpit/SoapEditor';
 import OneClickApprovalModal from '@/components/cockpit/OneClickApprovalModal';
 import {
+  endSessionAndGenerateDraft,
   fetchReviewSessions,
   type PostSessionResult,
   type ReviewSession,
@@ -127,16 +128,28 @@ export default function CockpitPage() {
     setSoapView(null);
   };
 
-  const handleGenerateSoap = async () => {
-    if (!selectedSession?.draftContent) {
-      setError('A sessão selecionada não possui rascunho clínico pendente de revisão.');
+  const handleGenerateSoap = async (synthesis: string) => {
+    if (!selectedSession) {
+      setError('Selecione uma sessão antes de gerar o prontuário.');
+      return;
+    }
+    if (!synthesis.trim()) {
+      setError('Registre uma síntese clínica antes de pedir a minuta SOAP.');
       return;
     }
     setIsProcessing(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 900));
-      setSoapView(buildSoapView(selectedSession));
+      await endSessionAndGenerateDraft(selectedSession.sessionId, synthesis.trim());
+      const queue = await fetchReviewSessions();
+      applyQueue(queue);
+      const updated = queue.find((session) => session.sessionId === selectedSession.sessionId);
+      if (!updated?.draftContent) {
+        throw new Error('A minuta SOAP não ficou disponível para revisão. Tente recarregar a fila.');
+      }
+      setSoapView(buildSoapView(updated));
       setError(null);
+    } catch (generationError) {
+      setError(generationError instanceof Error ? generationError.message : 'Não foi possível gerar a minuta SOAP.');
     } finally {
       setIsProcessing(false);
     }

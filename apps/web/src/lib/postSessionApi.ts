@@ -46,6 +46,18 @@ export function fetchReviewSessions(): Promise<ReviewSession[]> {
   return applicationRequest<ReviewSession[]>('/sessions');
 }
 
+/** Encerra a sessão e gera a minuta SOAP a partir da síntese revisável. */
+export function endSessionAndGenerateDraft(
+  sessionId: string,
+  synthesis: string
+): Promise<{ sessionId: string; status: string; recordId: string }> {
+  return applicationRequest(`/sessions/${sessionId}/end`, {
+    method: 'POST',
+    headers: commandHeaders(),
+    body: JSON.stringify({ synthesis }),
+  });
+}
+
 /**
  * Dispara a automação pós-sessão. A chave de idempotência é gerada por comando,
  * então um segundo clique acidental reproduz o mesmo resultado em vez de emitir

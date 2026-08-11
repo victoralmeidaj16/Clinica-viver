@@ -8,7 +8,7 @@ interface ClinicalSynthesisInputProps {
   sessions: ReviewSession[];
   selectedSessionId: string;
   onSelectSession: (sessionId: string) => void;
-  onGenerateSoap: () => void;
+  onGenerateSoap: (synthesis: string) => void;
   isProcessing: boolean;
 }
 
@@ -100,8 +100,8 @@ export default function ClinicalSynthesisInput({
         </p>
         <button
           type="button"
-          onClick={onGenerateSoap}
-          disabled={isProcessing}
+          onClick={() => onGenerateSoap(synthesisText)}
+          disabled={isProcessing || !synthesisText.trim()}
           className="w-full sm:w-auto bg-gradient-to-r from-psi-vibrant to-emerald-600 hover:from-psi-vibrant/90 hover:to-emerald-500 text-white font-extrabold text-xs px-6 py-3.5 rounded-2xl transition-all shadow-lg shadow-psi-vibrant/30 flex items-center justify-center gap-2 disabled:opacity-50"
         >
           {isProcessing ? (

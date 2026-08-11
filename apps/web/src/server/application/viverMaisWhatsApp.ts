@@ -29,7 +29,11 @@ import { nomeDeExibicao, SLA_CONTATO_HORAS } from './viverMaisRodizio';
  * já decidida e gravada.
  */
 
-export type FinalidadeMensagem = 'alocacao_psicologo' | 'recebimento_paciente' | 'boas_vindas_psicologo';
+export type FinalidadeMensagem =
+  | 'alocacao_psicologo'
+  | 'recebimento_paciente'
+  | 'boas_vindas_psicologo'
+  | 'alerta_coordenacao';
 
 export interface ResultadoEnvio {
   finalidade: FinalidadeMensagem;
@@ -231,9 +235,10 @@ export async function avisarAlocacao(
  */
 export async function avisarTransbordo(
   lead: TriagemPacienteRecord,
-  psicologo: CadastroPsicologoRecord
+  psicologo: CadastroPsicologoRecord,
+  psicologoAnteriorNome?: string
 ): Promise<ResultadoEnvio[]> {
-  return [
+  const resultados = [
     await enviarTexto(
       psicologo.whatsapp,
       textoParaPsicologo(lead, psicologo),
@@ -241,4 +246,31 @@ export async function avisarTransbordo(
       `alocacao:${lead.id}:${psicologo.id}`
     ),
   ];
+
+  // A coordenação vê o evento operacional, não os dados clínicos nem o
+  // telefone do paciente. Cada número ainda passa pela allowlist do piloto.
+  const destinatarios = (process.env.WHATSAPP_COORDINATION_NUMBERS ?? '')
+    .split(',')
+    .map((numero) => numero.trim())
+    .filter(Boolean);
+  const anterior = psicologoAnteriorNome?.trim() || 'profissional anterior';
+  const textoCoordenacao = [
+    'Alerta operacional — SLA de primeiro contato vencido.',
+    `Protocolo: ${lead.protocolo}`,
+    `Transbordo: ${anterior} → ${nomeDeExibicao(psicologo)}`,
+    `Transbordos realizados: ${lead.transbordos ?? 0}`,
+  ].join('\n');
+
+  for (const destinatario of destinatarios) {
+    resultados.push(
+      await enviarTexto(
+        destinatario,
+        textoCoordenacao,
+        'alerta_coordenacao',
+        `alerta-transbordo:${lead.id}:${psicologo.id}:${destinatario.replace(/\D/g, '')}`
+      )
+    );
+  }
+
+  return resultados;
 }

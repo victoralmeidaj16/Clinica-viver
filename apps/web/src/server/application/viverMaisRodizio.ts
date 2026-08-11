@@ -43,6 +43,7 @@ export type SlaStatus = 'VERDE' | 'AMARELO' | 'VERMELHO';
 export interface TransbordoOcorrido {
   lead: TriagemPacienteRecord;
   psicologoAnteriorId?: string;
+  psicologoAnteriorNome?: string;
   psicologoNovo: CadastroPsicologoRecord;
 }
 
@@ -397,6 +398,7 @@ export function varrerSla(
     transbordos.push({
       lead: atualizado,
       psicologoAnteriorId: leadRecord.psicologoAlocadoId,
+      psicologoAnteriorNome: leadRecord.psicologoNome,
       psicologoNovo: novo,
     });
   }

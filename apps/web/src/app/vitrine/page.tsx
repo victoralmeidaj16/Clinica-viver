@@ -24,7 +24,8 @@ import {
   Building2,
   DollarSign,
   Send,
-  UserPlus
+  UserPlus,
+  Upload
 } from 'lucide-react';
 
 type ServicoKey =
@@ -67,10 +68,12 @@ export default function ViverMaisLandingPage() {
     email: '',
     cpf: '',
     cep: '',
+    numeroResidencia: '',
     possuiConvenio: 'NAO',
     convenioSelecionado: '',
     origem: 'Facebook',
     turno: 'VESPERTINO',
+    paraQuemE: '',
     genero: '' as GenderValue | '',
     generoOutro: '',
   });
@@ -83,16 +86,17 @@ export default function ViverMaisLandingPage() {
     email: '',
     fotoUrl: '',
     modalidadeAtendimento: 'AMBOS',
-    especialidade: 'Cognitivo-Comportamental (TCC)',
+    atendimentoPreferencia: 'AMBOS' as 'PARTICULAR' | 'SOCIAL' | 'AMBOS',
     estadoUf: '',
     cidade: '',
     genero: '' as GenderValue | '',
     generoOutro: '',
-    turmaViverMais: '24A',
+    turmaViverMais: '22A',
     posGraduacaoViverMais: 'Especialização em Psicoterapia Cognitivo-Comportamental',
-    servicosHabilitados: ['PSICOTERAPIA'] as string[],
+    servicosPrestados: ['Atendimento Psicológico'] as string[],
+    publicoAlvo: ['Adulto'] as string[],
+    publicoAlvoOutro: '',
     disponibilidadeTurnos: ['MANHA', 'TARDE'],
-    minibio: '',
   });
 
   const [protocolo, setProtocolo] = useState('');
@@ -304,6 +308,14 @@ export default function ViverMaisLandingPage() {
       alert('Selecione o gênero e, se escolher Outro, informe a descrição.');
       return;
     }
+    if (formPsicologo.servicosPrestados.length === 0) {
+      alert('Selecione ao menos um serviço prestado.');
+      return;
+    }
+    if (formPsicologo.publicoAlvo.length === 0) {
+      alert('Selecione ao menos um público alvo.');
+      return;
+    }
     setIsSubmitting(true);
     try {
       const resp = await fetch('/api/application/credenciamento-psicologo', {
@@ -453,7 +465,7 @@ export default function ViverMaisLandingPage() {
                 <span className="w-8 h-8 rounded-xl bg-emerald-600 text-white font-black text-xs flex items-center justify-center">3</span>
                 <h4 className="font-extrabold text-sm text-ink">Confirmação via WhatsApp (24h)</h4>
                 <p className="text-xs text-muted leading-relaxed">
-                  Seu psicólogo entra em contato no WhatsApp em até 24 horas com o link Pix dinâmico para agendar o horário ideal.
+                  Seu psicólogo entra em contato no WhatsApp em até 24 horas.
                 </p>
               </div>
             </div>
@@ -759,8 +771,8 @@ export default function ViverMaisLandingPage() {
                 onOtherChange={(generoOutro) => setForm((current) => ({ ...current, generoOutro }))}
               />
 
-              {/* CPF e CEP com Máscara e ViaCEP */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* CPF, CEP e Número da Residência */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">CPF <span className="text-rose-500">*</span></label>
                   <input
@@ -792,6 +804,17 @@ export default function ViverMaisLandingPage() {
                     )}
                   </div>
                 </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Nº Residência <span className="text-rose-500">*</span></label>
+                  <input
+                    type="text"
+                    required
+                    value={form.numeroResidencia}
+                    onChange={(e) => setForm({ ...form, numeroResidencia: e.target.value })}
+                    placeholder="Ex: 123 ou Apto 4"
+                    className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
+                  />
+                </div>
               </div>
 
               {/* Endereço auto-preenchido pelo ViaCEP */}
@@ -801,8 +824,9 @@ export default function ViverMaisLandingPage() {
                     <MapPin className="w-3.5 h-3.5 text-purple-600" /> Endereço Localizado:
                   </span>
                   <p className="text-slate-600">
-                    {enderecoInfo.logradouro ? `${enderecoInfo.logradouro}, ` : ''}
-                    {enderecoInfo.bairro ? `${enderecoInfo.bairro} — ` : ''}
+                    {enderecoInfo.logradouro ? `${enderecoInfo.logradouro}` : ''}
+                    {form.numeroResidencia ? `, nº ${form.numeroResidencia}` : ''}
+                    {enderecoInfo.bairro ? ` — ${enderecoInfo.bairro}` : ''} —{' '}
                     <span className="font-semibold text-slate-800">{enderecoInfo.cidade}/{enderecoInfo.uf}</span>
                   </p>
                 </div>
@@ -854,6 +878,53 @@ export default function ViverMaisLandingPage() {
                   </select>
                 </div>
               )}
+
+              {/* Para quem é o atendimento? (opcional) */}
+              <div className="space-y-2 pt-1">
+                <div>
+                  <label className="font-bold text-slate-700 block">
+                    Para quem é o atendimento?: <span className="text-slate-400 font-normal">(opcional)</span>
+                  </label>
+                  <span className="text-[11px] text-slate-500 block mt-0.5">
+                    Selecione a opção que mais combina com o que você procura.
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                  {[
+                    'Criança',
+                    'Adolescente',
+                    'Adulto',
+                    'Idoso',
+                    'Casal',
+                    'Família',
+                    'Mulheres',
+                    'Pessoas LGBTQIA+',
+                    'Grupo',
+                    'Outro',
+                  ].map((opcao) => {
+                    const isSelected = form.paraQuemE === opcao;
+                    return (
+                      <button
+                        key={opcao}
+                        type="button"
+                        onClick={() =>
+                          setForm((prev) => ({
+                            ...prev,
+                            paraQuemE: isSelected ? '' : opcao,
+                          }))
+                        }
+                        className={`p-2.5 rounded-xl border text-left font-semibold transition-all ${
+                          isSelected
+                            ? 'bg-purple-50 border-purple-500 text-purple-900 font-bold shadow-xs'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        {opcao}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
               {/* Como ficou sabendo da clínica? */}
               <div>
@@ -983,14 +1054,51 @@ export default function ViverMaisLandingPage() {
               </div>
 
               <div>
-                <label className="font-bold text-slate-700 block mb-1">Link / URL da Foto de Perfil <span className="text-slate-400 font-normal">(opcional)</span></label>
-                <input
-                  type="url"
-                  value={formPsicologo.fotoUrl}
-                  onChange={(e) => setFormPsicologo({ ...formPsicologo, fotoUrl: e.target.value })}
-                  placeholder="https://suafoto.com/imagem.jpg"
-                  className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
-                />
+                <label className="font-bold text-slate-700 block mb-1">
+                  Foto de Perfil <span className="text-slate-400 font-normal">(opcional)</span>
+                </label>
+                {formPsicologo.fotoUrl ? (
+                  <div className="flex items-center gap-4 p-3 border border-purple-200 bg-purple-50/50 rounded-2xl">
+                    <img
+                      src={formPsicologo.fotoUrl}
+                      alt="Foto de Perfil"
+                      className="w-16 h-16 rounded-full object-cover border-2 border-purple-500 shadow-sm"
+                    />
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs font-bold text-purple-900">Foto carregada com sucesso</span>
+                      <button
+                        type="button"
+                        onClick={() => setFormPsicologo({ ...formPsicologo, fotoUrl: '' })}
+                        className="text-xs text-rose-600 hover:text-rose-800 font-extrabold text-left underline"
+                      >
+                        Remover / Trocar foto
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center border-2 border-dashed border-purple-200 hover:border-purple-500 bg-purple-50/30 hover:bg-purple-50/70 p-4 rounded-2xl cursor-pointer transition-all">
+                    <Upload className="w-6 h-6 text-purple-600 mb-1" />
+                    <span className="text-xs font-bold text-purple-900">Clique para enviar uma foto de perfil</span>
+                    <span className="text-[10px] text-slate-500">Envie um arquivo de imagem (PNG, JPG, WEBP)</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = (event) => {
+                            if (event.target?.result) {
+                              setFormPsicologo((prev) => ({ ...prev, fotoUrl: String(event.target?.result) }));
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                  </label>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1012,12 +1120,16 @@ export default function ViverMaisLandingPage() {
                     onChange={(e) => setFormPsicologo({ ...formPsicologo, turmaViverMais: e.target.value })}
                     className="w-full border border-slate-300 bg-white rounded-xl p-3 focus:outline-none focus:border-purple-600 font-bold"
                   >
+                    <option value="22A">Turma 22A</option>
+                    <option value="22B">Turma 22B</option>
                     <option value="23A">Turma 23A</option>
                     <option value="23B">Turma 23B</option>
                     <option value="24A">Turma 24A</option>
                     <option value="24B">Turma 24B</option>
                     <option value="25A">Turma 25A</option>
                     <option value="25B">Turma 25B</option>
+                    <option value="26A">Turma 26A</option>
+                    <option value="26B">Turma 26B</option>
                   </select>
                 </div>
               </div>
@@ -1078,35 +1190,104 @@ export default function ViverMaisLandingPage() {
                 </div>
               )}
 
-              {/* Tipos de Atendimento e Serviços Habilitados */}
+              {/* SERVIÇO PRESTADO */}
               <div className="space-y-2">
-                <label className="font-bold text-slate-700 block">Serviços que está habilitado a atender:</label>
-                <div className="grid grid-cols-2 gap-2 text-xs">
+                <label className="font-bold text-slate-700 block">
+                  SERVIÇO PRESTADO <span className="text-rose-500">*</span>
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                   {[
-                    { key: 'PSICOTERAPIA', label: 'Psicoterapia Individual' },
-                    { key: 'AVALIACAO', label: 'Avaliação Psicológica' },
-                    { key: 'ORIENTACAO_PROFISSIONAL', label: 'Orientação Profissional/Vocacional' },
-                    { key: 'ORIENTACAO_PARENTAL', label: 'Orientação Parental' },
+                    'Atendimento Psicológico',
+                    'Avaliação Psicológica',
+                    'Orientação Vocacional e Profissional',
+                    'Orientação Parental',
+                    'Orientação Vocacional',
+                    'Orientação Profissional',
                   ].map((servico) => {
-                    const checked = formPsicologo.servicosHabilitados.includes(servico.key);
+                    const checked = formPsicologo.servicosPrestados.includes(servico);
                     return (
-                      <label key={servico.key} className="flex items-center gap-2 cursor-pointer bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                      <label
+                        key={servico}
+                        className={`flex items-center gap-2 cursor-pointer p-2.5 rounded-xl border transition-all ${
+                          checked
+                            ? 'bg-purple-50 border-purple-400 text-purple-950 font-bold shadow-xs'
+                            : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
                         <input
                           type="checkbox"
                           checked={checked}
                           onChange={() => {
                             const newServicos = checked
-                              ? formPsicologo.servicosHabilitados.filter((s) => s !== servico.key)
-                              : [...formPsicologo.servicosHabilitados, servico.key];
-                            setFormPsicologo({ ...formPsicologo, servicosHabilitados: newServicos });
+                              ? formPsicologo.servicosPrestados.filter((s) => s !== servico)
+                              : [...formPsicologo.servicosPrestados, servico];
+                            setFormPsicologo({ ...formPsicologo, servicosPrestados: newServicos });
                           }}
-                          className="accent-purple-600"
+                          className="accent-purple-600 w-4 h-4 rounded cursor-pointer"
                         />
-                        <span className="font-medium text-slate-800">{servico.label}</span>
+                        <span>{servico}</span>
                       </label>
                     );
                   })}
                 </div>
+              </div>
+
+              {/* PÚBLICO ALVO */}
+              <div className="space-y-2">
+                <label className="font-bold text-slate-700 block">
+                  PÚBLICO ALVO <span className="text-rose-500">*</span>
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                  {[
+                    'Criança',
+                    'Adolescente',
+                    'Adulto',
+                    'Idoso',
+                    'Casais',
+                    'Família',
+                    'LGBT',
+                    'Mulheres',
+                    'Grupo',
+                    'Outro',
+                  ].map((publico) => {
+                    const checked = formPsicologo.publicoAlvo.includes(publico);
+                    return (
+                      <label
+                        key={publico}
+                        className={`flex items-center gap-2 cursor-pointer p-2.5 rounded-xl border transition-all ${
+                          checked
+                            ? 'bg-purple-50 border-purple-400 text-purple-950 font-bold shadow-xs'
+                            : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            const newPublico = checked
+                              ? formPsicologo.publicoAlvo.filter((p) => p !== publico)
+                              : [...formPsicologo.publicoAlvo, publico];
+                            setFormPsicologo({ ...formPsicologo, publicoAlvo: newPublico });
+                          }}
+                          className="accent-purple-600 w-4 h-4 rounded cursor-pointer"
+                        />
+                        <span>{publico}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+
+                {formPsicologo.publicoAlvo.includes('Outro') && (
+                  <div className="animate-in fade-in duration-200 pt-1">
+                    <input
+                      type="text"
+                      value={formPsicologo.publicoAlvoOutro}
+                      onChange={(e) => setFormPsicologo({ ...formPsicologo, publicoAlvoOutro: e.target.value })}
+                      placeholder="Especifique o público alvo (ex: Gestantes, Atletas...)"
+                      className="w-full border border-slate-300 rounded-xl p-2.5 text-xs focus:outline-none focus:border-purple-600"
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1151,19 +1332,42 @@ export default function ViverMaisLandingPage() {
                 onCidadeChange={(cidade) => setFormPsicologo((current) => ({ ...current, cidade }))}
               />
 
+              {/* Tipo de Atendimento (Particular, Social ou Ambos) */}
               <div>
-                <label className="font-bold text-slate-700 block mb-1">Abordagem / Especialidade Principal <span className="text-rose-500">*</span></label>
-                <select
-                  value={formPsicologo.especialidade}
-                  onChange={(e) => setFormPsicologo({ ...formPsicologo, especialidade: e.target.value })}
-                  className="w-full border border-slate-300 bg-white rounded-xl p-3 focus:outline-none focus:border-purple-600"
-                >
-                  <option value="Cognitivo-Comportamental (TCC)">Terapia Cognitivo-Comportamental (TCC)</option>
-                  <option value="Psicanálise">Psicanálise</option>
-                  <option value="Humanista / Gestalt">Humanista / Gestalt-terapia</option>
-                  <option value="Avaliação Psicológica / Neuropsicologia">Avaliação Psicológica / Neuropsicologia</option>
-                  <option value="Orientação Parental e Carreira">Orientação Parental e Carreira</option>
-                </select>
+                <label className="font-bold text-slate-700 block mb-1.5">
+                  Tipo de Atendimento <span className="text-rose-500">*</span>
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  {[
+                    { value: 'PARTICULAR', label: 'Atendimento Particular' },
+                    { value: 'SOCIAL', label: 'Atendimento Social' },
+                    { value: 'AMBOS', label: 'Ambos' },
+                  ].map((opcao) => (
+                    <label
+                      key={opcao.value}
+                      className={`flex items-center gap-2 cursor-pointer p-3 rounded-xl border text-xs font-bold transition-all ${
+                        formPsicologo.atendimentoPreferencia === opcao.value
+                          ? 'bg-purple-50 border-purple-500 text-purple-900 shadow-sm'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="atendimentoPreferencia"
+                        value={opcao.value}
+                        checked={formPsicologo.atendimentoPreferencia === opcao.value}
+                        onChange={() =>
+                          setFormPsicologo((prev) => ({
+                            ...prev,
+                            atendimentoPreferencia: opcao.value as 'PARTICULAR' | 'SOCIAL' | 'AMBOS',
+                          }))
+                        }
+                        className="accent-purple-600"
+                      />
+                      <span>{opcao.label}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
 
               <div>
@@ -1203,17 +1407,6 @@ export default function ViverMaisLandingPage() {
                     Ambos
                   </label>
                 </div>
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Breve Apresentação Clínica / Mini Biografia</label>
-                <textarea
-                  rows={3}
-                  value={formPsicologo.minibio}
-                  onChange={(e) => setFormPsicologo({ ...formPsicologo, minibio: e.target.value })}
-                  placeholder="Conte um pouco sobre sua trajetória clínica e área de atuação..."
-                  className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
-                ></textarea>
               </div>
 
               <button

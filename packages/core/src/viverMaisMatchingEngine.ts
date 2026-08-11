@@ -15,9 +15,10 @@ export function selecionarPsicologoRoundRobin(
   turnoDesejado: TurnoAtendimento,
   modalidadeDesejada: ModalidadeAtendimento,
   psicologoIgnoradoId?: string,
-  servicoDesejado?: string
+  servicoDesejado?: string,
+  paraQuemE?: string
 ): PsicologoPerfil | null {
-  // Filtrar psicólogos ativos, que atendam o turno, modalidade e serviço específico
+  // Filtrar psicólogos ativos, que atendam o turno, modalidade, serviço e público alvo específico
   const elegiveis = psicologos.filter((p) => {
     if (psicologoIgnoradoId && p.id === psicologoIgnoradoId) return false;
     if (!p.exibirNaVitrine) return false;
@@ -26,6 +27,21 @@ export function selecionarPsicologoRoundRobin(
     if (!p.modalidadesAtendidas.includes(modalidadeDesejada)) return false;
     if (servicoDesejado && p.servicosHabilitados && p.servicosHabilitados.length > 0) {
       if (!p.servicosHabilitados.includes(servicoDesejado)) return false;
+    }
+    if (paraQuemE && p.publicoAlvo && p.publicoAlvo.length > 0) {
+      const normTarget = paraQuemE.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const matches = p.publicoAlvo.some((pa) => {
+        const normPa = pa.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        return (
+          normPa === normTarget ||
+          normPa.includes(normTarget) ||
+          normTarget.includes(normPa) ||
+          (normTarget.includes("lgbt") && normPa.includes("lgbt")) ||
+          (normTarget.includes("casal") && normPa.includes("casai")) ||
+          (normPa.includes("casal") && normTarget.includes("casai"))
+        );
+      });
+      if (!matches) return false;
     }
     return true;
   });
@@ -67,7 +83,8 @@ export function processarTriagemLead(
     lead.turno,
     lead.modalidade,
     undefined,
-    servicoDesejado
+    servicoDesejado,
+    lead.paraQuemE
   );
 
   if (!selecionado) {
@@ -141,7 +158,8 @@ export function checarEExecutarTransbordoSla(
     lead.turno,
     lead.modalidade,
     lead.psicologoAlocadoId,
-    opcoes.servicoDesejado
+    opcoes.servicoDesejado,
+    lead.paraQuemE
   );
 
   const agoraIso = new Date().toISOString();

@@ -57,6 +57,7 @@ export interface LeadTriagem {
   nomeSocial?: string;
   confirmadoPeloPsicologoEm?: string;
   slaExpirado: boolean;
+  paraQuemE?: string;
 }
 
 export interface PsicologoPerfil {
@@ -71,6 +72,7 @@ export interface PsicologoPerfil {
   turnosDisponiveis: TurnoAtendimento[];
   modalidadesAtendidas: ModalidadeAtendimento[];
   servicosHabilitados?: string[]; // Ex: ['PSICOTERAPIA', 'AVALIACAO', 'ORIENTACAO_PROFISSIONAL', 'ORIENTACAO_PARENTAL']
+  publicoAlvo?: string[];
   turmaViverMais?: string; // Ex: '23A', '23B', '24A', '25B'
   posGraduacaoViverMais?: string;
   outrasPosGraduacoes?: string[];

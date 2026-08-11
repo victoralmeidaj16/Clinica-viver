@@ -131,6 +131,7 @@ export function paraPsicologoPerfil(record: CadastroPsicologoRecord): PsicologoP
     turnosDisponiveis: normalizarLista(record.turnosDisponiveis, normalizarTurno),
     modalidadesAtendidas: normalizarLista(record.modalidadesAtendidas, normalizarModalidade),
     servicosHabilitados: [...(record.servicosHabilitados ?? [])],
+    publicoAlvo: record.publicoAlvo ? [...record.publicoAlvo] : undefined,
     limitePacientesAtivos: record.limitePacientesAtivos ?? LIMITE_PACIENTES_PADRAO,
     pacientesAtivosCount: record.pacientesAtivosCount ?? 0,
     exibirNaVitrine: record.exibirNaVitrine ?? true,
@@ -170,6 +171,7 @@ function paraLeadTriagem(record: TriagemPacienteRecord): LeadTriagem | null {
     nomeSocial: undefined,
     confirmadoPeloPsicologoEm: record.confirmadoEm,
     slaExpirado: record.slaExpirado ?? false,
+    paraQuemE: record.paraQuemE,
   };
 }
 

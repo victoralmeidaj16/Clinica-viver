@@ -585,12 +585,16 @@ export default function GestaoCockpitPage() {
                   onChange={(e) => setManualPsiForm({ ...manualPsiForm, turmaViverMais: e.target.value })}
                   className="w-full bg-slate-50 border border-line rounded-xl p-2.5 text-ink outline-none focus:border-emerald-500 font-medium"
                 >
+                  <option value="22A">Turma 22A</option>
+                  <option value="22B">Turma 22B</option>
                   <option value="23A">Turma 23A</option>
                   <option value="23B">Turma 23B</option>
                   <option value="24A">Turma 24A</option>
                   <option value="24B">Turma 24B</option>
                   <option value="25A">Turma 25A</option>
                   <option value="25B">Turma 25B</option>
+                  <option value="26A">Turma 26A</option>
+                  <option value="26B">Turma 26B</option>
                 </select>
               </div>
 

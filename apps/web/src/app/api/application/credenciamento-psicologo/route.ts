@@ -67,6 +67,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Não foi possível validar a cidade agora. Tente novamente.' }, { status: 503 });
     }
 
+    const atendimentoPreferencia = (body.atendimentoPreferencia as 'PARTICULAR' | 'SOCIAL' | 'AMBOS') || 'AMBOS';
+    const modalidadesAtendidas =
+      atendimentoPreferencia === 'PARTICULAR'
+        ? ['PARTICULAR']
+        : atendimentoPreferencia === 'SOCIAL'
+          ? ['SOCIAL']
+          : ['SOCIAL', 'PARTICULAR'];
+
     const novoPsicologo: CadastroPsicologoRecord = {
       id: `psi-cad-${Date.now()}`,
       nomeCompleto: body.nomeCompleto,
@@ -74,28 +82,37 @@ export async function POST(request: Request) {
       crp: body.crp,
       whatsapp,
       email: body.email,
+      fotoUrl: body.fotoUrl || undefined,
       estadoUf,
       cidade,
       genero: genero.gender,
       generoOutro: genero.other,
       cidadeUf: `${cidade}/${estadoUf}`,
-      especialidade: body.especialidade,
+      especialidade: body.especialidade || undefined,
       modalidadeAtendimento: body.modalidadeAtendimento,
-      minibio: body.minibio,
+      atendimentoPreferencia,
+      minibio: body.minibio || undefined,
       status: 'EM_ANALISE',
       criadoEm: new Date().toISOString(),
 
-      // O que o próprio profissional declara sobre o que atende. Vinha sendo
-      // descartado pela rota, o que deixava o rodízio sem nada para cruzar
-      // mesmo depois da aprovação.
+      // O que o próprio profissional declara sobre o que atende.
       turnosDisponiveis: Array.isArray(body.disponibilidadeTurnos) ? body.disponibilidadeTurnos : [],
-      servicosHabilitados: Array.isArray(body.servicosHabilitados) ? body.servicosHabilitados : [],
+      servicosPrestados: Array.isArray(body.servicosPrestados) ? body.servicosPrestados : [],
+      publicoAlvo: Array.isArray(body.publicoAlvo) ? body.publicoAlvo : [],
+      publicoAlvoOutro: body.publicoAlvoOutro || undefined,
+      servicosHabilitados: Array.isArray(body.servicosPrestados) && body.servicosPrestados.length > 0
+        ? Array.from(new Set([
+            body.servicosPrestados.includes('Atendimento Psicológico') ? 'PSICOTERAPIA' : '',
+            body.servicosPrestados.includes('Avaliação Psicológica') ? 'AVALIACAO' : '',
+            body.servicosPrestados.some((s: string) => s.includes('Vocacional') || s.includes('Profissional')) ? 'ORIENTACAO_PROFISSIONAL' : '',
+            body.servicosPrestados.includes('Orientação Parental') ? 'ORIENTACAO_PARENTAL' : '',
+          ].filter(Boolean)))
+        : (Array.isArray(body.servicosHabilitados) ? body.servicosHabilitados : []),
       turmaViverMais: body.turmaViverMais || undefined,
       posGraduacaoViverMais: body.posGraduacaoViverMais || undefined,
       segundaPosGraduacao: body.segundaPosGraduacao || undefined,
 
-      // Faixa de valor (acessível/particular): inicializa habilitado para ambas por padrão
-      modalidadesAtendidas: ['SOCIAL', 'PARTICULAR'],
+      modalidadesAtendidas,
       exibirNaVitrine: true,
       limitePacientesAtivos: 5,
       pacientesAtivosCount: 0,

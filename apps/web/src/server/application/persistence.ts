@@ -70,6 +70,7 @@ export interface TriagemPacienteRecord {
   email?: string;
   cpf?: string;
   cep?: string;
+  numeroResidencia?: string;
   possuiConvenio?: string;
   convenioSelecionado: string;
   origem: string;
@@ -79,6 +80,7 @@ export interface TriagemPacienteRecord {
   /** Chave do serviço (`PSICOTERAPIA`, `AVALIACAO`, …), que o rodízio compara. */
   servicoKey?: string;
   modalidade?: string;
+  paraQuemE?: string;
   genero?: string;
   generoOutro?: string;
   status: StatusTriagem;
@@ -122,6 +124,7 @@ export interface CadastroPsicologoRecord {
   crp: string;
   whatsapp: string;
   email?: string;
+  fotoUrl?: string;
   usuarioRef?: string;
   profissionalRef?: string;
   acessoCriadoEm?: string;
@@ -133,6 +136,7 @@ export interface CadastroPsicologoRecord {
   generoOutro?: string;
   especialidade?: string;
   modalidadeAtendimento?: string;
+  atendimentoPreferencia?: 'PARTICULAR' | 'SOCIAL' | 'AMBOS';
   minibio?: string;
   status: StatusCadastroPsicologo;
   criadoEm: string;
@@ -141,6 +145,9 @@ export interface CadastroPsicologoRecord {
   turnosDisponiveis?: readonly string[];
   modalidadesAtendidas?: readonly string[];
   servicosHabilitados?: readonly string[];
+  servicosPrestados?: readonly string[];
+  publicoAlvo?: readonly string[];
+  publicoAlvoOutro?: string;
   limitePacientesAtivos?: number;
   pacientesAtivosCount?: number;
   /** Chave manual da gestão: desliga do rodízio e da vitrine sem apagar nada. */

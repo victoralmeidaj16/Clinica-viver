@@ -18,6 +18,7 @@ export default function NewPatientModal({ isOpen, onClose, onPatientCreated }: N
   const [temNomeSocial, setTemNomeSocial] = useState(false);
   const [email, setEmail] = useState('');
   const [telefone, setTelefone] = useState('');
+  const [numeroResidencia, setNumeroResidencia] = useState('');
   const [dataNascimento, setDataNascimento] = useState('');
   const [professionals, setProfessionals] = useState<readonly ProfessionalProfile[]>([]);
   const [professionalId, setProfessionalId] = useState('');
@@ -69,6 +70,7 @@ export default function NewPatientModal({ isOpen, onClose, onPatientCreated }: N
       setTemNomeSocial(false);
       setEmail('');
       setTelefone('');
+      setNumeroResidencia('');
       setDataNascimento('');
       onClose();
     } catch (err) {
@@ -161,15 +163,27 @@ export default function NewPatientModal({ isOpen, onClose, onPatientCreated }: N
             </div>
           </div>
 
-          <div>
-            <label className="font-bold text-ink mb-1 block">E-mail</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="paciente@email.com"
-              className="input"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="font-bold text-ink mb-1 block">E-mail</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="paciente@email.com"
+                className="input"
+              />
+            </div>
+            <div>
+              <label className="font-bold text-ink mb-1 block">Nº Residência</label>
+              <input
+                type="text"
+                value={numeroResidencia}
+                onChange={(e) => setNumeroResidencia(e.target.value)}
+                placeholder="Ex: 123"
+                className="input"
+              />
+            </div>
           </div>
 
           <div>

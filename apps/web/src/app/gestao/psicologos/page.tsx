@@ -47,6 +47,8 @@ interface PsicologoItem {
   fotoUrl?: string;
   cidade?: string;
   estadoUf?: string;
+  logradouro?: string;
+  bairro?: string;
   status: StatusCadastro;
   atendimentoPreferencia?: 'PARTICULAR' | 'SOCIAL' | 'AMBOS';
   turnosDisponiveis?: string[];
@@ -93,11 +95,14 @@ export default function GestaoPsicologosPage() {
 
   const [form, setForm] = useState({
     nomeCompleto: '',
+    nomeSocial: '',
     crp: '',
     whatsapp: '',
     email: '',
     cidade: '',
     estadoUf: 'SC',
+    logradouro: '',
+    bairro: '',
     genero: '' as GenderValue | '',
     generoOutro: '',
     turmaViverMais: '24A',
@@ -224,6 +229,10 @@ export default function GestaoPsicologosPage() {
     }
     if (!validateGender(form.genero, form.generoOutro)) {
       alert('Selecione o gênero.');
+      return;
+    }
+    if (!form.logradouro.trim() || !form.bairro.trim()) {
+      alert('Informe rua/logradouro e bairro.');
       return;
     }
     if (form.disponibilidadeTurnos.length === 0) {
@@ -685,6 +694,17 @@ export default function GestaoPsicologosPage() {
                 </div>
               </div>
 
+              <div>
+                <label className="font-bold text-xs text-slate-700 block mb-1">Nome social</label>
+                <input
+                  type="text"
+                  value={form.nomeSocial}
+                  onChange={(e) => setForm({ ...form, nomeSocial: e.target.value })}
+                  placeholder="Como prefere ser chamado"
+                  className="w-full border border-slate-300 rounded-xl p-2.5 text-xs focus:outline-none focus:border-purple-600"
+                />
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="font-bold text-xs text-slate-700 block mb-1">E-mail Profissional *</label>
@@ -781,6 +801,17 @@ export default function GestaoPsicologosPage() {
                 onEstadoChange={(uf: string) => setForm((prev) => ({ ...prev, estadoUf: uf, cidade: '' }))}
                 onCidadeChange={(city: string) => setForm((prev) => ({ ...prev, cidade: city }))}
               />
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="font-bold text-xs text-slate-700 block mb-1">Rua / logradouro *</label>
+                  <input required value={form.logradouro} onChange={(e) => setForm({ ...form, logradouro: e.target.value })} className="w-full border border-slate-300 rounded-xl p-2.5 text-xs focus:outline-none focus:border-purple-600" />
+                </div>
+                <div>
+                  <label className="font-bold text-xs text-slate-700 block mb-1">Bairro *</label>
+                  <input required value={form.bairro} onChange={(e) => setForm({ ...form, bairro: e.target.value })} className="w-full border border-slate-300 rounded-xl p-2.5 text-xs focus:outline-none focus:border-purple-600" />
+                </div>
+              </div>
 
               <GenderFields
                 idPrefix="admin-psicologo"

@@ -274,6 +274,8 @@ export default function ViverMaisLandingPage() {
     atendimentoPreferencia: 'AMBOS' as 'PARTICULAR' | 'SOCIAL' | 'AMBOS',
     estadoUf: '',
     cidade: '',
+    logradouro: '',
+    bairro: '',
     genero: '' as GenderValue | '',
     generoOutro: '',
     turmaViverMais: '22A',
@@ -536,6 +538,10 @@ export default function ViverMaisLandingPage() {
     }
     if (!formPsicologo.estadoUf || !formPsicologo.cidade) {
       alert('Selecione o estado e uma cidade da lista.');
+      return;
+    }
+    if (!formPsicologo.logradouro.trim() || !formPsicologo.bairro.trim()) {
+      alert('Informe rua/logradouro e bairro.');
       return;
     }
     if (!validateGender(formPsicologo.genero, formPsicologo.generoOutro)) {
@@ -1696,6 +1702,37 @@ export default function ViverMaisLandingPage() {
                 onEstadoChange={(estadoUf) => setFormPsicologo((current) => ({ ...current, estadoUf, cidade: '' }))}
                 onCidadeChange={(cidade) => setFormPsicologo((current) => ({ ...current, cidade }))}
               />
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Rua / logradouro <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formPsicologo.logradouro}
+                    onChange={(e) => setFormPsicologo((current) => ({ ...current, logradouro: e.target.value }))}
+                    autoComplete="street-address"
+                    placeholder="Ex.: Rua das Flores, 123"
+                    className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Bairro <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formPsicologo.bairro}
+                    onChange={(e) => setFormPsicologo((current) => ({ ...current, bairro: e.target.value }))}
+                    autoComplete="address-level3"
+                    placeholder="Ex.: Centro"
+                    className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
+                  />
+                </div>
+              </div>
 
               {/* Tipo de Atendimento (Particular, Social ou Ambos) */}
               <div>

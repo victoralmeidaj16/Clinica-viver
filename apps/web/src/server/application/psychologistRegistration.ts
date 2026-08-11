@@ -29,7 +29,7 @@ export const STATUS_VALIDOS: readonly StatusCadastroPsicologo[] = [
  */
 export const CAMPOS_DA_GESTAO = new Set([
   'status', 'nomeCompleto', 'nomeSocial', 'crp', 'whatsapp', 'email', 'fotoUrl',
-  'estadoUf', 'cidade', 'genero', 'generoOutro', 'especialidade',
+  'estadoUf', 'cidade', 'logradouro', 'bairro', 'genero', 'generoOutro', 'especialidade',
   'modalidadeAtendimento', 'atendimentoPreferencia', 'minibio',
   'turnosDisponiveis', 'modalidadesAtendidas', 'servicosHabilitados',
   'servicosPrestados', 'publicoAlvo', 'publicoAlvoOutro',
@@ -51,7 +51,7 @@ export const CAMPOS_DA_GESTAO = new Set([
  */
 export const CAMPOS_DO_PROPRIO_PSICOLOGO = new Set([
   'nomeSocial', 'whatsapp', 'fotoUrl', 'minibio', 'especialidade',
-  'estadoUf', 'cidade', 'genero', 'generoOutro',
+  'estadoUf', 'cidade', 'logradouro', 'bairro', 'genero', 'generoOutro',
   'modalidadeAtendimento', 'atendimentoPreferencia', 'turnosDisponiveis',
   'servicosPrestados', 'publicoAlvo', 'publicoAlvoOutro',
   'especificarNecessidades', 'necessidadesAtendidas', 'necessidadesOutro',
@@ -154,6 +154,18 @@ export async function validarCorpo(corpo: Record<string, unknown>): Promise<void
     }
   }
 
+  // Rua e bairro também formam um par. Cadastros antigos podem não ter nenhum
+  // dos dois, mas uma edição nunca deve deixar um endereço pela metade.
+  if (corpo.logradouro !== undefined || corpo.bairro !== undefined) {
+    const logradouro = texto(corpo.logradouro);
+    const bairro = texto(corpo.bairro);
+    if (!logradouro || !bairro) {
+      throw new CorpoInvalidoError('Informe rua/logradouro e bairro juntos.');
+    }
+    corpo.logradouro = logradouro;
+    corpo.bairro = bairro;
+  }
+
   if (
     corpo.limitePacientesAtivos !== undefined &&
     (!Number.isInteger(corpo.limitePacientesAtivos) ||
@@ -195,6 +207,8 @@ export function aplicarMudancas(
     ? String(corpo.estadoUf).trim().toUpperCase() || undefined
     : existente.estadoUf;
   const cidade = pode('cidade') ? String(corpo.cidade).trim() || undefined : existente.cidade;
+  const logradouro = pode('logradouro') ? texto(corpo.logradouro) : existente.logradouro;
+  const bairro = pode('bairro') ? texto(corpo.bairro) : existente.bairro;
   const genero = pode('genero') ? String(corpo.genero) : existente.genero;
 
   const servicosPrestados = pode('servicosPrestados')
@@ -231,6 +245,8 @@ export function aplicarMudancas(
     fotoUrl: pode('fotoUrl') ? (corpo.fotoUrl as string) || undefined : existente.fotoUrl,
     estadoUf,
     cidade,
+    logradouro,
+    bairro,
     genero,
     generoOutro:
       genero === 'OUTRO'

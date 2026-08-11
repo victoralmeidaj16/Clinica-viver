@@ -15,6 +15,7 @@ import {
 import { formatBrazilPhone, maskBrazilPhoneInput, normalizeBrazilPhone } from '@/lib/brazilPhone';
 import { formatGender } from '@/lib/gender';
 import { LISTA_NECESSIDADES } from '@/app/vitrine/page';
+import { BrazilLocationFields } from '@/components/forms/BrazilLocationFields';
 
 interface Cadastro {
   id: string;
@@ -26,6 +27,8 @@ interface Cadastro {
   fotoUrl?: string;
   estadoUf?: string;
   cidade?: string;
+  logradouro?: string;
+  bairro?: string;
   cidadeUf?: string;
   genero?: string;
   generoOutro?: string;
@@ -92,6 +95,10 @@ const TRAVADOS: Array<[string, (c: Cadastro) => string | undefined, string]> = [
 type Rascunho = {
   nomeSocial: string;
   whatsapp: string;
+  estadoUf: string;
+  cidade: string;
+  logradouro: string;
+  bairro: string;
   especialidade: string;
   minibio: string;
   modalidadeAtendimento: string;
@@ -109,6 +116,10 @@ function rascunhoDe(c: Cadastro): Rascunho {
   return {
     nomeSocial: c.nomeSocial ?? '',
     whatsapp: formatBrazilPhone(c.whatsapp) || c.whatsapp,
+    estadoUf: c.estadoUf ?? '',
+    cidade: c.cidade ?? '',
+    logradouro: c.logradouro ?? '',
+    bairro: c.bairro ?? '',
     especialidade: c.especialidade ?? '',
     minibio: c.minibio ?? '',
     modalidadeAtendimento: c.modalidadeAtendimento ?? 'AMBOS',
@@ -181,6 +192,14 @@ export default function MeuCadastroPage() {
 
     if (!normalizeBrazilPhone(rascunho.whatsapp)) {
       setAviso('Informe um telefone brasileiro válido com DDD.');
+      return;
+    }
+    if (!rascunho.estadoUf || !rascunho.cidade) {
+      setAviso('Selecione o estado e a cidade.');
+      return;
+    }
+    if (!rascunho.logradouro.trim() || !rascunho.bairro.trim()) {
+      setAviso('Informe rua/logradouro e bairro.');
       return;
     }
     if (rascunho.turnosDisponiveis.length === 0) {
@@ -286,6 +305,22 @@ export default function MeuCadastroPage() {
             <div>
               <label className="text-[10px] uppercase tracking-wider font-extrabold text-muted block mb-1.5">WhatsApp</label>
               <input value={rascunho.whatsapp} onChange={(e) => setRascunho({ ...rascunho, whatsapp: maskBrazilPhoneInput(e.target.value) })} className={campoClasse} />
+            </div>
+            <div className="sm:col-span-2">
+              <BrazilLocationFields
+                estadoUf={rascunho.estadoUf}
+                cidade={rascunho.cidade}
+                onEstadoChange={(estadoUf) => setRascunho({ ...rascunho, estadoUf, cidade: '' })}
+                onCidadeChange={(cidade) => setRascunho({ ...rascunho, cidade })}
+              />
+            </div>
+            <div>
+              <label className="text-[10px] uppercase tracking-wider font-extrabold text-muted block mb-1.5">Rua / logradouro</label>
+              <input required value={rascunho.logradouro} onChange={(e) => setRascunho({ ...rascunho, logradouro: e.target.value })} autoComplete="street-address" className={campoClasse} />
+            </div>
+            <div>
+              <label className="text-[10px] uppercase tracking-wider font-extrabold text-muted block mb-1.5">Bairro</label>
+              <input required value={rascunho.bairro} onChange={(e) => setRascunho({ ...rascunho, bairro: e.target.value })} autoComplete="address-level3" className={campoClasse} />
             </div>
             <div className="sm:col-span-2">
               <label className="text-[10px] uppercase tracking-wider font-extrabold text-muted block mb-1.5">Especialidade ou abordagem</label>
@@ -409,6 +444,8 @@ export default function MeuCadastroPage() {
                 <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">WhatsApp</p><p className="text-sm font-bold text-ink mt-1">{formatBrazilPhone(cadastro.whatsapp)}</p></div>
                 <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Estado</p><p className="text-sm font-bold text-ink mt-1">{cadastro.estadoUf || '—'}</p></div>
                 <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Cidade</p><p className="text-sm font-bold text-ink mt-1">{cadastro.cidade ?? cadastro.cidadeUf ?? '—'}</p></div>
+                <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Rua / logradouro</p><p className="text-sm font-bold text-ink mt-1">{cadastro.logradouro || '—'}</p></div>
+                <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Bairro</p><p className="text-sm font-bold text-ink mt-1">{cadastro.bairro || '—'}</p></div>
                 <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Gênero</p><p className="text-sm font-bold text-ink mt-1">{formatGender(cadastro.genero, cadastro.generoOutro) || '—'}</p></div>
                 <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Especialidade</p><p className="text-sm font-bold text-ink mt-1">{cadastro.especialidade || 'Não informado'}</p></div>
                 <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Modalidade</p><p className="text-sm font-bold text-ink mt-1">{cadastro.modalidadeAtendimento || '—'}</p></div>

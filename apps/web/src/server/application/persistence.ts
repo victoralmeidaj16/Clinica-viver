@@ -142,6 +142,8 @@ export interface CadastroPsicologoRecord {
   cidadeUf?: string;
   estadoUf?: string;
   cidade?: string;
+  logradouro?: string;
+  bairro?: string;
   genero?: string;
   generoOutro?: string;
   especialidade?: string;

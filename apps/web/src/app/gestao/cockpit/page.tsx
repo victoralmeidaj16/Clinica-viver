@@ -52,6 +52,8 @@ interface PsicologoCadastro {
   cidadeUf?: string;
   estadoUf?: string;
   cidade?: string;
+  logradouro?: string;
+  bairro?: string;
   genero?: GenderValue;
   generoOutro?: string;
   especialidade?: string;
@@ -207,11 +209,14 @@ export default function GestaoCockpitPage() {
 
   const [manualPsiForm, setManualPsiForm] = useState({
     nomeCompleto: '',
+    nomeSocial: '',
     crp: '',
     whatsapp: '',
     email: '',
     estadoUf: '',
     cidade: '',
+    logradouro: '',
+    bairro: '',
     genero: '' as GenderValue | '',
     generoOutro: '',
     especialidade: 'Psicoterapia Cognitivo-Comportamental',
@@ -247,11 +252,14 @@ export default function GestaoCockpitPage() {
       setNovoPsiModal(false);
       setManualPsiForm({
         nomeCompleto: '',
+        nomeSocial: '',
         crp: '',
         whatsapp: '',
         email: '',
         estadoUf: '',
         cidade: '',
+        logradouro: '',
+        bairro: '',
         genero: '' as GenderValue | '',
         generoOutro: '',
         especialidade: 'Psicoterapia Cognitivo-Comportamental',
@@ -526,6 +534,17 @@ export default function GestaoCockpitPage() {
                 />
               </div>
 
+              <div>
+                <label className="font-bold text-ink block mb-1">Nome social</label>
+                <input
+                  type="text"
+                  value={manualPsiForm.nomeSocial}
+                  onChange={(e) => setManualPsiForm({ ...manualPsiForm, nomeSocial: e.target.value })}
+                  placeholder="Como prefere ser chamado"
+                  className="w-full bg-slate-50 border border-line rounded-xl p-2.5 text-ink outline-none focus:border-emerald-500"
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="font-bold text-ink block mb-1">CRP <span className="text-rose-500">*</span></label>
@@ -577,6 +596,17 @@ export default function GestaoCockpitPage() {
                 onEstadoChange={(estadoUf) => setManualPsiForm((current) => ({ ...current, estadoUf, cidade: '' }))}
                 onCidadeChange={(cidade) => setManualPsiForm((current) => ({ ...current, cidade }))}
               />
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-ink block mb-1">Rua / logradouro <span className="text-rose-500">*</span></label>
+                  <input required value={manualPsiForm.logradouro} onChange={(e) => setManualPsiForm({ ...manualPsiForm, logradouro: e.target.value })} className="w-full bg-slate-50 border border-line rounded-xl p-2.5 text-ink outline-none focus:border-emerald-500" />
+                </div>
+                <div>
+                  <label className="font-bold text-ink block mb-1">Bairro <span className="text-rose-500">*</span></label>
+                  <input required value={manualPsiForm.bairro} onChange={(e) => setManualPsiForm({ ...manualPsiForm, bairro: e.target.value })} className="w-full bg-slate-50 border border-line rounded-xl p-2.5 text-ink outline-none focus:border-emerald-500" />
+                </div>
+              </div>
 
               <div>
                 <label className="font-bold text-ink block mb-1">Turma Viver Mais</label>
@@ -1115,6 +1145,8 @@ export default function GestaoCockpitPage() {
                 ['crp', 'CRP'],
                 ['whatsapp', 'WhatsApp'],
                 ['email', 'E-mail'],
+                ['logradouro', 'Rua / logradouro'],
+                ['bairro', 'Bairro'],
                 ['especialidade', 'Especialidade'],
                 ['modalidadeAtendimento', 'Modalidade de atendimento'],
                 ['turmaViverMais', 'Turma Viver Mais'],

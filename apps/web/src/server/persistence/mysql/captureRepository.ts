@@ -80,6 +80,8 @@ interface PsicologoRow extends RowDataPacket {
   cidade_uf: string | null;
   estado_uf: string | null;
   cidade: string | null;
+  logradouro: string | null;
+  bairro: string | null;
   genero: string | null;
   genero_outro: string | null;
   especialidade: string | null;
@@ -186,6 +188,8 @@ function toPsychologist(row: PsicologoRow): CadastroPsicologoRecord {
     boasVindasEnviadaEm: fromSqlTimestamp(row.boas_vindas_enviada_em),
     estadoUf: row.estado_uf ?? undefined,
     cidade: row.cidade ?? undefined,
+    logradouro: row.logradouro ?? undefined,
+    bairro: row.bairro ?? undefined,
     genero: row.genero ?? undefined,
     generoOutro: row.genero_outro ?? undefined,
     cidadeUf: row.cidade_uf ?? (row.cidade && row.estado_uf ? `${row.cidade}/${row.estado_uf}` : undefined),
@@ -294,7 +298,7 @@ export class MysqlCaptureRepository {
     const [psychRows] = await connection.query<PsicologoRow[]>(
       `SELECT ref_core, nome_completo, nome_social, crp, whatsapp, email, foto_url,
               usuario_ref, profissional_ref, acesso_criado_em, boas_vindas_enviada_em,
-              cidade_uf, estado_uf, cidade,
+              cidade_uf, estado_uf, cidade, logradouro, bairro,
               genero, genero_outro,
               especialidade, modalidade_atendimento, atendimento_preferencia, minibio, status,
               turnos_disponiveis, modalidades_atendidas, servicos_habilitados,
@@ -351,7 +355,8 @@ export class MysqlCaptureRepository {
         `INSERT INTO clinica_cadastros_psicologos
            (id, instituicao_id, organizacao_ref, ref_core, nome_completo, nome_social,
             crp, whatsapp, email, foto_url, usuario_ref, profissional_ref, acesso_criado_em,
-            boas_vindas_enviada_em, cidade_uf, estado_uf, cidade, genero, genero_outro,
+            boas_vindas_enviada_em, cidade_uf, estado_uf, cidade, logradouro, bairro,
+            genero, genero_outro,
             especialidade, modalidade_atendimento, atendimento_preferencia,
             minibio, status, turnos_disponiveis, modalidades_atendidas,
             servicos_habilitados, servicos_prestados, publico_alvo, publico_alvo_outro,
@@ -359,7 +364,7 @@ export class MysqlCaptureRepository {
             limite_pacientes_ativos, pacientes_ativos_count,
             exibir_na_vitrine, motivo_desativacao, ultimo_lead_recebido_em,
             turma_viver_mais, pos_graduacao_viver_mais, segunda_pos_graduacao_viver_mais, criado_em)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
            nome_completo = VALUES(nome_completo), nome_social = VALUES(nome_social),
            crp = VALUES(crp), whatsapp = VALUES(whatsapp), email = VALUES(email),
@@ -368,6 +373,7 @@ export class MysqlCaptureRepository {
            acesso_criado_em = VALUES(acesso_criado_em),
            boas_vindas_enviada_em = VALUES(boas_vindas_enviada_em),
            cidade_uf = VALUES(cidade_uf), estado_uf = VALUES(estado_uf), cidade = VALUES(cidade),
+           logradouro = VALUES(logradouro), bairro = VALUES(bairro),
            genero = VALUES(genero), genero_outro = VALUES(genero_outro),
            especialidade = VALUES(especialidade),
            modalidade_atendimento = VALUES(modalidade_atendimento),
@@ -406,6 +412,8 @@ export class MysqlCaptureRepository {
           psych.cidadeUf ?? (psych.cidade && psych.estadoUf ? `${psych.cidade}/${psych.estadoUf}` : null),
           psych.estadoUf ?? null,
           psych.cidade ?? null,
+          psych.logradouro ?? null,
+          psych.bairro ?? null,
           psych.genero ?? null,
           psych.generoOutro ?? null,
           psych.especialidade ?? null,

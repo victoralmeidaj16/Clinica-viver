@@ -51,6 +51,8 @@ export async function POST(request: Request) {
     const whatsapp = normalizeBrazilPhone(body.whatsapp);
     const estadoUf = String(body.estadoUf ?? '').trim().toUpperCase();
     const cidade = String(body.cidade ?? '').trim();
+    const logradouro = String(body.logradouro ?? '').trim();
+    const bairro = String(body.bairro ?? '').trim();
     const genero = validateGender(body.genero, body.generoOutro);
 
     if (!whatsapp) {
@@ -58,6 +60,9 @@ export async function POST(request: Request) {
     }
     if (!isBrazilUf(estadoUf) || !cidade) {
       return NextResponse.json({ success: false, error: 'Selecione o estado e a cidade.' }, { status: 400 });
+    }
+    if (!logradouro || !bairro) {
+      return NextResponse.json({ success: false, error: 'Informe rua/logradouro e bairro.' }, { status: 400 });
     }
     if (!genero) {
       return NextResponse.json({ success: false, error: 'Selecione o gênero e informe a descrição quando escolher Outro.' }, { status: 400 });
@@ -96,6 +101,8 @@ export async function POST(request: Request) {
       fotoUrl: body.fotoUrl || undefined,
       estadoUf,
       cidade,
+      logradouro,
+      bairro,
       genero: genero.gender,
       generoOutro: genero.other,
       cidadeUf: `${cidade}/${estadoUf}`,

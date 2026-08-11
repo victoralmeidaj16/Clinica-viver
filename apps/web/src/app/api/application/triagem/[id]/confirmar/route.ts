@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { emptySnapshot, readSnapshot, writeSnapshot, type CadastroPsicologoRecord, type PersistedSnapshot, type TriagemPacienteRecord } from '@/server/application/persistence';
-import { isMysqlConfigured } from '@/server/oci/runtime';
-import { captureStateAsSnapshot, captureStateFromSnapshot, MysqlCaptureRepository } from '@/server/persistence/mysql/captureRepository';
+import { type CadastroPsicologoRecord, type PersistedSnapshot, type TriagemPacienteRecord } from '@/server/application/persistence';
+import { captureStateAsSnapshot, getCaptureRepository } from '@/server/persistence/captureRepository';
 import { validarTokenConfirmacao } from '@/server/viverMaisConfirmToken';
 import { alocarLead, recalcularPacientesAtivos } from '@/server/application/viverMaisRodizio';
 import { avisarTransbordo } from '@/server/application/viverMaisWhatsApp';
+import { reconciliarPacientes } from '@/server/application/patientPromotion';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -99,44 +99,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       );
     }
 
-    if (isMysqlConfigured()) {
-      const resultado = await new MysqlCaptureRepository().mutate<ConfirmacaoResult>((state) => {
-        const handled = confirmarContato(captureStateAsSnapshot(state), id, psicologoId);
-        return { next: captureStateFromSnapshot(handled.next), result: handled.result };
-      });
-
-      if (resultado.kind === 'not_found') {
-        return NextResponse.json({ success: false, error: 'Solicitação não encontrada.' }, { status: 404 });
-      }
-      if (resultado.kind === 'conflict') {
-        return NextResponse.json(
-          { success: false, error: 'Este atendimento já foi encaminhado a outro profissional pelo prazo de 24h.' },
-          { status: 409 }
-        );
-      }
-      if (resultado.kind === 'capacity_reallocated' || resultado.kind === 'capacity_pending') {
-        if (resultado.psicologo) void avisarTransbordo(resultado.lead, resultado.psicologo);
-        return NextResponse.json(
-          {
-            success: false,
-            realocado: resultado.kind === 'capacity_reallocated',
-            error: resultado.kind === 'capacity_reallocated'
-              ? 'Seu limite de 5 pacientes ativos foi atingido. O atendimento foi encaminhado ao próximo profissional.'
-              : 'Seu limite de 5 pacientes ativos foi atingido. O atendimento retornou para a fila da gestão.',
-          },
-          { status: 409 }
-        );
-      }
-      return NextResponse.json({
-        success: true,
-        jaConfirmado: resultado.kind === 'already_confirmed',
-        data: resultado.data,
-      });
-    }
-
-    const snapshot = readSnapshot() ?? emptySnapshot();
-    const handled = confirmarContato(snapshot, id, psicologoId);
-    const resultado = handled.result;
+    const repositorio = getCaptureRepository();
+    const resultado = await repositorio.mutate<ConfirmacaoResult>((state) => {
+      const handled = confirmarContato(captureStateAsSnapshot(state), id, psicologoId);
+      return {
+        next: {
+          triagensPacientes: handled.next.triagensPacientes ?? [],
+          cadastrosPsicologos: handled.next.cadastrosPsicologos ?? [],
+        },
+        result: handled.result,
+      };
+    });
 
     if (resultado.kind === 'not_found') {
       return NextResponse.json({ success: false, error: 'Solicitação não encontrada.' }, { status: 404 });
@@ -147,10 +120,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         { status: 409 }
       );
     }
-    await writeSnapshot({ ...handled.next, savedAt: new Date().toISOString() });
     if (resultado.kind === 'capacity_reallocated' || resultado.kind === 'capacity_pending') {
       if (resultado.psicologo) void avisarTransbordo(resultado.lead, resultado.psicologo);
       return NextResponse.json({ success: false, realocado: resultado.kind === 'capacity_reallocated', error: resultado.kind === 'capacity_reallocated' ? 'Seu limite de 5 pacientes ativos foi atingido. O atendimento foi encaminhado ao próximo profissional.' : 'Seu limite de 5 pacientes ativos foi atingido. O atendimento retornou para a fila da gestão.' }, { status: 409 });
+    }
+
+    // A confirmação já foi commitada. Se a identidade estiver temporariamente
+    // indisponível, a resposta continua sendo sucesso e o SLA sweep fecha a
+    // ponte depois; nunca desfazemos uma confirmação verdadeira.
+    try {
+      await reconciliarPacientes(repositorio);
+    } catch (promotionError) {
+      console.error('Confirmação registrada; promoção pendente de reconciliação:', promotionError);
     }
 
     return NextResponse.json({

@@ -284,7 +284,9 @@ export default function ViverMaisLandingPage() {
     especificarNecessidades: false,
     necessidadesAtendidas: [] as string[],
     necessidadesOutro: '',
-    disponibilidadeTurnos: ['MANHA', 'TARDE'],
+    especialidade: '',
+    minibio: '',
+    disponibilidadeTurnos: [] as string[],
   });
 
   const [protocolo, setProtocolo] = useState('');
@@ -300,7 +302,9 @@ export default function ViverMaisLandingPage() {
         searchParams.get('step') === 'CADASTRO_PSICOLOGO' ||
         window.location.hash === '#cadastro-psicologo'
       ) {
-        setStep('CADASTRO_PSICOLOGO');
+        // Fora do corpo síncrono do efeito: definir o passo aqui dispararia o
+        // render em cascata que o lint aponta.
+        void Promise.resolve().then(() => setStep('CADASTRO_PSICOLOGO'));
       }
     }
     fetch('/api/application/credenciamento-psicologo/public', { cache: 'no-store' })
@@ -544,6 +548,10 @@ export default function ViverMaisLandingPage() {
     }
     if (formPsicologo.publicoAlvo.length === 0) {
       alert('Selecione ao menos um público alvo.');
+      return;
+    }
+    if (formPsicologo.disponibilidadeTurnos.length === 0) {
+      alert('Selecione ao menos um turno de atendimento.');
       return;
     }
     setIsSubmitting(true);
@@ -1764,6 +1772,74 @@ export default function ViverMaisLandingPage() {
                     Ambos
                   </label>
                 </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1.5">
+                  Turnos em que você atende <span className="text-rose-500">*</span>
+                </label>
+                <p className="text-[11px] text-slate-500 mb-2">
+                  O encaminhamento de pacientes cruza o turno pedido com o seu. Marque todos em que
+                  tem disponibilidade.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  {[
+                    { value: 'MANHA', label: 'Manhã' },
+                    { value: 'TARDE', label: 'Tarde' },
+                    { value: 'NOITE', label: 'Noite' },
+                  ].map((turno) => {
+                    const marcado = formPsicologo.disponibilidadeTurnos.includes(turno.value);
+                    return (
+                      <label
+                        key={turno.value}
+                        className={`flex items-center gap-2 cursor-pointer p-3 rounded-xl border text-xs font-bold transition-all ${
+                          marcado
+                            ? 'bg-purple-50 border-purple-500 text-purple-900 shadow-sm'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={marcado}
+                          onChange={() =>
+                            setFormPsicologo((prev) => ({
+                              ...prev,
+                              disponibilidadeTurnos: marcado
+                                ? prev.disponibilidadeTurnos.filter((t) => t !== turno.value)
+                                : [...prev.disponibilidadeTurnos, turno.value],
+                            }))
+                          }
+                          className="accent-purple-600"
+                        />
+                        <span>{turno.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Especialidade ou abordagem</label>
+                <input
+                  type="text"
+                  value={formPsicologo.especialidade}
+                  onChange={(e) => setFormPsicologo({ ...formPsicologo, especialidade: e.target.value })}
+                  placeholder="Ex: Terapia Cognitivo-Comportamental"
+                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:border-purple-600 text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Apresentação</label>
+                <textarea
+                  value={formPsicologo.minibio}
+                  onChange={(e) => setFormPsicologo({ ...formPsicologo, minibio: e.target.value })}
+                  rows={4}
+                  maxLength={600}
+                  placeholder="Alguns parágrafos sobre como você trabalha. É o que o paciente lê na vitrine ao escolher um profissional."
+                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:border-purple-600 text-xs leading-5 resize-y"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">{formPsicologo.minibio.length}/600</p>
               </div>
 
               <button

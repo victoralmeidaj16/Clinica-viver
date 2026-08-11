@@ -37,8 +37,14 @@ UPDATE clinica_cadastros_psicologos
  WHERE cidade_uf LIKE '%/%'
    AND (estado_uf IS NULL OR cidade IS NULL);
 
+-- Normaliza para o teto operacional apenas quem está fora da faixa válida.
+-- Sem o WHERE, reaplicar este arquivo apagaria todo limite que a gestão tenha
+-- ajustado por profissional — e o runner reaplica quando a linha em
+-- schema_migrations não existe (banco novo restaurado, ambiente recriado).
 UPDATE clinica_cadastros_psicologos
-   SET limite_pacientes_ativos = 5;
+   SET limite_pacientes_ativos = 5
+ WHERE limite_pacientes_ativos IS NULL
+    OR limite_pacientes_ativos NOT BETWEEN 1 AND 5;
 
 UPDATE clinica_cadastros_psicologos p
    SET pacientes_ativos_count = (

@@ -147,6 +147,31 @@ export class InMemoryIdentityRepository implements IdentityRepository {
     upsert(this.patients, value);
   }
 
+  async reassignPatient(input: {
+    organizationId: string;
+    patientId: string;
+    professionalId: string;
+    actorUserId: string;
+    reason: string;
+    changedAt: string;
+  }): Promise<PatientProfile | null> {
+    const index = this.patients.findIndex(
+      (patient) => patient.organizationId === input.organizationId && patient.id === input.patientId
+    );
+    if (index < 0) return null;
+
+    const current = this.patients[index];
+    if (current.primaryProfessionalId === input.professionalId) return clone(current);
+    const next: PatientProfile = {
+      ...current,
+      primaryProfessionalId: input.professionalId,
+      assignedProfessionalIds: [input.professionalId],
+      updatedAt: input.changedAt,
+    };
+    this.patients[index] = clone(next);
+    return clone(next);
+  }
+
   async getResponsibleParty(
     organizationId: string,
     responsiblePartyId: string

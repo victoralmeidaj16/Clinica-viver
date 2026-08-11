@@ -51,7 +51,7 @@ const globalStore = globalThis as typeof globalThis & DemoGlobal;
 const createdAt = '2026-07-31T12:00:00.000Z';
 
 function applicationOrganizationId(): string {
-  return process.env.NEXT_PUBLIC_ORGANIZATION_ID?.trim() || 'org-demo';
+  return process.env.ORGANIZATION_ID?.trim() || process.env.NEXT_PUBLIC_ORGANIZATION_ID?.trim() || 'org-demo';
 }
 
 function createState(): DemoApplicationState {

@@ -49,6 +49,30 @@ export async function registerPatientForOrganization(
   return patient;
 }
 
+/**
+ * Materializa uma identidade clínica a partir de uma origem externa confiável
+ * (por exemplo, um lead confirmado). O id estável da origem é a chave de
+ * idempotência: novas tentativas devolvem o mesmo paciente sem sobrescrevê-lo.
+ */
+export async function ensurePatientFromExternalSource(
+  dependencies: IdentityUseCaseDependencies,
+  input: Omit<PatientProfile, 'status' | 'updatedAt'>
+): Promise<PatientProfile> {
+  const existing = await dependencies.repository.getPatient(input.organizationId, input.id);
+  if (existing) return existing;
+
+  for (const professionalId of input.assignedProfessionalIds) {
+    const professional = await dependencies.repository.getProfessional(input.organizationId, professionalId);
+    if (!professional || professional.status !== 'active') {
+      throw new Error(`Profissional ativo não encontrado: ${professionalId}.`);
+    }
+  }
+
+  const patient = createPatientProfile(input);
+  await dependencies.repository.savePatient(patient);
+  return patient;
+}
+
 export async function registerProfessionalForOrganization(
   dependencies: IdentityUseCaseDependencies,
   actor: StaffAccessContext,

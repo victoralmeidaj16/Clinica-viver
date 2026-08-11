@@ -21,7 +21,10 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(login);
   }
   const adminPage = ['/gestao', '/relatorios', '/convenios', '/retencao', '/configuracoes'].some((prefix) => pathname.startsWith(prefix));
-  const professionalPage = ['/cockpit', '/pacientes', '/meu-financeiro', '/agenda', '/avaliacoes', '/sessao'].some((prefix) => pathname.startsWith(prefix));
+  // `/meu-cadastro` é o destino do fluxo de ativação de conta: sem estar nesta
+  // lista, o psicólogo que acabava de definir a senha era redirecionado para
+  // `/cockpit` no exato momento em que deveria ver o próprio perfil.
+  const professionalPage = ['/cockpit', '/pacientes', '/meu-financeiro', '/agenda', '/avaliacoes', '/sessao', '/meu-cadastro'].some((prefix) => pathname.startsWith(prefix));
   const allowed = session.role === 'admin' ? adminPage : professionalPage;
   if (!allowed) return NextResponse.redirect(new URL(session.role === 'admin' ? '/gestao/cockpit' : '/cockpit', request.url));
   return NextResponse.next();

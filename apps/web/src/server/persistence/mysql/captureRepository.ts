@@ -45,11 +45,18 @@ interface TriagemRow extends RowDataPacket {
   servico: string | null;
   servico_key: string | null;
   modalidade: string | null;
+  numero_residencia: string | null;
+  para_quem_e: string | null;
+  especificar_necessidades: number;
+  necessidades_paciente: unknown;
+  necessidades_outro: string | null;
+  opcao_avaliacao_psicologica: string | null;
   genero: string | null;
   genero_outro: string | null;
   status: StatusTriagem;
   psicologo_alocado_id: string | null;
   psicologo_nome: string | null;
+  paciente_ref: string | null;
   alocado_em: string | null;
   confirmado_em: string | null;
   sla_expirado: number;
@@ -65,6 +72,7 @@ interface PsicologoRow extends RowDataPacket {
   crp: string;
   whatsapp: string;
   email: string | null;
+  foto_url: string | null;
   usuario_ref: string | null;
   profissional_ref: string | null;
   acesso_criado_em: string | null;
@@ -76,11 +84,18 @@ interface PsicologoRow extends RowDataPacket {
   genero_outro: string | null;
   especialidade: string | null;
   modalidade_atendimento: string | null;
+  atendimento_preferencia: 'PARTICULAR' | 'SOCIAL' | 'AMBOS' | null;
   minibio: string | null;
   status: StatusCadastroPsicologo;
   turnos_disponiveis: unknown;
   modalidades_atendidas: unknown;
   servicos_habilitados: unknown;
+  servicos_prestados: unknown;
+  publico_alvo: unknown;
+  publico_alvo_outro: string | null;
+  especificar_necessidades: number;
+  necessidades_atendidas: unknown;
+  necessidades_outro: string | null;
   limite_pacientes_ativos: number | null;
   pacientes_ativos_count: number;
   exibir_na_vitrine: number;
@@ -135,12 +150,19 @@ function toLead(row: TriagemRow): TriagemPacienteRecord {
     servico: row.servico ?? undefined,
     servicoKey: row.servico_key ?? undefined,
     modalidade: row.modalidade ?? undefined,
+    numeroResidencia: row.numero_residencia ?? undefined,
+    paraQuemE: row.para_quem_e ?? undefined,
+    especificarNecessidades: Boolean(row.especificar_necessidades),
+    necessidadesPaciente: asStringArray(row.necessidades_paciente),
+    necessidadesOutro: row.necessidades_outro ?? undefined,
+    opcaoAvaliacaoPsicologica: row.opcao_avaliacao_psicologica ?? undefined,
     genero: row.genero ?? undefined,
     generoOutro: row.genero_outro ?? undefined,
     status: row.status,
     criadoEm: fromSqlTimestamp(row.criado_em) ?? new Date(0).toISOString(),
     psicologoAlocadoId: row.psicologo_alocado_id ?? undefined,
     psicologoNome: row.psicologo_nome ?? undefined,
+    pacienteRef: row.paciente_ref ?? undefined,
     alocadoEm: fromSqlTimestamp(row.alocado_em),
     confirmadoEm: fromSqlTimestamp(row.confirmado_em),
     slaExpirado: Boolean(row.sla_expirado),
@@ -157,6 +179,7 @@ function toPsychologist(row: PsicologoRow): CadastroPsicologoRecord {
     crp: row.crp,
     whatsapp: row.whatsapp,
     email: row.email ?? undefined,
+    fotoUrl: row.foto_url ?? undefined,
     usuarioRef: row.usuario_ref ?? undefined,
     profissionalRef: row.profissional_ref ?? undefined,
     acessoCriadoEm: fromSqlTimestamp(row.acesso_criado_em),
@@ -168,12 +191,19 @@ function toPsychologist(row: PsicologoRow): CadastroPsicologoRecord {
     cidadeUf: row.cidade_uf ?? (row.cidade && row.estado_uf ? `${row.cidade}/${row.estado_uf}` : undefined),
     especialidade: row.especialidade ?? undefined,
     modalidadeAtendimento: row.modalidade_atendimento ?? undefined,
+    atendimentoPreferencia: row.atendimento_preferencia ?? undefined,
     minibio: row.minibio ?? undefined,
     status: row.status,
     criadoEm: fromSqlTimestamp(row.criado_em) ?? new Date(0).toISOString(),
     turnosDisponiveis: asStringArray(row.turnos_disponiveis),
     modalidadesAtendidas: asStringArray(row.modalidades_atendidas),
     servicosHabilitados: asStringArray(row.servicos_habilitados),
+    servicosPrestados: asStringArray(row.servicos_prestados),
+    publicoAlvo: asStringArray(row.publico_alvo),
+    publicoAlvoOutro: row.publico_alvo_outro ?? undefined,
+    especificarNecessidades: Boolean(row.especificar_necessidades),
+    necessidadesAtendidas: asStringArray(row.necessidades_atendidas),
+    necessidadesOutro: row.necessidades_outro ?? undefined,
     limitePacientesAtivos: row.limite_pacientes_ativos ?? undefined,
     pacientesAtivosCount: row.pacientes_ativos_count,
     exibirNaVitrine: Boolean(row.exibir_na_vitrine),
@@ -218,8 +248,29 @@ export class MysqlCaptureRepository {
     }
   }
 
+  /**
+   * Leitura simples, sem transação e sem lock.
+   *
+   * Antes isto era `mutate(state => ({next: state, result: state}))`, o que
+   * fazia toda listagem travar as duas tabelas com `FOR UPDATE` e reescrever
+   * cada linha — uma tela aberta serializava contra qualquer formulário sendo
+   * enviado. A troca aceita que uma leitura possa não enxergar uma escrita
+   * concorrente que ainda não commitou; para listagem, isso é indistinguível de
+   * ter carregado a página um instante antes.
+   *
+   * A importação do legado é a exceção: quando as duas tabelas estão vazias e
+   * existe snapshot em disco, a leitura delega ao `mutate` para que a migração
+   * de modo demonstração para banco aconteça na primeira tela aberta, e não
+   * apenas no primeiro formulário enviado. O custo fica restrito ao banco
+   * vazio, que é onde não há o que travar.
+   */
   async read(): Promise<CaptureState> {
-    return this.mutate((state) => ({ next: state, result: state }));
+    const state = await this.readState(this.pool, false);
+    const vazio = state.triagensPacientes.length === 0 && state.cadastrosPsicologos.length === 0;
+    if (vazio && readSnapshot()) {
+      return this.mutate((atual) => ({ next: atual, result: atual }));
+    }
+    return state;
   }
 
   private async readState(
@@ -229,9 +280,11 @@ export class MysqlCaptureRepository {
     const lock = lockRows ? ' FOR UPDATE' : '';
     const [leadRows] = await connection.query<TriagemRow[]>(
       `SELECT ref_core, protocolo, nome_paciente, telefone, idade, email, cpf, cep,
-              possui_convenio, convenio_selecionado, origem, turno, servico,
-              servico_key, modalidade, genero, genero_outro, status, psicologo_alocado_id,
-              psicologo_nome, alocado_em, confirmado_em, sla_expirado,
+              numero_residencia, possui_convenio, convenio_selecionado, origem, turno, servico,
+              servico_key, modalidade, para_quem_e, especificar_necessidades,
+              necessidades_paciente, necessidades_outro, opcao_avaliacao_psicologica,
+              genero, genero_outro, status, psicologo_alocado_id,
+              psicologo_nome, paciente_ref, alocado_em, confirmado_em, sla_expirado,
               transbordos, psicologos_ja_tentados, criado_em
          FROM clinica_triagens_pacientes
         WHERE instituicao_id = ? AND organizacao_ref = ?
@@ -239,12 +292,14 @@ export class MysqlCaptureRepository {
       [instituicaoId(), organizacaoRef()]
     );
     const [psychRows] = await connection.query<PsicologoRow[]>(
-      `SELECT ref_core, nome_completo, nome_social, crp, whatsapp, email,
+      `SELECT ref_core, nome_completo, nome_social, crp, whatsapp, email, foto_url,
               usuario_ref, profissional_ref, acesso_criado_em, boas_vindas_enviada_em,
               cidade_uf, estado_uf, cidade,
               genero, genero_outro,
-              especialidade, modalidade_atendimento, minibio, status,
+              especialidade, modalidade_atendimento, atendimento_preferencia, minibio, status,
               turnos_disponiveis, modalidades_atendidas, servicos_habilitados,
+              servicos_prestados, publico_alvo, publico_alvo_outro,
+              especificar_necessidades, necessidades_atendidas, necessidades_outro,
               limite_pacientes_ativos, pacientes_ativos_count, exibir_na_vitrine,
               motivo_desativacao, ultimo_lead_recebido_em, turma_viver_mais,
               pos_graduacao_viver_mais, segunda_pos_graduacao_viver_mais, criado_em
@@ -295,27 +350,36 @@ export class MysqlCaptureRepository {
       await connection.execute(
         `INSERT INTO clinica_cadastros_psicologos
            (id, instituicao_id, organizacao_ref, ref_core, nome_completo, nome_social,
-            crp, whatsapp, email, usuario_ref, profissional_ref, acesso_criado_em,
+            crp, whatsapp, email, foto_url, usuario_ref, profissional_ref, acesso_criado_em,
             boas_vindas_enviada_em, cidade_uf, estado_uf, cidade, genero, genero_outro,
-            especialidade, modalidade_atendimento,
+            especialidade, modalidade_atendimento, atendimento_preferencia,
             minibio, status, turnos_disponiveis, modalidades_atendidas,
-            servicos_habilitados, limite_pacientes_ativos, pacientes_ativos_count,
+            servicos_habilitados, servicos_prestados, publico_alvo, publico_alvo_outro,
+            especificar_necessidades, necessidades_atendidas, necessidades_outro,
+            limite_pacientes_ativos, pacientes_ativos_count,
             exibir_na_vitrine, motivo_desativacao, ultimo_lead_recebido_em,
             turma_viver_mais, pos_graduacao_viver_mais, segunda_pos_graduacao_viver_mais, criado_em)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
            nome_completo = VALUES(nome_completo), nome_social = VALUES(nome_social),
            crp = VALUES(crp), whatsapp = VALUES(whatsapp), email = VALUES(email),
+           foto_url = VALUES(foto_url),
            usuario_ref = VALUES(usuario_ref), profissional_ref = VALUES(profissional_ref),
            acesso_criado_em = VALUES(acesso_criado_em),
            boas_vindas_enviada_em = VALUES(boas_vindas_enviada_em),
            cidade_uf = VALUES(cidade_uf), estado_uf = VALUES(estado_uf), cidade = VALUES(cidade),
            genero = VALUES(genero), genero_outro = VALUES(genero_outro),
            especialidade = VALUES(especialidade),
-           modalidade_atendimento = VALUES(modalidade_atendimento), minibio = VALUES(minibio),
+           modalidade_atendimento = VALUES(modalidade_atendimento),
+           atendimento_preferencia = VALUES(atendimento_preferencia), minibio = VALUES(minibio),
            status = VALUES(status), turnos_disponiveis = VALUES(turnos_disponiveis),
            modalidades_atendidas = VALUES(modalidades_atendidas),
            servicos_habilitados = VALUES(servicos_habilitados),
+           servicos_prestados = VALUES(servicos_prestados),
+           publico_alvo = VALUES(publico_alvo), publico_alvo_outro = VALUES(publico_alvo_outro),
+           especificar_necessidades = VALUES(especificar_necessidades),
+           necessidades_atendidas = VALUES(necessidades_atendidas),
+           necessidades_outro = VALUES(necessidades_outro),
            limite_pacientes_ativos = VALUES(limite_pacientes_ativos),
            pacientes_ativos_count = VALUES(pacientes_ativos_count),
            exibir_na_vitrine = VALUES(exibir_na_vitrine),
@@ -334,6 +398,7 @@ export class MysqlCaptureRepository {
           psych.crp,
           psych.whatsapp,
           psych.email ?? null,
+          psych.fotoUrl ?? null,
           psych.usuarioRef ?? null,
           psych.profissionalRef ?? null,
           psych.acessoCriadoEm ? toSqlTimestamp(psych.acessoCriadoEm) : null,
@@ -345,11 +410,18 @@ export class MysqlCaptureRepository {
           psych.generoOutro ?? null,
           psych.especialidade ?? null,
           psych.modalidadeAtendimento ?? null,
+          psych.atendimentoPreferencia ?? null,
           psych.minibio ?? null,
           psych.status,
           asJson(psych.turnosDisponiveis),
           asJson(psych.modalidadesAtendidas),
           asJson(psych.servicosHabilitados),
+          asJson(psych.servicosPrestados),
+          asJson(psych.publicoAlvo),
+          psych.publicoAlvoOutro ?? null,
+          psych.especificarNecessidades ? 1 : 0,
+          asJson(psych.necessidadesAtendidas),
+          psych.necessidadesOutro ?? null,
           psych.limitePacientesAtivos ?? null,
           psych.pacientesAtivosCount ?? 0,
           psych.exibirNaVitrine === false ? 0 : 1,
@@ -367,20 +439,29 @@ export class MysqlCaptureRepository {
       await connection.execute(
         `INSERT INTO clinica_triagens_pacientes
            (id, instituicao_id, organizacao_ref, ref_core, protocolo, nome_paciente,
-            telefone, idade, email, cpf, cep, possui_convenio, convenio_selecionado,
-            origem, turno, servico, servico_key, modalidade, genero, genero_outro, status,
-            psicologo_alocado_id, psicologo_nome, alocado_em, confirmado_em,
+            telefone, idade, email, cpf, cep, numero_residencia, possui_convenio,
+            convenio_selecionado, origem, turno, servico, servico_key, modalidade,
+            para_quem_e, especificar_necessidades, necessidades_paciente,
+            necessidades_outro, opcao_avaliacao_psicologica, genero, genero_outro, status,
+            psicologo_alocado_id, psicologo_nome, paciente_ref, alocado_em, confirmado_em,
             sla_expirado, transbordos, psicologos_ja_tentados, criado_em)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
            protocolo = VALUES(protocolo), nome_paciente = VALUES(nome_paciente),
            telefone = VALUES(telefone), idade = VALUES(idade), email = VALUES(email),
-           cpf = VALUES(cpf), cep = VALUES(cep), possui_convenio = VALUES(possui_convenio),
+           cpf = VALUES(cpf), cep = VALUES(cep), numero_residencia = VALUES(numero_residencia),
+           possui_convenio = VALUES(possui_convenio),
            convenio_selecionado = VALUES(convenio_selecionado), origem = VALUES(origem),
            turno = VALUES(turno), servico = VALUES(servico), servico_key = VALUES(servico_key),
-           modalidade = VALUES(modalidade), genero = VALUES(genero), genero_outro = VALUES(genero_outro),
+           modalidade = VALUES(modalidade), para_quem_e = VALUES(para_quem_e),
+           especificar_necessidades = VALUES(especificar_necessidades),
+           necessidades_paciente = VALUES(necessidades_paciente),
+           necessidades_outro = VALUES(necessidades_outro),
+           opcao_avaliacao_psicologica = VALUES(opcao_avaliacao_psicologica),
+           genero = VALUES(genero), genero_outro = VALUES(genero_outro),
            status = VALUES(status),
            psicologo_alocado_id = VALUES(psicologo_alocado_id), psicologo_nome = VALUES(psicologo_nome),
+           paciente_ref = VALUES(paciente_ref),
            alocado_em = VALUES(alocado_em), confirmado_em = VALUES(confirmado_em),
            sla_expirado = VALUES(sla_expirado), transbordos = VALUES(transbordos),
            psicologos_ja_tentados = VALUES(psicologos_ja_tentados)`,
@@ -396,6 +477,7 @@ export class MysqlCaptureRepository {
           lead.email ?? null,
           lead.cpf ?? null,
           lead.cep ?? null,
+          lead.numeroResidencia ?? null,
           lead.possuiConvenio ?? null,
           lead.convenioSelecionado,
           lead.origem,
@@ -403,11 +485,17 @@ export class MysqlCaptureRepository {
           lead.servico ?? null,
           lead.servicoKey ?? null,
           lead.modalidade ?? null,
+          lead.paraQuemE ?? null,
+          lead.especificarNecessidades ? 1 : 0,
+          asJson(lead.necessidadesPaciente),
+          lead.necessidadesOutro ?? null,
+          lead.opcaoAvaliacaoPsicologica ?? null,
           lead.genero ?? null,
           lead.generoOutro ?? null,
           lead.status,
           lead.psicologoAlocadoId ?? null,
           lead.psicologoNome ?? null,
+          lead.pacienteRef ?? null,
           lead.alocadoEm ? toSqlTimestamp(lead.alocadoEm) : null,
           lead.confirmadoEm ? toSqlTimestamp(lead.confirmadoEm) : null,
           lead.slaExpirado ? 1 : 0,

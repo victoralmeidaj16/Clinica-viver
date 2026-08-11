@@ -23,6 +23,7 @@ import {
   changeOrganizationMemberRoles,
   inviteOrganizationMember,
   linkResponsibleToPatient,
+  ensurePatientFromExternalSource,
   registerPatientForOrganization,
   resolvePatientAccessContext,
   resolveResponsibleAccessContext,
@@ -282,6 +283,82 @@ describe('identity and multi-tenancy', () => {
     expect(
       await repository.getPatient(otherOrganization.id, patient.id)
     ).toBeNull();
+  });
+
+  it('reatribui paciente sem manter acesso do profissional anterior', async () => {
+    const secondProfessional: ProfessionalProfile = {
+      ...professionalProfile,
+      id: 'professional-2',
+      userId: 'user-professional-2',
+      displayName: 'Dra. Marina',
+    };
+    const repository = new InMemoryIdentityRepository({
+      organizations: [organization],
+      professionals: [professionalProfile, secondProfessional],
+      patients: [createPatientProfile({
+        id: 'patient-reassignment',
+        organizationId: organization.id,
+        displayName: 'Paciente fictício',
+        primaryProfessionalId: professionalProfile.id,
+        assignedProfessionalIds: [professionalProfile.id],
+        createdAt: now,
+      })],
+    });
+
+    const changedAt = '2026-07-30T13:00:00.000Z';
+    const reassigned = await repository.reassignPatient({
+      organizationId: organization.id,
+      patientId: 'patient-reassignment',
+      professionalId: secondProfessional.id,
+      actorUserId: ownerMembership.userId,
+      reason: 'Adequação de abordagem',
+      changedAt,
+    });
+
+    expect(reassigned).toMatchObject({
+      primaryProfessionalId: secondProfessional.id,
+      assignedProfessionalIds: [secondProfessional.id],
+      updatedAt: changedAt,
+    });
+    expect(
+      await repository.reassignPatient({
+        organizationId: otherOrganization.id,
+        patientId: 'patient-reassignment',
+        professionalId: secondProfessional.id,
+        actorUserId: ownerMembership.userId,
+        reason: 'Tentativa entre organizações',
+        changedAt,
+      })
+    ).toBeNull();
+  });
+
+  it('promove uma origem externa de forma idempotente e preserva o mapeamento', async () => {
+    const repository = createRepository();
+    const input = {
+      id: 'paciente-lead-42',
+      organizationId: organization.id,
+      externalReference: 'VM-2026-0042',
+      displayName: 'Paciente de integração',
+      primaryProfessionalId: professionalProfile.id,
+      assignedProfessionalIds: [professionalProfile.id],
+      createdAt: now,
+    };
+
+    const first = await ensurePatientFromExternalSource({ repository }, input);
+    const replay = await ensurePatientFromExternalSource(
+      { repository },
+      { ...input, displayName: 'Nome que não deve sobrescrever' }
+    );
+
+    expect(replay).toEqual(first);
+    expect(first).toMatchObject({
+      id: 'paciente-lead-42',
+      externalReference: 'VM-2026-0042',
+      displayName: 'Paciente de integração',
+      primaryProfessionalId: professionalProfile.id,
+      assignedProfessionalIds: [professionalProfile.id],
+    });
+    expect(await repository.listPatients(organization.id)).toHaveLength(1);
   });
 
   it('exige paciente e responsável no mesmo tenant para criar vínculo', async () => {

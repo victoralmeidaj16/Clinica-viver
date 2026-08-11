@@ -59,19 +59,26 @@ Sequência de **produção**, aplicada com credencial administrativa no banco
 | `000_criar_banco_clinica.sh` | cria o banco e concede acesso ao usuário restrito | pendente |
 | `001_financeiro.sql` | **só estrutura**: `instituicoes` e `financeiro_recebimentos`, exigidas por chave estrangeira no 004. As tabelas ficam vazias — o financeiro real vive em `packages/core/src/financial` | pendente |
 | `004_clinica.sql` | domínio clínico: pacientes, profissionais, agenda, evoluções, documentos, consentimentos, auditoria | pendente |
+| `006_clinica_mensagens_conteudo.sql` | compatibilidade idempotente da coluna de conteúdo de mensagens | pendente |
 | `007_thats_life_core.sql` | organização, usuários, vínculos, atribuição de profissionais, lembretes, `clinica_comandos`, `clinica_outbox` e ALTERs no 004 | pendente |
 | `008_seed_organizacao.sql` | organização Viver Mais e vínculo de coordenação. **Sem pacientes e sem profissionais** | pendente |
 | `009_captacao.sql` | triagem pública de pacientes e credenciamento de psicólogos, usados pela vitrine e pelo cockpit da gestão | pendente |
+| `010_segunda_pos.sql` | segunda pós-graduação no credenciamento | pendente |
+| `011_localizacao_limite_psicologos.sql` | localização e capacidade do rodízio, sem sobrescrever limites customizados | pendente |
+| `012_clinica_core.sql` | sessões, prontuário, linha do tempo, auditoria de acesso e razão financeiro do core | pendente |
+| `013_genero_cadastros.sql` | gênero nos cadastros e triagens | pendente |
+| `014_credenciamento_acesso.sql` | usuários, convites e ponte do credenciamento para o perfil clínico | pendente |
+| `015_captacao_campos_completos.sql` | campos completos da candidatura/triagem e `paciente_ref` da promoção | pendente |
 
 Dois arquivos **fora** da sequência de produção:
 
-- `005_seed_profissionais.sql` — dez profissionais **fictícios**, com telefones
+- `seeds/005_seed_profissionais.sql` — dez profissionais **fictícios**, com telefones
   fictícios. Só desenvolvimento. Com o Evolution API ligado, telefone de exemplo
   é telefone de alguém.
-- `006_clinica_mensagens_conteudo.sql` — migração para bancos que receberam uma
-  versão antiga do 004. Em instalação nova falha com
-  `ERROR 1060: Duplicate column name 'conteudo'`, porque o 004 atual já traz a
-  coluna.
+
+As migrations numeradas são aplicadas por `npm run db:migrate`, que registra
+versão e checksum em `schema_migrations`. O runner recusa arquivos aplicados que
+tenham sido alterados; correções posteriores entram sempre em uma nova versão.
 
 O domínio-base do `004` continua sendo o do Sponteiro. As diferenças de
 comportamento desta aplicação entram por `ALTER` no `007` — manter o mesmo

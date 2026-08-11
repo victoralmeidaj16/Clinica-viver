@@ -43,11 +43,24 @@ específicas; nunca use `/:path*`.
 
 Adicione as variáveis abaixo no painel **Settings > Environment Variables** do Vercel:
 
+### Backend permanente na OCI
+
+```env
+BACKEND_ORIGIN=https://app.vivermaispsicologia.com.br
+```
+
+Essa variável encaminha somente `/api/application/*`, `/api/auth/*` e
+`/api/infra/*`. As páginas e os assets continuam sendo construídos e servidos
+diretamente pela Vercel.
+
 ### 🔑 Autenticação & Sessão
 ```env
 AUTH_SESSION_SECRET=e7b4a2f8c9d1e3f5a7b9c1d3e5f7a9b1c3d5e7f9a1b3c5d7e9f1a3b5c7d9e1f3
 ```
 *(Você pode gerar uma string de 32 bytes executando no terminal: `openssl rand -hex 32`)*
+
+Em produção não existe fallback para `Admin@123`/`Psi@123`. Antes do deploy,
+configure usuários com hash forte ou ative a conta pelo fluxo de convite.
 
 ```env
 AUTH_USERS_JSON=[{"email":"admin@vivermaispsicologia.com.br","userId":"usr-coordenacao","organizationId":"org-viver-mais","passwordHash":"scrypt$8192$8$1$..."}]
@@ -77,7 +90,7 @@ ORGANIZATION_SLUG=viver-mais-psicologia
 
 ## 4. Checklist de Teste da Equipe
 
-1. [ ] Acessar `https://<seu-link>.vercel.app/api/infra/mode` e confirmar `{"persistence":"memory"}`.
+1. [ ] Acessar `https://<seu-link>.vercel.app/api/infra/mode` e confirmar `{"persistence":"mysql"}`.
 2. [ ] Testar navegação na Agenda (`/agenda`).
 3. [ ] Testar Cockpit do Psicólogo (`/cockpit`).
 4. [ ] Efetuar disparo de WhatsApp de teste para um número liberado no `WHATSAPP_ALLOWED_NUMBERS`.

@@ -36,7 +36,7 @@ TL - Psi/
 
 ---
 
-## 🚦 Como Iniciar
+## 🚦 Como iniciar
 
 Requisitos: Node.js 20.19.4 ou superior e npm.
 
@@ -52,6 +52,16 @@ Para executar a aplicação web:
 npm run web:dev
 ```
 
+Para desenvolver contra um MySQL local real:
+
+```bash
+npm run db:up
+MYSQL_ADMIN_URL=mysql://root:dev-root-local@127.0.0.1:3307/viver_mais_clinica npm run db:migrate
+```
+
+Depois, configure `DATABASE_URL`, `ORGANIZATION_ID` e as variáveis de sessão no
+`.env.local`. Sem `DATABASE_URL`, a aplicação continua no modo demonstração.
+
 ---
 
 ## Verificações
@@ -64,10 +74,30 @@ npm run web:dev
 
 ---
 
-## Deploy na Vercel
+## Produção com MySQL na OCI
 
-O projeto `clinica-viver-web` deve ser publicado a partir da **raiz deste
-monorepo**, usando o [`vercel.json`](./vercel.json) da raiz.
+O DB System usa endereço privado dentro da VCN. Por isso, a aplicação que
+acessa dados reais deve rodar na VM da OCI (ou em outro runtime dentro da VCN),
+com `DATABASE_URL` server-side e TLS configurado. O fluxo de atualização é:
+
+```bash
+npm ci
+MYSQL_ADMIN_URL="$MYSQL_ADMIN_URL" npm run db:migrate
+npm run check
+npm run web:build
+npm run start --workspace @thats-life/web
+```
+
+Credenciais administrativas são usadas somente pelo runner de migrations; a
+aplicação opera com um usuário restrito a DML. Veja
+[`docs/oci-migracao.md`](./docs/oci-migracao.md) para a sequência completa.
+
+## Vercel (modo sem acesso ao banco privado)
+
+O projeto `clinica-viver-web` continua sendo publicado a partir da **raiz deste
+monorepo**, usando o [`vercel.json`](./vercel.json) da raiz. Sem conectividade
+privada com a VCN ele serve apenas o modo demonstração, não a operação clínica
+com MySQL.
 
 ```bash
 npm run typecheck

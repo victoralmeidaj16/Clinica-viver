@@ -15,7 +15,12 @@
     "lint": "npm run lint --workspace @thats-life/web",
     "typecheck": "npm run check --workspace @thats-life/core && npm run typecheck --workspace @thats-life/web",
     "test": "npm run test --workspace @thats-life/core",
-    "check": "npm run lint && npm run typecheck && npm run test && npm run web:build"
+    "check": "npm run lint && npm run typecheck && npm run test && npm run web:build",
+    "db:up": "docker compose -f infra/mysql/docker-compose.dev.yml up -d --wait",
+    "db:down": "docker compose -f infra/mysql/docker-compose.dev.yml down",
+    "db:reset": "docker compose -f infra/mysql/docker-compose.dev.yml down -v && npm run db:up && npm run db:migrate",
+    "db:migrate": "node infra/mysql/migrate.mjs",
+    "db:status": "node infra/mysql/migrate.mjs --dry-run"
   },
   "engines": {
     "node": ">=20.19.4"

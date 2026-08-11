@@ -12,6 +12,10 @@ import { normalizeBrazilPhone } from '@/lib/brazilPhone';
 import { isBrazilUf } from '@/lib/brazilLocations';
 import { municipioPertenceAoEstado } from '@/server/application/ibgeLocations';
 import { validateGender } from '@/lib/gender';
+import {
+  derivarModalidadesAtendidas,
+  derivarServicosHabilitados,
+} from '@/server/application/psychologistRegistration';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -68,12 +72,19 @@ export async function POST(request: Request) {
     }
 
     const atendimentoPreferencia = (body.atendimentoPreferencia as 'PARTICULAR' | 'SOCIAL' | 'AMBOS') || 'AMBOS';
-    const modalidadesAtendidas =
-      atendimentoPreferencia === 'PARTICULAR'
-        ? ['PARTICULAR']
-        : atendimentoPreferencia === 'SOCIAL'
-          ? ['SOCIAL']
-          : ['SOCIAL', 'PARTICULAR'];
+    const modalidadesAtendidas = derivarModalidadesAtendidas(atendimentoPreferencia);
+
+    // Turno é critério eliminatório do rodízio: sem nenhum, o cadastro nasce
+    // aprovável e nunca elegível — o pior dos dois mundos, porque nada indica
+    // que está errado.
+    const turnosDisponiveis = Array.isArray(body.disponibilidadeTurnos)
+      ? body.disponibilidadeTurnos.filter((t: unknown): t is string => typeof t === 'string')
+      : [];
+    if (turnosDisponiveis.length === 0) {
+      return NextResponse.json({ success: false, error: 'Selecione ao menos um turno de atendimento.' }, { status: 400 });
+    }
+
+    const servicosPrestados = Array.isArray(body.servicosPrestados) ? body.servicosPrestados : [];
 
     const novoPsicologo: CadastroPsicologoRecord = {
       id: `psi-cad-${Date.now()}`,
@@ -96,20 +107,15 @@ export async function POST(request: Request) {
       criadoEm: new Date().toISOString(),
 
       // O que o próprio profissional declara sobre o que atende.
-      turnosDisponiveis: Array.isArray(body.disponibilidadeTurnos) ? body.disponibilidadeTurnos : [],
-      servicosPrestados: Array.isArray(body.servicosPrestados) ? body.servicosPrestados : [],
+      turnosDisponiveis,
+      servicosPrestados,
       publicoAlvo: Array.isArray(body.publicoAlvo) ? body.publicoAlvo : [],
       publicoAlvoOutro: body.publicoAlvoOutro || undefined,
       especificarNecessidades: Boolean(body.especificarNecessidades),
       necessidadesAtendidas: Array.isArray(body.necessidadesAtendidas) ? body.necessidadesAtendidas : [],
       necessidadesOutro: body.necessidadesOutro || undefined,
-      servicosHabilitados: Array.isArray(body.servicosPrestados) && body.servicosPrestados.length > 0
-        ? Array.from(new Set([
-            body.servicosPrestados.includes('Atendimento Psicológico') ? 'PSICOTERAPIA' : '',
-            body.servicosPrestados.includes('Avaliação Psicológica') ? 'AVALIACAO' : '',
-            body.servicosPrestados.some((s: string) => s.includes('Vocacional') || s.includes('Profissional')) ? 'ORIENTACAO_PROFISSIONAL' : '',
-            body.servicosPrestados.includes('Orientação Parental') ? 'ORIENTACAO_PARENTAL' : '',
-          ].filter(Boolean)))
+      servicosHabilitados: servicosPrestados.length > 0
+        ? derivarServicosHabilitados(servicosPrestados)
         : (Array.isArray(body.servicosHabilitados) ? body.servicosHabilitados : []),
       turmaViverMais: body.turmaViverMais || undefined,
       posGraduacaoViverMais: body.posGraduacaoViverMais || undefined,

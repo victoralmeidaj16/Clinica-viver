@@ -37,7 +37,7 @@ interface ExistingProfessionalRow extends RowDataPacket {
 }
 
 function organizationId(): string {
-  return process.env.NEXT_PUBLIC_ORGANIZATION_ID?.trim() || 'org-viver-mais';
+  return process.env.ORGANIZATION_ID?.trim() || process.env.NEXT_PUBLIC_ORGANIZATION_ID?.trim() || 'org-viver-mais';
 }
 
 function normalizedEmail(value: string | undefined): string | null {

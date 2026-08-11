@@ -26,7 +26,12 @@ interface LoginUser {
 }
 
 function secret(): string {
-  return process.env.AUTH_SESSION_SECRET?.trim() || 'dev-only-change-this-session-secret';
+  const configured = process.env.AUTH_SESSION_SECRET?.trim();
+  if (configured) return configured;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('AUTH_SESSION_SECRET é obrigatório em produção.');
+  }
+  return 'dev-only-change-this-session-secret';
 }
 
 function configuredUsers(): LoginUser[] {
@@ -39,6 +44,11 @@ function configuredUsers(): LoginUser[] {
       throw new Error('AUTH_USERS_JSON inválido.');
     }
   }
+
+  // Credenciais conhecidas são convenientes apenas na instalação local. Em
+  // produção, esquecer de configurar autenticação precisa falhar fechado —
+  // nunca transformar Admin@123 em uma senha pública da clínica.
+  if (process.env.NODE_ENV === 'production') return [];
 
   // Credenciais de demonstração de fallback caso AUTH_USERS_JSON e DATABASE_URL não estejam definidos
   return [

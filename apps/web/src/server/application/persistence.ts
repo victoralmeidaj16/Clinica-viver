@@ -97,6 +97,12 @@ export interface TriagemPacienteRecord {
    */
   psicologoAlocadoId?: string;
   psicologoNome?: string;
+  /**
+   * Paciente criado a partir deste lead, quando o contato foi confirmado.
+   * Ausente enquanto a promoção não aconteceu — é o que a reconciliação
+   * procura para reprocessar leads confirmados que ficaram sem paciente.
+   */
+  pacienteRef?: string;
   /** Início da contagem do SLA de 24h. O relógio é sempre derivado daqui. */
   alocadoEm?: string;
   confirmadoEm?: string;

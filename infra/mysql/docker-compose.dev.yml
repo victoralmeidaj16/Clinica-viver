@@ -1,0 +1,43 @@
+# MySQL local para desenvolvimento.
+#
+# O DB System da OCI não tem IP público e não vai ter: em produção a aplicação
+# roda dentro da VCN. Sem uma instância local, nenhum fluxo que dependa do banco
+# é testável antes de subir para a VM — e o fallback de snapshot em arquivo
+# esconde justamente as regressões que só aparecem no MySQL.
+#
+# A porta é 3307 para não disputar com um MySQL de sistema nem com o túnel SSH
+# até a OCI, que ocupa a 3306 por convenção do .env.example.
+#
+#   docker compose -f infra/mysql/docker-compose.dev.yml up -d
+#   npm run db:migrate
+#
+# Estas credenciais são locais e descartáveis. As de verdade vivem em
+# ~/viver-mais-secrets.env na VM, fora do repositório.
+
+services:
+  mysql:
+    image: mysql:9.2
+    container_name: viver-mais-mysql-dev
+    restart: unless-stopped
+    ports:
+      - '3307:3306'
+    environment:
+      MYSQL_ROOT_PASSWORD: dev-root-local
+      MYSQL_DATABASE: viver_mais_clinica
+      MYSQL_USER: viver_mais_app
+      MYSQL_PASSWORD: dev-app-local
+    command:
+      # Mesmo charset/collation da produção: diferença aqui vira bug de
+      # ordenação e comparação de acento que só aparece depois do deploy.
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+    volumes:
+      - viver-mais-mysql-dev:/var/lib/mysql
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-p$$MYSQL_ROOT_PASSWORD']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  viver-mais-mysql-dev:

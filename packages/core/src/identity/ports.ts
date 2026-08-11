@@ -53,6 +53,14 @@ export interface IdentityRepository {
   ): Promise<PatientProfile | null>;
   listPatients(organizationId: string): Promise<readonly PatientProfile[]>;
   savePatient(patient: PatientProfile): Promise<void>;
+  reassignPatient(input: {
+    organizationId: string;
+    patientId: string;
+    professionalId: string;
+    actorUserId: string;
+    reason: string;
+    changedAt: string;
+  }): Promise<PatientProfile | null>;
   getResponsibleParty(
     organizationId: string,
     responsiblePartyId: string

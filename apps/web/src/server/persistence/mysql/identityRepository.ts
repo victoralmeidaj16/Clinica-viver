@@ -359,6 +359,60 @@ export class MysqlIdentityRepository implements IdentityRepository, PatientConta
     });
   }
 
+  async reassignPatient(input: {
+    organizationId: string;
+    patientId: string;
+    professionalId: string;
+    actorUserId: string;
+    reason: string;
+    changedAt: string;
+  }): Promise<PatientProfile | null> {
+    const patient = await this.getPatient(input.organizationId, input.patientId);
+    if (!patient) return null;
+    if (patient.primaryProfessionalId === input.professionalId) return patient;
+
+    const patientId = rowId('paciente', input.patientId);
+    const professionalId = rowId('profissional', input.professionalId);
+    const auditLine = `[${input.changedAt}] Reatribuído por ${input.actorUserId}: ` +
+      `${patient.primaryProfessionalId ?? 'sem responsável'} -> ${input.professionalId}. Motivo: ${input.reason}`;
+
+    await this.transaction(async (connection) => {
+      await connection.execute(
+        `UPDATE clinica_pacientes
+            SET profissional_id = ?,
+                observacao_administrativa = RIGHT(CONCAT_WS('\n', NULLIF(observacao_administrativa, ''), ?), 1000),
+                atualizado_em = ?
+          WHERE instituicao_id = ? AND organizacao_id = ? AND ref_core = ?`,
+        [
+          professionalId,
+          auditLine,
+          toSqlTimestamp(input.changedAt),
+          instituicaoId(),
+          rowId('organizacao', input.organizationId),
+          input.patientId,
+        ]
+      );
+      await connection.execute('DELETE FROM clinica_pacientes_profissionais WHERE paciente_id = ?', [patientId]);
+      await connection.execute(
+        `INSERT INTO clinica_pacientes_profissionais (id, instituicao_id, paciente_id, profissional_id)
+         VALUES (?, ?, ?, ?)`,
+        [
+          rowId('paciente_profissional', `${input.patientId}:${input.professionalId}`),
+          instituicaoId(),
+          patientId,
+          professionalId,
+        ]
+      );
+    });
+
+    return {
+      ...patient,
+      primaryProfessionalId: input.professionalId,
+      assignedProfessionalIds: [input.professionalId],
+      updatedAt: input.changedAt,
+    };
+  }
+
   /**
    * Contato do paciente.
    *

@@ -139,6 +139,7 @@ export function paraPsicologoPerfil(record: CadastroPsicologoRecord): PsicologoP
     pacientesAtivosCount: record.pacientesAtivosCount ?? 0,
     exibirNaVitrine: record.exibirNaVitrine ?? true,
     motivoDesativacao: record.motivoDesativacao,
+    pausadoNoRodizio: record.pausadoNoRodizio ?? false,
     posicaoFilaRoundRobin: 0,
     ultimoLeadRecebidoEm: record.ultimoLeadRecebidoEm,
     saldoCreditoAbatimento: 0,

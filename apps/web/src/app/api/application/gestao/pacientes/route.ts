@@ -112,6 +112,11 @@ export async function GET() {
         servicoKey: lead?.servicoKey,
         servicoNome: lead?.servico,
         modalidade: lead?.modalidade,
+        // Coletados na triagem e persistidos desde sempre, mas ausentes deste
+        // payload — o que tornava impossível separar quem chega por convênio
+        // empresarial de quem chega pela vitrine.
+        possuiConvenio: lead?.possuiConvenio,
+        convenioSelecionado: lead?.convenioSelecionado,
         paraQuemE: lead?.paraQuemE,
         turno: lead?.turno,
         necessidadesPaciente: lead?.necessidadesPaciente,

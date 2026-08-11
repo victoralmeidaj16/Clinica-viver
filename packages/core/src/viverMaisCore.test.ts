@@ -166,10 +166,33 @@ describe('Domínio Clínica Viver Mais Psicologia (Core Engine & Regras Giuliana
       expect(escolhido?.id).toBe('psi-a');
     });
 
-    it('não aloca para perfil desativado pela gestão', () => {
-      const desativado = perfilBase({ id: 'psi-a', exibirNaVitrine: false });
+    it('não aloca para quem a gestão pausou no rodízio', () => {
+      const pausado = perfilBase({ id: 'psi-a', pausadoNoRodizio: true });
 
-      expect(selecionarPsicologoRoundRobin([desativado], 'TARDE', 'ACESSIVEL_SOCIAL')).toBeNull();
+      expect(selecionarPsicologoRoundRobin([pausado], 'TARDE', 'ACESSIVEL_SOCIAL')).toBeNull();
+    });
+
+    /**
+     * O outro sentido da separação, e o que ela existe para permitir: sair do
+     * site público não é o mesmo que parar de atender. Antes um único booleano
+     * respondia às duas perguntas, e tirar o perfil da vitrine cortava os
+     * encaminhamentos junto.
+     */
+    it('continua alocando para quem saiu da vitrine mas não foi pausado', () => {
+      const foraDaVitrine = perfilBase({
+        id: 'psi-a',
+        exibirNaVitrine: false,
+        pausadoNoRodizio: false,
+      });
+
+      expect(selecionarPsicologoRoundRobin([foraDaVitrine], 'TARDE', 'ACESSIVEL_SOCIAL')?.id)
+        .toBe('psi-a');
+    });
+
+    it('continua alocando para quem está na vitrine sem pausa declarada', () => {
+      const normal = perfilBase({ id: 'psi-a' });
+
+      expect(selecionarPsicologoRoundRobin([normal], 'TARDE', 'ACESSIVEL_SOCIAL')?.id).toBe('psi-a');
     });
 
     it('não aloca para quem atingiu o teto de pacientes ativos', () => {

@@ -4,6 +4,7 @@ import type {
   Organization,
   OrganizationMembership,
   PatientProfile,
+  PatientReassignment,
   PatientResponsibleLink,
   ProfessionalProfile,
   ResponsibleParty,
@@ -35,6 +36,8 @@ export class InMemoryIdentityRepository implements IdentityRepository {
   private readonly memberships: OrganizationMembership[];
   private readonly professionals: ProfessionalProfile[];
   private readonly patients: PatientProfile[];
+  /** Só cresce: é registro de auditoria, não estado corrente. */
+  private readonly reassignments: PatientReassignment[] = [];
   private readonly responsibleParties: ResponsibleParty[];
   private readonly responsibleLinks: PatientResponsibleLink[];
 
@@ -169,7 +172,29 @@ export class InMemoryIdentityRepository implements IdentityRepository {
       updatedAt: input.changedAt,
     };
     this.patients[index] = clone(next);
+
+    this.reassignments.push({
+      id: `reassignment-${input.patientId}-${this.reassignments.length + 1}`,
+      organizationId: input.organizationId,
+      patientId: input.patientId,
+      previousProfessionalId: current.primaryProfessionalId,
+      professionalId: input.professionalId,
+      reason: input.reason,
+      actorUserId: input.actorUserId,
+      occurredAt: input.changedAt,
+    });
+
     return clone(next);
+  }
+
+  async listPatientReassignments(
+    organizationId: string,
+    patientId: string
+  ): Promise<readonly PatientReassignment[]> {
+    return this.reassignments
+      .filter((item) => item.organizationId === organizationId && item.patientId === patientId)
+      .sort((a, b) => Date.parse(b.occurredAt) - Date.parse(a.occurredAt))
+      .map(clone);
   }
 
   async getResponsibleParty(

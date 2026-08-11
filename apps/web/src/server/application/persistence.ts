@@ -165,9 +165,21 @@ export interface CadastroPsicologoRecord {
   necessidadesOutro?: string;
   limitePacientesAtivos?: number;
   pacientesAtivosCount?: number;
-  /** Chave manual da gestão: desliga do rodízio e da vitrine sem apagar nada. */
+  /**
+   * Aparece no site público. Responde só por visibilidade — desde a separação,
+   * quem decide se a pessoa recebe encaminhamento é `pausadoNoRodizio`.
+   */
   exibirNaVitrine?: boolean;
   motivoDesativacao?: string;
+  /**
+   * Fora da fila de encaminhamento, sem sumir da vitrine.
+   *
+   * Existe porque as duas situações se separaram na operação: quem está de
+   * férias precisa parar de receber e continuar visível para os próprios
+   * pacientes; um perfil sem foto sai do site e segue atendendo quem já é seu.
+   */
+  pausadoNoRodizio?: boolean;
+  motivoPausaRodizio?: string;
   /** Atualizado a cada alocação; é o que faz o rodízio girar. */
   ultimoLeadRecebidoEm?: string;
   turmaViverMais?: string;

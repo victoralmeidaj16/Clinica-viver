@@ -1,11 +1,31 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Clock3, Search, ShieldCheck, UserRoundX, UsersRound } from 'lucide-react';
+import { AlertTriangle, ArrowDownWideNarrow, Clock3, Search, ShieldCheck, UserRoundX, UsersRound } from 'lucide-react';
 import PatientManagementDrawer from '@/components/patients/PatientManagementDrawer';
 import type { ManagedPatient, ManagedPsychologist, PatientManagementStatus } from '@/components/patients/managementTypes';
 
 type FilterStatus = 'TODOS' | PatientManagementStatus;
+type SortKey = 'ESPERA' | 'ENTRADA' | 'NOME';
+
+const SORT_LABEL: Record<SortKey, string> = {
+  ESPERA: 'Maior espera',
+  ENTRADA: 'Entrada mais recente',
+  NOME: 'Nome (A–Z)',
+};
+
+/**
+ * Rótulo do convênio para agrupar e filtrar.
+ *
+ * A triagem grava `convenioSelecionado: 'Nenhum'` por padrão e `possuiConvenio`
+ * como texto do formulário. Normalizar aqui evita que "Nenhum", vazio e
+ * ausente virem três categorias diferentes na mesma lista.
+ */
+function agreementOf(patient: ManagedPatient): string {
+  const value = patient.convenioSelecionado?.trim();
+  if (!value || value.toLocaleLowerCase('pt-BR') === 'nenhum') return 'Sem convênio';
+  return value;
+}
 
 const statusLabel: Record<PatientManagementStatus, string> = {
   EM_TRIAGEM: 'Em triagem', ATIVO: 'Ativo', ALTA: 'Alta', DESISTENTE: 'Desistente',
@@ -30,6 +50,10 @@ export default function GestaoPacientesPage() {
   const [mode, setMode] = useState('TODAS');
   const [slaOnly, setSlaOnly] = useState(false);
   const [unassignedOnly, setUnassignedOnly] = useState(false);
+  const [agreement, setAgreement] = useState('TODOS');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [sort, setSort] = useState<SortKey>('ESPERA');
 
   const load = useCallback(async () => {
     setError('');
@@ -49,19 +73,44 @@ export default function GestaoPacientesPage() {
     return () => window.clearTimeout(timer);
   }, [load]);
 
-  const filtered = useMemo(() => patients.filter((patient) => {
+  const filtered = useMemo(() => {
     const query = search.trim().toLocaleLowerCase('pt-BR');
-    const matchesSearch = !query || [patient.nome, patient.whatsapp, patient.protocolo, patient.psicologoNome]
-      .some((value) => value?.toLocaleLowerCase('pt-BR').includes(query));
-    return matchesSearch
-      && (status === 'TODOS' || patient.status === status)
-      && (psychologist === 'TODOS' || patient.psicologoId === psychologist)
-      && (mode === 'TODAS' || patient.modalidade === mode)
-      && (!slaOnly || patient.slaStatus === 'ESTOURADO')
-      && (!unassignedOnly || patient.slaStatus === 'SEM_ALOCACAO');
-  }), [mode, patients, psychologist, search, slaOnly, status, unassignedOnly]);
+    // `to` é o dia inteiro: quem filtra "até 10/08" espera incluir o dia 10.
+    const fromTime = from ? Date.parse(`${from}T00:00:00`) : null;
+    const toTime = to ? Date.parse(`${to}T23:59:59.999`) : null;
+
+    const visible = patients.filter((patient) => {
+      const matchesSearch = !query || [patient.nome, patient.whatsapp, patient.protocolo, patient.psicologoNome]
+        .some((value) => value?.toLocaleLowerCase('pt-BR').includes(query));
+      const entrada = patient.criadoEm ? Date.parse(patient.criadoEm) : null;
+      return matchesSearch
+        && (status === 'TODOS' || patient.status === status)
+        && (psychologist === 'TODOS' || patient.psicologoId === psychologist)
+        && (mode === 'TODAS' || patient.modalidade === mode)
+        && (agreement === 'TODOS' || agreementOf(patient) === agreement)
+        && (fromTime === null || (entrada !== null && entrada >= fromTime))
+        && (toTime === null || (entrada !== null && entrada <= toTime))
+        && (!slaOnly || patient.slaStatus === 'ESTOURADO')
+        && (!unassignedOnly || patient.slaStatus === 'SEM_ALOCACAO');
+    });
+
+    // Ordenação estável e explícita. Antes a lista saía na ordem em que o
+    // backend devolvia, então "quem está esperando há mais tempo" — a pergunta
+    // mais frequente da tela — não tinha resposta.
+    return [...visible].sort((a, b) => {
+      if (sort === 'NOME') return a.nome.localeCompare(b.nome, 'pt-BR');
+      if (sort === 'ENTRADA') {
+        return (b.criadoEm ? Date.parse(b.criadoEm) : 0) - (a.criadoEm ? Date.parse(a.criadoEm) : 0);
+      }
+      // Sem alocação vem antes de qualquer espera: é o caso que não anda sozinho.
+      const peso = (item: ManagedPatient) =>
+        item.slaStatus === 'SEM_ALOCACAO' ? Number.MAX_SAFE_INTEGER : item.horasEspera;
+      return peso(b) - peso(a);
+    });
+  }, [agreement, from, mode, patients, psychologist, search, slaOnly, sort, status, to, unassignedOnly]);
 
   const modes = [...new Set(patients.map((patient) => patient.modalidade).filter(Boolean))] as string[];
+  const agreements = [...new Set(patients.map(agreementOf))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
   const overdue = patients.filter((patient) => patient.slaStatus === 'ESTOURADO').length;
   const unassigned = patients.filter((patient) => patient.slaStatus === 'SEM_ALOCACAO').length;
   const active = patients.filter((patient) => patient.status === 'ATIVO').length;
@@ -96,11 +145,33 @@ export default function GestaoPacientesPage() {
       </header>
 
       <section className="rounded-2xl border border-stone-200 bg-[#fbfaf7] p-4 shadow-sm">
-        <div className="grid gap-3 lg:grid-cols-[minmax(260px,1fr)_180px_210px_170px_auto]">
+        <div className="grid gap-3 lg:grid-cols-[minmax(240px,1fr)_170px_200px_160px_180px]">
           <label className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nome, telefone, protocolo…" className="w-full rounded-xl border border-stone-200 bg-white py-2.5 pl-9 pr-3 text-sm" /></label>
           <select value={status} onChange={(event) => setStatus(event.target.value as FilterStatus)} className="rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm"><option value="TODOS">Todos os status</option>{Object.entries(statusLabel).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>
           <select value={psychologist} onChange={(event) => setPsychologist(event.target.value)} className="rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm"><option value="TODOS">Todos os psicólogos</option>{psychologists.map((item) => <option key={item.id} value={item.id}>{item.nome}</option>)}</select>
           <select value={mode} onChange={(event) => setMode(event.target.value)} className="rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm"><option value="TODAS">Modalidades</option>{modes.map((item) => <option key={item}>{item}</option>)}</select>
+          <select value={agreement} onChange={(event) => setAgreement(event.target.value)} className="rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm"><option value="TODOS">Todos os convênios</option>{agreements.map((item) => <option key={item}>{item}</option>)}</select>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-stone-200 pt-3">
+          <label className="flex items-center gap-2 text-xs font-bold text-slate-600">
+            Entrada de
+            <input type="date" value={from} max={to || undefined} onChange={(event) => setFrom(event.target.value)} className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-normal" />
+            até
+            <input type="date" value={to} min={from || undefined} onChange={(event) => setTo(event.target.value)} className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-normal" />
+          </label>
+          {(from || to) && (
+            <button onClick={() => { setFrom(''); setTo(''); }} className="text-xs font-bold text-slate-500 underline hover:text-slate-800">limpar período</button>
+          )}
+
+          <label className="ml-auto flex items-center gap-2 text-xs font-bold text-slate-600">
+            <ArrowDownWideNarrow className="h-4 w-4 text-slate-400" />
+            Ordenar por
+            <select value={sort} onChange={(event) => setSort(event.target.value as SortKey)} className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-normal">
+              {(Object.keys(SORT_LABEL) as SortKey[]).map((key) => <option key={key} value={key}>{SORT_LABEL[key]}</option>)}
+            </select>
+          </label>
+
           <div className="flex gap-2"><Toggle active={slaOnly} onClick={() => setSlaOnly(!slaOnly)}>SLA estourado</Toggle><Toggle active={unassignedOnly} onClick={() => setUnassignedOnly(!unassignedOnly)}>Sem alocação</Toggle></div>
         </div>
       </section>
@@ -110,7 +181,7 @@ export default function GestaoPacientesPage() {
       <section className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
         <div className="border-b border-stone-200 px-5 py-3 text-xs font-bold text-slate-500">{loading ? 'Carregando…' : `${filtered.length} de ${patients.length} registros`}</div>
         {!loading && filtered.length === 0 ? <div className="p-16 text-center text-sm text-slate-500">Nenhum paciente corresponde aos filtros.</div> : (
-          <div className="overflow-x-auto"><table className="w-full min-w-[980px] text-left text-sm"><thead className="bg-stone-50 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500"><tr><th className="p-4">Paciente</th><th className="p-4">Demanda</th><th className="p-4">Responsável</th><th className="p-4">Espera</th><th className="p-4">Agenda</th><th className="p-4">Status</th></tr></thead><tbody className="divide-y divide-stone-100">{filtered.map((patient) => <tr key={patient.id} onClick={() => setSelected(patient)} className="cursor-pointer transition-colors hover:bg-teal-50/40"><td className="p-4"><p className="font-black text-slate-900">{patient.nome}</p><p className="mt-1 text-xs text-slate-500">{patient.whatsapp || 'Sem contato'} · {patient.protocolo || 'cadastro direto'}</p></td><td className="p-4"><p className="font-semibold text-slate-800">{patient.servicoNome ?? patient.servicoKey ?? 'Não informado'}</p><p className="mt-1 text-xs text-slate-500">{patient.modalidade ?? 'Modalidade pendente'}</p></td><td className="p-4 font-semibold text-slate-700">{patient.psicologoNome ?? <span className="text-amber-700">Aguardando alocação</span>}</td><td className="p-4"><Wait patient={patient} /></td><td className="p-4"><p className="font-bold text-slate-800">{patient.agenda.realizadas} realizadas</p><p className="mt-1 text-xs text-slate-500">{patient.agenda.proximaEm ? `Próxima ${new Date(patient.agenda.proximaEm).toLocaleDateString('pt-BR')}` : 'Sem próxima sessão'}</p></td><td className="p-4"><span className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${statusClass[patient.status]}`}>{statusLabel[patient.status]}</span></td></tr>)}</tbody></table></div>
+          <div className="overflow-x-auto"><table className="w-full min-w-[980px] text-left text-sm"><thead className="bg-stone-50 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500"><tr><th className="p-4">Paciente</th><th className="p-4">Demanda</th><th className="p-4">Responsável</th><th className="p-4">Espera</th><th className="p-4">Agenda</th><th className="p-4">Status</th></tr></thead><tbody className="divide-y divide-stone-100">{filtered.map((patient) => <tr key={patient.id} onClick={() => setSelected(patient)} className="cursor-pointer transition-colors hover:bg-teal-50/40"><td className="p-4"><p className="font-black text-slate-900">{patient.nome}</p><p className="mt-1 text-xs text-slate-500">{patient.whatsapp || 'Sem contato'} · {patient.protocolo || 'cadastro direto'}</p></td><td className="p-4"><p className="font-semibold text-slate-800">{patient.servicoNome ?? patient.servicoKey ?? 'Não informado'}</p><p className="mt-1 text-xs text-slate-500">{patient.modalidade ?? 'Modalidade pendente'}{agreementOf(patient) !== 'Sem convênio' && ` · ${agreementOf(patient)}`}</p></td><td className="p-4 font-semibold text-slate-700">{patient.psicologoNome ?? <span className="text-amber-700">Aguardando alocação</span>}</td><td className="p-4"><Wait patient={patient} /></td><td className="p-4"><p className="font-bold text-slate-800">{patient.agenda.realizadas} realizadas</p><p className="mt-1 text-xs text-slate-500">{patient.agenda.proximaEm ? `Próxima ${new Date(patient.agenda.proximaEm).toLocaleDateString('pt-BR')}` : 'Sem próxima sessão'}</p></td><td className="p-4"><span className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${statusClass[patient.status]}`}>{statusLabel[patient.status]}</span></td></tr>)}</tbody></table></div>
         )}
       </section>
 

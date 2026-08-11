@@ -174,3 +174,22 @@ export interface AuthorizationDecision {
     | 'patient_scope_mismatch'
     | 'professional_not_assigned';
 }
+
+/**
+ * Registro de uma troca de profissional responsável por um paciente.
+ *
+ * Não é derivável do estado atual: `PatientProfile` guarda só quem responde
+ * agora. Sem este registro, "por que a paciente trocou de psicóloga em março"
+ * é uma pergunta sem resposta no sistema.
+ */
+export interface PatientReassignment {
+  id: string;
+  organizationId: string;
+  patientId: string;
+  /** Ausente quando o paciente ainda não tinha responsável. */
+  previousProfessionalId?: string;
+  professionalId: string;
+  reason: string;
+  actorUserId: string;
+  occurredAt: string;
+}

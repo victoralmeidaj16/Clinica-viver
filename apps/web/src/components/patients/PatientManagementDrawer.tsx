@@ -50,10 +50,26 @@ export default function PatientManagementDrawer({ patient, psychologists, onClos
           <section className="grid grid-cols-2 gap-3">
             <Info label="WhatsApp" value={patient.whatsapp} />
             <Info label="E-mail" value={patient.email} />
+            <Info label="CPF" value={patient.cpf} />
+            <Info label="Idade" value={patient.idade} />
+            <Info label="CEP / número" value={[patient.cep, patient.numeroResidencia].filter(Boolean).join(' · ')} />
+            <Info label="Convênio" value={patient.convenioSelecionado} />
+          </section>
+
+          {/* O que a pessoa pediu na triagem, do jeito que pediu. */}
+          <section className="grid grid-cols-2 gap-3 border-t border-stone-200 pt-4">
             <Info label="Serviço" value={patient.servicoNome ?? patient.servicoKey} />
             <Info label="Modalidade / turno" value={[patient.modalidade, patient.turno].filter(Boolean).join(' · ')} />
             <Info label="Público" value={patient.paraQuemE} />
+            <Info label="Opção de avaliação" value={patient.opcaoAvaliacaoPsicologica} />
             <Info label="Necessidades" value={[...(patient.necessidadesPaciente ?? []), patient.necessidadesOutro].filter(Boolean).join(', ')} />
+            <Info
+              label="Entrada / confirmação"
+              value={[
+                patient.criadoEm && `entrou ${new Date(patient.criadoEm).toLocaleDateString('pt-BR')}`,
+                patient.confirmadoEm && `confirmou ${new Date(patient.confirmadoEm).toLocaleDateString('pt-BR')}`,
+              ].filter(Boolean).join(' · ')}
+            />
           </section>
 
           <section className="grid grid-cols-3 gap-3">

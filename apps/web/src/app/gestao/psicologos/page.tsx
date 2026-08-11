@@ -13,6 +13,11 @@ import {
   EyeOff,
   Eye,
   RotateCcw,
+  PauseCircle,
+  PlayCircle,
+  SlidersHorizontal,
+  HelpCircle,
+  Circle,
 } from 'lucide-react';
 import { LISTA_NECESSIDADES } from '@/app/vitrine/page';
 import { BrazilLocationFields } from '@/components/forms/BrazilLocationFields';
@@ -55,23 +60,58 @@ interface PsicologoItem {
   servicosPrestados?: string[];
   publicoAlvo?: string[];
   necessidadesAtendidas?: string[];
+  necessidadesOutro?: string;
+  publicoAlvoOutro?: string;
   limitePacientesAtivos?: number;
   pacientesAtivosCount?: number;
   exibirNaVitrine?: boolean;
   motivoDesativacao?: string;
+  pausadoNoRodizio?: boolean;
+  motivoPausaRodizio?: string;
   ultimoLeadRecebidoEm?: string;
   turmaViverMais?: string;
+  posGraduacaoViverMais?: string;
+  segundaPosGraduacao?: string;
+  /** Marcos do credenciamento. `contaAtivada` vem da junção com clinica_usuarios. */
+  boasVindasEnviadaEm?: string;
+  acessoCriadoEm?: string;
+  usuarioRef?: string;
+  contaAtivada?: boolean;
   criadoEm?: string;
 }
 
-type FiltroStatus = 'TODOS' | 'EM_ANALISE' | 'APROVADO' | 'FORA_DA_VITRINE' | 'RECUSADO';
+type FiltroStatus =
+  | 'TODOS'
+  | 'EM_ANALISE'
+  | 'APROVADO'
+  | 'FORA_DA_VITRINE'
+  | 'PAUSADO'
+  | 'RECUSADO';
 
 const FILTROS: Array<[FiltroStatus, string]> = [
   ['TODOS', 'Todos'],
   ['EM_ANALISE', 'Em análise'],
-  ['APROVADO', 'Aprovados'],
+  ['APROVADO', 'No rodízio'],
+  ['PAUSADO', 'Pausados'],
   ['FORA_DA_VITRINE', 'Fora da vitrine'],
   ['RECUSADO', 'Recusados'],
+];
+
+/** Motivos previstos para sair da vitrine ou pausar os encaminhamentos. */
+const MOTIVOS = ['Férias', 'Limite de pacientes', 'Pausa solicitada', 'Licença', 'Outro'];
+
+const SERVICOS = [
+  'Atendimento Psicológico',
+  'Avaliação Psicológica',
+  'Orientação Vocacional',
+  'Orientação Profissional',
+  'Orientação Parental',
+  'Psicoterapia de Casal',
+];
+
+const PUBLICOS = [
+  'Criança', 'Adolescente', 'Adulto', 'Idoso', 'Casal',
+  'Família', 'Mulher', 'Homem', 'LGBTQIAPN+', 'Outro',
 ];
 
 const TURNOS: Array<[string, string]> = [
@@ -92,6 +132,10 @@ export default function GestaoPsicologosPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [ocupado, setOcupado] = useState<string | null>(null);
+  const [motivoAlvo, setMotivoAlvo] = useState<
+    { psicologo: PsicologoItem; acao: 'VITRINE' | 'RODIZIO' } | null
+  >(null);
+  const [editando, setEditando] = useState<PsicologoItem | null>(null);
 
   const [form, setForm] = useState({
     nomeCompleto: '',
@@ -170,7 +214,8 @@ export default function GestaoPsicologosPage() {
     }
   };
 
-  const aprovar = (p: PsicologoItem) => atualizar(p.id, { status: 'APROVADO', exibirNaVitrine: true });
+  const aprovar = (p: PsicologoItem) =>
+    atualizar(p.id, { status: 'APROVADO', exibirNaVitrine: true, pausadoNoRodizio: false });
 
   const recusar = (p: PsicologoItem) => {
     if (!confirm(`Recusar o credenciamento de ${nomeExibido(p)}?`)) return;
@@ -178,19 +223,34 @@ export default function GestaoPsicologosPage() {
   };
 
   /**
-   * Sair da vitrine exige motivo. Sem ele, meses depois ninguém lembra se a
-   * pessoa está de férias, atingiu o limite ou pediu pausa — e a diferença
-   * decide se ela volta sozinha ou precisa ser chamada.
+   * Duas perguntas distintas, dois botões.
+   *
+   * Sair da vitrine é sobre o site público; pausar é sobre receber
+   * encaminhamento. Antes um único botão fazia as duas coisas, então tirar a
+   * foto de alguém do site cortava os pacientes novos junto.
+   *
+   * Voltar não pede motivo — o motivo descreve a ausência, e a ausência acabou.
    */
   const alternarVitrine = (p: PsicologoItem) => {
-    if (p.exibirNaVitrine === false) {
-      return atualizar(p.id, { exibirNaVitrine: true });
-    }
-    const motivo = prompt(
-      `Por que ${nomeExibido(p)} sai da vitrine e do rodízio?\n(Ex: Férias, Limite de pacientes, Pausa solicitada)`
+    if (p.exibirNaVitrine === false) return atualizar(p.id, { exibirNaVitrine: true });
+    setMotivoAlvo({ psicologo: p, acao: 'VITRINE' });
+  };
+
+  const alternarRodizio = (p: PsicologoItem) => {
+    if (p.pausadoNoRodizio) return atualizar(p.id, { pausadoNoRodizio: false });
+    setMotivoAlvo({ psicologo: p, acao: 'RODIZIO' });
+  };
+
+  const confirmarMotivo = async (motivo: string) => {
+    if (!motivoAlvo) return;
+    const { psicologo, acao } = motivoAlvo;
+    setMotivoAlvo(null);
+    await atualizar(
+      psicologo.id,
+      acao === 'VITRINE'
+        ? { exibirNaVitrine: false, motivoDesativacao: motivo }
+        : { pausadoNoRodizio: true, motivoPausaRodizio: motivo }
     );
-    if (!motivo?.trim()) return;
-    return atualizar(p.id, { exibirNaVitrine: false, motivoDesativacao: motivo.trim() });
   };
 
   const ajustarLimite = (p: PsicologoItem) => {
@@ -273,17 +333,22 @@ export default function GestaoPsicologosPage() {
       statusFilter === 'TODOS' ||
       (statusFilter === 'FORA_DA_VITRINE'
         ? p.status === 'APROVADO' && p.exibirNaVitrine === false
-        : statusFilter === 'APROVADO'
-          ? p.status === 'APROVADO' && p.exibirNaVitrine !== false
-          : p.status === statusFilter);
+        : statusFilter === 'PAUSADO'
+          ? p.status === 'APROVADO' && Boolean(p.pausadoNoRodizio)
+          : statusFilter === 'APROVADO'
+            ? p.status === 'APROVADO' && !p.pausadoNoRodizio
+            : p.status === statusFilter);
 
     return matchesSearch && matchesStatus;
   });
 
   const aprovados = psicologos.filter((p) => p.status === 'APROVADO');
-  const noRodizio = aprovados.filter((p) => p.exibirNaVitrine !== false);
+  // Receber encaminhamento depende só da pausa. Sair da vitrine é outra coisa,
+  // e um profissional pode estar em cada estado independentemente do outro.
+  const noRodizio = aprovados.filter((p) => !p.pausadoNoRodizio);
   const pendentes = psicologos.filter((p) => p.status === 'EM_ANALISE').length;
-  const foraDaVitrine = aprovados.length - noRodizio.length;
+  const pausados = aprovados.length - noRodizio.length;
+  const foraDaVitrine = aprovados.filter((p) => p.exibirNaVitrine === false).length;
   const vagasLivres = noRodizio.reduce(
     (acc, p) => acc + Math.max(0, (p.limitePacientesAtivos ?? 5) - (p.pacientesAtivosCount ?? 0)),
     0
@@ -374,13 +439,18 @@ export default function GestaoPsicologosPage() {
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
-          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Fora da vitrine</span>
+          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Pausados</span>
           <div className="flex items-baseline justify-between">
-            <span className={`text-3xl font-black ${foraDaVitrine > 0 ? 'text-rose-600' : 'text-slate-300'}`}>
-              {foraDaVitrine}
+            <span className={`text-3xl font-black ${pausados > 0 ? 'text-rose-600' : 'text-slate-300'}`}>
+              {pausados}
             </span>
-            <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">Desativados</span>
+            <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
+              Sem encaminhamento
+            </span>
           </div>
+          <p className="text-[10px] text-slate-400 pt-0.5">
+            {foraDaVitrine} fora da vitrine
+          </p>
         </div>
       </div>
 
@@ -437,6 +507,7 @@ export default function GestaoPsicologosPage() {
             const ativos = p.pacientesAtivosCount ?? 0;
             const perc = limite > 0 ? Math.min(100, Math.round((ativos / limite) * 100)) : 0;
             const naVitrine = p.exibirNaVitrine !== false;
+            const pausado = Boolean(p.pausadoNoRodizio);
             const semTurno = !p.turnosDisponiveis?.length;
             const trabalhando = ocupado === p.id;
 
@@ -464,16 +535,27 @@ export default function GestaoPsicologosPage() {
                             <XCircle className="w-3 h-3" /> Recusado
                           </span>
                         ) : (
-                          <span
-                            className={`text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 ${
-                              naVitrine
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                : 'bg-rose-50 text-rose-700 border border-rose-200'
-                            }`}
-                          >
-                            {naVitrine ? <CheckCircle2 className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-                            {naVitrine ? 'No rodízio' : 'Fora'}
-                          </span>
+                          <div className="flex items-center gap-1">
+                            <span
+                              className={`text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                                pausado
+                                  ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                  : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              }`}
+                              title={pausado ? 'Não recebe encaminhamento' : 'Recebe encaminhamento'}
+                            >
+                              {pausado ? <PauseCircle className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
+                              {pausado ? 'Pausado' : 'No rodízio'}
+                            </span>
+                            {!naVitrine && (
+                              <span
+                                className="text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 bg-slate-100 text-slate-600 border border-slate-200"
+                                title="Não aparece no site público"
+                              >
+                                <EyeOff className="w-3 h-3" /> Oculto
+                              </span>
+                            )}
+                          </div>
                         )}
                       </div>
                       <h3 className="font-extrabold text-slate-900 text-base leading-snug truncate mt-1">
@@ -483,17 +565,25 @@ export default function GestaoPsicologosPage() {
                     </div>
                   </div>
 
-                  {!naVitrine && p.motivoDesativacao && (
+                  {pausado && (
                     <p className="text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2">
-                      Fora da vitrine: {p.motivoDesativacao}
+                      Não recebe encaminhamento: {p.motivoPausaRodizio ?? 'sem motivo registrado'}
                     </p>
                   )}
 
-                  {semTurno && p.status === 'APROVADO' && (
+                  {!naVitrine && (
+                    <p className="text-[11px] font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                      Fora do site público: {p.motivoDesativacao ?? 'sem motivo registrado'}
+                    </p>
+                  )}
+
+                  {semTurno && p.status === 'APROVADO' && !pausado && (
                     <p className="text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
                       Sem turno cadastrado — não recebe encaminhamento, mesmo estando no rodízio.
                     </p>
                   )}
+
+                  {p.status !== 'RECUSADO' && <SemaforoCredenciamento psicologo={p} />}
 
                   <div className="space-y-2 text-xs text-slate-600 bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
                     <div className="flex items-center justify-between">
@@ -520,6 +610,23 @@ export default function GestaoPsicologosPage() {
                               .map((t) => TURNOS.find(([valor]) => valor === t)?.[1] ?? t)
                               .join(', ')
                           : 'Nenhum'}
+                      </span>
+                    </div>
+                    {p.posGraduacaoViverMais && (
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="font-bold text-slate-500 shrink-0">Pós:</span>
+                        <span className="font-semibold text-slate-800 text-right">
+                          {p.posGraduacaoViverMais}
+                          {p.segundaPosGraduacao ? ` · ${p.segundaPosGraduacao}` : ''}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-500">Último lead:</span>
+                      <span className="font-semibold text-slate-800">
+                        {p.ultimoLeadRecebidoEm
+                          ? new Date(p.ultimoLeadRecebidoEm).toLocaleDateString('pt-BR')
+                          : 'Nunca — primeiro da fila'}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
@@ -561,6 +668,22 @@ export default function GestaoPsicologosPage() {
                             className="text-[10px] font-bold bg-purple-50 text-purple-800 px-2 py-0.5 rounded-md border border-purple-100"
                           >
                             {pa}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {Boolean(p.necessidadesAtendidas?.length) && (
+                    <div className="space-y-2">
+                      <span className="text-[11px] font-bold text-slate-500 block">Demandas atendidas:</span>
+                      <div className="flex flex-wrap gap-1">
+                        {p.necessidadesAtendidas?.map((n) => (
+                          <span
+                            key={n}
+                            className="text-[10px] font-bold bg-teal-50 text-teal-800 px-2 py-0.5 rounded-md border border-teal-100"
+                          >
+                            {n}
                           </span>
                         ))}
                       </div>
@@ -616,15 +739,41 @@ export default function GestaoPsicologosPage() {
                       <>
                         <button
                           disabled={trabalhando}
-                          onClick={() => void alternarVitrine(p)}
+                          onClick={() => alternarRodizio(p)}
+                          title={
+                            pausado
+                              ? 'Volta a receber pacientes novos'
+                              : 'Para de receber pacientes novos, sem sair do site'
+                          }
                           className={`${botao} ${
-                            naVitrine
-                              ? 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                              : 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
+                            pausado
+                              ? 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
+                              : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                           }`}
                         >
+                          {pausado ? <PlayCircle className="w-3 h-3" /> : <PauseCircle className="w-3 h-3" />}
+                          {pausado ? 'Retomar' : 'Pausar'}
+                        </button>
+                        <button
+                          disabled={trabalhando}
+                          onClick={() => alternarVitrine(p)}
+                          title={
+                            naVitrine
+                              ? 'Some do site público, mas continua atendendo'
+                              : 'Volta a aparecer no site público'
+                          }
+                          className={`${botao} bg-white border-slate-200 text-slate-600 hover:bg-slate-50`}
+                        >
                           {naVitrine ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                          {naVitrine ? 'Tirar do rodízio' : 'Reativar'}
+                          {naVitrine ? 'Ocultar' : 'Exibir'}
+                        </button>
+                        <button
+                          disabled={trabalhando}
+                          onClick={() => setEditando(p)}
+                          title="Turnos, serviços, público e demandas — o que o rodízio cruza"
+                          className={`${botao} bg-white border-slate-200 text-slate-600 hover:bg-slate-50`}
+                        >
+                          <SlidersHorizontal className="w-3 h-3" /> Critérios
                         </button>
                         <button
                           disabled={trabalhando}
@@ -633,7 +782,7 @@ export default function GestaoPsicologosPage() {
                         >
                           Limite: {limite}
                         </button>
-                        {naVitrine && (
+                        {!pausado && (
                           <button
                             disabled={trabalhando}
                             onClick={() => void priorizarNaFila(p)}
@@ -651,6 +800,26 @@ export default function GestaoPsicologosPage() {
             );
           })}
         </div>
+      )}
+
+      {motivoAlvo && (
+        <ModalMotivo
+          alvo={motivoAlvo}
+          onConfirmar={(motivo) => void confirmarMotivo(motivo)}
+          onCancelar={() => setMotivoAlvo(null)}
+        />
+      )}
+
+      {editando && (
+        <ModalEdicao
+          psicologo={editando}
+          onSalvar={(mudancas) => {
+            const alvo = editando;
+            setEditando(null);
+            void atualizar(alvo.id, mudancas);
+          }}
+          onCancelar={() => setEditando(null)}
+        />
       )}
 
       {isModalOpen && (
@@ -876,6 +1045,324 @@ export default function GestaoPsicologosPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Onde cada credenciamento parou.
+ *
+ * Os três marcos vinham do banco e nunca chegavam à tela, então a gestão não
+ * tinha como saber se alguém já entrou no sistema ou se o convite se perdeu no
+ * WhatsApp. `contaAtivada` é `undefined` em modo demonstração — aí o marco
+ * aparece como desconhecido, em vez de afirmar que não aconteceu.
+ */
+function SemaforoCredenciamento({ psicologo }: { psicologo: PsicologoItem }) {
+  if (psicologo.status !== 'APROVADO') return null;
+
+  const marcos: Array<[string, boolean | undefined]> = [
+    ['Acesso criado', Boolean(psicologo.acessoCriadoEm || psicologo.usuarioRef)],
+    ['Convite enviado', Boolean(psicologo.boasVindasEnviadaEm)],
+    ['Conta ativada', psicologo.contaAtivada],
+  ];
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {marcos.map(([rotulo, feito]) => (
+        <span
+          key={rotulo}
+          className={`text-[10px] font-bold px-2 py-1 rounded-lg border flex items-center gap-1 ${
+            feito === undefined
+              ? 'bg-slate-50 text-slate-400 border-slate-200'
+              : feito
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                : 'bg-slate-50 text-slate-500 border-slate-200'
+          }`}
+          title={feito === undefined ? 'Indisponível em modo demonstração' : undefined}
+        >
+          {feito === undefined ? (
+            <HelpCircle className="w-3 h-3" />
+          ) : feito ? (
+            <CheckCircle2 className="w-3 h-3" />
+          ) : (
+            <Circle className="w-3 h-3" />
+          )}
+          {rotulo}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Modal de motivo. Substitui o `prompt()` nativo, que aceitava qualquer texto e
+ * não oferecia os motivos previstos — o resultado eram registros como "ferias",
+ * "Férias " e "de férias" descrevendo a mesma situação.
+ */
+function ModalMotivo({
+  alvo,
+  onConfirmar,
+  onCancelar,
+}: {
+  alvo: { psicologo: PsicologoItem; acao: 'VITRINE' | 'RODIZIO' };
+  onConfirmar: (motivo: string) => void;
+  onCancelar: () => void;
+}) {
+  const [escolha, setEscolha] = useState(MOTIVOS[0]);
+  const [outro, setOutro] = useState('');
+  const motivo = escolha === 'Outro' ? outro.trim() : escolha;
+  const nome = alvo.psicologo.nomeSocial?.trim() || alvo.psicologo.nomeCompleto;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-5 border border-slate-200 shadow-2xl">
+        <div>
+          <h2 className="text-lg font-black text-slate-900">
+            {alvo.acao === 'VITRINE' ? 'Tirar do site público' : 'Pausar encaminhamentos'}
+          </h2>
+          <p className="text-xs text-slate-500 mt-1">
+            {alvo.acao === 'VITRINE'
+              ? `${nome} deixa de aparecer na vitrine, mas continua recebendo pacientes novos.`
+              : `${nome} para de receber pacientes novos, mas segue visível para quem já atende.`}
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-[10px] uppercase tracking-wider font-extrabold text-slate-500 block">
+            Motivo
+          </label>
+          <div className="flex flex-wrap gap-1.5">
+            {MOTIVOS.map((opcao) => (
+              <button
+                key={opcao}
+                type="button"
+                onClick={() => setEscolha(opcao)}
+                className={`px-3 py-2 rounded-xl border text-xs font-bold transition-all ${
+                  escolha === opcao
+                    ? 'bg-purple-50 border-purple-500 text-purple-900'
+                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                {opcao}
+              </button>
+            ))}
+          </div>
+          {escolha === 'Outro' && (
+            <input
+              autoFocus
+              value={outro}
+              onChange={(e) => setOutro(e.target.value)}
+              placeholder="Qual o motivo?"
+              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-purple-600"
+            />
+          )}
+        </div>
+
+        <div className="flex gap-2 pt-2 border-t border-slate-100">
+          <button
+            type="button"
+            disabled={!motivo}
+            onClick={() => onConfirmar(motivo)}
+            className="bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs px-5 py-2.5 rounded-2xl disabled:opacity-50"
+          >
+            Confirmar
+          </button>
+          <button
+            type="button"
+            onClick={onCancelar}
+            className="border border-slate-200 text-slate-600 font-extrabold text-xs px-5 py-2.5 rounded-2xl hover:bg-slate-50"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Edição dos critérios que o rodízio cruza.
+ *
+ * O `PATCH` da gestão sempre aceitou estes campos; faltava a tela. Sem ela, o
+ * único jeito de corrigir os turnos de alguém já cadastrado era pelo banco — e
+ * turno errado significa profissional que nunca recebe encaminhamento.
+ */
+function ModalEdicao({
+  psicologo,
+  onSalvar,
+  onCancelar,
+}: {
+  psicologo: PsicologoItem;
+  onSalvar: (mudancas: Record<string, unknown>) => void;
+  onCancelar: () => void;
+}) {
+  const [turnos, setTurnos] = useState<string[]>([...(psicologo.turnosDisponiveis ?? [])]);
+  const [servicos, setServicos] = useState<string[]>([...(psicologo.servicosPrestados ?? [])]);
+  const [publicos, setPublicos] = useState<string[]>([...(psicologo.publicoAlvo ?? [])]);
+  const [necessidades, setNecessidades] = useState<string[]>([
+    ...(psicologo.necessidadesAtendidas ?? []),
+  ]);
+  const [preferencia, setPreferencia] = useState(psicologo.atendimentoPreferencia ?? 'AMBOS');
+  const [aviso, setAviso] = useState<string | null>(null);
+
+  const alternar = (lista: string[], valor: string) =>
+    lista.includes(valor) ? lista.filter((item) => item !== valor) : [...lista, valor];
+
+  const chip = (marcado: boolean) =>
+    `cursor-pointer px-2.5 py-1.5 rounded-lg border text-[11px] font-bold transition-all ${
+      marcado
+        ? 'bg-purple-50 border-purple-400 text-purple-900'
+        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+    }`;
+
+  const salvar = () => {
+    if (turnos.length === 0) {
+      setAviso('Selecione ao menos um turno — sem turno o profissional nunca recebe encaminhamento.');
+      return;
+    }
+    onSalvar({
+      turnosDisponiveis: turnos,
+      servicosPrestados: servicos,
+      publicoAlvo: publicos,
+      necessidadesAtendidas: necessidades,
+      especificarNecessidades: necessidades.length > 0,
+      atendimentoPreferencia: preferencia,
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-white rounded-3xl max-w-2xl w-full p-6 space-y-5 max-h-[90vh] overflow-y-auto border border-slate-200 shadow-2xl">
+        <div className="border-b border-slate-100 pb-4">
+          <h2 className="text-lg font-black text-slate-900">
+            Critérios de encaminhamento — {psicologo.nomeSocial?.trim() || psicologo.nomeCompleto}
+          </h2>
+          <p className="text-xs text-slate-500 mt-1">
+            É por estes campos que o rodízio decide quem recebe cada paciente.
+          </p>
+        </div>
+
+        {aviso && (
+          <p className="text-xs font-bold text-amber-900 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+            {aviso}
+          </p>
+        )}
+
+        <div>
+          <label className="text-[10px] uppercase tracking-wider font-extrabold text-slate-500 block mb-2">
+            Turnos
+          </label>
+          <div className="flex flex-wrap gap-1.5">
+            {TURNOS.map(([valor, rotulo]) => (
+              <label key={valor} className={chip(turnos.includes(valor))}>
+                <input
+                  type="checkbox"
+                  className="sr-only"
+                  checked={turnos.includes(valor)}
+                  onChange={() => setTurnos(alternar(turnos, valor))}
+                />
+                {rotulo}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="text-[10px] uppercase tracking-wider font-extrabold text-slate-500 block mb-2">
+            Serviços prestados
+          </label>
+          <div className="flex flex-wrap gap-1.5">
+            {SERVICOS.map((servico) => (
+              <label key={servico} className={chip(servicos.includes(servico))}>
+                <input
+                  type="checkbox"
+                  className="sr-only"
+                  checked={servicos.includes(servico)}
+                  onChange={() => setServicos(alternar(servicos, servico))}
+                />
+                {servico}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="text-[10px] uppercase tracking-wider font-extrabold text-slate-500 block mb-2">
+            Público atendido
+          </label>
+          <div className="flex flex-wrap gap-1.5">
+            {PUBLICOS.map((publico) => (
+              <label key={publico} className={chip(publicos.includes(publico))}>
+                <input
+                  type="checkbox"
+                  className="sr-only"
+                  checked={publicos.includes(publico)}
+                  onChange={() => setPublicos(alternar(publicos, publico))}
+                />
+                {publico}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="text-[10px] uppercase tracking-wider font-extrabold text-slate-500 block mb-2">
+            Demandas específicas
+          </label>
+          <div className="flex flex-wrap gap-1.5">
+            {LISTA_NECESSIDADES.map((necessidade) => (
+              <label key={necessidade} className={chip(necessidades.includes(necessidade))}>
+                <input
+                  type="checkbox"
+                  className="sr-only"
+                  checked={necessidades.includes(necessidade)}
+                  onChange={() => setNecessidades(alternar(necessidades, necessidade))}
+                />
+                {necessidade}
+              </label>
+            ))}
+          </div>
+          <p className="text-[10px] text-slate-400 mt-1.5">
+            Lista vazia significa &quot;atende qualquer demanda&quot;, não &quot;nenhuma&quot;.
+          </p>
+        </div>
+
+        <div>
+          <label className="text-[10px] uppercase tracking-wider font-extrabold text-slate-500 block mb-2">
+            Tipo de atendimento
+          </label>
+          <div className="flex flex-wrap gap-1.5">
+            {(['PARTICULAR', 'SOCIAL', 'AMBOS'] as const).map((tipo) => (
+              <label key={tipo} className={chip(preferencia === tipo)}>
+                <input
+                  type="radio"
+                  className="sr-only"
+                  checked={preferencia === tipo}
+                  onChange={() => setPreferencia(tipo)}
+                />
+                {tipo}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex gap-2 pt-3 border-t border-slate-100">
+          <button
+            type="button"
+            onClick={salvar}
+            className="bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs px-5 py-2.5 rounded-2xl"
+          >
+            Salvar critérios
+          </button>
+          <button
+            type="button"
+            onClick={onCancelar}
+            className="border border-slate-200 text-slate-600 font-extrabold text-xs px-5 py-2.5 rounded-2xl hover:bg-slate-50"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

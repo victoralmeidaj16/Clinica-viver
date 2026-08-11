@@ -332,6 +332,85 @@ describe('identity and multi-tenancy', () => {
     ).toBeNull();
   });
 
+  /**
+   * O motivo e o autor chegavam ao repositório e eram descartados — trocar o
+   * psicólogo de um paciente virava um fato sem explicação nem responsável.
+   */
+  it('guarda motivo e autor de cada reatribuição, da mais recente para a mais antiga', async () => {
+    const segundo: ProfessionalProfile = { ...professionalProfile, id: 'professional-2', userId: 'user-professional-2' };
+    const terceiro: ProfessionalProfile = { ...professionalProfile, id: 'professional-3', userId: 'user-professional-3' };
+    const repository = new InMemoryIdentityRepository({
+      organizations: [organization],
+      professionals: [professionalProfile, segundo, terceiro],
+      patients: [createPatientProfile({
+        id: 'patient-historico',
+        organizationId: organization.id,
+        displayName: 'Paciente com histórico',
+        primaryProfessionalId: professionalProfile.id,
+        assignedProfessionalIds: [professionalProfile.id],
+        createdAt: now,
+      })],
+    });
+
+    await repository.reassignPatient({
+      organizationId: organization.id,
+      patientId: 'patient-historico',
+      professionalId: segundo.id,
+      actorUserId: ownerMembership.userId,
+      reason: 'Incompatibilidade de horário',
+      changedAt: '2026-07-30T13:00:00.000Z',
+    });
+    await repository.reassignPatient({
+      organizationId: organization.id,
+      patientId: 'patient-historico',
+      professionalId: terceiro.id,
+      actorUserId: ownerMembership.userId,
+      reason: 'Pedido da paciente',
+      changedAt: '2026-08-05T09:00:00.000Z',
+    });
+
+    const historico = await repository.listPatientReassignments(organization.id, 'patient-historico');
+
+    expect(historico).toHaveLength(2);
+    expect(historico[0]).toMatchObject({
+      previousProfessionalId: segundo.id,
+      professionalId: terceiro.id,
+      reason: 'Pedido da paciente',
+      actorUserId: ownerMembership.userId,
+    });
+    expect(historico[1]).toMatchObject({
+      previousProfessionalId: professionalProfile.id,
+      professionalId: segundo.id,
+      reason: 'Incompatibilidade de horário',
+    });
+  });
+
+  it('não registra reatribuição quando o profissional é o mesmo', async () => {
+    const repository = new InMemoryIdentityRepository({
+      organizations: [organization],
+      professionals: [professionalProfile],
+      patients: [createPatientProfile({
+        id: 'patient-sem-troca',
+        organizationId: organization.id,
+        displayName: 'Paciente sem troca',
+        primaryProfessionalId: professionalProfile.id,
+        assignedProfessionalIds: [professionalProfile.id],
+        createdAt: now,
+      })],
+    });
+
+    await repository.reassignPatient({
+      organizationId: organization.id,
+      patientId: 'patient-sem-troca',
+      professionalId: professionalProfile.id,
+      actorUserId: ownerMembership.userId,
+      reason: 'Reenvio acidental do formulário',
+      changedAt: '2026-08-05T09:00:00.000Z',
+    });
+
+    expect(await repository.listPatientReassignments(organization.id, 'patient-sem-troca')).toHaveLength(0);
+  });
+
   it('promove uma origem externa de forma idempotente e preserva o mapeamento', async () => {
     const repository = createRepository();
     const input = {

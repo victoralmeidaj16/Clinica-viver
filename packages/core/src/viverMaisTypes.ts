@@ -85,8 +85,18 @@ export interface PsicologoPerfil {
   outrasPosGraduacoes?: string[];
   limitePacientesAtivos: number; // Padrão e teto operacional: 5
   pacientesAtivosCount: number;
-  exibirNaVitrine: boolean; // Gestão pode privar/desativar ao atingir capacidade
+  exibirNaVitrine: boolean; // Aparece no site público
   motivoDesativacao?: string; // Ex: 'Férias', 'Limite de Pacientes', 'Pausa Solicitada'
+  /**
+   * Fora da fila de encaminhamento, independentemente da vitrine. Quem está de
+   * férias para de receber sem sumir para os próprios pacientes.
+   */
+  pausadoNoRodizio?: boolean;
+  /**
+   * Não é usado: a ordem real da fila é derivada de `ultimoLeadRecebidoEm`,
+   * mais antigo primeiro. Mantido porque o tipo é público, mas uma segunda
+   * noção de ordem só criaria a chance de as duas discordarem.
+   */
   posicaoFilaRoundRobin: number;
   ultimoLeadRecebidoEm?: string;
   saldoCreditoAbatimento: number; // 70% acumulado para abatimento no boleto

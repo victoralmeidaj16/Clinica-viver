@@ -35,6 +35,7 @@ export const CAMPOS_DA_GESTAO = new Set([
   'servicosPrestados', 'publicoAlvo', 'publicoAlvoOutro',
   'especificarNecessidades', 'necessidadesAtendidas', 'necessidadesOutro',
   'limitePacientesAtivos', 'exibirNaVitrine', 'motivoDesativacao',
+  'pausadoNoRodizio', 'motivoPausaRodizio',
   'turmaViverMais', 'posGraduacaoViverMais', 'segundaPosGraduacao',
   'ultimoLeadRecebidoEm',
 ]);
@@ -113,7 +114,20 @@ export class CorpoInvalidoError extends Error {
  * um perfil não apague de passagem os turnos e serviços que a gestão levou
  * tempo cadastrando.
  */
-export async function validarCorpo(corpo: Record<string, unknown>): Promise<void> {
+export async function validarCorpo(
+  corpo: Record<string, unknown>,
+  permitidos: ReadonlySet<string> = CAMPOS_DA_GESTAO
+): Promise<void> {
+  // Só o que vai ser aplicado é validado.
+  //
+  // Antes a validação corria sobre o corpo inteiro, então o psicólogo que
+  // reenviasse o próprio cadastro recebia "o limite deve ser entre 1 e 5" por
+  // um campo que a allowlist ia descartar de qualquer forma — erro sobre uma
+  // decisão que não era dele. O descarte continua silencioso, como documentado.
+  for (const campo of Object.keys(corpo)) {
+    if (!permitidos.has(campo)) delete corpo[campo];
+  }
+
   if (corpo.status !== undefined && !STATUS_VALIDOS.includes(corpo.status as StatusCadastroPsicologo)) {
     throw new CorpoInvalidoError('Status inválido.');
   }
@@ -203,6 +217,11 @@ export function aplicarMudancas(
       ? corpo.exibirNaVitrine
       : existente.exibirNaVitrine;
 
+  const pausadoNoRodizio =
+    pode('pausadoNoRodizio') && typeof corpo.pausadoNoRodizio === 'boolean'
+      ? corpo.pausadoNoRodizio
+      : existente.pausadoNoRodizio;
+
   const estadoUf = pode('estadoUf')
     ? String(corpo.estadoUf).trim().toUpperCase() || undefined
     : existente.estadoUf;
@@ -269,6 +288,15 @@ export function aplicarMudancas(
       : (pode('motivoDesativacao') ? (corpo.motivoDesativacao as string) : undefined) ??
         existente.motivoDesativacao ??
         'Desativação manual pela gestão',
+    // Mesma simetria do motivo da vitrine: enquanto a pausa existe o motivo
+    // sobrevive, e ao retomar ele some — um motivo órfão descreveria uma
+    // situação que acabou.
+    pausadoNoRodizio,
+    motivoPausaRodizio: pausadoNoRodizio
+      ? (pode('motivoPausaRodizio') ? (corpo.motivoPausaRodizio as string) : undefined) ??
+        existente.motivoPausaRodizio ??
+        'Pausa manual pela gestão'
+      : undefined,
     nomeSocial: pode('nomeSocial')
       ? (corpo.nomeSocial as string) || undefined
       : existente.nomeSocial,

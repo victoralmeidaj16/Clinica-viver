@@ -130,7 +130,7 @@ export async function PATCH(request: Request) {
     }
 
     const corpo = (await request.json()) as Record<string, unknown>;
-    await validarCorpo(corpo);
+    await validarCorpo(corpo, CAMPOS_DO_PROPRIO_PSICOLOGO);
 
     const atualizado = aplicarMudancas(cadastro, corpo, CAMPOS_DO_PROPRIO_PSICOLOGO);
 

@@ -16,6 +16,10 @@ export interface ManagedPatient {
   servicoKey?: string;
   servicoNome?: string;
   modalidade?: string;
+  /** `'Sim'`/`'Não'` como veio do formulário público, não booleano. */
+  possuiConvenio?: string;
+  /** `'Nenhum'` quando a pessoa chegou sem convênio — é o default da triagem. */
+  convenioSelecionado?: string;
   paraQuemE?: string;
   turno?: string;
   necessidadesPaciente?: readonly string[];

@@ -22,7 +22,15 @@ export function selecionarPsicologoRoundRobin(
   // Filtrar psicólogos ativos, que atendam o turno, modalidade, serviço, público alvo e necessidades específicas
   const elegiveis = psicologos.filter((p) => {
     if (psicologoIgnoradoId && p.id === psicologoIgnoradoId) return false;
-    if (!p.exibirNaVitrine) return false;
+    // Quem recebe encaminhamento é decidido só por `pausadoNoRodizio`.
+    // `exibirNaVitrine` responde a outra pergunta — se o perfil aparece no site
+    // público — e deixou de valer aqui: um profissional pode sair da vitrine e
+    // seguir atendendo, ou continuar visível para os próprios pacientes
+    // enquanto está de férias.
+    //
+    // A migração 017 carimbou `pausadoNoRodizio` em todos os que estavam com a
+    // vitrine desligada, para que a troca de critério não reativasse ninguém.
+    if (p.pausadoNoRodizio) return false;
     if (p.pacientesAtivosCount >= p.limitePacientesAtivos) return false;
     if (!p.turnosDisponiveis.includes(turnoDesejado)) return false;
     if (!p.modalidadesAtendidas.includes(modalidadeDesejada)) return false;

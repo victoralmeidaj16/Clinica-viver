@@ -101,6 +101,8 @@ interface PsicologoRow extends RowDataPacket {
   limite_pacientes_ativos: number | null;
   pacientes_ativos_count: number;
   exibir_na_vitrine: number;
+  pausado_no_rodizio: number;
+  motivo_pausa_rodizio: string | null;
   motivo_desativacao: string | null;
   ultimo_lead_recebido_em: string | null;
   turma_viver_mais: string | null;
@@ -211,6 +213,8 @@ function toPsychologist(row: PsicologoRow): CadastroPsicologoRecord {
     limitePacientesAtivos: row.limite_pacientes_ativos ?? undefined,
     pacientesAtivosCount: row.pacientes_ativos_count,
     exibirNaVitrine: Boolean(row.exibir_na_vitrine),
+    pausadoNoRodizio: Boolean(row.pausado_no_rodizio),
+    motivoPausaRodizio: row.motivo_pausa_rodizio ?? undefined,
     motivoDesativacao: row.motivo_desativacao ?? undefined,
     ultimoLeadRecebidoEm: fromSqlTimestamp(row.ultimo_lead_recebido_em),
     turmaViverMais: row.turma_viver_mais ?? undefined,
@@ -305,7 +309,7 @@ export class MysqlCaptureRepository {
               servicos_prestados, publico_alvo, publico_alvo_outro,
               especificar_necessidades, necessidades_atendidas, necessidades_outro,
               limite_pacientes_ativos, pacientes_ativos_count, exibir_na_vitrine,
-              motivo_desativacao, ultimo_lead_recebido_em, turma_viver_mais,
+              pausado_no_rodizio, motivo_pausa_rodizio, motivo_desativacao, ultimo_lead_recebido_em, turma_viver_mais,
               pos_graduacao_viver_mais, segunda_pos_graduacao_viver_mais, criado_em
          FROM clinica_cadastros_psicologos
         WHERE instituicao_id = ? AND organizacao_ref = ?
@@ -362,9 +366,10 @@ export class MysqlCaptureRepository {
             servicos_habilitados, servicos_prestados, publico_alvo, publico_alvo_outro,
             especificar_necessidades, necessidades_atendidas, necessidades_outro,
             limite_pacientes_ativos, pacientes_ativos_count,
-            exibir_na_vitrine, motivo_desativacao, ultimo_lead_recebido_em,
+            exibir_na_vitrine, pausado_no_rodizio, motivo_pausa_rodizio,
+            motivo_desativacao, ultimo_lead_recebido_em,
             turma_viver_mais, pos_graduacao_viver_mais, segunda_pos_graduacao_viver_mais, criado_em)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
            nome_completo = VALUES(nome_completo), nome_social = VALUES(nome_social),
            crp = VALUES(crp), whatsapp = VALUES(whatsapp), email = VALUES(email),
@@ -389,6 +394,8 @@ export class MysqlCaptureRepository {
            limite_pacientes_ativos = VALUES(limite_pacientes_ativos),
            pacientes_ativos_count = VALUES(pacientes_ativos_count),
            exibir_na_vitrine = VALUES(exibir_na_vitrine),
+           pausado_no_rodizio = VALUES(pausado_no_rodizio),
+           motivo_pausa_rodizio = VALUES(motivo_pausa_rodizio),
            motivo_desativacao = VALUES(motivo_desativacao),
            ultimo_lead_recebido_em = VALUES(ultimo_lead_recebido_em),
            turma_viver_mais = VALUES(turma_viver_mais),
@@ -433,6 +440,8 @@ export class MysqlCaptureRepository {
           psych.limitePacientesAtivos ?? null,
           psych.pacientesAtivosCount ?? 0,
           psych.exibirNaVitrine === false ? 0 : 1,
+          psych.pausadoNoRodizio ? 1 : 0,
+          psych.motivoPausaRodizio ?? null,
           psych.motivoDesativacao ?? null,
           psych.ultimoLeadRecebidoEm ? toSqlTimestamp(psych.ultimoLeadRecebidoEm) : null,
           psych.turmaViverMais ?? null,

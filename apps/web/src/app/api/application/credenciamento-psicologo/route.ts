@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server';
+import type { RowDataPacket } from 'mysql2';
+import { getMysqlPool } from '@/server/oci/runtime';
+import { instituicaoId } from '@/server/persistence/mysql/mappers';
 import {
   emptySnapshot,
   readSnapshot,
@@ -21,6 +24,54 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
+ * Acrescenta a cada cadastro se a pessoa já definiu senha.
+ *
+ * O credenciamento tem três marcos — convite enviado, acesso provisionado e
+ * conta ativada — e só os dois primeiros estão no próprio registro
+ * (`boasVindasEnviadaEm`, `acessoCriadoEm`). O terceiro vive em
+ * `clinica_usuarios.senha_definida_em`, porque quem define senha é o usuário,
+ * não o cadastro. Sem esta junção a gestão veria "convite enviado" para sempre,
+ * inclusive depois da pessoa já estar usando o sistema.
+ *
+ * Em modo demonstração o dado não existe: `contaAtivada` fica indefinido, e a
+ * tela mostra o marco como desconhecido em vez de afirmar que não aconteceu.
+ */
+async function comEstadoDeAcesso(
+  cadastros: readonly CadastroPsicologoRecord[]
+): Promise<Array<CadastroPsicologoRecord & { contaAtivada?: boolean }>> {
+  const referencias = cadastros
+    .map((psi) => psi.usuarioRef)
+    .filter((ref): ref is string => Boolean(ref));
+
+  if (!isMysqlConfigured() || referencias.length === 0) {
+    return cadastros.map((psi) => ({ ...psi }));
+  }
+
+  try {
+    const [linhas] = await getMysqlPool().query<
+      Array<RowDataPacket & { ref_core: string; senha_definida_em: string | null }>
+    >(
+      `SELECT ref_core, senha_definida_em
+         FROM clinica_usuarios
+        WHERE instituicao_id = ? AND ref_core IN (?)`,
+      [instituicaoId(), referencias]
+    );
+    const ativados = new Set(
+      linhas.filter((linha) => linha.senha_definida_em).map((linha) => linha.ref_core)
+    );
+    return cadastros.map((psi) => ({
+      ...psi,
+      contaAtivada: psi.usuarioRef ? ativados.has(psi.usuarioRef) : false,
+    }));
+  } catch (error) {
+    // O semáforo é informativo: listar a equipe é mais importante do que saber
+    // quem já entrou.
+    console.error('Não foi possível apurar contas ativadas:', error);
+    return cadastros.map((psi) => ({ ...psi }));
+  }
+}
+
+/**
  * Cadastros de psicólogos, para o cockpit da gestão.
  *
  * Autenticada, ao contrário do `POST` logo abaixo: a candidatura é pública
@@ -30,12 +81,11 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     await exigirGestao();
-    if (isMysqlConfigured()) {
-      const state = await new MysqlCaptureRepository().read();
-      return NextResponse.json({ success: true, data: state.cadastrosPsicologos });
-    }
-    const snapshot = readSnapshot();
-    return NextResponse.json({ success: true, data: snapshot?.cadastrosPsicologos ?? [] });
+    const cadastros = isMysqlConfigured()
+      ? (await new MysqlCaptureRepository().read()).cadastrosPsicologos
+      : readSnapshot()?.cadastrosPsicologos ?? [];
+
+    return NextResponse.json({ success: true, data: await comEstadoDeAcesso(cadastros) });
   } catch (error) {
     if (error instanceof NaoAutorizadoError) {
       return NextResponse.json({ success: false, error: error.message }, { status: error.status });

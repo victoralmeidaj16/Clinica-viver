@@ -29,6 +29,16 @@ import { createConnection } from 'mysql2/promise';
 
 const DIRETORIO = dirname(fileURLToPath(import.meta.url));
 const DRY_RUN = process.argv.includes('--dry-run');
+/**
+ * Regrava o checksum das migrações já aplicadas, sem executá-las.
+ *
+ * Necessário uma única vez, quando o cálculo passou a ignorar comentários: as
+ * linhas antigas somavam o arquivo inteiro e não há como recuperar o texto
+ * original para reconhecê-las. Usar **só** depois de conferir, no histórico do
+ * git, que o DDL não mudou — é o operador afirmando isso, não o script
+ * deduzindo.
+ */
+const REBASELINE = process.argv.includes('--rebaseline');
 
 /**
  * Separa o arquivo em comandos individuais.
@@ -138,7 +148,26 @@ async function listarMigracoes() {
     .sort();
 }
 
+/**
+ * Impressão digital do que a migração **faz**, não do arquivo.
+ *
+ * O guard existe para impedir que o esquema divirja do repositório em silêncio.
+ * Calculado sobre o texto bruto, ele também disparava quando alguém corrigia um
+ * comentário — e uma varredura de documentação nos arquivos de infra travava
+ * todas as migrações seguintes por causa de uma palavra num cabeçalho.
+ *
+ * `separarComandos` já descarta comentários e normaliza espaço entre comandos,
+ * então o checksum sobre a lista de comandos muda quando o DDL muda e ignora a
+ * prosa em volta.
+ */
 function checksumDe(conteudo) {
+  return createHash('sha256')
+    .update(separarComandos(conteudo).join(';\n'), 'utf8')
+    .digest('hex');
+}
+
+/** Como era antes, para reconhecer linhas gravadas pela versão anterior. */
+function checksumLegado(conteudo) {
   return createHash('sha256').update(conteudo, 'utf8').digest('hex');
 }
 
@@ -182,14 +211,29 @@ async function main() {
       const anterior = aplicadas.get(versao);
 
       if (anterior) {
-        // Editar uma migração já aplicada faz o banco divergir do repositório
-        // em silêncio. Corrigir esquema é papel de uma migração nova.
         if (anterior.checksum !== checksum) {
+          // Linha gravada pela versão que somava o arquivo inteiro, quando o
+          // conteúdo ainda é o mesmo: reconhece e regrava no formato novo.
+          if (anterior.checksum === checksumLegado(conteudo) || REBASELINE) {
+            await conexao.query(
+              'UPDATE schema_migrations SET checksum = ?, nome = ? WHERE versao = ?',
+              [checksum, arquivo, versao]
+            );
+            console.log(`  ok    ${arquivo} (checksum regravado)`);
+            continue;
+          }
+
+          // Alterar o DDL de uma migração já aplicada faz o banco divergir do
+          // repositório em silêncio. Corrigir esquema é papel de uma migração
+          // nova.
           throw new Error(
-            `A migração ${versao} (${anterior.nome}) já foi aplicada, mas o arquivo mudou desde então.\n` +
+            `A migração ${versao} (${anterior.nome}) já foi aplicada, mas os comandos mudaram desde então.\n` +
               'Crie uma migração nova em vez de editar esta. Se o arquivo apenas foi renomeado ' +
               `(${anterior.nome} → ${arquivo}), ajuste a linha em schema_migrations à mão.`
           );
+        }
+        if (anterior.nome !== arquivo) {
+          await conexao.query('UPDATE schema_migrations SET nome = ? WHERE versao = ?', [arquivo, versao]);
         }
         console.log(`  ok    ${arquivo} (já aplicada)`);
         continue;

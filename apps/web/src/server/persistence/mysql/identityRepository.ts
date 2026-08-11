@@ -8,12 +8,14 @@ import type {
   Organization,
   OrganizationMembership,
   PatientProfile,
+  PatientReassignment,
   PatientResponsibleLink,
   ProfessionalProfile,
   ResponsibleParty,
 } from '@thats-life/core';
 import { getMysqlPool } from '@/server/oci/runtime';
 import {
+  fromSqlTimestamp,
   instituicaoId,
   rowId,
   toIdentityUser,
@@ -85,6 +87,16 @@ const RESPONSAVEL_SELECT = `
     FROM clinica_responsaveis r
     JOIN clinica_organizacoes o ON o.id = r.organizacao_id
    WHERE r.instituicao_id = ? AND o.ref_core = ?`;
+
+interface ReatribuicaoRow extends RowDataPacket {
+  id: string;
+  paciente_ref: string;
+  profissional_anterior_ref: string | null;
+  profissional_novo_ref: string;
+  motivo: string;
+  ator_usuario_ref: string;
+  ocorrido_em: string;
+}
 
 export interface PatientContact {
   phone?: string;
@@ -403,6 +415,29 @@ export class MysqlIdentityRepository implements IdentityRepository, PatientConta
           professionalId,
         ]
       );
+
+      // Auditoria consultável, na mesma transação da troca: se o vínculo mudou,
+      // o registro de quem mudou e por quê existe. A linha em
+      // `observacao_administrativa` acima continua sendo escrita porque é o que
+      // instalações antigas têm — mas ela trunca em 1000 caracteres e ninguém
+      // lê de volta, então não serve como fonte.
+      await connection.execute(
+        `INSERT INTO clinica_pacientes_reatribuicoes
+           (id, instituicao_id, organizacao_ref, paciente_ref, profissional_anterior_ref,
+            profissional_novo_ref, motivo, ator_usuario_ref, ocorrido_em)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          rowId('reatribuicao', `${input.patientId}:${input.professionalId}:${input.changedAt}`),
+          instituicaoId(),
+          input.organizationId,
+          input.patientId,
+          patient.primaryProfessionalId ?? null,
+          input.professionalId,
+          input.reason,
+          input.actorUserId,
+          toSqlTimestamp(input.changedAt),
+        ]
+      );
     });
 
     return {
@@ -411,6 +446,30 @@ export class MysqlIdentityRepository implements IdentityRepository, PatientConta
       assignedProfessionalIds: [input.professionalId],
       updatedAt: input.changedAt,
     };
+  }
+
+  async listPatientReassignments(
+    organizationId: string,
+    patientId: string
+  ): Promise<readonly PatientReassignment[]> {
+    const [rows] = await this.pool.query<ReatribuicaoRow[]>(
+      `SELECT id, paciente_ref, profissional_anterior_ref, profissional_novo_ref,
+              motivo, ator_usuario_ref, ocorrido_em
+         FROM clinica_pacientes_reatribuicoes
+        WHERE instituicao_id = ? AND organizacao_ref = ? AND paciente_ref = ?
+        ORDER BY ocorrido_em DESC`,
+      [instituicaoId(), organizationId, patientId]
+    );
+    return rows.map((row) => ({
+      id: row.id,
+      organizationId,
+      patientId: row.paciente_ref,
+      previousProfessionalId: row.profissional_anterior_ref ?? undefined,
+      professionalId: row.profissional_novo_ref,
+      reason: row.motivo,
+      actorUserId: row.ator_usuario_ref,
+      occurredAt: fromSqlTimestamp(row.ocorrido_em) ?? row.ocorrido_em,
+    }));
   }
 
   /**

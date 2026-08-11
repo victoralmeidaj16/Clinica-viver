@@ -4,6 +4,7 @@ import type {
   Organization,
   OrganizationMembership,
   PatientProfile,
+  PatientReassignment,
   PatientResponsibleLink,
   ProfessionalProfile,
   ResponsibleParty,
@@ -61,6 +62,20 @@ export interface IdentityRepository {
     reason: string;
     changedAt: string;
   }): Promise<PatientProfile | null>;
+  /**
+   * Histórico de trocas de profissional responsável, da mais recente para a
+   * mais antiga.
+   *
+   * Existe porque `reassignPatient` recebe `reason` e `actorUserId` e, até
+   * agora, os dois se perdiam: o adaptador em memória descartava, e o MySQL
+   * concatenava uma linha de texto num campo de observação truncado que nada
+   * lia de volta. Trocar o psicólogo de um paciente é decisão que precisa ter
+   * autor e justificativa recuperáveis.
+   */
+  listPatientReassignments(
+    organizationId: string,
+    patientId: string
+  ): Promise<readonly PatientReassignment[]>;
   getResponsibleParty(
     organizationId: string,
     responsiblePartyId: string

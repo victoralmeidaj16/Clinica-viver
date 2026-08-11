@@ -1,7 +1,7 @@
-whatsapp.vivermaispsicologia.com.br {
-  reverse_proxy 127.0.0.1:8080
+{
+  acme_ca https://acme-v02.api.letsencrypt.org/directory
 }
 
-app.vivermaispsicologia.com.br {
+app.clinicavivermais.cloud {
   reverse_proxy 127.0.0.1:3000
 }

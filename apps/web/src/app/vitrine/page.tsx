@@ -30,6 +30,7 @@ import {
 
 type ServicoKey =
   | 'PSICOTERAPIA'
+  | 'PSICOTERAPIA_CASAL'
   | 'AVALIACAO'
   | 'ORIENTACAO_PROFISSIONAL'
   | 'ORIENTACAO_PARENTAL';
@@ -45,8 +46,185 @@ interface OpcaoPreco {
 interface ServicoVitrine {
   titulo: string;
   descricao: string;
+  duracao: string;
   imagem: string;
   opcoes: OpcaoPreco[];
+}
+
+export const LISTA_NECESSIDADES = [
+  'Depressão',
+  'Transtornos de Ansiedade',
+  'Traumas',
+  'LGBTQIAPN+',
+  'Luto',
+  'Autoconhecimento',
+  'Violência doméstica e abuso sexual',
+  'Transtorno Borderline',
+  'Desregulação de humor',
+  'Sofrimento Psíquico Importante',
+  'Maternidade',
+  'Autoestima',
+  'Burnout',
+  'Relacionamentos',
+  'Transtornos Alimentares',
+  'TDAH',
+  'Dependência emocional',
+  'Dependência química',
+  'Transtorno Disfórico Pré-menstrual',
+  'Transtorno Bipolar',
+  'Transtornos de personalidade',
+  'Transtorno de Humor',
+  'Ansiedade',
+  'Toxicomania',
+  'Transtorno do Espectro Autista (TEA)',
+  'Psicodiagnóstico e Avaliação Psicológica em Adultos e Idosos',
+  'Fobia Social',
+  'Relacionamento abusivo',
+  'Sexualidade',
+  'Conflitos Familiares',
+  'Pacientes e familiares oncológicos',
+  'Distúrbios de sono',
+  'Agressividade',
+  'Dificuldades de Aprendizagem',
+  'Estresse',
+  'Empoderamento feminino',
+  'Inteligência Emocional',
+  'Autoconfiança',
+  'Brasileiros no exterior e adaptação cultural',
+  'Nômades digitais',
+  'Habilidades sociais',
+  'Transtornos do desenvolvimento global',
+  'Violências sexuais',
+  'Desenvolvimento pessoal',
+  'Autonomia emocional',
+  'Construção de sentido à existência',
+  'Racismo',
+  'Dificuldade na tomada de decisões',
+  'Regulação emocional',
+  'Dificuldades comportamentais',
+  'Questões de Gênero',
+  'Demandas adotivas de filhos por adoção, pretendentes e adotantes',
+  'Menopausa',
+  'Envelhecimento',
+  'Paternidade',
+  'Masculinidade',
+] as const;
+
+export const OPCOES_AVALIACAO_PSICOLOGICA = [
+  'Avaliação psicológica - Cirurgia Bariátrica',
+  'Avaliação psicológica - Estética e Reparadora',
+  'Avaliação psicológica - Normas Regulamentadoras (NRs)',
+  'Avaliação psicológica - Agência Nacional de Aviação Civil (ANAC)',
+  'Avaliação psicológica - Forense',
+  'Avaliação psicológica - Concursos',
+  'Avaliação psicológica - TDAH',
+  'Avaliação psicológica - Dinâmica Familiar e Parentabilidade',
+  'Avaliação psicológica - de Personalidade.',
+] as const;
+
+function NecessidadesSelector({
+  prefix,
+  especificar,
+  onEspecificarChange,
+  selecionados,
+  onSelecionadosChange,
+  outro,
+  onOutroChange,
+}: {
+  prefix: string;
+  especificar: boolean;
+  onEspecificarChange: (val: boolean) => void;
+  selecionados: readonly string[];
+  onSelecionadosChange: (lista: string[]) => void;
+  outro: string;
+  onOutroChange: (val: string) => void;
+}) {
+  return (
+    <div className="space-y-3 p-4 bg-slate-50 border border-slate-200 rounded-2xl">
+      <div>
+        <label className="font-bold text-slate-800 text-xs sm:text-sm block">
+          VOCÊ GOSTARIA DE ESPECIFICAR SUA NECESSIDADE?
+        </label>
+        <span className="text-[11px] text-slate-500 block mt-0.5">
+          Usado como filtro. Selecione um ou mais.
+        </span>
+      </div>
+
+      <div className="flex items-center gap-6 text-xs sm:text-sm font-bold">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="radio"
+            name={`${prefix}-especificar`}
+            checked={especificar === true}
+            onChange={() => onEspecificarChange(true)}
+            className="w-4 h-4 accent-purple-600 cursor-pointer"
+          />
+          <span>SIM</span>
+        </label>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="radio"
+            name={`${prefix}-especificar`}
+            checked={especificar === false}
+            onChange={() => {
+              onEspecificarChange(false);
+              onSelecionadosChange([]);
+              onOutroChange('');
+            }}
+            className="w-4 h-4 accent-purple-600 cursor-pointer"
+          />
+          <span>NÃO</span>
+        </label>
+      </div>
+
+      {especificar && (
+        <div className="pt-3 border-t border-slate-200/80 space-y-3 animate-in fade-in duration-200">
+          <div className="max-h-64 overflow-y-auto pr-1 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+            {LISTA_NECESSIDADES.map((item) => {
+              const checked = selecionados.includes(item);
+              return (
+                <label
+                  key={item}
+                  className={`p-2.5 rounded-xl border flex items-start gap-2 cursor-pointer transition-all ${
+                    checked
+                      ? 'bg-purple-50 border-purple-400 text-purple-900 font-semibold shadow-2xs'
+                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100/70'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => {
+                      if (checked) {
+                        onSelecionadosChange(selecionados.filter((s) => s !== item));
+                      } else {
+                        onSelecionadosChange([...selecionados, item]);
+                      }
+                    }}
+                    className="w-4 h-4 mt-0.5 rounded border-slate-300 accent-purple-600 cursor-pointer shrink-0"
+                  />
+                  <span className="leading-tight">{item}</span>
+                </label>
+              );
+            })}
+          </div>
+
+          <div className="pt-2 border-t border-slate-200/60 space-y-1">
+            <label className="font-semibold text-xs text-slate-700 block">
+              Outro <span className="text-slate-400 font-normal">(opcional)</span>
+            </label>
+            <input
+              type="text"
+              value={outro}
+              onChange={(e) => onOutroChange(e.target.value)}
+              placeholder="Escrever outra necessidade..."
+              className="w-full border border-slate-300 rounded-xl p-2.5 text-xs bg-white focus:outline-none focus:border-purple-600"
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function ViverMaisLandingPage() {
@@ -69,11 +247,18 @@ export default function ViverMaisLandingPage() {
     cpf: '',
     cep: '',
     numeroResidencia: '',
+    ruaManual: '',
+    bairroManual: '',
     possuiConvenio: 'NAO',
     convenioSelecionado: '',
     origem: 'Facebook',
     turno: 'VESPERTINO',
     paraQuemE: '',
+    paraQuemEOutro: '',
+    especificarNecessidades: false,
+    necessidadesPaciente: [] as string[],
+    necessidadesOutro: '',
+    opcaoAvaliacaoPsicologica: '',
     genero: '' as GenderValue | '',
     generoOutro: '',
   });
@@ -96,6 +281,9 @@ export default function ViverMaisLandingPage() {
     servicosPrestados: ['Atendimento Psicológico'] as string[],
     publicoAlvo: ['Adulto'] as string[],
     publicoAlvoOutro: '',
+    especificarNecessidades: false,
+    necessidadesAtendidas: [] as string[],
+    necessidadesOutro: '',
     disponibilidadeTurnos: ['MANHA', 'TARDE'],
   });
 
@@ -204,22 +392,32 @@ export default function ViverMaisLandingPage() {
     'Weg'
   ];
 
-  // Tabela de preços correspondente ao que foi solicitado
+  // Tabela de preços e serviços da vitrine
   const precos: Record<ServicoKey, ServicoVitrine> = {
     PSICOTERAPIA: {
-      titulo: 'Psicoterapia',
-      descricao: 'Atendimento on-line ou presencial. Atendemos crianças, adolescentes, adultos e idosos, com sessões individuais, em casal ou em grupo.',
+      titulo: 'Psicoterapia Individual',
+      descricao: 'É a modalidade mais conhecida de acompanhamento psicológico. Nela são trabalhadas diferentes demandas, como ansiedade, estresse, depressão, dificuldades nos relacionamentos, luto, autoestima, autoconhecimento, entre outras, sempre respeitando as necessidades de cada pessoa.',
+      duracao: '50min',
       imagem: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=800&q=80',
       opcoes: [
-        { tipo: 'SOCIAL', label: 'Agendamento Acessível (Individual)', preco: 'R$ 75,00' },
-        { tipo: 'PARTICULAR', label: 'Agendamento Particular (Individual)', preco: 'R$ 130,00' },
+        { tipo: 'SOCIAL', label: 'Agendamento Acessível', preco: 'R$ 75,00' },
+        { tipo: 'PARTICULAR', label: 'Agendamento Particular', preco: 'R$ 130,00' }
+      ]
+    },
+    PSICOTERAPIA_CASAL: {
+      titulo: 'Psicoterapia de Casal',
+      descricao: 'Voltada para casais que desejam fortalecer a comunicação, resolver conflitos e construir uma relação mais saudável.',
+      duracao: '1h30min',
+      imagem: 'https://images.unsplash.com/photo-1516589178581-6cd7833ae3b2?auto=format&fit=crop&w=800&q=80',
+      opcoes: [
         { tipo: 'CASAL_SOCIAL', label: 'Agendamento Acessível (Casal)', preco: 'R$ 150,00' },
         { tipo: 'CASAL_PARTICULAR', label: 'Agendamento Particular (Casal)', preco: 'R$ 260,00' }
       ]
     },
     AVALIACAO: {
-      titulo: 'Avaliação Psicológica',
-      descricao: 'A Avaliação Psicológica é um serviço clínico que busca compreender as particularidades de cada indivíduo, analisando aspectos como personalidade, comportamentos, habilidades e desafios emocionais.',
+      titulo: 'Avaliação Psicológica e Avaliação Neuropsicológica',
+      descricao: 'É um processo realizado para investigar possíveis diagnósticos e compreender aspectos cognitivos, emocionais e comportamentais. Geralmente é solicitada por médicos ou outros profissionais da saúde para auxiliar na definição de um diagnóstico ou conduta. A quantidade de sessões varia conforme a demanda.',
+      duracao: 'variável conforme testes e manejo do profissional',
       imagem: 'https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&w=800&q=80',
       opcoes: [
         { tipo: 'SOCIAL', label: 'Agendamento Acessível', preco: 'R$ 100,00' },
@@ -228,7 +426,8 @@ export default function ViverMaisLandingPage() {
     },
     ORIENTACAO_PROFISSIONAL: {
       titulo: 'Orientação Profissional/Vocacional',
-      descricao: 'A Orientação Profissional auxilia no planejamento de sua carreira ou transição profissional. A Orientação Vocacional ajuda jovens e adolescentes a descobrir suas aptidões e interesses.',
+      descricao: 'Auxilia na escolha ou replanejamento da carreira, considerando interesses, habilidades e objetivos profissionais.',
+      duracao: '50min',
       imagem: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=800&q=80',
       opcoes: [
         { tipo: 'SOCIAL', label: 'Agendamento Acessível', preco: 'R$ 75,00' },
@@ -237,7 +436,8 @@ export default function ViverMaisLandingPage() {
     },
     ORIENTACAO_PARENTAL: {
       titulo: 'Orientação Parental',
-      descricao: 'A Orientação Parental oferece suporte especializado para pais e responsáveis que desejam compreender melhor as necessidades emocionais e comportamentais de seus filhos, construindo relações saudáveis.',
+      descricao: 'Oferece suporte aos pais e responsáveis, auxiliando na compreensão das necessidades emocionais e comportamentais dos filhos, além de orientar sobre estratégias para lidar com os desafios do desenvolvimento e da educação.',
+      duracao: '50min',
       imagem: 'https://images.unsplash.com/photo-1543269865-cbf427effbad?auto=format&fit=crop&w=800&q=80',
       opcoes: [
         { tipo: 'SOCIAL', label: 'Agendamento Acessível', preco: 'R$ 75,00' },
@@ -257,12 +457,33 @@ export default function ViverMaisLandingPage() {
 
   const handleSubmitPaciente = async (e: React.FormEvent) => {
     e.preventDefault();
+    const idadeNum = Number(form.idade);
+    if (isNaN(idadeNum) || idadeNum <= 0) {
+      alert('Informe uma idade válida (maior que zero).');
+      return;
+    }
     if (form.whatsapp !== form.whatsappConfirmacao) {
       alert('Os números de telefone informados não coincidem!');
       return;
     }
     if (!validateGender(form.genero, form.generoOutro)) {
       alert('Selecione o gênero e, se escolher Outro, informe a descrição.');
+      return;
+    }
+    if (enderecoInfo.cidade) {
+      const temRua = (enderecoInfo.logradouro || form.ruaManual).trim();
+      const temBairro = (enderecoInfo.bairro || form.bairroManual).trim();
+      if (!temRua) {
+        alert('Informe o nome da sua rua / logradouro.');
+        return;
+      }
+      if (!temBairro) {
+        alert('Informe o seu bairro.');
+        return;
+      }
+    }
+    if (selectedService !== 'ORIENTACAO_PARENTAL' && form.paraQuemE === 'Outro' && !form.paraQuemEOutro.trim()) {
+      alert('Especifique para quem é o atendimento.');
       return;
     }
     setIsSubmitting(true);
@@ -272,9 +493,8 @@ export default function ViverMaisLandingPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
+          paraQuemE: selectedService === 'ORIENTACAO_PARENTAL' ? undefined : (form.paraQuemE === 'Outro' && form.paraQuemEOutro.trim() ? `Outro: ${form.paraQuemEOutro.trim()}` : form.paraQuemE),
           servico: selectedService ? precos[selectedService]?.titulo : '',
-          // O título é para ler; a chave é para o rodízio comparar com os
-          // serviços que cada profissional declarou atender.
           servicoKey: selectedService,
           modalidade: selectedModalidade,
         }),
@@ -391,10 +611,10 @@ export default function ViverMaisLandingPage() {
                 Cuidar da mente é Viver Mais!
               </div>
               <h2 className="text-3xl sm:text-5xl font-black tracking-tight leading-[1.1] text-white">
-                Acolhimento Humano e Inteligência Clínica ao Seu Alcance
+                Cuidado Psicológico Pensado para Você
               </h2>
               <p className="text-sm sm:text-base text-purple-100/90 leading-relaxed max-w-xl font-normal">
-                Encontre o psicólogo ideal para suas necessidades em consultas presenciais ou on-line. Agendamento ágil, valores acessíveis e resguardo ético em todas as etapas.
+                A partir das informações preenchidas neste formulário, faremos o direcionamento para um profissional conforme a modalidade de atendimento e a disponibilidade da nossa equipe, sempre com cuidado, acolhimento e resguardo ético.
               </p>
               
               <div className="pt-2 flex flex-wrap items-center gap-4">
@@ -457,7 +677,7 @@ export default function ViverMaisLandingPage() {
                 <span className="w-8 h-8 rounded-xl bg-psi-vibrant text-white font-black text-xs flex items-center justify-center">2</span>
                 <h4 className="font-extrabold text-sm text-ink">Preencha Seus Dados</h4>
                 <p className="text-xs text-muted leading-relaxed">
-                  Informe seu contato no WhatsApp e endereço. O sistema aloca um psicólogo especializado via rodízio inteligente.
+                  Informe seu contato no WhatsApp e endereço. O sistema encaminha para um psicólogo especializado via rodízio inteligente.
                 </p>
               </div>
 
@@ -487,26 +707,31 @@ export default function ViverMaisLandingPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5">
                 {Object.entries(precos).map(([key, service]) => (
                   <div
                     key={key}
-                    className="bg-surface rounded-3xl border border-psi-soft/80 p-6 flex flex-col justify-between shadow-card hover:shadow-lift transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden"
+                    className="bg-surface rounded-3xl border border-psi-soft/80 p-5 flex flex-col justify-between shadow-card hover:shadow-lift transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden"
                   >
                     <div className="absolute top-0 right-0 w-24 h-24 bg-psi-soft/40 rounded-full blur-2xl group-hover:bg-psi-vibrant/20 transition-all"></div>
                     
-                    <div className="space-y-4 relative z-10">
-                      <div className="w-12 h-12 rounded-2xl bg-psi-soft text-psi-deep flex items-center justify-center border border-psi-soft/80 group-hover:scale-110 group-hover:bg-psi-deep group-hover:text-white transition-all">
-                        <Heart className="w-5 h-5" />
+                    <div className="space-y-3 relative z-10">
+                      <div className="w-10 h-10 rounded-2xl bg-psi-soft text-psi-deep flex items-center justify-center border border-psi-soft/80 group-hover:scale-110 group-hover:bg-psi-deep group-hover:text-white transition-all">
+                        <Heart className="w-4 h-4" />
                       </div>
-                      <h4 className="text-base font-black text-ink leading-snug group-hover:text-psi-deep transition-colors">{service.titulo}</h4>
-                      <p className="text-xs text-muted leading-relaxed line-clamp-4">{service.descricao}</p>
+                      <h4 className="text-sm font-black text-ink leading-snug group-hover:text-psi-deep transition-colors">{service.titulo}</h4>
+                      <p className="text-xs text-muted leading-relaxed">{service.descricao}</p>
+                      
+                      <div className="flex items-center gap-1.5 text-[11px] text-purple-800 font-extrabold bg-purple-50/80 p-2 rounded-xl border border-purple-100">
+                        <Clock className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                        <span>Duração: {service.duracao}</span>
+                      </div>
                     </div>
 
-                    <div className="pt-6 border-t border-psi-soft/50 mt-6 relative z-10">
+                    <div className="pt-4 border-t border-psi-soft/50 mt-4 relative z-10">
                       <a
                         href={`#detalhes-${key}`}
-                        className="w-full bg-canvas hover:bg-psi-soft/80 border border-psi-soft text-psi-darkest font-extrabold text-xs py-2.5 px-4 rounded-xl transition-all flex items-center justify-center gap-1.5 group-hover:bg-psi-deep group-hover:text-white group-hover:border-psi-deep"
+                        className="w-full bg-canvas hover:bg-psi-soft/80 border border-psi-soft text-psi-darkest font-extrabold text-xs py-2.5 px-3 rounded-xl transition-all flex items-center justify-center gap-1.5 group-hover:bg-psi-deep group-hover:text-white group-hover:border-psi-deep"
                       >
                         Ver Valores e Agendar <ArrowRight className="w-3.5 h-3.5" />
                       </a>
@@ -551,7 +776,7 @@ export default function ViverMaisLandingPage() {
             <div className="space-y-10">
               <div className="text-center max-w-xl mx-auto">
                 <h3 className="text-2xl font-black text-ink">Escolha Seu Serviço & Agende em 1-Clique</h3>
-                <p className="text-xs text-muted mt-1">Valores transparentes e alocação ética garantida</p>
+                <p className="text-xs text-muted mt-1">Valores transparentes e encaminhamento ético garantido</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -581,7 +806,11 @@ export default function ViverMaisLandingPage() {
                       </div>
 
                       <div className="p-6">
-                        <p className="text-xs text-muted leading-relaxed border-b border-line pb-4">{service.descricao}</p>
+                        <p className="text-xs text-muted leading-relaxed pb-3">{service.descricao}</p>
+                        <div className="flex items-center gap-1.5 text-xs text-purple-800 font-extrabold border-t border-b border-purple-100 py-2.5 my-1 bg-purple-50/60 px-3 rounded-xl">
+                          <Clock className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                          <span>Duração da sessão: {service.duracao}</span>
+                        </div>
                       </div>
                     </div>
 
@@ -593,7 +822,7 @@ export default function ViverMaisLandingPage() {
                         >
                           <div>
                             <span className="text-xs font-extrabold text-ink block">{opcao.label}</span>
-                            <span className="text-[11px] text-psi-deep font-black">{opcao.preco} / sessão (50 min)</span>
+                            <span className="text-[11px] text-psi-deep font-black">{opcao.preco} / sessão</span>
                           </div>
                           <button
                             type="button"
@@ -743,9 +972,15 @@ export default function ViverMaisLandingPage() {
                   <label className="font-bold text-slate-700 block mb-1">Idade <span className="text-rose-500">*</span></label>
                   <input
                     type="number"
+                    min="1"
                     required
                     value={form.idade}
-                    onChange={(e) => setForm({ ...form, idade: e.target.value })}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '' || Number(val) > 0) {
+                        setForm({ ...form, idade: val });
+                      }
+                    }}
                     placeholder="Idade"
                     className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
                   />
@@ -817,18 +1052,54 @@ export default function ViverMaisLandingPage() {
                 </div>
               </div>
 
-              {/* Endereço auto-preenchido pelo ViaCEP */}
+              {/* Endereço auto-preenchido pelo ViaCEP ou manual caso não venha rua/bairro */}
               {enderecoInfo.cidade && (
-                <div className="bg-purple-50/60 border border-purple-100 p-3 rounded-2xl text-[11px] space-y-1 animate-in fade-in">
+                <div className="bg-purple-50/60 border border-purple-100 p-4 rounded-2xl text-[11px] space-y-3 animate-in fade-in">
                   <span className="font-bold text-purple-800 flex items-center gap-1">
                     <MapPin className="w-3.5 h-3.5 text-purple-600" /> Endereço Localizado:
                   </span>
                   <p className="text-slate-600">
-                    {enderecoInfo.logradouro ? `${enderecoInfo.logradouro}` : ''}
+                    {enderecoInfo.logradouro ? `${enderecoInfo.logradouro}` : (form.ruaManual || 'Rua a informar')}
                     {form.numeroResidencia ? `, nº ${form.numeroResidencia}` : ''}
-                    {enderecoInfo.bairro ? ` — ${enderecoInfo.bairro}` : ''} —{' '}
+                    {enderecoInfo.bairro ? ` — ${enderecoInfo.bairro}` : (form.bairroManual ? ` — ${form.bairroManual}` : '')} —{' '}
                     <span className="font-semibold text-slate-800">{enderecoInfo.cidade}/{enderecoInfo.uf}</span>
                   </p>
+
+                  {/* Exigir Nome da Rua e/ou Bairro caso o CEP não traga */}
+                  {(!enderecoInfo.logradouro || !enderecoInfo.bairro) && (
+                    <div className="pt-2 border-t border-purple-100/80 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {!enderecoInfo.logradouro && (
+                        <div>
+                          <label className="font-bold text-purple-900 block mb-1">
+                            Nome da Rua / Logradouro <span className="text-rose-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={form.ruaManual}
+                            onChange={(e) => setForm({ ...form, ruaManual: e.target.value })}
+                            placeholder="Digite o nome da sua rua"
+                            className="w-full border border-purple-200 bg-white rounded-xl p-2.5 text-slate-800 focus:outline-none focus:border-purple-600 text-xs"
+                          />
+                        </div>
+                      )}
+                      {!enderecoInfo.bairro && (
+                        <div>
+                          <label className="font-bold text-purple-900 block mb-1">
+                            Bairro <span className="text-rose-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={form.bairroManual}
+                            onChange={(e) => setForm({ ...form, bairroManual: e.target.value })}
+                            placeholder="Digite seu bairro"
+                            className="w-full border border-purple-200 bg-white rounded-xl p-2.5 text-slate-800 focus:outline-none focus:border-purple-600 text-xs"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -879,52 +1150,117 @@ export default function ViverMaisLandingPage() {
                 </div>
               )}
 
-              {/* Para quem é o atendimento? (opcional) */}
-              <div className="space-y-2 pt-1">
-                <div>
-                  <label className="font-bold text-slate-700 block">
-                    Para quem é o atendimento?: <span className="text-slate-400 font-normal">(opcional)</span>
-                  </label>
-                  <span className="text-[11px] text-slate-500 block mt-0.5">
-                    Selecione a opção que mais combina com o que você procura.
-                  </span>
+              {/* Para quem é o atendimento? (opcional) - Oculto em Orientação Parental */}
+              {selectedService !== 'ORIENTACAO_PARENTAL' && (
+                <div className="space-y-2 pt-1">
+                  <div>
+                    <label className="font-bold text-slate-700 block">
+                      Para quem é o atendimento?: <span className="text-slate-400 font-normal">(opcional)</span>
+                    </label>
+                    <span className="text-[11px] text-slate-500 block mt-0.5">
+                      Selecione a opção que mais combina com o que você procura.
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                    {[
+                      'Criança',
+                      'Adolescente',
+                      'Homem',
+                      'Mulher',
+                      'Idoso',
+                      'Casal',
+                      'Família',
+                      'Pessoas LGBTQIA+',
+                      'Grupo',
+                      'Outro',
+                    ].map((opcao) => {
+                      const isSelected = form.paraQuemE === opcao;
+                      return (
+                        <button
+                          key={opcao}
+                          type="button"
+                          onClick={() =>
+                            setForm((prev) => ({
+                              ...prev,
+                              paraQuemE: isSelected ? '' : opcao,
+                            }))
+                          }
+                          className={`p-2.5 rounded-xl border text-left font-semibold transition-all ${
+                            isSelected
+                              ? 'bg-purple-50 border-purple-500 text-purple-900 font-bold shadow-xs'
+                              : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          {opcao}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Habilitar campo se for selecionada a opção Outro */}
+                  {form.paraQuemE === 'Outro' && (
+                    <div className="animate-in fade-in duration-200 pt-2">
+                      <label className="font-bold text-slate-700 block mb-1 text-xs">
+                        Especifique para quem é o atendimento <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={form.paraQuemEOutro}
+                        onChange={(e) => setForm({ ...form, paraQuemEOutro: e.target.value })}
+                        placeholder="Digite para quem é o atendimento..."
+                        className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600 text-xs"
+                      />
+                    </div>
+                  )}
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-                  {[
-                    'Criança',
-                    'Adolescente',
-                    'Adulto',
-                    'Idoso',
-                    'Casal',
-                    'Família',
-                    'Mulheres',
-                    'Pessoas LGBTQIA+',
-                    'Grupo',
-                    'Outro',
-                  ].map((opcao) => {
-                    const isSelected = form.paraQuemE === opcao;
-                    return (
-                      <button
-                        key={opcao}
-                        type="button"
-                        onClick={() =>
-                          setForm((prev) => ({
-                            ...prev,
-                            paraQuemE: isSelected ? '' : opcao,
-                          }))
-                        }
-                        className={`p-2.5 rounded-xl border text-left font-semibold transition-all ${
-                          isSelected
-                            ? 'bg-purple-50 border-purple-500 text-purple-900 font-bold shadow-xs'
-                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        {opcao}
-                      </button>
-                    );
-                  })}
+              )}
+
+              {/* Opções de Avaliação Psicológica se o serviço selecionado for AVALIACAO */}
+              {selectedService === 'AVALIACAO' && (
+                <div className="space-y-2.5 p-4 bg-purple-50/70 border border-purple-200 rounded-2xl animate-in fade-in duration-200">
+                  <div>
+                    <label className="font-bold text-purple-950 block text-xs sm:text-sm">
+                      Qual o objetivo da sua Avaliação Psicológica? <span className="text-rose-500">*</span>
+                    </label>
+                    <span className="text-[11px] text-purple-700 block mt-0.5">
+                      Selecione a opção que melhor se aplica ao seu caso.
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 text-xs">
+                    {OPCOES_AVALIACAO_PSICOLOGICA.map((opcao) => {
+                      const isSelected = form.opcaoAvaliacaoPsicologica === opcao;
+                      return (
+                        <button
+                          key={opcao}
+                          type="button"
+                          onClick={() => setForm((prev) => ({ ...prev, opcaoAvaliacaoPsicologica: opcao }))}
+                          className={`p-3 rounded-xl border text-left font-semibold transition-all ${
+                            isSelected
+                              ? 'bg-purple-700 border-purple-700 text-white font-bold shadow-xs'
+                              : 'bg-white border-purple-200 text-slate-800 hover:bg-purple-100/60'
+                          }`}
+                        >
+                          {opcao}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* VOCÊ GOSTARIA DE ESPECIFICAR SUA NECESSIDADE? - Oculto em Orientação Parental */}
+              {selectedService !== 'ORIENTACAO_PARENTAL' && (
+                <NecessidadesSelector
+                  prefix="paciente"
+                  especificar={form.especificarNecessidades}
+                  onEspecificarChange={(especificar) => setForm((prev) => ({ ...prev, especificarNecessidades: especificar }))}
+                  selecionados={form.necessidadesPaciente}
+                  onSelecionadosChange={(necessidadesPaciente) => setForm((prev) => ({ ...prev, necessidadesPaciente }))}
+                  outro={form.necessidadesOutro}
+                  onOutroChange={(necessidadesOutro) => setForm((prev) => ({ ...prev, necessidadesOutro }))}
+                />
+              )}
 
               {/* Como ficou sabendo da clínica? */}
               <div>
@@ -1289,6 +1625,17 @@ export default function ViverMaisLandingPage() {
                   </div>
                 )}
               </div>
+
+              {/* VOCÊ GOSTARIA DE ESPECIFICAR SUA NECESSIDADE? */}
+              <NecessidadesSelector
+                prefix="psicologo"
+                especificar={formPsicologo.especificarNecessidades}
+                onEspecificarChange={(especificar) => setFormPsicologo((prev) => ({ ...prev, especificarNecessidades: especificar }))}
+                selecionados={formPsicologo.necessidadesAtendidas}
+                onSelecionadosChange={(necessidadesAtendidas) => setFormPsicologo((prev) => ({ ...prev, necessidadesAtendidas }))}
+                outro={formPsicologo.necessidadesOutro}
+                onOutroChange={(necessidadesOutro) => setFormPsicologo((prev) => ({ ...prev, necessidadesOutro }))}
+              />
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>

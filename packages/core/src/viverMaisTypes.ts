@@ -58,6 +58,10 @@ export interface LeadTriagem {
   confirmadoPeloPsicologoEm?: string;
   slaExpirado: boolean;
   paraQuemE?: string;
+  especificarNecessidades?: boolean;
+  necessidadesPaciente?: string[];
+  necessidadesOutro?: string;
+  opcaoAvaliacaoPsicologica?: string;
 }
 
 export interface PsicologoPerfil {
@@ -73,6 +77,9 @@ export interface PsicologoPerfil {
   modalidadesAtendidas: ModalidadeAtendimento[];
   servicosHabilitados?: string[]; // Ex: ['PSICOTERAPIA', 'AVALIACAO', 'ORIENTACAO_PROFISSIONAL', 'ORIENTACAO_PARENTAL']
   publicoAlvo?: string[];
+  especificarNecessidades?: boolean;
+  necessidadesAtendidas?: string[];
+  necessidadesOutro?: string;
   turmaViverMais?: string; // Ex: '23A', '23B', '24A', '25B'
   posGraduacaoViverMais?: string;
   outrasPosGraduacoes?: string[];

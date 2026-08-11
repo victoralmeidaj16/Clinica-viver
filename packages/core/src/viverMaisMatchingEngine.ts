@@ -16,9 +16,10 @@ export function selecionarPsicologoRoundRobin(
   modalidadeDesejada: ModalidadeAtendimento,
   psicologoIgnoradoId?: string,
   servicoDesejado?: string,
-  paraQuemE?: string
+  paraQuemE?: string,
+  necessidadesDesejadas?: string[]
 ): PsicologoPerfil | null {
-  // Filtrar psicólogos ativos, que atendam o turno, modalidade, serviço e público alvo específico
+  // Filtrar psicólogos ativos, que atendam o turno, modalidade, serviço, público alvo e necessidades específicas
   const elegiveis = psicologos.filter((p) => {
     if (psicologoIgnoradoId && p.id === psicologoIgnoradoId) return false;
     if (!p.exibirNaVitrine) return false;
@@ -26,22 +27,33 @@ export function selecionarPsicologoRoundRobin(
     if (!p.turnosDisponiveis.includes(turnoDesejado)) return false;
     if (!p.modalidadesAtendidas.includes(modalidadeDesejada)) return false;
     if (servicoDesejado && p.servicosHabilitados && p.servicosHabilitados.length > 0) {
-      if (!p.servicosHabilitados.includes(servicoDesejado)) return false;
+      if (servicoDesejado === 'PSICOTERAPIA_CASAL') {
+        if (!p.servicosHabilitados.includes('PSICOTERAPIA') && !p.servicosHabilitados.includes('PSICOTERAPIA_CASAL')) return false;
+      } else if (!p.servicosHabilitados.includes(servicoDesejado)) {
+        return false;
+      }
     }
     if (paraQuemE && p.publicoAlvo && p.publicoAlvo.length > 0) {
       const normTarget = paraQuemE.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
       const matches = p.publicoAlvo.some((pa) => {
         const normPa = pa.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        return (
-          normPa === normTarget ||
-          normPa.includes(normTarget) ||
-          normTarget.includes(normPa) ||
-          (normTarget.includes("lgbt") && normPa.includes("lgbt")) ||
-          (normTarget.includes("casal") && normPa.includes("casai")) ||
-          (normPa.includes("casal") && normTarget.includes("casai"))
-        );
+        if (normPa === normTarget || normPa.includes(normTarget) || normTarget.includes(normPa)) return true;
+        if (normTarget.includes("homem") && (normPa.includes("homem") || normPa.includes("adulto"))) return true;
+        if (normTarget.includes("mulher") && (normPa.includes("mulher") || normPa.includes("adulto"))) return true;
+        if (normTarget.includes("lgbt") && normPa.includes("lgbt")) return true;
+        if ((normTarget.includes("casal") || normTarget.includes("casai")) && (normPa.includes("casal") || normPa.includes("casai"))) return true;
+        if (normTarget.startsWith("outro") && normPa.includes("outro")) return true;
+        return false;
       });
       if (!matches) return false;
+    }
+    if (necessidadesDesejadas && necessidadesDesejadas.length > 0 && p.necessidadesAtendidas && p.necessidadesAtendidas.length > 0) {
+      const normAtendidas = p.necessidadesAtendidas.map((n) => n.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
+      const temCorrespondencia = necessidadesDesejadas.some((nec) => {
+        const normNec = nec.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        return normAtendidas.some((a) => a === normNec || a.includes(normNec) || normNec.includes(a));
+      });
+      if (!temCorrespondencia) return false;
     }
     return true;
   });
@@ -84,7 +96,8 @@ export function processarTriagemLead(
     lead.modalidade,
     undefined,
     servicoDesejado,
-    lead.paraQuemE
+    lead.paraQuemE,
+    lead.necessidadesPaciente
   );
 
   if (!selecionado) {
@@ -159,7 +172,8 @@ export function checarEExecutarTransbordoSla(
     lead.modalidade,
     lead.psicologoAlocadoId,
     opcoes.servicoDesejado,
-    lead.paraQuemE
+    lead.paraQuemE,
+    lead.necessidadesPaciente
   );
 
   const agoraIso = new Date().toISOString();

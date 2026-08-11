@@ -71,14 +71,24 @@ export default function Sidebar({ role, onLogout }: { role: 'admin' | 'psicologo
 
   const gestaoItems = [
     {
-      label: 'Site / Vitrine de Serviços',
-      href: '/vitrine',
-      icon: Sparkles,
+      label: 'Gestão de Psicólogos',
+      href: '/gestao/psicologos',
+      icon: UserCheck,
+    },
+    {
+      label: 'Gestão de Pacientes',
+      href: '/gestao/pacientes',
+      icon: Users,
     },
     {
       label: 'Cockpit da Clínica (SLA)',
       href: '/gestao/cockpit',
       icon: Shield,
+    },
+    {
+      label: 'Site / Vitrine de Serviços',
+      href: '/vitrine',
+      icon: Sparkles,
     },
     {
       label: '11 Indicadores Mensais',

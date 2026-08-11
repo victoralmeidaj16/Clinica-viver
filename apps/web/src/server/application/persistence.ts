@@ -81,6 +81,10 @@ export interface TriagemPacienteRecord {
   servicoKey?: string;
   modalidade?: string;
   paraQuemE?: string;
+  especificarNecessidades?: boolean;
+  necessidadesPaciente?: readonly string[];
+  necessidadesOutro?: string;
+  opcaoAvaliacaoPsicologica?: string;
   genero?: string;
   generoOutro?: string;
   status: StatusTriagem;
@@ -148,6 +152,9 @@ export interface CadastroPsicologoRecord {
   servicosPrestados?: readonly string[];
   publicoAlvo?: readonly string[];
   publicoAlvoOutro?: string;
+  especificarNecessidades?: boolean;
+  necessidadesAtendidas?: readonly string[];
+  necessidadesOutro?: string;
   limitePacientesAtivos?: number;
   pacientesAtivosCount?: number;
   /** Chave manual da gestão: desliga do rodízio e da vitrine sem apagar nada. */

@@ -100,6 +100,9 @@ export async function POST(request: Request) {
       servicosPrestados: Array.isArray(body.servicosPrestados) ? body.servicosPrestados : [],
       publicoAlvo: Array.isArray(body.publicoAlvo) ? body.publicoAlvo : [],
       publicoAlvoOutro: body.publicoAlvoOutro || undefined,
+      especificarNecessidades: Boolean(body.especificarNecessidades),
+      necessidadesAtendidas: Array.isArray(body.necessidadesAtendidas) ? body.necessidadesAtendidas : [],
+      necessidadesOutro: body.necessidadesOutro || undefined,
       servicosHabilitados: Array.isArray(body.servicosPrestados) && body.servicosPrestados.length > 0
         ? Array.from(new Set([
             body.servicosPrestados.includes('Atendimento Psicológico') ? 'PSICOTERAPIA' : '',

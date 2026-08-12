@@ -1,11 +1,11 @@
 # 🗺️ Mapeamento do Fluxo de Navegação e Funcionalidades
-## Thats Life (TL - Psi) — Plataforma Clínica Viver Mais
+## Plataforma Clínica Viver Mais
 
 ---
 
 ## 📌 Visão Geral do Sistema
 
-O **Thats Life (TL - Psi)** é uma plataforma integrada de **Inteligência Clínica, Gestão de Atendimentos e Automação de Prontuários via IA**, desenhada especificamente para a **Clínica Viver Mais**.
+A **Clínica Viver Mais** é uma plataforma integrada de **Inteligência Clínica, Gestão de Atendimentos, Automação de Prontuários via IA e Gestão de Clínica-Escola**, desenhada especificamente para a **Viver Mais Psicologia**.
 
 A plataforma divide-se em **três visões principais de acesso (RBAC)**:
 1. **Visão do Psicólogo (Cockpit Clínico):** Foco em ganho de tempo, automação de prontuários pós-sessão (SOAP em 1 clique), visualização estrita de seus próprios pacientes e controle de agenda.

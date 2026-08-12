@@ -14,7 +14,18 @@ import {
 } from 'lucide-react';
 import { formatBrazilPhone, maskBrazilPhoneInput, normalizeBrazilPhone } from '@/lib/brazilPhone';
 import { formatGender } from '@/lib/gender';
-import { LISTA_NECESSIDADES } from '@/app/vitrine/page';
+import { LISTA_NECESSIDADES } from '@/components/forms/necessidades';
+import {
+  MODALIDADES_ATENDIMENTO,
+  PUBLICO_ALVO,
+  SERVICOS_PRESTADOS,
+  TIPOS_ATENDIMENTO,
+  TURNOS_PSICOLOGO,
+  comValoresRegistrados,
+  rotuloModalidade,
+  rotuloTipoAtendimento,
+  rotuloTurno,
+} from '@/components/forms/opcoesPsicologo';
 import { BrazilLocationFields } from '@/components/forms/BrazilLocationFields';
 
 interface Cadastro {
@@ -62,26 +73,6 @@ const statusInfo = {
   RECUSADO: { label: 'Cadastro recusado', description: 'A gestão solicitou que este cadastro seja revisado antes de uma nova análise.', icon: XCircle, color: 'rose' },
 } as const;
 
-const TURNOS = [
-  { value: 'MANHA', label: 'Manhã' },
-  { value: 'TARDE', label: 'Tarde' },
-  { value: 'NOITE', label: 'Noite' },
-];
-
-const SERVICOS = [
-  'Atendimento Psicológico',
-  'Avaliação Psicológica',
-  'Orientação Vocacional',
-  'Orientação Profissional',
-  'Orientação Parental',
-  'Psicoterapia de Casal',
-];
-
-const PUBLICOS = [
-  'Criança', 'Adolescente', 'Adulto', 'Idoso', 'Casal',
-  'Família', 'Mulher', 'Homem', 'LGBTQIAPN+', 'Outro',
-];
-
 /** Campos que só a gestão altera, com o motivo pelo qual estão travados. */
 const TRAVADOS: Array<[string, (c: Cadastro) => string | undefined, string]> = [
   ['Nome completo', (c) => c.nomeCompleto, 'Conferido no credenciamento'],
@@ -94,6 +85,7 @@ const TRAVADOS: Array<[string, (c: Cadastro) => string | undefined, string]> = [
 
 type Rascunho = {
   nomeSocial: string;
+  fotoUrl: string;
   whatsapp: string;
   estadoUf: string;
   cidade: string;
@@ -115,6 +107,7 @@ type Rascunho = {
 function rascunhoDe(c: Cadastro): Rascunho {
   return {
     nomeSocial: c.nomeSocial ?? '',
+    fotoUrl: c.fotoUrl ?? '',
     whatsapp: formatBrazilPhone(c.whatsapp) || c.whatsapp,
     estadoUf: c.estadoUf ?? '',
     cidade: c.cidade ?? '',
@@ -297,6 +290,47 @@ export default function MeuCadastroPage() {
             <h2 className="font-black text-ink">Editando meu perfil</h2>
           </div>
 
+          <div>
+            <label className="text-[10px] uppercase tracking-wider font-extrabold text-muted block mb-1.5">Foto de perfil</label>
+            <div className="flex items-center gap-4">
+              {rascunho.fotoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={rascunho.fotoUrl} alt="Foto de perfil" className="w-20 h-20 rounded-2xl object-cover border border-line" />
+              ) : (
+                <div className="w-20 h-20 rounded-2xl bg-psi-soft text-psi-deep grid place-items-center font-black text-2xl">
+                  {(cadastro.nomeSocial?.trim() || cadastro.nomeCompleto).charAt(0)}
+                </div>
+              )}
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-extrabold text-psi-deep underline cursor-pointer">
+                  {rascunho.fotoUrl ? 'Trocar foto' : 'Enviar foto'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(evento) => {
+                      const arquivo = evento.target.files?.[0];
+                      if (!arquivo) return;
+                      const leitor = new FileReader();
+                      leitor.onload = (carregado) => {
+                        if (carregado.target?.result) {
+                          setRascunho((atual) => (atual ? { ...atual, fotoUrl: String(carregado.target?.result) } : atual));
+                        }
+                      };
+                      leitor.readAsDataURL(arquivo);
+                    }}
+                  />
+                </label>
+                {rascunho.fotoUrl && (
+                  <button type="button" onClick={() => setRascunho({ ...rascunho, fotoUrl: '' })} className="text-xs font-extrabold text-rose-600 text-left hover:underline">
+                    Remover foto
+                  </button>
+                )}
+                <p className="text-[10px] text-muted">É a imagem que o paciente vê na vitrine.</p>
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div>
               <label className="text-[10px] uppercase tracking-wider font-extrabold text-muted block mb-1.5">Nome social</label>
@@ -322,21 +356,12 @@ export default function MeuCadastroPage() {
               <label className="text-[10px] uppercase tracking-wider font-extrabold text-muted block mb-1.5">Bairro</label>
               <input required value={rascunho.bairro} onChange={(e) => setRascunho({ ...rascunho, bairro: e.target.value })} autoComplete="address-level3" className={campoClasse} />
             </div>
-            <div className="sm:col-span-2">
-              <label className="text-[10px] uppercase tracking-wider font-extrabold text-muted block mb-1.5">Especialidade ou abordagem</label>
-              <input value={rascunho.especialidade} onChange={(e) => setRascunho({ ...rascunho, especialidade: e.target.value })} className={campoClasse} />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="text-[10px] uppercase tracking-wider font-extrabold text-muted block mb-1.5">Apresentação</label>
-              <textarea value={rascunho.minibio} maxLength={600} rows={4} onChange={(e) => setRascunho({ ...rascunho, minibio: e.target.value })} className={`${campoClasse} leading-6 resize-y`} />
-              <p className="text-[10px] text-muted mt-1">{rascunho.minibio.length}/600 — é o texto que o paciente lê na vitrine.</p>
-            </div>
           </div>
 
           <div>
             <label className="text-[10px] uppercase tracking-wider font-extrabold text-muted block mb-2">Turnos em que atendo</label>
             <div className="flex flex-wrap gap-2">
-              {TURNOS.map((turno) => (
+              {TURNOS_PSICOLOGO.map((turno) => (
                 <label key={turno.value} className={chipClasse(rascunho.turnosDisponiveis.includes(turno.value))}>
                   <input type="checkbox" className="sr-only" checked={rascunho.turnosDisponiveis.includes(turno.value)} onChange={() => setRascunho({ ...rascunho, turnosDisponiveis: alternar(rascunho.turnosDisponiveis, turno.value) })} />
                   {turno.label}
@@ -348,7 +373,7 @@ export default function MeuCadastroPage() {
           <div>
             <label className="text-[10px] uppercase tracking-wider font-extrabold text-muted block mb-2">Serviços que presto</label>
             <div className="flex flex-wrap gap-2">
-              {SERVICOS.map((servico) => (
+              {comValoresRegistrados(SERVICOS_PRESTADOS, rascunho.servicosPrestados).map((servico) => (
                 <label key={servico} className={chipClasse(rascunho.servicosPrestados.includes(servico))}>
                   <input type="checkbox" className="sr-only" checked={rascunho.servicosPrestados.includes(servico)} onChange={() => setRascunho({ ...rascunho, servicosPrestados: alternar(rascunho.servicosPrestados, servico) })} />
                   {servico}
@@ -360,7 +385,7 @@ export default function MeuCadastroPage() {
           <div>
             <label className="text-[10px] uppercase tracking-wider font-extrabold text-muted block mb-2">Público que atendo</label>
             <div className="flex flex-wrap gap-2">
-              {PUBLICOS.map((publico) => (
+              {comValoresRegistrados(PUBLICO_ALVO, rascunho.publicoAlvo).map((publico) => (
                 <label key={publico} className={chipClasse(rascunho.publicoAlvo.includes(publico))}>
                   <input type="checkbox" className="sr-only" checked={rascunho.publicoAlvo.includes(publico)} onChange={() => setRascunho({ ...rascunho, publicoAlvo: alternar(rascunho.publicoAlvo, publico) })} />
                   {publico}
@@ -401,10 +426,10 @@ export default function MeuCadastroPage() {
             <div>
               <label className="text-[10px] uppercase tracking-wider font-extrabold text-muted block mb-2">Modalidade</label>
               <div className="flex flex-wrap gap-2">
-                {['ONLINE', 'PRESENCIAL', 'AMBOS'].map((modalidade) => (
-                  <label key={modalidade} className={chipClasse(rascunho.modalidadeAtendimento === modalidade)}>
-                    <input type="radio" className="sr-only" checked={rascunho.modalidadeAtendimento === modalidade} onChange={() => setRascunho({ ...rascunho, modalidadeAtendimento: modalidade })} />
-                    {modalidade}
+                {MODALIDADES_ATENDIMENTO.map((modalidade) => (
+                  <label key={modalidade.value} className={chipClasse(rascunho.modalidadeAtendimento === modalidade.value)}>
+                    <input type="radio" className="sr-only" checked={rascunho.modalidadeAtendimento === modalidade.value} onChange={() => setRascunho({ ...rascunho, modalidadeAtendimento: modalidade.value })} />
+                    {modalidade.label}
                   </label>
                 ))}
               </div>
@@ -412,10 +437,15 @@ export default function MeuCadastroPage() {
             <div>
               <label className="text-[10px] uppercase tracking-wider font-extrabold text-muted block mb-2">Tipo de atendimento</label>
               <div className="flex flex-wrap gap-2">
-                {(['PARTICULAR', 'SOCIAL', 'AMBOS'] as const).map((tipo) => (
-                  <label key={tipo} className={chipClasse(rascunho.atendimentoPreferencia === tipo)}>
-                    <input type="radio" className="sr-only" checked={rascunho.atendimentoPreferencia === tipo} onChange={() => setRascunho({ ...rascunho, atendimentoPreferencia: tipo })} />
-                    {tipo}
+                {TIPOS_ATENDIMENTO.map((tipo) => (
+                  <label key={tipo.value} className={chipClasse(rascunho.atendimentoPreferencia === tipo.value)}>
+                    <input
+                      type="radio"
+                      className="sr-only"
+                      checked={rascunho.atendimentoPreferencia === tipo.value}
+                      onChange={() => setRascunho({ ...rascunho, atendimentoPreferencia: tipo.value as Rascunho['atendimentoPreferencia'] })}
+                    />
+                    {tipo.label}
                   </label>
                 ))}
               </div>
@@ -439,6 +469,24 @@ export default function MeuCadastroPage() {
                 <ShieldCheck className="w-5 h-5 text-psi-vibrant" />
                 <h2 className="font-black text-ink">Minha prática</h2>
               </div>
+
+              <div className="flex items-center gap-4 mt-5">
+                {cadastro.fotoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={cadastro.fotoUrl} alt="Foto de perfil" className="w-20 h-20 rounded-2xl object-cover border border-line" />
+                ) : (
+                  <div className="w-20 h-20 rounded-2xl bg-psi-soft text-psi-deep grid place-items-center font-black text-2xl">
+                    {(cadastro.nomeSocial?.trim() || cadastro.nomeCompleto).charAt(0)}
+                  </div>
+                )}
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Foto de perfil</p>
+                  <p className="text-sm font-bold text-ink mt-1">
+                    {cadastro.fotoUrl ? 'Enviada no cadastro' : 'Nenhuma foto enviada'}
+                  </p>
+                  <p className="text-[10px] text-muted mt-0.5">Aparece na vitrine ao lado do seu nome.</p>
+                </div>
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5 mt-5">
                 <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Nome social</p><p className="text-sm font-bold text-ink mt-1">{cadastro.nomeSocial || 'Não informado'}</p></div>
                 <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">WhatsApp</p><p className="text-sm font-bold text-ink mt-1">{formatBrazilPhone(cadastro.whatsapp)}</p></div>
@@ -448,31 +496,24 @@ export default function MeuCadastroPage() {
                 <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Bairro</p><p className="text-sm font-bold text-ink mt-1">{cadastro.bairro || '—'}</p></div>
                 <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Gênero</p><p className="text-sm font-bold text-ink mt-1">{formatGender(cadastro.genero, cadastro.generoOutro) || '—'}</p></div>
                 <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Especialidade</p><p className="text-sm font-bold text-ink mt-1">{cadastro.especialidade || 'Não informado'}</p></div>
-                <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Modalidade</p><p className="text-sm font-bold text-ink mt-1">{cadastro.modalidadeAtendimento || '—'}</p></div>
-                <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Tipo de atendimento</p><p className="text-sm font-bold text-ink mt-1">{cadastro.atendimentoPreferencia || '—'}</p></div>
+                <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Modalidade</p><p className="text-sm font-bold text-ink mt-1">{rotuloModalidade(cadastro.modalidadeAtendimento)}</p></div>
+                <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Tipo de atendimento</p><p className="text-sm font-bold text-ink mt-1">{rotuloTipoAtendimento(cadastro.atendimentoPreferencia)}</p></div>
               </div>
 
               <div className="border-t border-line mt-6 pt-5 space-y-5">
                 <div>
                   <p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Turnos em que atendo</p>
-                  <Chips itens={cadastro.turnosDisponiveis?.map((t) => TURNOS.find((x) => x.value === t)?.label ?? t)} />
+                  <Chips itens={cadastro.turnosDisponiveis?.map(rotuloTurno)} />
                   {!cadastro.turnosDisponiveis?.length && (
                     <p className="text-xs font-bold text-amber-700 mt-2">Sem turno definido, nenhum encaminhamento chega até você.</p>
                   )}
                 </div>
                 <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Serviços que presto</p><Chips itens={cadastro.servicosPrestados} /></div>
                 <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Público que atendo</p><Chips itens={[...(cadastro.publicoAlvo ?? []), ...(cadastro.publicoAlvoOutro ? [cadastro.publicoAlvoOutro] : [])]} /></div>
-                {cadastro.especificarNecessidades && (
+                {(cadastro.especificarNecessidades || cadastro.necessidadesAtendidas?.length || cadastro.necessidadesOutro) && (
                   <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Demandas específicas</p><Chips itens={[...(cadastro.necessidadesAtendidas ?? []), ...(cadastro.necessidadesOutro ? [cadastro.necessidadesOutro] : [])]} /></div>
                 )}
               </div>
-
-              {cadastro.minibio && (
-                <div className="border-t border-line mt-6 pt-5">
-                  <p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Apresentação</p>
-                  <p className="text-sm leading-6 text-ink mt-1">{cadastro.minibio}</p>
-                </div>
-              )}
             </section>
 
             <section className="bg-surface rounded-3xl border border-line shadow-card p-6">

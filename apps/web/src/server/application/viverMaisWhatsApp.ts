@@ -6,8 +6,10 @@ import {
 } from '@/server/adapters/whatsappAllowlist';
 import { gerarTokenConfirmacao } from '@/server/viverMaisConfirmToken';
 import type { CadastroPsicologoRecord, TriagemPacienteRecord } from './persistence';
-import { normalizeBrazilPhone } from '@/lib/brazilPhone';
-import { nomeDeExibicao, SLA_CONTATO_HORAS } from './viverMaisRodizio';
+import { formatBrazilPhone, normalizeBrazilPhone } from '@/lib/brazilPhone';
+import { formatGender } from '@/lib/gender';
+import { nomeDeExibicao, normalizarTurno, SLA_CONTATO_HORAS } from './viverMaisRodizio';
+import { COMANDO_CONTATO, COMANDO_ENCAMINHAR } from './viverMaisComandos';
 
 /**
  * Avisos de WhatsApp da triagem — o "disparo duplo" do fluxo de captação.
@@ -33,7 +35,8 @@ export type FinalidadeMensagem =
   | 'alocacao_psicologo'
   | 'recebimento_paciente'
   | 'boas_vindas_psicologo'
-  | 'alerta_coordenacao';
+  | 'alerta_coordenacao'
+  | 'resposta_psicologo';
 
 export interface ResultadoEnvio {
   finalidade: FinalidadeMensagem;
@@ -161,7 +164,81 @@ function linkConfirmacao(lead: TriagemPacienteRecord, psicologoId: string): stri
   return `${baseUrl()}/confirmar-contato/${lead.id}?psi=${encodeURIComponent(psicologoId)}&t=${token}`;
 }
 
-/** Mensagem ao profissional que recebeu o lead. */
+/**
+ * O que o profissional precisa saber do paciente para decidir e para ligar.
+ *
+ * Nome, CPF, e-mail e endereço ficam de fora de propósito: a decisão de assumir
+ * ou devolver o caso se toma pelo perfil da demanda, e este texto trafega por
+ * WhatsApp — que é o canal menos controlado da operação. O telefone é a única
+ * exceção, porque sem ele não existe o primeiro contato que a mensagem cobra.
+ * O resto do cadastro está no cockpit, atrás de sessão.
+ */
+function dadosDoPaciente(lead: TriagemPacienteRecord): string[] {
+  const linhas: string[] = [];
+  const idade = lead.idade?.toString().trim();
+
+  linhas.push(`WhatsApp do paciente: ${formatBrazilPhone(lead.telefone) || lead.telefone}`);
+  if (idade) linhas.push(`Idade: ${idade}`);
+  const genero = formatGender(lead.genero, lead.generoOutro);
+  if (genero) linhas.push(`Gênero: ${genero}`);
+  if (lead.paraQuemE) linhas.push(`Atendimento para: ${lead.paraQuemE}`);
+  linhas.push(`Serviço: ${lead.servico || 'Não informado'}`);
+  if (lead.opcaoAvaliacaoPsicologica) linhas.push(`Tipo de avaliação: ${lead.opcaoAvaliacaoPsicologica}`);
+  linhas.push(`Modalidade: ${rotuloModalidadeLead(lead.modalidade)}`);
+  linhas.push(`Turno de preferência: ${rotuloTurnoLead(lead.turno)}`);
+  if (lead.possuiConvenio === 'SIM' && lead.convenioSelecionado && lead.convenioSelecionado !== 'Nenhum') {
+    linhas.push(`Convênio: ${lead.convenioSelecionado}`);
+  }
+
+  const demandas = [
+    ...(lead.necessidadesPaciente ?? []),
+    ...(lead.necessidadesOutro ? [lead.necessidadesOutro] : []),
+  ];
+  if (demandas.length > 0) linhas.push(`Demandas informadas: ${demandas.join(', ')}`);
+
+  linhas.push(`Origem: ${lead.origem}`);
+  linhas.push(`Protocolo: ${lead.protocolo}`);
+  return linhas;
+}
+
+/** O turno como a pessoa fala, não como o formulário grava. */
+function rotuloTurnoLead(turno: string | undefined): string {
+  switch (normalizarTurno(turno)) {
+    case 'MANHA':
+      return 'Manhã';
+    case 'TARDE':
+      return 'Tarde';
+    case 'NOITE':
+      return 'Noite';
+    default:
+      return turno || 'Não informado';
+  }
+}
+
+/** Faixa de valor escolhida na vitrine, no vocabulário que o profissional usa. */
+function rotuloModalidadeLead(modalidade: string | undefined): string {
+  switch (modalidade?.trim().toUpperCase()) {
+    case 'SOCIAL':
+      return 'Acessível (social)';
+    case 'CASAL_SOCIAL':
+      return 'Acessível (social) — casal';
+    case 'PARTICULAR':
+      return 'Particular';
+    case 'CASAL_PARTICULAR':
+      return 'Particular — casal';
+    default:
+      return modalidade || 'Não informada';
+  }
+}
+
+/**
+ * Mensagem ao profissional que recebeu o lead.
+ *
+ * Pede resposta no próprio chat — `CONTATO` ou `ENCAMINHAR` — porque é o gesto
+ * mais barato de todos: quem está no WhatsApp responde ali, sem abrir link nem
+ * lembrar de senha. O link de confirmação continua junto para quem prefere
+ * clicar, e os dois caminhos gravam exatamente a mesma coisa.
+ */
 export function textoParaPsicologo(
   lead: TriagemPacienteRecord,
   psicologo: CadastroPsicologoRecord
@@ -169,16 +246,17 @@ export function textoParaPsicologo(
   const linhas = [
     `Olá, ${nomeDeExibicao(psicologo)}! Você recebeu um novo paciente pela Viver Mais.`,
     '',
-    `Paciente: ${lead.nomePaciente}`,
-    `WhatsApp: ${lead.telefone}`,
-    `Serviço: ${lead.servico || 'Não informado'}`,
-    `Turno de preferência: ${lead.turno}`,
-    `Protocolo: ${lead.protocolo}`,
+    ...dadosDoPaciente(lead),
     '',
-    `O primeiro contato precisa ser feito em até ${SLA_CONTATO_HORAS}h. Depois de falar com a pessoa, confirme aqui:`,
+    `O primeiro contato precisa ser feito em até ${SLA_CONTATO_HORAS}h. Responda aqui mesmo:`,
+    '',
+    `*${COMANDO_CONTATO}* — quando você já tiver falado com o paciente.`,
+    `*${COMANDO_ENCAMINHAR}* — se não for atender, e o paciente vai para o próximo profissional da fila que atende os critérios.`,
+    '',
+    'Se preferir, confirme pelo link:',
     linkConfirmacao(lead, psicologo.id),
     '',
-    'Sem a confirmação dentro do prazo, o paciente é encaminhado ao próximo profissional da fila.',
+    `Sem resposta em ${SLA_CONTATO_HORAS}h, o paciente é encaminhado automaticamente ao próximo da fila.`,
   ];
   return linhas.join('\n');
 }
@@ -197,6 +275,43 @@ export function textoParaPaciente(lead: TriagemPacienteRecord): string {
     '',
     `Um de nossos psicólogos entra em contato com você em até ${SLA_CONTATO_HORAS} horas para combinar o dia e o horário.`,
   ].join('\n');
+}
+
+/**
+ * Resposta ao próprio profissional, no fio da conversa dele.
+ *
+ * Existe porque o WhatsApp virou canal de mão dupla: quem responde `CONTATO` ou
+ * `ENCAMINHAR` precisa saber se a clínica registrou. Silêncio depois de uma
+ * resposta é o que faz a pessoa mandar de novo — e duplicar comando é como se
+ * perde um paciente para o profissional errado.
+ */
+export async function responderPsicologo(
+  psicologo: CadastroPsicologoRecord,
+  texto: string,
+  chaveDedupe: string
+): Promise<ResultadoEnvio> {
+  return enviarTexto(psicologo.whatsapp, texto, 'resposta_psicologo', `resposta:${chaveDedupe}`);
+}
+
+/** Aviso operacional para os números da coordenação, se houver algum configurado. */
+export async function avisarCoordenacao(texto: string, chaveDedupe: string): Promise<ResultadoEnvio[]> {
+  const destinatarios = (process.env.WHATSAPP_COORDINATION_NUMBERS ?? '')
+    .split(',')
+    .map((numero) => numero.trim())
+    .filter(Boolean);
+
+  const resultados: ResultadoEnvio[] = [];
+  for (const destinatario of destinatarios) {
+    resultados.push(
+      await enviarTexto(
+        destinatario,
+        texto,
+        'alerta_coordenacao',
+        `${chaveDedupe}:${destinatario.replace(/\D/g, '')}`
+      )
+    );
+  }
+  return resultados;
 }
 
 /**
@@ -236,7 +351,8 @@ export async function avisarAlocacao(
 export async function avisarTransbordo(
   lead: TriagemPacienteRecord,
   psicologo: CadastroPsicologoRecord,
-  psicologoAnteriorNome?: string
+  psicologoAnteriorNome?: string,
+  motivo: 'sla_vencido' | 'encaminhamento_voluntario' = 'sla_vencido'
 ): Promise<ResultadoEnvio[]> {
   const resultados = [
     await enviarTexto(
@@ -255,7 +371,9 @@ export async function avisarTransbordo(
     .filter(Boolean);
   const anterior = psicologoAnteriorNome?.trim() || 'profissional anterior';
   const textoCoordenacao = [
-    'Alerta operacional — SLA de primeiro contato vencido.',
+    motivo === 'sla_vencido'
+      ? 'Alerta operacional — SLA de primeiro contato vencido.'
+      : 'Alerta operacional — profissional respondeu ENCAMINHAR.',
     `Protocolo: ${lead.protocolo}`,
     `Transbordo: ${anterior} → ${nomeDeExibicao(psicologo)}`,
     `Transbordos realizados: ${lead.transbordos ?? 0}`,

@@ -1,8 +1,8 @@
-# Arquitetura Técnica — Thats Life (TL - Psi)
+# Arquitetura Técnica — Clínica Viver Mais
 
 ## Visão Geral do Sistema
 
-O **Thats Life** adota uma arquitetura em Monorepo utilizando **TypeScript** de ponta a ponta, separando claramente as aplicações de front-end do pacote central de regras de negócio e integrações.
+A **Clínica Viver Mais** adota uma arquitetura em Monorepo utilizando **TypeScript** de ponta a ponta, separando claramente as aplicações de front-end (`apps/web`) do pacote central de regras de negócio e integrações (`packages/core`).
 
 > **Estado atual (11/08/2026).** A produção usa Vercel para páginas e assets,
 > e uma VPS Hostinger para o backend e MySQL privado. Os dados persistentes são

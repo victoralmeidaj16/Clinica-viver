@@ -405,3 +405,156 @@ export function varrerSla(
 
   return { snapshot: atual, transbordos, alterado };
 }
+
+/**
+ * Confirmação de primeiro contato.
+ *
+ * Vive aqui, e não na rota, porque agora tem dois chamadores: o link assinado
+ * do WhatsApp e a resposta `CONTATO` que o profissional manda no próprio chat.
+ * Duas cópias divergiriam justamente na parte delicada — o que fazer quando a
+ * confirmação estoura o limite de pacientes ativos.
+ */
+export type ConfirmacaoResult =
+  | { kind: 'not_found' }
+  | { kind: 'conflict' }
+  | { kind: 'capacity_reallocated'; lead: TriagemPacienteRecord; psicologo: CadastroPsicologoRecord }
+  | { kind: 'capacity_pending'; lead: TriagemPacienteRecord; psicologo?: undefined }
+  | { kind: 'already_confirmed'; data: { nomePaciente: string; telefone: string; confirmadoEm: string } }
+  | { kind: 'confirmed'; data: { nomePaciente: string; telefone: string; confirmadoEm: string } };
+
+export function confirmarContato(
+  snapshot: PersistedSnapshot,
+  id: string,
+  psicologoId: string
+): { next: PersistedSnapshot; result: ConfirmacaoResult } {
+  const atual = recalcularPacientesAtivos(snapshot);
+  const lead = atual.triagensPacientes?.find((item) => item.id === id);
+  if (!lead) return { next: atual, result: { kind: 'not_found' } };
+  if (lead.psicologoAlocadoId !== psicologoId) return { next: atual, result: { kind: 'conflict' } };
+
+  if (lead.confirmadoEm) {
+    return {
+      next: atual,
+      result: {
+        kind: 'already_confirmed',
+        data: { nomePaciente: lead.nomePaciente, telefone: lead.telefone, confirmadoEm: lead.confirmadoEm },
+      },
+    };
+  }
+
+  const psicologo = atual.cadastrosPsicologos?.find((item) => item.id === psicologoId);
+  if (psicologo && (psicologo.pacientesAtivosCount ?? 0) >= (psicologo.limitePacientesAtivos ?? LIMITE_PACIENTES_PADRAO)) {
+    const paraRealocar: TriagemPacienteRecord = {
+      ...lead,
+      status: 'PENDENTE_ATRIBUICAO',
+      psicologoAlocadoId: undefined,
+      psicologoNome: undefined,
+      alocadoEm: undefined,
+      confirmadoEm: undefined,
+      slaExpirado: false,
+    };
+    const base = {
+      ...atual,
+      triagensPacientes: (atual.triagensPacientes ?? []).map((item) => (item.id === id ? paraRealocar : item)),
+    };
+    const realocado = alocarLead(base, paraRealocar);
+    return realocado.psicologo
+      ? {
+          next: realocado.snapshot,
+          result: { kind: 'capacity_reallocated', lead: realocado.lead, psicologo: realocado.psicologo },
+        }
+      : { next: realocado.snapshot, result: { kind: 'capacity_pending', lead: realocado.lead } };
+  }
+
+  const confirmadoEm = new Date().toISOString();
+  const confirmado: TriagemPacienteRecord = { ...lead, status: 'CONTATO_CONFIRMADO', confirmadoEm };
+  const next = recalcularPacientesAtivos({
+    ...atual,
+    triagensPacientes: (atual.triagensPacientes ?? []).map((item) => (item.id === id ? confirmado : item)),
+  });
+  return {
+    next,
+    result: {
+      kind: 'confirmed',
+      data: { nomePaciente: confirmado.nomePaciente, telefone: confirmado.telefone, confirmadoEm },
+    },
+  };
+}
+
+export interface ResultadoEncaminhamento {
+  snapshot: PersistedSnapshot;
+  situacao: 'encaminhado' | 'sem_candidato' | 'nao_encontrado' | 'nao_aplicavel';
+  lead?: TriagemPacienteRecord;
+  psicologoNovo?: CadastroPsicologoRecord;
+  psicologoAnteriorNome?: string;
+}
+
+/**
+ * Devolve o lead à fila por iniciativa do próprio profissional.
+ *
+ * É o caminho do "ENCAMINHAR" respondido no WhatsApp, e a diferença para o
+ * transbordo de SLA é só o gatilho: aqui a pessoa avisa na hora que não vai
+ * conseguir atender, em vez de o prazo vencer em silêncio. O critério de quem
+ * recebe em seguida é o mesmo — round-robin sobre quem atende turno,
+ * modalidade e serviço, pulando todos os que já tiveram a chance neste lead,
+ * para o paciente não voltar para quem acabou de recusar.
+ *
+ * Quem recusa não é penalizado no rodízio: `ultimoLeadRecebidoEm` já foi
+ * carimbado na alocação, então ele volta para o fim da fila normalmente.
+ */
+export function encaminharParaProximo(
+  snapshot: PersistedSnapshot,
+  leadId: string,
+  psicologoAtualId: string
+): ResultadoEncaminhamento {
+  const atual = recalcularPacientesAtivos(snapshot);
+  const leadRecord = atual.triagensPacientes?.find((item) => item.id === leadId);
+  if (!leadRecord) return { snapshot: atual, situacao: 'nao_encontrado' };
+
+  // Recusar algo já confirmado, ou que nem é mais seu, não é encaminhamento:
+  // é uma mensagem atrasada chegando depois que a fila já andou.
+  if (
+    leadRecord.psicologoAlocadoId !== psicologoAtualId ||
+    leadRecord.status !== 'AGUARDANDO_CONTATO' ||
+    leadRecord.confirmadoEm
+  ) {
+    return { snapshot: atual, situacao: 'nao_aplicavel', lead: leadRecord };
+  }
+
+  const lead = paraLeadTriagem(leadRecord);
+  const jaTentados = [...(leadRecord.psicologosJaTentados ?? []), psicologoAtualId];
+  const candidatos = rosterAtivo(atual).filter((psi) => !jaTentados.includes(psi.id));
+
+  if (!lead || candidatos.length === 0) {
+    return { snapshot: atual, situacao: 'sem_candidato', lead: leadRecord };
+  }
+
+  const resultado = processarTriagemLead(lead, candidatos.map(paraPsicologoPerfil), leadRecord.servicoKey);
+  if (!resultado.sucesso || !resultado.psicologoAlocado) {
+    return { snapshot: atual, situacao: 'sem_candidato', lead: leadRecord };
+  }
+
+  const novo = candidatos.find((psi) => psi.id === resultado.psicologoAlocado!.id)!;
+  const alocadoEm = resultado.leadAtualizado.dataAlocacao ?? new Date().toISOString();
+
+  const atualizado: TriagemPacienteRecord = {
+    ...leadRecord,
+    status: 'AGUARDANDO_CONTATO',
+    psicologoAlocadoId: novo.id,
+    psicologoNome: nomeDeExibicao(novo),
+    alocadoEm,
+    // O relógio recomeça para quem acabou de receber: o prazo é de quem tem o
+    // lead agora, não a sobra do prazo de quem devolveu.
+    slaExpirado: false,
+    transbordos: (leadRecord.transbordos ?? 0) + 1,
+    psicologosJaTentados: [...jaTentados, novo.id],
+  };
+
+  return {
+    snapshot: registrarRecebimento(substituirLead(atual, atualizado), novo.id, alocadoEm),
+    situacao: 'encaminhado',
+    lead: atualizado,
+    psicologoNovo: novo,
+    psicologoAnteriorNome: leadRecord.psicologoNome,
+  };
+}

@@ -1,4 +1,4 @@
-# Levantamento de Requisitos e Ajustes — Reunião de Alinhamento (Plataforma Viver Mais / TL - Psi)
+# Levantamento de Requisitos e Ajustes — Reunião de Alinhamento (Plataforma Clínica Viver Mais)
 
 Documento elaborado a partir da transcrição de reunião de alinhamento operacional e de produto, consolidando todas as solicitações, melhorias e novos requisitos apontados pela equipe de gestão da clínica.
 

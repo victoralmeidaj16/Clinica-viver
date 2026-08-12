@@ -107,7 +107,15 @@ O `EVOLUTION_WEBHOOK_TOKEN` é o mesmo valor que vai na query de
 `WEBHOOK_GLOBAL_URL`. Ele existe porque o webhook global da v2 não garante
 cabeçalho customizado: sem token, qualquer um que descubra a URL escreve no
 monitor de sessão e registra opt-out em nome de paciente. A rota aceita o token
-na query (`?token=`) ou no cabeçalho `x-evolution-token`.
+na query (`?token=`) ou no cabeçalho `x-evolution-token`. Sem
+`EVOLUTION_WEBHOOK_TOKEN` configurado a rota recusa todo evento com `401` — o
+padrão é falhar fechado.
+
+Sobre `messages.upsert`: é por ele que o psicólogo responde à mensagem de
+alocação. `CONTATO` registra o primeiro contato (o mesmo efeito do link
+assinado); `ENCAMINHAR` devolve o paciente à fila e aciona o próximo
+profissional que atende aos critérios, pulando quem já teve a chance naquele
+lead. Qualquer outro texto recebe de volta a instrução com as duas palavras.
 
 Quem consome cada evento:
 
@@ -116,7 +124,7 @@ Quem consome cada evento:
 | `connection.update` | `lib/whatsapp/sessao.ts` | grava o estado e alerta na primeira queda |
 | `qrcode.updated` | `lib/whatsapp/sessao.ts` | marca pareamento pendente; o QR nunca é gravado |
 | `send.message`, `messages.update` | `lib/whatsapp/mensagens.ts` | atualiza `clinica_mensagens` sem regredir status |
-| `messages.upsert` | `lib/whatsapp/opt-out.ts` | detecta palavra-chave de opt-out e descarta o texto |
+| `messages.upsert` | `app/api/clinica/whatsapp/webhook` | lê as respostas `CONTATO` e `ENCAMINHAR` do psicólogo e detecta opt-out |
 
 Duas dependências ainda abertas, ambas conhecidas:
 

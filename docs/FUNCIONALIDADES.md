@@ -1,11 +1,11 @@
-# Funcionalidades — Thats Life (TL - Psi)
+# Funcionalidades — Clínica Viver Mais
 
 **O que é:** uma plataforma de inteligência clínica e acompanhamento terapêutico
 para psicólogos autônomos, clínicas de saúde mental e clínicas-escola no Brasil.
 
 **O que resolve:** o psicólogo perde de 10 a 20 minutos de burocracia depois de
-cada atendimento, e o paciente fica desassistido entre uma sessão e outra. O
-Thats Life automatiza a papelada do pós-sessão e mantém o vínculo terapêutico
+cada atendimento, e o paciente fica desassistido entre uma sessão e outra. A
+Clínica Viver Mais automatiza a papelada do pós-sessão e mantém o vínculo terapêutico
 vivo no intervalo entre consultas.
 
 > **Status:** protótipo em modo demonstração. As funcionalidades abaixo
@@ -175,196 +175,126 @@ Visão longitudinal única do paciente, reunindo em ordem cronológica:
 
 ---
 
-## 8. Agenda
+## 8. Agenda e Fila Inteligente de Atribuição
 
 - Agendamento por paciente e profissional, com validação de conflito de
   horários.
+- **Fila Inteligente de Atribuição (Round-Robin):** triagem no site por modalidade (Acessível/Social vs. Particular) e turno (Manhã/Tarde/Noite), direcionando automaticamente o paciente para o psicólogo da vez na fila circular.
+- **Disparo Duplo & SLA de 24h (Evolution API):** notificação simultânea ao paciente e ao psicólogo via WhatsApp. Timer de 24 horas para o psicólogo confirmar o contato.
+- **Transbordo Automático:** caso o psicólogo não confirme o contato em até 24h, o paciente é reatribuído automaticamente ao próximo psicólogo da fila de espera.
 - Atendimentos presenciais, por videochamada ou por telefone.
 - Confirmação, reagendamento e cancelamento pelo painel da agenda.
-- Disponibilidade semanal, bloqueios e agendamentos recorrentes.
-- Ciclo completo: agendado → confirmado → realizado / cancelado / falta.
-- Lembretes automáticos 24h e 2h antes da consulta, por WhatsApp, e-mail e/ou
-  aplicativo.
-- Vínculo do agendamento com a sessão clínica correspondente.
-- **Google Calendar:** cada psicólogo poderá conectar sua própria agenda,
-  individualmente, sem compartilhar credenciais com a clínica ou colegas.
-- Mudanças de calendário nunca alteram registros clínicos já produzidos.
+- Lembretes automáticos 24h e 2h antes da consulta, por WhatsApp.
+- **Google Calendar:** sincronização individual de agenda por profissional.
 
 ---
 
-## 9. Financeiro
+## 9. Financeiro, Split 70/30 & Checkout Transparente
 
-- Cobranças por sessão, com descontos, pagamentos, estornos e taxas.
-- **Repasses para clínicas** com múltiplos profissionais.
-- Conciliação automática: saldo por sessão, pagamento parcial, excesso,
-  estorno, vencimento e cancelamento.
-- **Relatórios:** faturamento, fluxo de caixa, contas a receber, inadimplência
-  e repasses.
-- Filtros por período, paciente, profissional, status e forma de pagamento.
-- **Exportação em CSV** (compatível com Excel em português) **e PDF A4**.
-- **Pix e Asaas** para recebimento.
+- **Checkout Transparente via Link Único (`vivermais.com.br/p/[ID]`):** o paciente realiza o pagamento via Pix Copia e Cola / QRCode Dinâmico ou Cartão de Crédito sem necessidade de enviar print de comprovante.
+- **Conciliação 100% Automática por Webhook:** baixa instantânea no sistema assim que o gateway (Asaas/Mercado Pago) liquida a transação.
+- **Split de Receita 70/30 (Clínica-Escola):**
+  - **30%:** retidos para a receita operacional da Clínica Viver Mais.
+  - **70%:** creditados como saldo de desconto para o aluno/psicólogo.
+- **Abatimento Automático no Boleto da Pós-Graduação:** o saldo acumulado pelo aluno nos atendimentos da clínica-escola é deduzido automaticamente na emissão do boleto da sua mensalidade.
+- **Módulo de Convênios Empresariais & Projetos PJ:** gestão restrita à administração financeira para tagueamento de pacotes corporativos (ex: projetos de 6 sessões), registro de data de emissão de NF e controle de vencimento de boletos corporativos.
 - **NFSe e Receita Saúde** para obrigações fiscais brasileiras.
-- Recibos em PDF enviados automaticamente ao paciente.
 
 ---
 
 ## 10. App Mobile do Paciente
 
-- **Diário de humor** com registro visual diário e gráficos de tendência
-  semanal e mensal.
-- **Central de tarefas terapêuticas** com as atividades combinadas na sessão.
+- **Diário de humor** com registro visual diário e gráficos de tendência.
+- **Central de tarefas terapêuticas** enviadas automaticamente da sessão.
 - **Rastreamento de hábitos e metas** configurados pelo psicólogo.
 - **Resumo da última sessão** em linguagem acessível.
-- **Card da próxima sessão** com data e horário.
 - **Entrada na sala de vídeo** direto pelo app.
 - **Check-in pré-sessão** e resposta a escalas enviadas pelo terapeuta.
-- **Gráfico de evolução** dos próprios resultados.
-- **Linha do tempo pessoal** do acompanhamento.
 - **Notificações push** de hábitos e proximidade da consulta.
 
 ---
 
 ## 11. Comunicação e Notificações
 
-Central multicanal para mensagens transacionais por **WhatsApp, notificação
-push e e-mail**, respeitando o canal habilitado pelo paciente:
-- confirmação de agendamento;
-- alteração de agendamento;
+Central multicanal para mensagens transacionais por **WhatsApp, push e e-mail**:
+- confirmação de agendamento e aviso duplo de solicitação (paciente + psicólogo);
+- cobrança via Link Único dedicado e confirmação de pagamento por Webhook;
 - lembretes de consulta (24h e 2h antes);
-- atribuição e vencimento de tarefas terapêuticas;
-- chave Pix e link de cobrança;
-- confirmação de pagamento;
-- recibo em PDF.
-
-### Fila e preferências de entrega
-- Fila programada com os estados aguardando, enviando, entregue, falhou e
-  cancelado.
-- Nova tentativa controlada em caso de falha, sem duplicar mensagens.
-- Preferências por canal e categoria, incluindo configuração de horário de
-  silêncio conforme o fuso do paciente.
-- Adaptadores independentes para Evolution API, Expo Push e provedor de e-mail.
-
-Regras de proteção:
-- respeita as preferências de canal e o consentimento mais recente do paciente;
-- modelos de mensagem **impedem** por construção o envio de SOAP, diagnóstico,
-  conteúdo de risco ou notas clínicas;
-- a auditoria registra categoria, canal e resultado do envio — nunca o texto da
-  mensagem nem o contato do paciente;
-- reenvios não duplicam mensagens.
+- alertas de estouro de SLA de 24h com notificação de transbordo;
+- atribuição de tarefas e metas terapêuticas.
 
 ---
 
-## 12. Supervisão Clínica
+## 12. Supervisão Clínica, Retenção & Cockpit da Gestão
 
-Voltado a clínicas-escola, institutos e pós-graduações:
-- **Anonimização inteligente** que remove informações de identificação pessoal
-  antes de submeter o relato clínico à revisão pedagógica.
-- **Painel do supervisor** para que professores e supervisores analisem os
-  casos dos alunos supervisionados.
+- **Anonimização Inteligente por IA:** remove dados pessoais identificáveis para submissão do relato clínico ao painel do supervisor em pós-graduações.
+- **Auditoria de Desistências & Retenção:** captura obrigatoriamente o motivo do cancelamento/abandono (financeiro, insatisfação, troca de abordagem) e gera fila de ação para contato de reengajamento.
+- **Cockpit de Gestão da Clínica (11 Relatórios em Tempo Real):**
+  1. *Fila de Espera:* posição dos psicólogos no rodízio.
+  2. *SLA de 24h:* alertas visuais de contatos pendentes.
+  3. *Distribuição por Gênero:* métrica demográfica de pacientes.
+  4. *Faixa Etária Predominante:* mapeamento de público.
+  5. *Origem dos Leads:* gráfico "Como ficou sabendo da clínica".
+  6. *Total de Atendimentos Efetuados:* volume mensal geral e por psicólogo.
+  7. *Detalhamento por Modalidade:* atendimentos social vs. particular.
+  8. *Detalhamento por Faixa de Valor:* tabela de faixas de preço.
+  9. *Custo por Paciente (CPA / CAC):* cálculo `Investimento em Mkt ÷ Leads`.
+  10. *Projetos Especiais & Convênios:* volume de atendimentos PJ.
+  11. *Audit Log de Agendamentos:* backup auditável para resguardo jurídico.
 
 ---
 
 ## 13. Gestão da Clínica
 
-### Papéis e permissões
-| Papel | O que acessa |
-| :--- | :--- |
-| Proprietário / Administrador | Administração da organização, financeiro e membros — **sem** acesso ao prontuário |
-| Diretor clínico | Operação clínica e supervisão, sem gerenciar membros |
-| Profissional | Prontuário, sessões e avaliações dos **pacientes atribuídos a ele** |
-| Assistente | Cadastro, agenda e leitura financeira, sem prontuário |
-| Financeiro | Cobrança, relatórios e dados mínimos de pacientes |
-| Auditor | Leitura de auditoria, relatórios e finanças |
-
-- Um mesmo profissional pode acumular papéis (ex.: dono + psicólogo) sem que
-  permissões administrativas virem permissões clínicas.
-- Cadastro de pacientes e de responsáveis legais.
-- Responsáveis não recebem acesso clínico automaticamente: cada permissão é
-  concedida individualmente.
-- Isolamento total entre clínicas: nenhum dado atravessa organizações.
-
-### Configurações e integrações
-- Painel de conexão do WhatsApp (Evolution API).
-- Painel de conexão do gateway de pagamentos (Asaas).
-- Indicadores de status de cada integração.
+- Papéis e permissões (Proprietário, Diretor Clínico, Profissional, Assistente, Financeiro, Auditor).
+- Cadastro de psicólogos com gestão de visibilidade (exibir/privar no site ao atingir limite de vagas, ex: 33 pacientes ativos).
+- Configuração de integrações (Evolution API, Asaas, NFS-e).
 
 ---
 
 ## 14. Privacidade, Ética e Conformidade
 
-- **CFP:** guarda de prontuários criptografados pelo período mínimo de 5 anos.
-- **LGPD:** dados de saúde criptografados em repouso e em trânsito, com
-  controle de permissão por papel.
-- **Consentimentos separados e revogáveis** para gravação, processamento por IA
-  e conteúdo entregue ao paciente.
-- **Pseudonimização antes da IA:** o provedor de IA recebe uma referência opaca
-  e estável do paciente, nunca nome, contato, documento ou data de nascimento.
-- **Áudio não é acervo:** a gravação da consulta é descartada em até 72h e a transcrição em 90 dias. Só o prontuário aprovado persiste. (Detalhe na
-  seção 1.)
-- Registros de auditoria nunca carregam nome, e-mail, telefone, CPF,
-  transcrição ou nota clínica.
-- **Nenhuma decisão clínica é automatizada.** A IA gera rascunhos e sugestões;
-  toda conduta exige aprovação humana explícita.
+- **CFP:** guarda de prontuários criptografados por 5 anos.
+- **LGPD:** criptografia em repouso e trânsito; pseudonimização no envio de prompts para IA.
+- **Áudio não é acervo:** expurgo do áudio em 72h e transcrição em 90 dias.
 
 ---
 
 ## 15. O que a plataforma deliberadamente **não** faz
 
-- **Lista de espera e preenchimento automático de horários cancelados.** O
-  produto não mantém fila de pacientes nem envia ofertas automáticas para ocupar vagas liberadas. A prioridade é inteligência clínica e acompanhamento
-  terapêutico, não maximização de ocupação de agenda.
-- **Diagnóstico automático.** Nenhum indicador de risco vira diagnóstico,
-  conduta ou mensagem sem um profissional no meio.
-- **Resposta inventada sobre o histórico.** Sem evidência, o sistema informa
-  que não encontrou.
+- **Diagnóstico automático.** Nenhum indicador de risco vira diagnóstico sem revisão humana.
+- **Resposta inventada sobre o histórico.** Sem evidência, o sistema informa que não encontrou.
+- **Dispensa de aprovação humana.** O prontuário SOAP e as tarefas para o paciente exigem sempre clique explícito de aprovação do profissional.
 
 ---
 
-## 16. Como o Thats Life se posiciona no mercado
+## 16. Como a Clínica Viver Mais se posiciona no mercado
 
-| | PsicoManager | PersonCare | SimplePractice | **Thats Life** |
+| | PsicoManager | PersonCare | SimplePractice | **Clínica Viver Mais** |
 | :--- | :--- | :--- | :--- | :--- |
-| Foco | ERP de gestão clássico | Gestão + app simples | Prontuário eletrônico EUA | **Inteligência clínica e automação em 1 clique** |
-| Prontuário por IA | Rascunho manual | Transcrição simples | Transcrição de nota | **SOAP automatizado com aprovação humana** |
-| App do paciente | Genérico / web | Humor e hábitos | Portal básico | **App nativo: humor, hábitos, tarefas, escalas** |
-| WhatsApp | Proprietário | Ilimitado | Não suporta | **Nativo, com proteção de conteúdo clínico** |
-| Supervisão | Genérico | Não focado | Grupos simples | **Anonimização por IA + painel do supervisor** |
-| Fiscal brasileiro | NFSe, Receita Saúde | NFSe, Receita Saúde | Não atende o Brasil | **Pix, Asaas, NFSe, Receita Saúde** |
-
-**A tese:** o PsicoManager tem mais de 75 funcionalidades soltas e uma interface
-poluída. O Thats Life concentra o fluxo de atendimento em uma tela só.
+| Foco | ERP de gestão clássico | Gestão + app simples | Prontuário eletrônico EUA | **Inteligência clínica + Gestão de Clínica-Escola (1-Clique)** |
+| Prontuário por IA | Rascunho manual | Transcrição simples | Transcrição de nota | **SOAP automatizado com diarização e aprovação em 1 clique** |
+| Atribuição de Pacientes | Manual | Não possui | Agendamento direto | **Fila Round-Robin por Turno + SLA 24h e Transbordo Automático** |
+| App do paciente | Genérico / web | Humor e hábitos | Portal básico | **App nativo (humor, hábitos, tarefas, escalas, vídeo)** |
+| WhatsApp | Proprietário | Ilimitado | Não suporta | **Evolution API (Alerta duplo, SLA 24h e Checkout com filtro clínico)** |
+| Repasse & Mensalidade | Repasse financeiro manual | Não possui | Não atende | **Split 70/30 com Abatimento Automático no Boleto da Pós** |
+| Checkout & Cobrança | Boleto / Pix manual | Recibos | Claims EUA | **Checkout Transparente via Link Único (Zero Comprovante Manual)** |
+| Cockpit & Retenção | Financeiro básico | Relatórios simples | Dashboards padrão | **Cockpit em Tempo Real (11 Relatórios, CPA de Mkt, SLAs e Auditoria de Desistências)** |
 
 ---
 
 ## 17. Estado atual de cada área
 
-A plataforma opera em **modo demonstração**: as funcionalidades funcionam de
-verdade, sobre dados fictícios. A distinção que importa é entre o que executa a
-lógica real e o que apenas parece executá-la.
+A plataforma opera em **fase de transição e implementação dos módulos da Clínica Viver Mais**:
 
 | Área | Situação |
 | :--- | :--- |
-| Regras clínicas, financeiras, agenda, identidade e prontuário | Implementadas e testadas (85 testes) |
+| Regras clínicas, SOAP por IA e Prontuário | Implementadas e testadas |
 | Automação pós-sessão de ponta a ponta | Funcional |
-| Interfaces web e mobile | Navegáveis |
-| **Diarização (quem falou o quê)** | **Real.** Identificação de profissional e paciente com calibração |
-| Áudio da consulta | Não capturado. As falas vêm de transcrições de demonstração |
-| Painel operacional consolidado | API funcional; ainda não possui uma página dedicada na interface |
-| WhatsApp (Evolution API) | Adaptador de demonstração: registra a mensagem numa caixa de saída, **não envia** |
-| Notificações push e e-mail | Contratos, preferências e modelos definidos; adaptadores reais pendentes |
-| Pagamentos (Asaas / Pix) | Adaptador de demonstração: gera cobrança e código Pix marcados como sem valor, **não movimenta dinheiro** |
-| Persistência | Arquivo local. O estado sobrevive a reinícios; ainda não é banco de dados |
-| Autenticação | Resolvida por cabeçalhos de demonstração; não é autenticação real |
-| Descarte automático de áudio e transcrição | Política definida e centralizada; rotina de expurgo ainda não implementada |
-| Google Calendar | Contrato definido, adaptador pendente |
-| Supervisão clínica | Especificada; implementação pendente |
-| Exportação de prontuário em PDF | Controle visual existente; geração e download ainda não implementados |
+| App Mobile do Paciente e Sala de Vídeo | Navegáveis |
+| **Fila Inteligente & Transbordo SLA 24h** | **Especificado e em implementação** (integração Evolution API) |
+| **Checkout Transparente via Link Único** | **Especificado** (integração Asaas/Webhook sem comprovante manual) |
+| **Split 70/30 & Abatimento na Mensalidade** | **Especificado** (motor de crédito integrado ao faturamento de pós) |
+| **Cockpit de Gestão (11 Relatórios)** | **Especificado** (dashboards de SLA, CPA de Mkt e Demografia) |
+| **Auditoria de Desistências & Convênios PJ** | **Especificado** (módulos de retenção e faturamento corporativo) |
 
-**Por que WhatsApp e pagamentos continuam falsos por escolha:** mensagem enviada
-e cobrança criada são irreversíveis. Uma demonstração não deve produzir efeitos
-no mundo de ninguém. Os adaptadores respeitam os mesmos contratos dos reais e
-são determinísticos — repetir a operação devolve o mesmo identificador, que é
-exatamente o que a idempotência real precisa garantir.
-
-> ⚠️ Por estar em fase de protótipo, a plataforma **não deve receber dados
-> clínicos reais** no estado atual.

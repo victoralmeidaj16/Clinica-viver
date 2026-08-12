@@ -18,7 +18,9 @@ import {
 } from 'lucide-react';
 import { BrazilLocationFields } from '@/components/forms/BrazilLocationFields';
 import { GenderFields } from '@/components/forms/GenderFields';
-import { formatBrazilPhone, maskBrazilPhoneInput } from '@/lib/brazilPhone';
+import { CadastroPsicologoForm } from '@/components/forms/CadastroPsicologoForm';
+import { TIPOS_ATENDIMENTO } from '@/components/forms/opcoesPsicologo';
+import { formatBrazilPhone } from '@/lib/brazilPhone';
 import type { GenderValue } from '@/lib/gender';
 
 /** Linha da fila, como o `GET /api/application/triagem` a devolve. */
@@ -60,9 +62,17 @@ interface PsicologoCadastro {
   modalidadeAtendimento?: string;
   minibio?: string;
   status: 'EM_ANALISE' | 'APROVADO' | 'RECUSADO';
+  fotoUrl?: string;
+  atendimentoPreferencia?: 'PARTICULAR' | 'SOCIAL' | 'AMBOS';
   turnosDisponiveis?: string[];
   modalidadesAtendidas?: string[];
   servicosHabilitados?: string[];
+  servicosPrestados?: string[];
+  publicoAlvo?: string[];
+  publicoAlvoOutro?: string;
+  especificarNecessidades?: boolean;
+  necessidadesAtendidas?: string[];
+  necessidadesOutro?: string;
   limitePacientesAtivos?: number;
   pacientesAtivosCount?: number;
   exibirNaVitrine?: boolean;
@@ -197,7 +207,6 @@ export default function GestaoCockpitPage() {
   const [novoLeadModal, setNovoLeadModal] = useState(false);
   const [novoPsiModal, setNovoPsiModal] = useState(false);
   const [enviandoLead, setEnviandoLead] = useState(false);
-  const [enviandoPsi, setEnviandoPsi] = useState(false);
   const [manualForm, setManualForm] = useState({
     nome: '',
     telefone: '',
@@ -206,71 +215,6 @@ export default function GestaoCockpitPage() {
     modalidade: 'SOCIAL',
     turno: 'VESPERTINO',
   });
-
-  const [manualPsiForm, setManualPsiForm] = useState({
-    nomeCompleto: '',
-    nomeSocial: '',
-    crp: '',
-    whatsapp: '',
-    email: '',
-    estadoUf: '',
-    cidade: '',
-    logradouro: '',
-    bairro: '',
-    genero: '' as GenderValue | '',
-    generoOutro: '',
-    especialidade: 'Psicoterapia Cognitivo-Comportamental',
-    turmaViverMais: '24A',
-    posGraduacaoViverMais: 'Especialização em Psicoterapia Cognitivo-Comportamental',
-  });
-
-  const handleCadastrarPsiManual = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setEnviandoPsi(true);
-    try {
-      const resposta = await fetch('/api/application/credenciamento-psicologo', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...manualPsiForm,
-          modalidadeAtendimento: 'On-line & Presencial',
-          minibio: 'Profissional cadastrado diretamente pela gestão da clínica.',
-          disponibilidadeTurnos: ['MATUTINO', 'VESPERTINO', 'NOTURNO'],
-          servicosHabilitados: ['PSICOTERAPIA', 'AVALIACAO'],
-        }),
-      });
-      const corpo = await resposta.json();
-
-      if (!corpo.success) {
-        setErroCarga(corpo.error ?? 'Não foi possível cadastrar o psicólogo.');
-        return;
-      }
-
-      // Aprova imediatamente o psicólogo cadastrado manualmente pela gestão
-      await atualizarCadastro(corpo.data.id, { status: 'APROVADO', exibirNaVitrine: true });
-
-      setNovoPsiModal(false);
-      setManualPsiForm({
-        nomeCompleto: '',
-        nomeSocial: '',
-        crp: '',
-        whatsapp: '',
-        email: '',
-        estadoUf: '',
-        cidade: '',
-        logradouro: '',
-        bairro: '',
-        genero: '' as GenderValue | '',
-        generoOutro: '',
-        especialidade: 'Psicoterapia Cognitivo-Comportamental',
-        turmaViverMais: '24A',
-        posGraduacaoViverMais: 'Especialização em Psicoterapia Cognitivo-Comportamental',
-      });
-      await recarregar();
-    } finally {
-      setEnviandoPsi(false);
-    }
-  };
 
   const handleAprovarPsicologo = (id: string) =>
     atualizarCadastro(id, { status: 'APROVADO', exibirNaVitrine: true });
@@ -503,151 +447,24 @@ export default function GestaoCockpitPage() {
         </div>
       )}
 
-      {/* Modal de Cadastrar Psicólogo Manualmente */}
+      {/* Modal de Cadastrar Psicólogo — mesmo formulário da vitrine */}
       {novoPsiModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-surface rounded-3xl p-6 border border-line shadow-2xl max-w-md w-full space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-line pb-3">
-              <div>
-                <h2 className="text-lg font-black text-ink">Cadastro Manual de Psicólogo</h2>
-                <p className="text-[11px] text-muted">Cadastre e credencie imediatamente um novo psicólogo na clínica</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setNovoPsiModal(false)}
-                className="text-muted hover:text-ink text-xs font-bold"
-              >
-                Fechar
-              </button>
-            </div>
-
-            <form onSubmit={handleCadastrarPsiManual} className="space-y-3.5 text-xs">
-              <div>
-                <label className="font-bold text-ink block mb-1">Nome Completo <span className="text-rose-500">*</span></label>
-                <input
-                  type="text"
-                  required
-                  value={manualPsiForm.nomeCompleto}
-                  onChange={(e) => setManualPsiForm({ ...manualPsiForm, nomeCompleto: e.target.value })}
-                  placeholder="Nome do psicólogo"
-                  className="w-full bg-slate-50 border border-line rounded-xl p-2.5 text-ink outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-ink block mb-1">Nome social</label>
-                <input
-                  type="text"
-                  value={manualPsiForm.nomeSocial}
-                  onChange={(e) => setManualPsiForm({ ...manualPsiForm, nomeSocial: e.target.value })}
-                  placeholder="Como prefere ser chamado"
-                  className="w-full bg-slate-50 border border-line rounded-xl p-2.5 text-ink outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-ink block mb-1">CRP <span className="text-rose-500">*</span></label>
-                  <input
-                    type="text"
-                    required
-                    value={manualPsiForm.crp}
-                    onChange={(e) => setManualPsiForm({ ...manualPsiForm, crp: e.target.value })}
-                    placeholder="CRP 00/0000"
-                    className="w-full bg-slate-50 border border-line rounded-xl p-2.5 text-ink outline-none focus:border-emerald-500"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-ink block mb-1">WhatsApp <span className="text-rose-500">*</span></label>
-                  <input
-                    type="text"
-                    required
-                    value={manualPsiForm.whatsapp}
-                    onChange={(e) => setManualPsiForm({ ...manualPsiForm, whatsapp: maskBrazilPhoneInput(e.target.value) })}
-                    placeholder="(00) 00000-0000"
-                    className="w-full bg-slate-50 border border-line rounded-xl p-2.5 text-ink outline-none focus:border-emerald-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="font-bold text-ink block mb-1">E-mail <span className="text-rose-500">*</span></label>
-                <input
-                  type="email"
-                  required
-                  value={manualPsiForm.email}
-                  onChange={(e) => setManualPsiForm({ ...manualPsiForm, email: e.target.value })}
-                  placeholder="email@exemplo.com.br"
-                  className="w-full bg-slate-50 border border-line rounded-xl p-2.5 text-ink outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              <GenderFields
-                idPrefix="psicologo-manual"
-                gender={manualPsiForm.genero}
-                other={manualPsiForm.generoOutro}
-                onGenderChange={(genero) => setManualPsiForm((current) => ({ ...current, genero }))}
-                onOtherChange={(generoOutro) => setManualPsiForm((current) => ({ ...current, generoOutro }))}
-              />
-
-              <BrazilLocationFields
-                estadoUf={manualPsiForm.estadoUf}
-                cidade={manualPsiForm.cidade}
-                onEstadoChange={(estadoUf) => setManualPsiForm((current) => ({ ...current, estadoUf, cidade: '' }))}
-                onCidadeChange={(cidade) => setManualPsiForm((current) => ({ ...current, cidade }))}
-              />
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-ink block mb-1">Rua / logradouro <span className="text-rose-500">*</span></label>
-                  <input required value={manualPsiForm.logradouro} onChange={(e) => setManualPsiForm({ ...manualPsiForm, logradouro: e.target.value })} className="w-full bg-slate-50 border border-line rounded-xl p-2.5 text-ink outline-none focus:border-emerald-500" />
-                </div>
-                <div>
-                  <label className="font-bold text-ink block mb-1">Bairro <span className="text-rose-500">*</span></label>
-                  <input required value={manualPsiForm.bairro} onChange={(e) => setManualPsiForm({ ...manualPsiForm, bairro: e.target.value })} className="w-full bg-slate-50 border border-line rounded-xl p-2.5 text-ink outline-none focus:border-emerald-500" />
-                </div>
-              </div>
-
-              <div>
-                <label className="font-bold text-ink block mb-1">Turma Viver Mais</label>
-                <select
-                  value={manualPsiForm.turmaViverMais}
-                  onChange={(e) => setManualPsiForm({ ...manualPsiForm, turmaViverMais: e.target.value })}
-                  className="w-full bg-slate-50 border border-line rounded-xl p-2.5 text-ink outline-none focus:border-emerald-500 font-medium"
-                >
-                  <option value="22A">Turma 22A</option>
-                  <option value="22B">Turma 22B</option>
-                  <option value="23A">Turma 23A</option>
-                  <option value="23B">Turma 23B</option>
-                  <option value="24A">Turma 24A</option>
-                  <option value="24B">Turma 24B</option>
-                  <option value="25A">Turma 25A</option>
-                  <option value="25B">Turma 25B</option>
-                  <option value="26A">Turma 26A</option>
-                  <option value="26B">Turma 26B</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="font-bold text-ink block mb-1">Pós-Graduação Viver Mais</label>
-                <input
-                  type="text"
-                  value={manualPsiForm.posGraduacaoViverMais}
-                  onChange={(e) => setManualPsiForm({ ...manualPsiForm, posGraduacaoViverMais: e.target.value })}
-                  placeholder="Nome do curso de especialização"
-                  className="w-full bg-slate-50 border border-line rounded-xl p-2.5 text-ink outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={enviandoPsi}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3 rounded-2xl shadow-md transition-all disabled:opacity-60"
-              >
-                {enviandoPsi ? 'CADASTRANDO…' : 'CADASTRAR E ATIVAR NA CLÍNICA'}
-              </button>
-            </form>
-          </div>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-start justify-center p-4 overflow-y-auto">
+          <CadastroPsicologoForm
+            className="bg-white rounded-3xl p-6 sm:p-8 border border-purple-100 shadow-2xl max-w-2xl w-full space-y-6 my-8"
+            eyebrow="Cadastro pela gestão"
+            titulo="Cadastrar Psicólogo na Clínica"
+            descricao="Mesmo formulário da vitrine. Ao enviar, o profissional já entra aprovado e visível na vitrine."
+            labelCancelar="Fechar"
+            labelEnviar="CADASTRAR E ATIVAR NA CLÍNICA"
+            onCancelar={() => setNovoPsiModal(false)}
+            onSucesso={async (cadastro) => {
+              // Cadastro feito pela gestão não passa pela análise: aprova na hora.
+              await atualizarCadastro(cadastro.id, { status: 'APROVADO', exibirNaVitrine: true });
+              setNovoPsiModal(false);
+              await recarregar();
+            }}
+          />
         </div>
       )}
 
@@ -1139,6 +956,36 @@ export default function GestaoCockpitPage() {
             </div>
 
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[68vh] overflow-y-auto">
+              <div className="md:col-span-2 flex items-center gap-4 rounded-2xl border border-psi-soft bg-slate-50/60 p-4">
+                {cadastroEditado.fotoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={cadastroEditado.fotoUrl}
+                    alt="Foto enviada pelo psicólogo"
+                    className="w-20 h-20 rounded-2xl object-cover border border-psi-soft"
+                  />
+                ) : (
+                  <div className="w-20 h-20 rounded-2xl bg-psi-soft text-psi-deep grid place-items-center font-black text-2xl">
+                    {(cadastroEditado.nomeSocial?.trim() || cadastroEditado.nomeCompleto || '?').charAt(0)}
+                  </div>
+                )}
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Foto de perfil</p>
+                  <p className="text-sm font-bold text-ink mt-1">
+                    {cadastroEditado.fotoUrl ? 'Enviada no cadastro' : 'Nenhuma foto enviada'}
+                  </p>
+                  {cadastroEditado.fotoUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setCadastroEditado((atual) => atual ? { ...atual, fotoUrl: '' } : atual)}
+                      className="mt-1 text-xs font-extrabold text-rose-600 hover:underline"
+                    >
+                      Remover foto
+                    </button>
+                  )}
+                </div>
+              </div>
+
               {([
                 ['nomeCompleto', 'Nome completo'],
                 ['nomeSocial', 'Nome social'],
@@ -1205,16 +1052,46 @@ export default function GestaoCockpitPage() {
                 />
               </label>
 
+              <label className="text-xs font-bold text-ink">
+                Tipo de atendimento
+                <select
+                  value={cadastroEditado.atendimentoPreferencia ?? 'AMBOS'}
+                  onChange={(e) => setCadastroEditado((atual) => atual ? { ...atual, atendimentoPreferencia: e.target.value as PsicologoCadastro['atendimentoPreferencia'] } : atual)}
+                  className="mt-1 w-full rounded-xl border border-psi-soft bg-white px-3 py-2.5 text-sm font-medium text-ink outline-none focus:ring-2 focus:ring-psi-vibrant/20 focus:border-psi-vibrant"
+                >
+                  {TIPOS_ATENDIMENTO.map((tipo) => (
+                    <option key={tipo.value} value={tipo.value}>{tipo.label}</option>
+                  ))}
+                </select>
+              </label>
+
               {([
                 ['turnosDisponiveis', 'Turnos disponíveis'],
                 ['modalidadesAtendidas', 'Modalidades atendidas'],
                 ['servicosHabilitados', 'Serviços habilitados'],
+                ['servicosPrestados', 'Serviços prestados (declarados)'],
+                ['publicoAlvo', 'Público alvo'],
+                ['necessidadesAtendidas', 'Demandas atendidas'],
               ] as const).map(([campo, rotulo]) => (
                 <label key={campo} className="text-xs font-bold text-ink">
                   {rotulo} <span className="font-normal text-muted">(separe por vírgulas)</span>
                   <input
                     value={textoLista(cadastroEditado[campo] as string[] | undefined)}
                     onChange={(e) => setCadastroEditado((atual) => atual ? { ...atual, [campo]: listaTexto(e.target.value) } : atual)}
+                    className="mt-1 w-full rounded-xl border border-psi-soft bg-white px-3 py-2.5 text-sm font-medium text-ink outline-none focus:ring-2 focus:ring-psi-vibrant/20 focus:border-psi-vibrant"
+                  />
+                </label>
+              ))}
+
+              {([
+                ['publicoAlvoOutro', 'Outro público declarado'],
+                ['necessidadesOutro', 'Outra demanda declarada'],
+              ] as const).map(([campo, rotulo]) => (
+                <label key={campo} className="text-xs font-bold text-ink">
+                  {rotulo}
+                  <input
+                    value={(cadastroEditado[campo] as string | undefined) ?? ''}
+                    onChange={(e) => setCadastroEditado((atual) => atual ? { ...atual, [campo]: e.target.value } : atual)}
                     className="mt-1 w-full rounded-xl border border-psi-soft bg-white px-3 py-2.5 text-sm font-medium text-ink outline-none focus:ring-2 focus:ring-psi-vibrant/20 focus:border-psi-vibrant"
                   />
                 </label>

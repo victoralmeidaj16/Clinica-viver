@@ -1,77 +1,12 @@
 import { NextResponse } from 'next/server';
-import { type CadastroPsicologoRecord, type PersistedSnapshot, type TriagemPacienteRecord } from '@/server/application/persistence';
 import { captureStateAsSnapshot, getCaptureRepository } from '@/server/persistence/captureRepository';
 import { validarTokenConfirmacao } from '@/server/viverMaisConfirmToken';
-import { alocarLead, recalcularPacientesAtivos } from '@/server/application/viverMaisRodizio';
+import { confirmarContato, type ConfirmacaoResult } from '@/server/application/viverMaisRodizio';
 import { avisarTransbordo } from '@/server/application/viverMaisWhatsApp';
 import { reconciliarPacientes } from '@/server/application/patientPromotion';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-type ConfirmacaoResult =
-  | { kind: 'not_found' }
-  | { kind: 'conflict' }
-  | { kind: 'capacity_reallocated'; lead: TriagemPacienteRecord; psicologo: CadastroPsicologoRecord }
-  | { kind: 'capacity_pending'; lead: TriagemPacienteRecord; psicologo?: undefined }
-  | { kind: 'already_confirmed'; data: { nomePaciente: string; telefone: string; confirmadoEm: string } }
-  | { kind: 'confirmed'; data: { nomePaciente: string; telefone: string; confirmadoEm: string } };
-
-function confirmarContato(
-  snapshot: PersistedSnapshot,
-  id: string,
-  psicologoId: string
-): { next: PersistedSnapshot; result: ConfirmacaoResult } {
-  const atual = recalcularPacientesAtivos(snapshot);
-  const lead = atual.triagensPacientes?.find((item) => item.id === id);
-  if (!lead) return { next: atual, result: { kind: 'not_found' } };
-  if (lead.psicologoAlocadoId !== psicologoId) return { next: atual, result: { kind: 'conflict' } };
-
-  if (lead.confirmadoEm) {
-    return {
-      next: atual,
-      result: { kind: 'already_confirmed', data: { nomePaciente: lead.nomePaciente, telefone: lead.telefone, confirmadoEm: lead.confirmadoEm } },
-    };
-  }
-
-  const psicologo = atual.cadastrosPsicologos?.find((item) => item.id === psicologoId);
-  if (psicologo && (psicologo.pacientesAtivosCount ?? 0) >= (psicologo.limitePacientesAtivos ?? 5)) {
-    const paraRealocar: TriagemPacienteRecord = {
-      ...lead,
-      status: 'PENDENTE_ATRIBUICAO',
-      psicologoAlocadoId: undefined,
-      psicologoNome: undefined,
-      alocadoEm: undefined,
-      confirmadoEm: undefined,
-      slaExpirado: false,
-    };
-    const base = {
-      ...atual,
-      triagensPacientes: (atual.triagensPacientes ?? []).map((item) => item.id === id ? paraRealocar : item),
-    };
-    const realocado = alocarLead(base, paraRealocar);
-    return realocado.psicologo
-      ? {
-          next: realocado.snapshot,
-          result: { kind: 'capacity_reallocated', lead: realocado.lead, psicologo: realocado.psicologo },
-        }
-      : {
-          next: realocado.snapshot,
-          result: { kind: 'capacity_pending', lead: realocado.lead },
-        };
-  }
-
-  const confirmadoEm = new Date().toISOString();
-  const confirmado: TriagemPacienteRecord = { ...lead, status: 'CONTATO_CONFIRMADO', confirmadoEm };
-  const next = recalcularPacientesAtivos({
-    ...atual,
-    triagensPacientes: (atual.triagensPacientes ?? []).map((item) => item.id === id ? confirmado : item),
-  });
-  return {
-    next,
-    result: { kind: 'confirmed', data: { nomePaciente: confirmado.nomePaciente, telefone: confirmado.telefone, confirmadoEm } },
-  };
-}
 
 /**
  * Confirmação de primeiro contato pelo psicólogo.

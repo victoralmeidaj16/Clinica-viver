@@ -19,11 +19,20 @@ import {
   HelpCircle,
   Circle,
 } from 'lucide-react';
-import { LISTA_NECESSIDADES } from '@/app/vitrine/page';
-import { BrazilLocationFields } from '@/components/forms/BrazilLocationFields';
-import { GenderFields } from '@/components/forms/GenderFields';
-import { formatBrazilPhone, normalizeBrazilPhone } from '@/lib/brazilPhone';
-import { validateGender, type GenderValue } from '@/lib/gender';
+import { LISTA_NECESSIDADES } from '@/components/forms/necessidades';
+import {
+  PUBLICO_ALVO,
+  TIPOS_ATENDIMENTO,
+  SERVICOS_PRESTADOS,
+  TURNOS_PSICOLOGO,
+  comValoresRegistrados,
+  rotuloModalidade,
+  rotuloTipoAtendimento,
+  rotuloTurno,
+} from '@/components/forms/opcoesPsicologo';
+import { CadastroPsicologoForm } from '@/components/forms/CadastroPsicologoForm';
+import { formatBrazilPhone } from '@/lib/brazilPhone';
+import { formatGender } from '@/lib/gender';
 
 /**
  * Diretório e mesa de capacidade do corpo clínico.
@@ -55,6 +64,12 @@ interface PsicologoItem {
   logradouro?: string;
   bairro?: string;
   status: StatusCadastro;
+  genero?: string;
+  generoOutro?: string;
+  especialidade?: string;
+  minibio?: string;
+  modalidadeAtendimento?: string;
+  especificarNecessidades?: boolean;
   atendimentoPreferencia?: 'PARTICULAR' | 'SOCIAL' | 'AMBOS';
   turnosDisponiveis?: string[];
   servicosPrestados?: string[];
@@ -100,26 +115,6 @@ const FILTROS: Array<[FiltroStatus, string]> = [
 /** Motivos previstos para sair da vitrine ou pausar os encaminhamentos. */
 const MOTIVOS = ['Férias', 'Limite de pacientes', 'Pausa solicitada', 'Licença', 'Outro'];
 
-const SERVICOS = [
-  'Atendimento Psicológico',
-  'Avaliação Psicológica',
-  'Orientação Vocacional',
-  'Orientação Profissional',
-  'Orientação Parental',
-  'Psicoterapia de Casal',
-];
-
-const PUBLICOS = [
-  'Criança', 'Adolescente', 'Adulto', 'Idoso', 'Casal',
-  'Família', 'Mulher', 'Homem', 'LGBTQIAPN+', 'Outro',
-];
-
-const TURNOS: Array<[string, string]> = [
-  ['MANHA', 'Manhã'],
-  ['TARDE', 'Tarde'],
-  ['NOITE', 'Noite'],
-];
-
 const nomeExibido = (p: PsicologoItem) => p.nomeSocial?.trim() || p.nomeCompleto;
 
 export default function GestaoPsicologosPage() {
@@ -130,35 +125,11 @@ export default function GestaoPsicologosPage() {
   const [statusFilter, setStatusFilter] = useState<FiltroStatus>('TODOS');
   const [copiedLink, setCopiedLink] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [motivoAlvo, setMotivoAlvo] = useState<
     { psicologo: PsicologoItem; acao: 'VITRINE' | 'RODIZIO' } | null
   >(null);
   const [editando, setEditando] = useState<PsicologoItem | null>(null);
-
-  const [form, setForm] = useState({
-    nomeCompleto: '',
-    nomeSocial: '',
-    crp: '',
-    whatsapp: '',
-    email: '',
-    cidade: '',
-    estadoUf: 'SC',
-    logradouro: '',
-    bairro: '',
-    genero: '' as GenderValue | '',
-    generoOutro: '',
-    turmaViverMais: '24A',
-    atendimentoPreferencia: 'AMBOS' as 'PARTICULAR' | 'SOCIAL' | 'AMBOS',
-    servicosPrestados: ['Atendimento Psicológico'],
-    publicoAlvo: ['Adulto'],
-    publicoAlvoOutro: '',
-    especificarNecessidades: false,
-    necessidadesAtendidas: [] as string[],
-    necessidadesOutro: '',
-    disponibilidadeTurnos: ['MANHA', 'TARDE'] as string[],
-  });
 
   const handleCopyFormLink = () => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -279,46 +250,6 @@ export default function GestaoPsicologosPage() {
   const priorizarNaFila = (p: PsicologoItem) => {
     if (!confirm(`Colocar ${nomeExibido(p)} no início da fila do próximo encaminhamento?`)) return;
     return atualizar(p.id, { ultimoLeadRecebidoEm: null });
-  };
-
-  const handleCreatePsicologo = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!normalizeBrazilPhone(form.whatsapp)) {
-      alert('Informe um telefone válido com DDD.');
-      return;
-    }
-    if (!validateGender(form.genero, form.generoOutro)) {
-      alert('Selecione o gênero.');
-      return;
-    }
-    if (!form.logradouro.trim() || !form.bairro.trim()) {
-      alert('Informe rua/logradouro e bairro.');
-      return;
-    }
-    if (form.disponibilidadeTurnos.length === 0) {
-      alert('Selecione ao menos um turno — sem turno o profissional nunca recebe encaminhamento.');
-      return;
-    }
-    setIsSubmitting(true);
-    try {
-      const resp = await fetch('/api/application/credenciamento-psicologo', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      });
-      const data = (await resp.json()) as { success: boolean; error?: string };
-      if (!data.success) {
-        alert(data.error ?? 'Erro ao cadastrar psicólogo.');
-        return;
-      }
-      setIsModalOpen(false);
-      setStatusFilter('EM_ANALISE');
-      await loadPsicologos();
-    } catch {
-      alert('Erro ao cadastrar psicólogo.');
-    } finally {
-      setIsSubmitting(false);
-    }
   };
 
   const filtered = psicologos.filter((p) => {
@@ -518,9 +449,18 @@ export default function GestaoPsicologosPage() {
               >
                 <div className="space-y-4">
                   <div className="flex items-start gap-4">
-                    <div className="w-14 h-14 rounded-2xl bg-purple-100 text-purple-700 font-black text-xl flex items-center justify-center border-2 border-purple-200 shrink-0">
-                      {nomeExibido(p).charAt(0)}
-                    </div>
+                    {p.fotoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={p.fotoUrl}
+                        alt={`Foto de ${nomeExibido(p)}`}
+                        className="w-14 h-14 rounded-2xl object-cover border-2 border-purple-200 shrink-0"
+                      />
+                    ) : (
+                      <div className="w-14 h-14 rounded-2xl bg-purple-100 text-purple-700 font-black text-xl flex items-center justify-center border-2 border-purple-200 shrink-0">
+                        {nomeExibido(p).charAt(0)}
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-1">
                         <span className="text-[10px] font-black text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">
@@ -592,22 +532,38 @@ export default function GestaoPsicologosPage() {
                         {p.cidade && p.estadoUf ? `${p.cidade}/${p.estadoUf}` : '—'}
                       </span>
                     </div>
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="font-bold text-slate-500 shrink-0">Endereço:</span>
+                      <span className="font-semibold text-slate-800 text-right">
+                        {[p.logradouro, p.bairro].filter(Boolean).join(' — ') || '—'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-500">Gênero:</span>
+                      <span className="font-semibold text-slate-800">
+                        {formatGender(p.genero, p.generoOutro) || '—'}
+                      </span>
+                    </div>
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-slate-500">Atendimento:</span>
                       <span className="font-extrabold text-purple-900">
-                        {p.atendimentoPreferencia === 'PARTICULAR'
-                          ? 'Somente Particular'
-                          : p.atendimentoPreferencia === 'SOCIAL'
-                            ? 'Somente Social'
-                            : 'Particular & Social'}
+                        {rotuloTipoAtendimento(p.atendimentoPreferencia)}
                       </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-500">Modalidade:</span>
+                      <span className="font-semibold text-slate-800">{rotuloModalidade(p.modalidadeAtendimento)}</span>
+                    </div>
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="font-bold text-slate-500 shrink-0">Especialidade:</span>
+                      <span className="font-semibold text-slate-800 text-right">{p.especialidade || '—'}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-slate-500">Turnos:</span>
                       <span className="font-semibold text-slate-800">
                         {p.turnosDisponiveis?.length
                           ? p.turnosDisponiveis
-                              .map((t) => TURNOS.find(([valor]) => valor === t)?.[1] ?? t)
+                              .map(rotuloTurno)
                               .join(', ')
                           : 'Nenhum'}
                       </span>
@@ -628,6 +584,10 @@ export default function GestaoPsicologosPage() {
                           ? new Date(p.ultimoLeadRecebidoEm).toLocaleDateString('pt-BR')
                           : 'Nunca — primeiro da fila'}
                       </span>
+                    </div>
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="font-bold text-slate-500 shrink-0">E-mail:</span>
+                      <span className="font-semibold text-slate-800 text-right break-all">{p.email || '—'}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-slate-500">WhatsApp:</span>
@@ -658,11 +618,11 @@ export default function GestaoPsicologosPage() {
                     </div>
                   )}
 
-                  {Boolean(p.publicoAlvo?.length) && (
+                  {Boolean(p.publicoAlvo?.length || p.publicoAlvoOutro) && (
                     <div className="space-y-2">
                       <span className="text-[11px] font-bold text-slate-500 block">Público Alvo:</span>
                       <div className="flex flex-wrap gap-1">
-                        {p.publicoAlvo?.map((pa) => (
+                        {[...(p.publicoAlvo ?? []), ...(p.publicoAlvoOutro ? [p.publicoAlvoOutro] : [])].map((pa) => (
                           <span
                             key={pa}
                             className="text-[10px] font-bold bg-purple-50 text-purple-800 px-2 py-0.5 rounded-md border border-purple-100"
@@ -674,11 +634,11 @@ export default function GestaoPsicologosPage() {
                     </div>
                   )}
 
-                  {Boolean(p.necessidadesAtendidas?.length) && (
+                  {Boolean(p.necessidadesAtendidas?.length || p.necessidadesOutro) && (
                     <div className="space-y-2">
                       <span className="text-[11px] font-bold text-slate-500 block">Demandas atendidas:</span>
                       <div className="flex flex-wrap gap-1">
-                        {p.necessidadesAtendidas?.map((n) => (
+                        {[...(p.necessidadesAtendidas ?? []), ...(p.necessidadesOutro ? [p.necessidadesOutro] : [])].map((n) => (
                           <span
                             key={n}
                             className="text-[10px] font-bold bg-teal-50 text-teal-800 px-2 py-0.5 rounded-md border border-teal-100"
@@ -689,9 +649,19 @@ export default function GestaoPsicologosPage() {
                       </div>
                     </div>
                   )}
+
+                  {p.minibio && (
+                    <div className="space-y-1">
+                      <span className="text-[11px] font-bold text-slate-500 block">Apresentação:</span>
+                      <p className="text-[11px] text-slate-600 leading-5 bg-slate-50 border border-slate-100 rounded-2xl px-3 py-2">
+                        {p.minibio}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="pt-3 border-t border-slate-100 space-y-3">
+
                   <div>
                     <div className="flex justify-between items-center text-xs">
                       <span className="font-bold text-slate-600">Capacidade</span>
@@ -823,226 +793,21 @@ export default function GestaoPsicologosPage() {
       )}
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 space-y-6 max-h-[90vh] overflow-y-auto border border-slate-200 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-              <div>
-                <h2 className="text-xl font-black text-slate-900">Cadastrar Psicólogo na Equipe</h2>
-                <p className="text-xs text-slate-500">
-                  Entra como <strong>Em análise</strong>, igual ao formulário público. Aprove em seguida para liberar o
-                  acesso e o rodízio.
-                </p>
-              </div>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 font-bold text-sm">
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleCreatePsicologo} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="font-bold text-xs text-slate-700 block mb-1">Nome Completo *</label>
-                  <input
-                    type="text"
-                    required
-                    value={form.nomeCompleto}
-                    onChange={(e) => setForm({ ...form, nomeCompleto: e.target.value })}
-                    className="w-full border border-slate-300 rounded-xl p-2.5 text-xs focus:outline-none focus:border-purple-600"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-xs text-slate-700 block mb-1">CRP *</label>
-                  <input
-                    type="text"
-                    required
-                    value={form.crp}
-                    onChange={(e) => setForm({ ...form, crp: e.target.value })}
-                    placeholder="Ex: 12/34567"
-                    className="w-full border border-slate-300 rounded-xl p-2.5 text-xs focus:outline-none focus:border-purple-600"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="font-bold text-xs text-slate-700 block mb-1">Nome social</label>
-                <input
-                  type="text"
-                  value={form.nomeSocial}
-                  onChange={(e) => setForm({ ...form, nomeSocial: e.target.value })}
-                  placeholder="Como prefere ser chamado"
-                  className="w-full border border-slate-300 rounded-xl p-2.5 text-xs focus:outline-none focus:border-purple-600"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="font-bold text-xs text-slate-700 block mb-1">E-mail Profissional *</label>
-                  <input
-                    type="email"
-                    required
-                    value={form.email}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    className="w-full border border-slate-300 rounded-xl p-2.5 text-xs focus:outline-none focus:border-purple-600"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-xs text-slate-700 block mb-1">WhatsApp *</label>
-                  <input
-                    type="text"
-                    required
-                    value={form.whatsapp}
-                    onChange={(e) => setForm({ ...form, whatsapp: e.target.value })}
-                    placeholder="(48) 99999-9999"
-                    className="w-full border border-slate-300 rounded-xl p-2.5 text-xs focus:outline-none focus:border-purple-600"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="font-bold text-xs text-slate-700 block mb-1">Turma Viver Mais *</label>
-                  <select
-                    value={form.turmaViverMais}
-                    onChange={(e) => setForm({ ...form, turmaViverMais: e.target.value })}
-                    className="w-full border border-slate-300 rounded-xl p-2.5 text-xs focus:outline-none focus:border-purple-600 bg-white"
-                  >
-                    {['22A', '22B', '23A', '23B', '24A', '24B', '25A', '25B', '26A', '26B'].map((t) => (
-                      <option key={t} value={t}>Turma {t}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="font-bold text-xs text-slate-700 block mb-1">Preferência de Atendimento *</label>
-                  <select
-                    value={form.atendimentoPreferencia}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        atendimentoPreferencia: e.target.value as 'PARTICULAR' | 'SOCIAL' | 'AMBOS',
-                      })
-                    }
-                    className="w-full border border-slate-300 rounded-xl p-2.5 text-xs focus:outline-none focus:border-purple-600 bg-white"
-                  >
-                    <option value="AMBOS">Particular e Social (Ambos)</option>
-                    <option value="PARTICULAR">Somente Particular</option>
-                    <option value="SOCIAL">Somente Social</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="font-bold text-xs text-slate-700 block mb-1.5">Turnos de atendimento *</label>
-                <div className="flex flex-wrap gap-2">
-                  {TURNOS.map(([valor, rotulo]) => {
-                    const marcado = form.disponibilidadeTurnos.includes(valor);
-                    return (
-                      <label
-                        key={valor}
-                        className={`cursor-pointer px-3 py-2 rounded-xl border text-xs font-bold transition-all ${
-                          marcado
-                            ? 'bg-purple-50 border-purple-500 text-purple-900'
-                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          className="sr-only"
-                          checked={marcado}
-                          onChange={() =>
-                            setForm((prev) => ({
-                              ...prev,
-                              disponibilidadeTurnos: marcado
-                                ? prev.disponibilidadeTurnos.filter((t) => t !== valor)
-                                : [...prev.disponibilidadeTurnos, valor],
-                            }))
-                          }
-                        />
-                        {rotulo}
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <BrazilLocationFields
-                estadoUf={form.estadoUf}
-                cidade={form.cidade}
-                onEstadoChange={(uf: string) => setForm((prev) => ({ ...prev, estadoUf: uf, cidade: '' }))}
-                onCidadeChange={(city: string) => setForm((prev) => ({ ...prev, cidade: city }))}
-              />
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="font-bold text-xs text-slate-700 block mb-1">Rua / logradouro *</label>
-                  <input required value={form.logradouro} onChange={(e) => setForm({ ...form, logradouro: e.target.value })} className="w-full border border-slate-300 rounded-xl p-2.5 text-xs focus:outline-none focus:border-purple-600" />
-                </div>
-                <div>
-                  <label className="font-bold text-xs text-slate-700 block mb-1">Bairro *</label>
-                  <input required value={form.bairro} onChange={(e) => setForm({ ...form, bairro: e.target.value })} className="w-full border border-slate-300 rounded-xl p-2.5 text-xs focus:outline-none focus:border-purple-600" />
-                </div>
-              </div>
-
-              <GenderFields
-                idPrefix="admin-psicologo"
-                gender={form.genero}
-                other={form.generoOutro}
-                onGenderChange={(g) => setForm((prev) => ({ ...prev, genero: g }))}
-                onOtherChange={(value) => setForm((prev) => ({ ...prev, generoOutro: value }))}
-              />
-
-              <div>
-                <label className="font-bold text-xs text-slate-700 block mb-1.5">Demandas específicas atendidas</label>
-                <div className="flex flex-wrap gap-1.5">
-                  {LISTA_NECESSIDADES.map((necessidade) => {
-                    const marcado = form.necessidadesAtendidas.includes(necessidade);
-                    return (
-                      <label
-                        key={necessidade}
-                        className={`cursor-pointer px-2.5 py-1.5 rounded-lg border text-[11px] font-bold transition-all ${
-                          marcado
-                            ? 'bg-purple-50 border-purple-400 text-purple-900'
-                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          className="sr-only"
-                          checked={marcado}
-                          onChange={() =>
-                            setForm((prev) => ({
-                              ...prev,
-                              especificarNecessidades: true,
-                              necessidadesAtendidas: marcado
-                                ? prev.necessidadesAtendidas.filter((n) => n !== necessidade)
-                                : [...prev.necessidadesAtendidas, necessidade],
-                            }))
-                          }
-                        />
-                        {necessidade}
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-2 border-t border-slate-100">
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs px-6 py-3 rounded-2xl transition-all disabled:opacity-60"
-                >
-                  {isSubmitting ? 'Cadastrando…' : 'Cadastrar Psicólogo'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="border border-slate-200 text-slate-600 font-extrabold text-xs px-6 py-3 rounded-2xl hover:bg-slate-50"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </form>
-          </div>
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-start justify-center p-4 overflow-y-auto">
+          <CadastroPsicologoForm
+            className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 space-y-6 my-8 border border-slate-200 shadow-2xl"
+            eyebrow="Cadastro pela gestão"
+            titulo="Cadastrar Psicólogo na Equipe"
+            descricao="Mesmo formulário público da vitrine. Entra como Em análise — aprove em seguida para liberar o acesso e o rodízio."
+            labelCancelar="Fechar"
+            labelEnviar="CADASTRAR PSICÓLOGO"
+            onCancelar={() => setIsModalOpen(false)}
+            onSucesso={async () => {
+              setIsModalOpen(false);
+              setStatusFilter('EM_ANALISE');
+              await loadPsicologos();
+            }}
+          />
         </div>
       )}
     </div>
@@ -1202,6 +967,8 @@ function ModalEdicao({
   const [necessidades, setNecessidades] = useState<string[]>([
     ...(psicologo.necessidadesAtendidas ?? []),
   ]);
+  const [publicoOutro, setPublicoOutro] = useState(psicologo.publicoAlvoOutro ?? '');
+  const [necessidadeOutra, setNecessidadeOutra] = useState(psicologo.necessidadesOutro ?? '');
   const [preferencia, setPreferencia] = useState(psicologo.atendimentoPreferencia ?? 'AMBOS');
   const [aviso, setAviso] = useState<string | null>(null);
 
@@ -1224,8 +991,10 @@ function ModalEdicao({
       turnosDisponiveis: turnos,
       servicosPrestados: servicos,
       publicoAlvo: publicos,
+      publicoAlvoOutro: publicoOutro.trim(),
       necessidadesAtendidas: necessidades,
-      especificarNecessidades: necessidades.length > 0,
+      necessidadesOutro: necessidadeOutra.trim(),
+      especificarNecessidades: necessidades.length > 0 || Boolean(necessidadeOutra.trim()),
       atendimentoPreferencia: preferencia,
     });
   };
@@ -1253,15 +1022,15 @@ function ModalEdicao({
             Turnos
           </label>
           <div className="flex flex-wrap gap-1.5">
-            {TURNOS.map(([valor, rotulo]) => (
-              <label key={valor} className={chip(turnos.includes(valor))}>
+            {TURNOS_PSICOLOGO.map((turno) => (
+              <label key={turno.value} className={chip(turnos.includes(turno.value))}>
                 <input
                   type="checkbox"
                   className="sr-only"
-                  checked={turnos.includes(valor)}
-                  onChange={() => setTurnos(alternar(turnos, valor))}
+                  checked={turnos.includes(turno.value)}
+                  onChange={() => setTurnos(alternar(turnos, turno.value))}
                 />
-                {rotulo}
+                {turno.label}
               </label>
             ))}
           </div>
@@ -1272,7 +1041,7 @@ function ModalEdicao({
             Serviços prestados
           </label>
           <div className="flex flex-wrap gap-1.5">
-            {SERVICOS.map((servico) => (
+            {comValoresRegistrados(SERVICOS_PRESTADOS, servicos).map((servico) => (
               <label key={servico} className={chip(servicos.includes(servico))}>
                 <input
                   type="checkbox"
@@ -1291,7 +1060,7 @@ function ModalEdicao({
             Público atendido
           </label>
           <div className="flex flex-wrap gap-1.5">
-            {PUBLICOS.map((publico) => (
+            {comValoresRegistrados(PUBLICO_ALVO, publicos).map((publico) => (
               <label key={publico} className={chip(publicos.includes(publico))}>
                 <input
                   type="checkbox"
@@ -1303,6 +1072,12 @@ function ModalEdicao({
               </label>
             ))}
           </div>
+          <input
+            value={publicoOutro}
+            onChange={(e) => setPublicoOutro(e.target.value)}
+            placeholder="Outro público declarado no cadastro"
+            className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-700 outline-none focus:border-purple-400"
+          />
         </div>
 
         <div>
@@ -1322,6 +1097,12 @@ function ModalEdicao({
               </label>
             ))}
           </div>
+          <input
+            value={necessidadeOutra}
+            onChange={(e) => setNecessidadeOutra(e.target.value)}
+            placeholder="Outra demanda declarada no cadastro"
+            className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-700 outline-none focus:border-purple-400"
+          />
           <p className="text-[10px] text-slate-400 mt-1.5">
             Lista vazia significa &quot;atende qualquer demanda&quot;, não &quot;nenhuma&quot;.
           </p>
@@ -1332,15 +1113,15 @@ function ModalEdicao({
             Tipo de atendimento
           </label>
           <div className="flex flex-wrap gap-1.5">
-            {(['PARTICULAR', 'SOCIAL', 'AMBOS'] as const).map((tipo) => (
-              <label key={tipo} className={chip(preferencia === tipo)}>
+            {TIPOS_ATENDIMENTO.map((tipo) => (
+              <label key={tipo.value} className={chip(preferencia === tipo.value)}>
                 <input
                   type="radio"
                   className="sr-only"
-                  checked={preferencia === tipo}
-                  onChange={() => setPreferencia(tipo)}
+                  checked={preferencia === tipo.value}
+                  onChange={() => setPreferencia(tipo.value as 'PARTICULAR' | 'SOCIAL' | 'AMBOS')}
                 />
-                {tipo}
+                {tipo.label}
               </label>
             ))}
           </div>

@@ -66,6 +66,7 @@ export interface TriagemPacienteRecord {
   protocolo: string;
   nomePaciente: string;
   telefone: string;
+  dataNascimento?: string;
   idade?: string;
   email?: string;
   cpf?: string;

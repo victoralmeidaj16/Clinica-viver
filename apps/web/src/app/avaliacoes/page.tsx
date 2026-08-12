@@ -3,7 +3,6 @@
 import React, { useState, useSyncExternalStore } from 'react';
 import AssessmentLibrary from '@/components/assessments/AssessmentLibrary';
 import LongitudinalGraph from '@/components/assessments/LongitudinalGraph';
-import AiClinicalInterpreter from '@/components/assessments/AiClinicalInterpreter';
 import ClinicalRiskAlertBanner from '@/components/assessments/ClinicalRiskAlertBanner';
 import {
   isSupportedAssessmentCode,
@@ -38,11 +37,6 @@ export default function AvaliacoesPage() {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  const handleImportToSoap = () => {
-    setToastMessage('Prévia copiada localmente. Nenhum prontuário foi alterado.');
-    setTimeout(() => setToastMessage(null), 4000);
-  };
-
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       {/* Toast Notification */}
@@ -62,7 +56,7 @@ export default function AvaliacoesPage() {
             Suíte de Avaliações Psicométricas & Escalas
           </h1>
           <p className="text-xs text-muted">
-            Catálogo completo de instrumentos psicométricos com correção e interpretação clínica assistida por IA.
+            Catálogo completo de instrumentos psicométricos para apoio à avaliação clínica.
           </p>
         </div>
       </div>
@@ -82,8 +76,6 @@ export default function AvaliacoesPage() {
         onSelectPatient={setSelectedPatientId}
       />
 
-      {/* 3. Interpretação Assistida por IA */}
-      <AiClinicalInterpreter onImportToSoap={handleImportToSoap} />
     </div>
   );
 }

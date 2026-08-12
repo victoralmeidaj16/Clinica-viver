@@ -39,7 +39,7 @@ export default function PatientList({ patients, onSelectForSession, onOpenNewPat
           </span>
           <h2 className="text-xl font-black">Prontuários & Lista de Pacientes</h2>
           <p className="text-xs text-white/80 max-w-xl">
-            Acompanhe o histórico de sessões, o plano terapêutico e inicie a automação pós-sessão SOAP com 1 clique para qualquer paciente.
+            Acompanhe o histórico de sessões e o plano terapêutico de cada paciente.
           </p>
         </div>
 
@@ -120,7 +120,7 @@ export default function PatientList({ patients, onSelectForSession, onOpenNewPat
               className="w-full btn-outline text-xs py-2.5 justify-center gap-2 group"
             >
               <Zap className="w-3.5 h-3.5 text-accent group-hover:scale-110 transition-transform" />
-              <span>Iniciar Sessão no Cockpit SOAP 1-Clique</span>
+              <span>Iniciar sessão no Cockpit</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>

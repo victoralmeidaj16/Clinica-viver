@@ -10,7 +10,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.115.0",
     "@thats-life/core": "*",
     "lucide-react": "^0.475.0",
     "mysql2": "^3.23.2",

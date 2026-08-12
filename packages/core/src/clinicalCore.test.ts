@@ -6,7 +6,6 @@ import {
   GAD7_INSTRUMENT,
   PHQ9_INSTRUMENT,
 } from './assessments';
-import { buildSoapPrompt } from './soapEngine';
 import {
   completeAssessment,
   createAssessmentAssignment,
@@ -152,19 +151,6 @@ describe('anonymizeClinicalNote', () => {
     expect(result.textAnonymized).not.toContain('11122233344');
     expect(result.textAnonymized).not.toContain('psi@example.com');
     expect(result.piiRemovedCount).toBe(4);
-  });
-});
-
-describe('buildSoapPrompt', () => {
-  it('proíbe a fabricação de observações indisponíveis no áudio', () => {
-    const prompt = buildSoapPrompt({
-      patientReference: 'PAC-001',
-      transcription: 'Paciente relata ansiedade antes de reuniões.',
-    });
-
-    expect(prompt).toContain('Não invente contato visual');
-    expect(prompt).toContain('revisão obrigatória');
-    expect(prompt).toContain('PAC-001');
   });
 });
 

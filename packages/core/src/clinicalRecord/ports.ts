@@ -1,9 +1,7 @@
 import type {
-  AiDraftProvenance,
   ClinicalRecord,
   ClinicalRecordEvent,
   ClinicalRecordStatus,
-  SoapClinicalContent,
 } from './types';
 
 export interface ClinicalRecordFilter {
@@ -37,19 +35,6 @@ export interface ClinicalRecordRepository {
   ): Promise<ClinicalRecord | null>;
   list(filter: ClinicalRecordFilter): Promise<readonly ClinicalRecord[]>;
   commit(input: CommitClinicalRecordInput): Promise<void>;
-}
-
-export interface ClinicalRecordDraftProviderPort {
-  generateSoapDraft(input: {
-    organizationId: string;
-    sessionId: string;
-    patientReference: string;
-    transcriptionId: string;
-    previousApprovedRevision?: SoapClinicalContent;
-  }): Promise<{
-    content: SoapClinicalContent;
-    provenance: AiDraftProvenance;
-  }>;
 }
 
 export interface ClinicalRecordContentProtectionPort {

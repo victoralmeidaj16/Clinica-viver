@@ -36,7 +36,6 @@ export interface RegistroHumor {
 
 export * from './anonymizer';
 export * from './evolutionApi';
-export * from './soapEngine';
 export * from './assessments';
 export * from './assessmentAiInterpreter';
 export * from './assessmentsCatalog';

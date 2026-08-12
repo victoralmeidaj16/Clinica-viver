@@ -1,20 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import ClinicalSynthesisInput from '@/components/cockpit/ClinicalSynthesisInput';
-import SoapEditor from '@/components/cockpit/SoapEditor';
-import OneClickApprovalModal from '@/components/cockpit/OneClickApprovalModal';
+import { useState } from 'react';
 import {
-  endSessionAndGenerateDraft,
-  fetchReviewSessions,
-  type PostSessionResult,
-  type ReviewSession,
-} from '@/lib/postSessionApi';
-import { buildSoapView, type SoapView } from '@/lib/soapAiEngine';
-import {
-  AlertTriangle,
   CheckCircle2,
-  Sparkles,
   Zap,
   Clock,
   Check,
@@ -26,7 +14,6 @@ import {
   Lock,
 } from 'lucide-react';
 
-import { CockpitHeroCard } from '@/components/cockpit/CockpitHeroCard';
 
 /**
  * Horário de alocação do lead de demonstração: três horas atrás, para o
@@ -37,13 +24,6 @@ import { CockpitHeroCard } from '@/components/cockpit/CockpitHeroCard';
 const LEAD_ALOCADO_EM = new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString();
 
 export default function CockpitPage() {
-  const [sessions, setSessions] = useState<ReviewSession[]>([]);
-  const [selectedSessionId, setSelectedSessionId] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [soapView, setSoapView] = useState<SoapView | null>(null);
-
   // Modal de Adicionar Paciente Manual (Psicólogo)
   const [modalNovoPaciente, setModalNovoPaciente] = useState(false);
   const [temNomeSocialManual, setTemNomeSocialManual] = useState(false);
@@ -81,79 +61,8 @@ export default function CockpitPage() {
 
   const [copiedLink, setCopiedLink] = useState(false);
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalSoap, setModalSoap] = useState<SoapView | null>(null);
-  const [modalSummary, setModalSummary] = useState('');
-  const [modalTasks, setModalTasks] = useState<string[]>([]);
-  const [shareWithPatient, setShareWithPatient] = useState(true);
-  const [sendWhatsApp, setSendWhatsApp] = useState(true);
-  const [outcome, setOutcome] = useState<PostSessionResult | null>(null);
-
   // Estado da Aba Ativa no Cockpit da Viver Mais
-  const [activeTab, setActiveTab] = useState<'LEADS' | 'PACIENTES' | 'AGENDA' | 'DESCONTO' | 'SOAP'>('LEADS');
-
-  const applyQueue = useCallback((queue: ReviewSession[]) => {
-    setSessions(queue);
-    setSelectedSessionId((current) =>
-      queue.some((item) => item.sessionId === current) ? current : queue[0]?.sessionId ?? ''
-    );
-    setError(null);
-  }, []);
-
-  const loadSessions = useCallback(async () => {
-    try {
-      applyQueue(await fetchReviewSessions());
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Falha ao carregar a fila.');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [applyQueue]);
-
-  useEffect(() => {
-    let mounted = true;
-    fetchReviewSessions()
-      .then((queue) => { if (mounted) applyQueue(queue); })
-      .catch((caught: unknown) => {
-        if (mounted) setError(caught instanceof Error ? caught.message : 'Falha ao carregar a fila.');
-      })
-      .finally(() => { if (mounted) setIsLoading(false); });
-    return () => { mounted = false; };
-  }, [applyQueue]);
-
-  const selectedSession = sessions.find((item) => item.sessionId === selectedSessionId) ?? null;
-
-  const handleSelectSession = (sessionId: string) => {
-    setSelectedSessionId(sessionId);
-    setSoapView(null);
-  };
-
-  const handleGenerateSoap = async (synthesis: string) => {
-    if (!selectedSession) {
-      setError('Selecione uma sessão antes de gerar o prontuário.');
-      return;
-    }
-    if (!synthesis.trim()) {
-      setError('Registre uma síntese clínica antes de pedir a minuta SOAP.');
-      return;
-    }
-    setIsProcessing(true);
-    try {
-      await endSessionAndGenerateDraft(selectedSession.sessionId, synthesis.trim());
-      const queue = await fetchReviewSessions();
-      applyQueue(queue);
-      const updated = queue.find((session) => session.sessionId === selectedSession.sessionId);
-      if (!updated?.draftContent) {
-        throw new Error('A minuta SOAP não ficou disponível para revisão. Tente recarregar a fila.');
-      }
-      setSoapView(buildSoapView(updated));
-      setError(null);
-    } catch (generationError) {
-      setError(generationError instanceof Error ? generationError.message : 'Não foi possível gerar a minuta SOAP.');
-    } finally {
-      setIsProcessing(false);
-    }
-  };
+  const [activeTab, setActiveTab] = useState<'LEADS' | 'PACIENTES' | 'AGENDA' | 'DESCONTO'>('LEADS');
 
   const handleConfirmContact = async () => {
     const linkUrl = `https://vivermaispsicologia.com.br/p/PAY-${Math.floor(10000 + Math.random() * 90000)}`;
@@ -199,39 +108,8 @@ export default function CockpitPage() {
     setManualPaciente({ nome: '', nomeSocial: '', telefone: '', cpf: '', modalidade: 'ACESSIVEL_SOCIAL', valorFixado: 75.00, duracaoFixada: 50 });
   };
 
-  const handleOpenOneClickModal = (
-    finalSoap: SoapView, summary: string, tasks: string[], share: boolean, whatsApp: boolean
-  ) => {
-    setModalSoap(finalSoap);
-    setModalSummary(summary);
-    setModalTasks(tasks);
-    setShareWithPatient(share);
-    setSendWhatsApp(whatsApp);
-    setIsModalOpen(true);
-  };
-
-  const handleSuccessFinish = async (result: PostSessionResult) => {
-    setOutcome(result);
-    setSoapView(null);
-    await loadSessions();
-  };
-
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setModalSoap(null);
-  };
-
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
-      {outcome ? <OutcomeBanner result={outcome} onDismiss={() => setOutcome(null)} /> : null}
-
-      {error ? (
-        <div className="flex items-center gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-900">
-          <AlertTriangle className="h-5 w-5 shrink-0" />
-          <p className="text-xs font-semibold">{error}</p>
-        </div>
-      ) : null}
-
       {/* Header Principal */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -309,18 +187,6 @@ export default function CockpitPage() {
           4. Desconto na Mensalidade
         </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('SOAP')}
-          className={`flex-1 min-w-[140px] px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 ${
-            activeTab === 'SOAP'
-              ? 'bg-psi-vibrant text-white shadow-md'
-              : 'text-muted hover:text-ink hover:bg-slate-50'
-          }`}
-        >
-          <Sparkles className="w-4 h-4" />
-          5. Cockpit SOAP & IA
-        </button>
       </div>
 
       {/* MODAL ADICIONAR PACIENTE MANUAL (PSICÓLOGO) */}
@@ -743,81 +609,6 @@ export default function CockpitPage() {
         </div>
       )}
 
-      {/* CONTEÚDO DA ABA 5: COCKPIT SOAP & IA */}
-      {activeTab === 'SOAP' && (
-        <>
-          <CockpitHeroCard />
-
-          {isLoading ? (
-            <div className="card py-12 text-center text-xs text-muted">Carregando fila de revisão...</div>
-          ) : sessions.length === 0 ? (
-            <div className="card py-12 text-center text-xs text-muted">
-              Nenhuma sessão encerrada aguardando revisão.
-            </div>
-          ) : (
-            <>
-              <ClinicalSynthesisInput
-                sessions={sessions}
-                selectedSessionId={selectedSessionId}
-                onSelectSession={handleSelectSession}
-                onGenerateSoap={handleGenerateSoap}
-                isProcessing={isProcessing}
-              />
-
-
-
-              <SoapEditor
-                key={selectedSessionId}
-                soapView={soapView}
-                patientName={selectedSession?.patientName ?? ''}
-                onOpenOneClickModal={handleOpenOneClickModal}
-              />
-            </>
-          )}
-        </>
-      )}
-
-      {modalSoap ? (
-        <OneClickApprovalModal
-          isOpen={isModalOpen}
-          onClose={handleCloseModal}
-          soapView={modalSoap}
-          summary={modalSummary}
-          tasks={modalTasks}
-          patientName={selectedSession?.patientName ?? ''}
-          shareWithPatient={shareWithPatient}
-          sendWhatsApp={sendWhatsApp}
-          onSuccessFinish={handleSuccessFinish}
-        />
-      ) : null}
-    </div>
-  );
-}
-
-function OutcomeBanner({ result, onDismiss }: { result: PostSessionResult; onDismiss: () => void }) {
-  const partial = !result.completed;
-  return (
-    <div
-      className={`flex items-center justify-between gap-4 rounded-2xl p-4 text-white shadow-xl ${
-        partial ? 'bg-amber-500' : 'bg-emerald-600'
-      }`}
-    >
-      <div className="flex items-center gap-3">
-        {partial ? <AlertTriangle className="h-6 w-6 shrink-0" /> : <CheckCircle2 className="h-6 w-6 shrink-0" />}
-        <div>
-          <p className="text-sm font-extrabold">
-            {partial ? 'Automação concluída parcialmente' : 'Automação Pós-Sessão Concluída ⚡'}
-          </p>
-          <p className="text-xs opacity-90">
-            {partial
-              ? `Prontuário aprovado e preservado. Etapa pendente: ${result.failedStep?.step ?? 'desconhecida'} — ${result.failedStep?.message ?? ''}`
-              : `Revisão ${result.approvedRevisionNumber} aprovada, ${result.timelineEntries} entradas na linha do tempo e ${result.handoffTasks} tarefa(s) entregue(s).`}
-          </p>
-        </div>
-      </div>
-      <button type="button" onClick={onDismiss} className="shrink-0 text-xs font-bold underline">
-        Fechar
-      </button>
     </div>
   );
 }

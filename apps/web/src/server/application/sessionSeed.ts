@@ -6,7 +6,7 @@ import {
 } from '@thats-life/core';
 
 const CONSENT_TYPES: readonly SessionConsentType[] = [
-  'recording', 'ai_processing', 'patient_handoff', 'transactional_communication',
+  'recording', 'patient_handoff', 'transactional_communication',
 ];
 
 export interface SessionSeedInput {
@@ -83,7 +83,7 @@ export function seedSessionAwaitingReview(
       id: input.recordId, revisionId: `${input.recordId}-rev-1`, organizationId: input.organizationId,
       patientId: input.patientId, sessionId: input.sessionId,
       responsibleProfessionalId: input.professionalId, assignedProfessionalIds: [input.professionalId],
-      source: 'ai_assisted',
+      source: 'manual',
       content: {
         subjective: 'Paciente relata semana com oscilações de ansiedade ligadas à rotina de trabalho e dificuldade para desacelerar à noite.',
         objective: 'Apresentou-se orientada, colaborativa, com discurso organizado e afeto congruente ao relato.',
@@ -93,9 +93,6 @@ export function seedSessionAwaitingReview(
           'Registrar três momentos positivos do dia',
           'Praticar respiração diafragmática por cinco minutos antes de dormir',
         ],
-      },
-      aiProvenance: {
-        provider: 'demo', model: 'demo-soap', promptVersion: '2026-07', transcriptionId, generatedAt: at(53),
       },
       retentionUntil: new Date(Date.parse(input.scheduledStart) + 5 * 365 * 24 * 60 * 60 * 1000).toISOString(),
       createdAt: draftCreatedAt,

@@ -347,8 +347,6 @@ lógica real e o que apenas parece executá-la.
 | Regras clínicas, financeiras, agenda, identidade e prontuário | Implementadas e testadas (85 testes) |
 | Automação pós-sessão de ponta a ponta | Funcional |
 | Interfaces web e mobile | Navegáveis |
-| **Geração de SOAP por IA** | **Real.** Claude redige o rascunho a partir da transcrição. Requer `AI_PROVIDER_API_KEY` |
-| **Copiloto de sessão** | **Real.** Responde sobre a transcrição acumulada até o instante da consulta. Requer `AI_PROVIDER_API_KEY` |
 | **Diarização (quem falou o quê)** | **Real.** Identificação de profissional e paciente com calibração |
 | Áudio da consulta | Não capturado. As falas vêm de transcrições de demonstração |
 | Painel operacional consolidado | API funcional; ainda não possui uma página dedicada na interface |

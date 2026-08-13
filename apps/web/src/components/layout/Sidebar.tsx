@@ -146,11 +146,11 @@ export default function Sidebar({
       // de deslizar. Em `lg` ele é sempre visível, independente do estado.
       className={`bg-psi-darkest text-white flex flex-col justify-between select-none shadow-contrast z-50
         fixed inset-y-0 left-0 w-[17rem] max-w-[85vw] transition-[transform,visibility] duration-300
-        lg:sticky lg:top-0 lg:z-40 lg:visible lg:translate-x-0 lg:max-w-none lg:h-screen
+        lg:sticky lg:top-0 lg:bottom-auto lg:shrink-0 lg:z-40 lg:visible lg:translate-x-0 lg:max-w-none lg:h-screen
         ${aberto ? 'translate-x-0 visible' : '-translate-x-full invisible'}
         ${colapsado ? 'lg:w-20' : 'lg:w-64'}`}
     >
-      <div className="overflow-y-auto no-scrollbar">
+      <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
         {/* Header do Menu com Branding Viver Mais */}
         <div className="h-16 sm:h-20 px-4 flex items-center justify-between border-b border-white/10 relative">
           <div className="flex items-center gap-3 overflow-hidden">

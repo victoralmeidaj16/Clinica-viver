@@ -19,6 +19,23 @@ export function calcularSplit7030(valorTotal: number): { creditoAluno: number; r
 }
 
 /**
+ * A mesma divisão 70/30, sobre centavos inteiros.
+ *
+ * O razão financeiro (`financial/`) trafega em `MoneyCents` do banco à tela, e
+ * converter para reais só para dividir reintroduziria justamente o erro de
+ * arredondamento que os centavos evitam. A clínica fica com a sobra da divisão
+ * — não por privilégio, mas porque um dos dois lados precisa ficar, e assim as
+ * duas parcelas sempre somam exatamente o valor recebido.
+ */
+export function dividirSplit7030Centavos(valorCentavos: number): {
+  creditoPsicologoCents: number;
+  receitaClinicaCents: number;
+} {
+  const creditoPsicologoCents = Math.round(valorCentavos * 0.7);
+  return { creditoPsicologoCents, receitaClinicaCents: valorCentavos - creditoPsicologoCents };
+}
+
+/**
  * Calcula a data de vencimento da cobrança (24h antes da sessão se for PRE_SESSAO_24H).
  */
 export function calcularVencimentoCobranca(dataSessaoIso?: string, modo: ModoAgendamentoCobranca = 'PRE_SESSAO_24H'): string {

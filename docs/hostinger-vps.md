@@ -51,6 +51,26 @@ SHA informado corresponda exatamente aos arquivos enviados.
 `MYSQL_ADMIN_URL` deve existir exclusivamente no `.env` da VPS e é consumida
 no container efêmero de migration; nunca a defina na Vercel.
 
+### Certificado A1 para NFS-e
+
+O certificado não é sincronizado pelo deploy. Na VPS, ele fica em
+`/opt/viver-mais/secrets/nfse`, com permissões restritas, e é montado como
+somente leitura em `/run/secrets/nfse` no container `web`. No `.env` do
+Compose, use o caminho **interno** ao container:
+
+```sh
+NFSE_CERT_HOST_DIR=/opt/viver-mais/secrets/nfse
+NFSE_CERT_PFX_PATH=/run/secrets/nfse/certificado.pfx
+NFSE_CERT_PASSWORD=<senha do A1>
+NFSE_AMBIENTE=producao_restrita
+NFSE_DPS_SERIE=1
+NFSE_VERSAO_APLICATIVO=viver-mais-1.0
+```
+
+Nunca copie o `.pfx` para `/opt/viver-mais` fora de `secrets/`, nem para a
+Vercel. A migração `020_nfse_dps.sql` precisa estar aplicada antes de liberar
+o botão de emissão.
+
 Depois do deploy, valide com a credencial de infraestrutura:
 
 ```sh

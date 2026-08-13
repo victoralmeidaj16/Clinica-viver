@@ -19,7 +19,11 @@ export function proxy(request: NextRequest) {
     return NextResponse.rewrite(destination);
   }
 
-  const publicPage = pathname === '/' || pathname === '/login' || pathname === '/ativar-conta' || pathname === '/vitrine' || pathname.startsWith('/_next') || pathname.startsWith('/api/auth');
+  // `/pagar/` é o link permanente de cobrança: o paciente não tem sessão, e é
+  // esse o ponto. Sem estar aqui, a VPS redireciona para o login quem recebeu
+  // o link no WhatsApp — a Vercel não mostrava o problema porque devolve
+  // `next()` antes desta checagem.
+  const publicPage = pathname === '/' || pathname === '/login' || pathname === '/ativar-conta' || pathname === '/vitrine' || pathname.startsWith('/pagar/') || pathname.startsWith('/_next') || pathname.startsWith('/api/auth');
   if (publicPage || pathname.startsWith('/api/')) return NextResponse.next();
   // Na Vercel o domínio público é apenas um proxy para a VPS. A sessão é
   // assinada e validada pelo backend da VPS; tentar validá-la novamente com
@@ -36,7 +40,7 @@ export function proxy(request: NextRequest) {
   // `/meu-cadastro` é o destino do fluxo de ativação de conta: sem estar nesta
   // lista, o psicólogo que acabava de definir a senha era redirecionado para
   // `/cockpit` no exato momento em que deveria ver o próprio perfil.
-  const professionalPage = ['/cockpit', '/pacientes', '/meu-financeiro', '/agenda', '/avaliacoes', '/sessao', '/meu-cadastro'].some((prefix) => pathname.startsWith(prefix));
+  const professionalPage = ['/cockpit', '/pacientes', '/meu-financeiro', '/agenda', '/sessao', '/meu-cadastro'].some((prefix) => pathname.startsWith(prefix));
   const allowed = session.role === 'admin' ? adminPage : professionalPage;
   if (!allowed) return NextResponse.redirect(new URL(session.role === 'admin' ? '/gestao/cockpit' : '/cockpit', request.url));
   return NextResponse.next();

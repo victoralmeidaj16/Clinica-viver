@@ -48,6 +48,7 @@ export * from './clinicalRecord';
 export * from './scheduling';
 export * from './communication';
 export * from './clinicalTimeline';
+export * from './fiscal';
 
 // Viver Mais Psicologia Core Domain
 export * from './viverMaisTypes';

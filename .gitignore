@@ -28,6 +28,15 @@ coverage/
 *.key
 !*.pub
 
+# Certificado A1 da ICP-Brasil (NFS-e). Um .pfx carrega a chave privada da
+# empresa: quem tem o arquivo e a senha assina nota fiscal em nome do CNPJ.
+# Commitar uma vez basta para que ele fique no histórico para sempre, e a
+# única correção é revogar o certificado na AC e comprar outro.
+*.pfx
+*.p12
+*.cer
+*.crt
+
 # Logs
 *.log
 npm-debug.log*

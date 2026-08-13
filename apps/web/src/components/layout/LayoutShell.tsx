@@ -19,8 +19,12 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   // confirmação de 24h depender de lembrar uma senha no meio de uma conversa —
   // quem autoriza a página é o token assinado no próprio link.
   const isConfirmacaoContato = pathname.startsWith('/confirmar-contato/');
+  // Quem paga é o paciente, que não tem conta no sistema. Exigir sessão no link
+  // permanente jogaria no login exatamente a pessoa que o link foi criado para
+  // atender — quem autoriza a página é o próprio endereço.
+  const isPaginaPagamento = pathname.startsWith('/pagar/');
   const isPublicPage =
-    pathname === '/login' || pathname === '/ativar-conta' || pathname === '/' || isVitrinePage || isConfirmacaoContato;
+    pathname === '/login' || pathname === '/ativar-conta' || pathname === '/' || isVitrinePage || isConfirmacaoContato || isPaginaPagamento;
 
   useEffect(() => {
     if (isPublicPage) {
@@ -39,7 +43,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   useEffect(() => {
     if (!auth || isPublicPage) return;
     const adminPage = ['/gestao', '/relatorios', '/convenios', '/retencao', '/configuracoes'].some((prefix) => pathname.startsWith(prefix));
-    const professionalPage = ['/cockpit', '/meu-cadastro', '/pacientes', '/meu-financeiro', '/agenda', '/avaliacoes', '/sessao'].some((prefix) => pathname.startsWith(prefix));
+    const professionalPage = ['/cockpit', '/meu-cadastro', '/pacientes', '/meu-financeiro', '/agenda', '/sessao'].some((prefix) => pathname.startsWith(prefix));
     const allowed = auth.role === 'admin' ? adminPage : professionalPage;
     if (!allowed) router.replace(auth.role === 'admin' ? '/gestao/cockpit' : '/cockpit');
   }, [auth, isPublicPage, pathname, router]);

@@ -8,7 +8,6 @@ import {
   Users,
   UserCheck,
   CreditCard,
-  ClipboardList,
   Brain,
   CalendarDays,
   ChevronLeft,
@@ -76,11 +75,6 @@ export default function Sidebar({
       icon: CalendarDays,
     },
     {
-      label: 'Avaliações & Escalas',
-      href: '/avaliacoes',
-      icon: ClipboardList,
-    },
-    {
       label: 'Site / Vitrine de Serviços',
       href: '/vitrine',
       icon: Sparkles,
@@ -102,6 +96,11 @@ export default function Sidebar({
       label: 'Cockpit da Clínica (SLA)',
       href: '/gestao/cockpit',
       icon: Shield,
+    },
+    {
+      label: 'Financeiro & Repasses',
+      href: '/gestao/financeiro',
+      icon: CreditCard,
     },
     {
       label: 'Site / Vitrine de Serviços',

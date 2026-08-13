@@ -14,11 +14,50 @@ import {
   Clock,
   Filter,
   Search,
+  Copy,
+  Share2,
+  ExternalLink,
+  QrCode,
+  Check,
 } from 'lucide-react';
+import {
+  MODALIDADES_PAGAMENTO,
+  reaisDeCentavos,
+  type ModalidadePagamento,
+  type ModalidadePagamentoSlug,
+} from '@/lib/modalidadesPagamento';
 
 export default function MeuFinanceiroPage() {
   const [dataInicio, setDataInicio] = useState('2026-08-01');
   const [dataFim, setDataFim] = useState('2026-08-31');
+  // Qual das duas modalidades acabou de ser copiada, para o "Copiado!" aparecer
+  // no botão certo — um estado booleano só acenderia os dois ao mesmo tempo.
+  const [linkCopiado, setLinkCopiado] = useState<ModalidadePagamentoSlug | null>(null);
+
+  // Link permanente do psicólogo logado (slug dinâmico)
+  const psicologoSlug = 'dr-lucas-silva';
+  const origem = typeof window !== 'undefined'
+    ? window.location.origin
+    : 'https://app.clinicavivermais.cloud';
+
+  const linkDaModalidade = (modalidade: ModalidadePagamento) =>
+    `${origem}/pagar/${psicologoSlug}/${modalidade.slug}`;
+
+  const handleCopiarLink = (modalidade: ModalidadePagamento) => {
+    void navigator.clipboard.writeText(linkDaModalidade(modalidade));
+    setLinkCopiado(modalidade.slug);
+    window.setTimeout(() => setLinkCopiado(null), 3000);
+  };
+
+  // O valor vai escrito na mensagem, e não só embutido no link: o paciente
+  // precisa poder conferir o que combinou antes de abrir qualquer página.
+  const handleEnviarWhatsapp = (modalidade: ModalidadePagamento) => {
+    const texto = encodeURIComponent(
+      `Olá! Segue o link seguro para o pagamento da nossa consulta de psicoterapia ` +
+      `(${modalidade.rotulo} — ${reaisDeCentavos(modalidade.valorCentavos)}), via Pix ou cartão:\n👉 ${linkDaModalidade(modalidade)}`
+    );
+    window.open(`https://wa.me/?text=${texto}`, '_blank');
+  };
 
   const [extrato] = useState({
     alunoNome: 'Dr. Lucas Silva (Pós-Graduação)',
@@ -109,6 +148,90 @@ export default function MeuFinanceiroPage() {
           Exportar Relatório (CSV)
         </button>
       </div>
+
+      {/* BANNER DOS LINKS PERMANENTES DE PAGAMENTO DO PSICÓLOGO */}
+      <div className="bg-gradient-to-r from-emerald-900/90 via-slate-900 to-teal-900 text-white p-6 rounded-3xl border border-emerald-500/30 shadow-xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 space-y-5">
+          <div className="space-y-1.5 max-w-2xl">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 uppercase tracking-wider">
+              <QrCode className="w-3.5 h-3.5" />
+              Seus Links Permanentes de Recebimento
+            </div>
+            <h2 className="text-lg font-black text-white">Um link para cada valor de sessão</h2>
+            <p className="text-xs text-slate-300">
+              Envie ao paciente o link da modalidade combinada. O valor já vai fixo na página — não
+              há o que escolher errado. O pagamento cai no Asaas por Pix ou cartão e os 70% de
+              crédito são contabilizados automaticamente.
+            </p>
+          </div>
+
+          {/* Um cartão por modalidade: o valor é o que identifica o link. */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {MODALIDADES_PAGAMENTO.map((modalidade) => (
+              <div
+                key={modalidade.slug}
+                className="bg-slate-950/60 border border-slate-700/80 rounded-2xl p-4 space-y-3"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-400 block">
+                      {modalidade.rotulo}
+                    </span>
+                    <span className="text-xl font-black text-white">
+                      {reaisDeCentavos(modalidade.valorCentavos)}
+                    </span>
+                  </div>
+                  <a
+                    href={linkDaModalidade(modalidade)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2.5 rounded-2xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all shrink-0"
+                    title={`Abrir a página de pagamento — ${modalidade.rotulo}`}
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
+                </div>
+
+                <div className="bg-slate-950/80 border border-slate-700/80 rounded-xl px-3 py-2 text-[11px] font-mono text-emerald-300 truncate">
+                  {linkDaModalidade(modalidade)}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleCopiarLink(modalidade)}
+                    className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs px-4 py-2.5 rounded-2xl shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    {linkCopiado === modalidade.slug ? (
+                      <>
+                        <Check className="w-4 h-4" />
+                        Copiado!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4" />
+                        Copiar Link
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleEnviarWhatsapp(modalidade)}
+                    className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-extrabold text-xs px-4 py-2.5 rounded-2xl border border-slate-600 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Share2 className="w-4 h-4 text-emerald-400" />
+                    Enviar WhatsApp
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
 
       {/* FILTRO DE PERÍODO COM DATAS (SOLICITADO POR GIULIANA) */}
       <form onSubmit={handleFiltrarPeriodo} className="bg-surface p-5 rounded-3xl border border-line shadow-card flex flex-col sm:flex-row sm:items-end justify-between gap-4 text-xs">

@@ -117,7 +117,7 @@ export default function ConveniosPage() {
   <div class="total-row">Valor Total Consolidado a Pagar: R$ ${projeto.faturamentoTotal.toFixed(2)}</div>
 
   <div class="footer">
-    Documento emitido para fins de faturamento e comprovação fiscal — Viver Mais Psicologia (CNPJ 48.912.830/0001-12)
+    Documento emitido para fins de faturamento e comprovação fiscal — Viver Mais Psicologia (CNPJ 19.440.737/0001-53)
   </div>
 
   <script>window.onload = function() { setTimeout(function() { window.print(); }, 400); };</script>

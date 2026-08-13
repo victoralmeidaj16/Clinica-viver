@@ -21,6 +21,7 @@ rsync -az --delete \
   --exclude '.git/' \
   --exclude '.env' \
   --exclude '.env.*' \
+  --exclude 'secrets/' \
   --exclude 'node_modules/' \
   --exclude '.next/' \
   --exclude '.demo-state/' \

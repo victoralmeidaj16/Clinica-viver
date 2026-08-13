@@ -41,6 +41,9 @@ services:
       - "127.0.0.1:3000:3000"
     volumes:
       - clinic_state:/app/.demo-state
+      # Certificados fiscais ficam fora do repositório e entram somente como
+      # leitura no container. O caminho do host é definido no `.env` da VPS.
+      - ${NFSE_CERT_HOST_DIR:-/opt/viver-mais/secrets/nfse}:/run/secrets/nfse:ro
     networks:
       - clinic
       - evolution

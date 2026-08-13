@@ -16,10 +16,6 @@ const SORT_LABEL: Record<SortKey, string> = {
 
 /**
  * Rótulo do convênio para agrupar e filtrar.
- *
- * A triagem grava `convenioSelecionado: 'Nenhum'` por padrão e `possuiConvenio`
- * como texto do formulário. Normalizar aqui evita que "Nenhum", vazio e
- * ausente virem três categorias diferentes na mesma lista.
  */
 function agreementOf(patient: ManagedPatient): string {
   const value = patient.convenioSelecionado?.trim();
@@ -32,10 +28,10 @@ const statusLabel: Record<PatientManagementStatus, string> = {
 };
 
 const statusClass: Record<PatientManagementStatus, string> = {
-  EM_TRIAGEM: 'bg-amber-50 text-amber-800 border-amber-200',
-  ATIVO: 'bg-teal-50 text-teal-800 border-teal-200',
-  ALTA: 'bg-blue-50 text-blue-800 border-blue-200',
-  DESISTENTE: 'bg-rose-50 text-rose-800 border-rose-200',
+  EM_TRIAGEM: 'bg-amber-500/10 text-amber-800 border-amber-500/30',
+  ATIVO: 'bg-psi-soft text-psi-deep border-psi-vibrant/30 font-bold',
+  ALTA: 'bg-sky-500/10 text-sky-800 border-sky-500/30',
+  DESISTENTE: 'bg-rose-500/10 text-rose-800 border-rose-500/30',
 };
 
 export default function GestaoPacientesPage() {
@@ -75,7 +71,6 @@ export default function GestaoPacientesPage() {
 
   const filtered = useMemo(() => {
     const query = search.trim().toLocaleLowerCase('pt-BR');
-    // `to` é o dia inteiro: quem filtra "até 10/08" espera incluir o dia 10.
     const fromTime = from ? Date.parse(`${from}T00:00:00`) : null;
     const toTime = to ? Date.parse(`${to}T23:59:59.999`) : null;
 
@@ -94,15 +89,11 @@ export default function GestaoPacientesPage() {
         && (!unassignedOnly || patient.slaStatus === 'SEM_ALOCACAO');
     });
 
-    // Ordenação estável e explícita. Antes a lista saía na ordem em que o
-    // backend devolvia, então "quem está esperando há mais tempo" — a pergunta
-    // mais frequente da tela — não tinha resposta.
     return [...visible].sort((a, b) => {
       if (sort === 'NOME') return a.nome.localeCompare(b.nome, 'pt-BR');
       if (sort === 'ENTRADA') {
         return (b.criadoEm ? Date.parse(b.criadoEm) : 0) - (a.criadoEm ? Date.parse(a.criadoEm) : 0);
       }
-      // Sem alocação vem antes de qualquer espera: é o caso que não anda sozinho.
       const peso = (item: ManagedPatient) =>
         item.slaStatus === 'SEM_ALOCACAO' ? Number.MAX_SAFE_INTEGER : item.horasEspera;
       return peso(b) - peso(a);
@@ -128,68 +119,257 @@ export default function GestaoPacientesPage() {
 
   return (
     <div className="mx-auto max-w-[1500px] space-y-5">
-      <header className="relative overflow-hidden rounded-[28px] bg-slate-950 p-7 text-white shadow-xl">
-        <div className="absolute -right-16 -top-20 h-64 w-64 rounded-full border-[42px] border-teal-400/10" />
+      {/* Header do Gestão de Pacientes no Branding da Plataforma */}
+      <header className="relative overflow-hidden rounded-[28px] bg-psi-darkest p-6 sm:p-7 text-white shadow-contrast">
+        <div className="absolute -right-16 -top-20 h-64 w-64 rounded-full border-[42px] border-psi-vibrant/15 pointer-events-none" />
+        <div className="absolute -left-20 -bottom-20 h-48 w-48 rounded-full bg-psi-vibrant/10 blur-2xl pointer-events-none" />
+
         <div className="relative flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
           <div>
-            <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-teal-300"><ShieldCheck className="h-4 w-4" /> Operação sem acesso ao prontuário</p>
-            <h1 className="mt-3 font-serif text-4xl font-bold tracking-tight">Gestão de pacientes</h1>
-            <p className="mt-2 max-w-2xl text-sm text-slate-400">Da primeira triagem ao acompanhamento: alocação, espera, agenda e situação financeira em uma única fila operacional.</p>
+            <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-psi-vibrant">
+              <ShieldCheck className="h-4 w-4 text-psi-vibrant" /> Operação sem acesso ao prontuário
+            </p>
+            <h1 className="mt-2 text-3xl sm:text-4xl font-extrabold tracking-tight text-white">
+              Gestão de Pacientes
+            </h1>
+            <p className="mt-2 max-w-2xl text-xs sm:text-sm text-psi-soft/80 leading-relaxed">
+              Da primeira triagem ao acompanhamento: alocação, espera, agenda e situação financeira em uma única fila operacional.
+            </p>
           </div>
-          <div className="grid grid-cols-3 gap-2">
-            <Kpi label="Ativos" value={active} icon={UsersRound} tone="text-teal-300" />
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
+            <Kpi label="Ativos" value={active} icon={UsersRound} tone="text-psi-vibrant" />
             <Kpi label="SLA +24h" value={overdue} icon={Clock3} tone="text-amber-300" />
             <Kpi label="Sem alocação" value={unassigned} icon={UserRoundX} tone="text-rose-300" />
           </div>
         </div>
       </header>
 
-      <section className="rounded-2xl border border-stone-200 bg-[#fbfaf7] p-4 shadow-sm">
+      {/* Painel de Filtros e Busca */}
+      <section className="rounded-2xl border border-psi-soft/60 bg-surface p-4 shadow-card">
         <div className="grid gap-3 lg:grid-cols-[minmax(240px,1fr)_170px_200px_160px_180px]">
-          <label className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nome, telefone, protocolo…" className="w-full rounded-xl border border-stone-200 bg-white py-2.5 pl-9 pr-3 text-sm" /></label>
-          <select value={status} onChange={(event) => setStatus(event.target.value as FilterStatus)} className="rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm"><option value="TODOS">Todos os status</option>{Object.entries(statusLabel).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>
-          <select value={psychologist} onChange={(event) => setPsychologist(event.target.value)} className="rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm"><option value="TODOS">Todos os psicólogos</option>{psychologists.map((item) => <option key={item.id} value={item.id}>{item.nome}</option>)}</select>
-          <select value={mode} onChange={(event) => setMode(event.target.value)} className="rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm"><option value="TODAS">Modalidades</option>{modes.map((item) => <option key={item}>{item}</option>)}</select>
-          <select value={agreement} onChange={(event) => setAgreement(event.target.value)} className="rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm"><option value="TODOS">Todos os convênios</option>{agreements.map((item) => <option key={item}>{item}</option>)}</select>
+          <label className="relative">
+            <Search className="absolute left-3.5 top-3 h-4 w-4 text-muted" />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Nome, telefone, protocolo…"
+              className="w-full rounded-xl border border-psi-soft bg-white py-2.5 pl-9 pr-3 text-xs text-ink placeholder:text-muted focus:outline-none focus:border-psi-vibrant focus:ring-2 focus:ring-psi-vibrant/20 font-medium"
+            />
+          </label>
+          <select
+            value={status}
+            onChange={(event) => setStatus(event.target.value as FilterStatus)}
+            className="rounded-xl border border-psi-soft bg-white px-3 py-2.5 text-xs text-ink focus:outline-none focus:border-psi-vibrant focus:ring-2 focus:ring-psi-vibrant/20 font-medium"
+          >
+            <option value="TODOS">Todos os status</option>
+            {Object.entries(statusLabel).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+          </select>
+          <select
+            value={psychologist}
+            onChange={(event) => setPsychologist(event.target.value)}
+            className="rounded-xl border border-psi-soft bg-white px-3 py-2.5 text-xs text-ink focus:outline-none focus:border-psi-vibrant focus:ring-2 focus:ring-psi-vibrant/20 font-medium"
+          >
+            <option value="TODOS">Todos os psicólogos</option>
+            {psychologists.map((item) => <option key={item.id} value={item.id}>{item.nome}</option>)}
+          </select>
+          <select
+            value={mode}
+            onChange={(event) => setMode(event.target.value)}
+            className="rounded-xl border border-psi-soft bg-white px-3 py-2.5 text-xs text-ink focus:outline-none focus:border-psi-vibrant focus:ring-2 focus:ring-psi-vibrant/20 font-medium"
+          >
+            <option value="TODAS">Modalidades</option>
+            {modes.map((item) => <option key={item}>{item}</option>)}
+          </select>
+          <select
+            value={agreement}
+            onChange={(event) => setAgreement(event.target.value)}
+            className="rounded-xl border border-psi-soft bg-white px-3 py-2.5 text-xs text-ink focus:outline-none focus:border-psi-vibrant focus:ring-2 focus:ring-psi-vibrant/20 font-medium"
+          >
+            <option value="TODOS">Todos os convênios</option>
+            {agreements.map((item) => <option key={item}>{item}</option>)}
+          </select>
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-stone-200 pt-3">
-          <label className="flex items-center gap-2 text-xs font-bold text-slate-600">
+        <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-psi-soft/60 pt-3">
+          <label className="flex items-center gap-2 text-xs font-bold text-ink">
             Entrada de
-            <input type="date" value={from} max={to || undefined} onChange={(event) => setFrom(event.target.value)} className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-normal" />
+            <input
+              type="date"
+              value={from}
+              max={to || undefined}
+              onChange={(event) => setFrom(event.target.value)}
+              className="rounded-xl border border-psi-soft bg-white px-3 py-1.5 text-xs text-ink font-normal focus:outline-none focus:border-psi-vibrant"
+            />
             até
-            <input type="date" value={to} min={from || undefined} onChange={(event) => setTo(event.target.value)} className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-normal" />
+            <input
+              type="date"
+              value={to}
+              min={from || undefined}
+              onChange={(event) => setTo(event.target.value)}
+              className="rounded-xl border border-psi-soft bg-white px-3 py-1.5 text-xs text-ink font-normal focus:outline-none focus:border-psi-vibrant"
+            />
           </label>
           {(from || to) && (
-            <button onClick={() => { setFrom(''); setTo(''); }} className="text-xs font-bold text-slate-500 underline hover:text-slate-800">limpar período</button>
+            <button
+              onClick={() => { setFrom(''); setTo(''); }}
+              className="text-xs font-bold text-psi-deep hover:text-psi-darkest underline"
+            >
+              limpar período
+            </button>
           )}
 
-          <label className="ml-auto flex items-center gap-2 text-xs font-bold text-slate-600">
-            <ArrowDownWideNarrow className="h-4 w-4 text-slate-400" />
+          <label className="ml-auto flex items-center gap-2 text-xs font-bold text-ink">
+            <ArrowDownWideNarrow className="h-4 w-4 text-psi-vibrant" />
             Ordenar por
-            <select value={sort} onChange={(event) => setSort(event.target.value as SortKey)} className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-normal">
+            <select
+              value={sort}
+              onChange={(event) => setSort(event.target.value as SortKey)}
+              className="rounded-xl border border-psi-soft bg-white px-3 py-1.5 text-xs text-ink font-normal focus:outline-none focus:border-psi-vibrant"
+            >
               {(Object.keys(SORT_LABEL) as SortKey[]).map((key) => <option key={key} value={key}>{SORT_LABEL[key]}</option>)}
             </select>
           </label>
 
-          <div className="flex gap-2"><Toggle active={slaOnly} onClick={() => setSlaOnly(!slaOnly)}>SLA estourado</Toggle><Toggle active={unassignedOnly} onClick={() => setUnassignedOnly(!unassignedOnly)}>Sem alocação</Toggle></div>
+          <div className="flex gap-2">
+            <Toggle active={slaOnly} onClick={() => setSlaOnly(!slaOnly)}>SLA estourado</Toggle>
+            <Toggle active={unassignedOnly} onClick={() => setUnassignedOnly(!unassignedOnly)}>Sem alocação</Toggle>
+          </div>
         </div>
       </section>
 
-      {error && <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-800"><AlertTriangle className="h-4 w-4" />{error}</div>}
+      {error && (
+        <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs font-semibold text-rose-800">
+          <AlertTriangle className="h-4 w-4" />
+          {error}
+        </div>
+      )}
 
-      <section className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
-        <div className="border-b border-stone-200 px-5 py-3 text-xs font-bold text-slate-500">{loading ? 'Carregando…' : `${filtered.length} de ${patients.length} registros`}</div>
-        {!loading && filtered.length === 0 ? <div className="p-16 text-center text-sm text-slate-500">Nenhum paciente corresponde aos filtros.</div> : (
-          <div className="overflow-x-auto"><table className="w-full min-w-[980px] text-left text-sm"><thead className="bg-stone-50 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500"><tr><th className="p-4">Paciente</th><th className="p-4">Demanda</th><th className="p-4">Responsável</th><th className="p-4">Espera</th><th className="p-4">Agenda</th><th className="p-4">Status</th></tr></thead><tbody className="divide-y divide-stone-100">{filtered.map((patient) => <tr key={patient.id} onClick={() => setSelected(patient)} className="cursor-pointer transition-colors hover:bg-teal-50/40"><td className="p-4"><p className="font-black text-slate-900">{patient.nome}</p><p className="mt-1 text-xs text-slate-500">{patient.whatsapp || 'Sem contato'} · {patient.protocolo || 'cadastro direto'}</p></td><td className="p-4"><p className="font-semibold text-slate-800">{patient.servicoNome ?? patient.servicoKey ?? 'Não informado'}</p><p className="mt-1 text-xs text-slate-500">{patient.modalidade ?? 'Modalidade pendente'}{agreementOf(patient) !== 'Sem convênio' && ` · ${agreementOf(patient)}`}</p></td><td className="p-4 font-semibold text-slate-700">{patient.psicologoNome ?? <span className="text-amber-700">Aguardando alocação</span>}</td><td className="p-4"><Wait patient={patient} /></td><td className="p-4"><p className="font-bold text-slate-800">{patient.agenda.realizadas} realizadas</p><p className="mt-1 text-xs text-slate-500">{patient.agenda.proximaEm ? `Próxima ${new Date(patient.agenda.proximaEm).toLocaleDateString('pt-BR')}` : 'Sem próxima sessão'}</p></td><td className="p-4"><span className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${statusClass[patient.status]}`}>{statusLabel[patient.status]}</span></td></tr>)}</tbody></table></div>
+      {/* Tabela de Registros com Design System Viver Mais */}
+      <section className="overflow-hidden rounded-2xl border border-psi-soft/60 bg-surface shadow-card">
+        <div className="border-b border-psi-soft/60 px-5 py-3 text-xs font-bold text-muted bg-psi-soft/20">
+          {loading ? 'Carregando…' : `${filtered.length} de ${patients.length} registros`}
+        </div>
+        {!loading && filtered.length === 0 ? (
+          <div className="p-16 text-center text-xs text-muted">
+            Nenhum paciente corresponde aos filtros.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[980px] text-left text-xs">
+              <thead className="bg-psi-soft/30 text-[10px] font-black uppercase tracking-[0.14em] text-muted border-b border-psi-soft/60">
+                <tr>
+                  <th className="p-4">Paciente</th>
+                  <th className="p-4">Demanda</th>
+                  <th className="p-4">Responsável</th>
+                  <th className="p-4">Espera</th>
+                  <th className="p-4">Agenda</th>
+                  <th className="p-4">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-psi-soft/40">
+                {filtered.map((patient) => (
+                  <tr
+                    key={patient.id}
+                    onClick={() => setSelected(patient)}
+                    className="cursor-pointer transition-colors hover:bg-psi-soft/30"
+                  >
+                    <td className="p-4">
+                      <p className="font-black text-ink">{patient.nome}</p>
+                      <p className="mt-0.5 text-[11px] text-muted">
+                        {patient.whatsapp || 'Sem contato'} · {patient.protocolo || 'cadastro direto'}
+                      </p>
+                    </td>
+                    <td className="p-4">
+                      <p className="font-bold text-ink">
+                        {patient.servicoNome ?? patient.servicoKey ?? 'Não informado'}
+                      </p>
+                      <p className="mt-0.5 text-[11px] text-muted">
+                        {patient.modalidade ?? 'Modalidade pendente'}
+                        {agreementOf(patient) !== 'Sem convênio' && ` · ${agreementOf(patient)}`}
+                      </p>
+                    </td>
+                    <td className="p-4 font-semibold text-ink">
+                      {patient.psicologoNome ?? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-700 text-xs font-bold border border-amber-500/20">
+                          Aguardando alocação
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-4">
+                      <Wait patient={patient} />
+                    </td>
+                    <td className="p-4">
+                      <p className="font-bold text-ink">{patient.agenda.realizadas} realizadas</p>
+                      <p className="mt-0.5 text-[11px] text-muted">
+                        {patient.agenda.proximaEm
+                          ? `Próxima ${new Date(patient.agenda.proximaEm).toLocaleDateString('pt-BR')}`
+                          : 'Sem próxima sessão'}
+                      </p>
+                    </td>
+                    <td className="p-4">
+                      <span className={`inline-block rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${statusClass[patient.status]}`}>
+                        {statusLabel[patient.status]}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
 
-      <PatientManagementDrawer key={selected?.id ?? 'closed'} patient={selected} psychologists={psychologists} onClose={() => setSelected(null)} onReassign={reassign} />
+      <PatientManagementDrawer
+        key={selected?.id ?? 'closed'}
+        patient={selected}
+        psychologists={psychologists}
+        onClose={() => setSelected(null)}
+        onReassign={reassign}
+      />
     </div>
   );
 }
 
-function Kpi({ label, value, icon: Icon, tone }: { label: string; value: number; icon: typeof UsersRound; tone: string }) { return <div className="min-w-24 rounded-xl border border-white/10 bg-white/5 p-3"><Icon className={`h-4 w-4 ${tone}`} /><p className="mt-3 text-2xl font-black">{value}</p><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{label}</p></div>; }
-function Toggle({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) { return <button onClick={onClick} className={`rounded-xl border px-3 py-2 text-[10px] font-black ${active ? 'border-slate-900 bg-slate-900 text-white' : 'border-stone-200 bg-white text-slate-600'}`}>{children}</button>; }
-function Wait({ patient }: { patient: ManagedPatient }) { if (patient.slaStatus === 'SEM_ALOCACAO') return <span className="font-bold text-rose-700">Sem alocação</span>; if (!patient.horasEspera) return <span className="text-slate-400">Concluída</span>; return <span className={patient.horasEspera >= 24 ? 'font-black text-amber-700' : 'font-bold text-slate-700'}>{patient.horasEspera}h {patient.horasEspera >= 24 && '· prioridade'}</span>; }
+function Kpi({ label, value, icon: Icon, tone }: { label: string; value: number; icon: typeof UsersRound; tone: string }) {
+  return (
+    <div className="min-w-24 rounded-xl border border-white/10 bg-white/10 p-3 backdrop-blur-sm shadow-inner">
+      <Icon className={`h-4 w-4 ${tone}`} />
+      <p className="mt-2 text-2xl font-black text-white">{value}</p>
+      <p className="text-[9px] font-bold uppercase tracking-wider text-psi-soft/70">{label}</p>
+    </div>
+  );
+}
+
+function Toggle({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-xl border px-3 py-2 text-[10px] font-black uppercase tracking-wider transition-all ${
+        active
+          ? 'border-psi-darkest bg-psi-darkest text-white shadow-sm'
+          : 'border-psi-soft bg-white text-muted hover:bg-psi-soft/40 hover:text-ink'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Wait({ patient }: { patient: ManagedPatient }) {
+  if (patient.slaStatus === 'SEM_ALOCACAO') {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-700 text-xs font-bold border border-rose-500/20">
+        Sem alocação
+      </span>
+    );
+  }
+  if (!patient.horasEspera) {
+    return <span className="text-muted font-medium">Concluída</span>;
+  }
+  return (
+    <span className={patient.horasEspera >= 24 ? 'inline-flex items-center gap-1 font-black text-amber-700 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20 text-xs' : 'font-bold text-ink text-xs'}>
+      {patient.horasEspera}h {patient.horasEspera >= 24 && '· prioridade'}
+    </span>
+  );
+}

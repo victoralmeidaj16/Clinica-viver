@@ -33,15 +33,20 @@ export default function PatientManagementDrawer({ patient, psychologists, onClos
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/30 backdrop-blur-[2px]" onMouseDown={onClose}>
-      <aside className="h-full w-full max-w-xl overflow-y-auto bg-[#fbfaf7] shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
-        <div className="sticky top-0 z-10 flex items-start justify-between border-b border-stone-200 bg-[#fbfaf7]/95 p-6 backdrop-blur">
+    <div className="fixed inset-0 z-50 flex justify-end bg-psi-darkest/60 backdrop-blur-[2px]" onMouseDown={onClose}>
+      <aside className="h-full w-full max-w-xl overflow-y-auto bg-surface shadow-2xl border-l border-psi-soft" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="sticky top-0 z-10 flex items-start justify-between border-b border-psi-soft bg-surface/95 p-6 backdrop-blur">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-teal-700">Visão administrativa</p>
-            <h2 className="mt-1 font-serif text-3xl font-bold text-slate-950">{patient.nome}</h2>
-            <p className="mt-1 text-xs text-slate-500">{patient.protocolo ?? patient.id}</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-psi-vibrant">Visão administrativa</p>
+            <h2 className="mt-1 font-extrabold text-2xl text-ink">{patient.nome}</h2>
+            <p className="mt-0.5 text-xs text-muted font-medium">{patient.protocolo ?? patient.id}</p>
           </div>
-          <button aria-label="Fechar detalhes" onClick={onClose} className="rounded-full border border-stone-200 p-2 text-slate-500 hover:bg-white">
+          <button
+            type="button"
+            aria-label="Fechar detalhes"
+            onClick={onClose}
+            className="rounded-full border border-psi-soft p-2 text-muted hover:bg-psi-soft/50 hover:text-ink transition-colors"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -57,7 +62,7 @@ export default function PatientManagementDrawer({ patient, psychologists, onClos
           </section>
 
           {/* O que a pessoa pediu na triagem, do jeito que pediu. */}
-          <section className="grid grid-cols-2 gap-3 border-t border-stone-200 pt-4">
+          <section className="grid grid-cols-2 gap-3 border-t border-psi-soft/60 pt-4">
             <Info label="Serviço" value={patient.servicoNome ?? patient.servicoKey} />
             <Info label="Modalidade / turno" value={[patient.modalidade, patient.turno].filter(Boolean).join(' · ')} />
             <Info label="Público" value={patient.paraQuemE} />
@@ -78,31 +83,46 @@ export default function PatientManagementDrawer({ patient, psychologists, onClos
             <Metric icon={CircleDollarSign} label="Em aberto" value={money(patient.financeiro.emAbertoCentavos)} />
           </section>
 
-          <section className="rounded-2xl border border-stone-200 bg-white p-5">
+          <section className="rounded-2xl border border-psi-soft/60 bg-psi-soft/20 p-5">
             <div className="mb-4 flex items-center gap-2">
-              <UserRoundCog className="h-4 w-4 text-teal-700" />
-              <h3 className="text-sm font-black text-slate-900">Reatribuir psicólogo</h3>
+              <UserRoundCog className="h-4 w-4 text-psi-vibrant" />
+              <h3 className="text-sm font-black text-ink">Reatribuir psicólogo</h3>
             </div>
             {!patient.patientId ? (
-              <p className="rounded-xl bg-amber-50 p-3 text-xs font-semibold text-amber-800">
+              <p className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-3 text-xs font-semibold text-amber-800">
                 A reatribuição fica disponível depois que o contato é confirmado e o lead vira paciente.
               </p>
             ) : (
               <div className="space-y-3">
-                <select value={professionalId} onChange={(event) => setProfessionalId(event.target.value)} className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm">
+                <select
+                  value={professionalId}
+                  onChange={(event) => setProfessionalId(event.target.value)}
+                  className="w-full rounded-xl border border-psi-soft bg-white px-3 py-2.5 text-xs text-ink focus:outline-none focus:border-psi-vibrant focus:ring-2 focus:ring-psi-vibrant/20 font-medium"
+                >
                   <option value="">Selecione o novo responsável</option>
                   {psychologists.map((psychologist) => <option key={psychologist.id} value={psychologist.id}>{psychologist.nome}</option>)}
                 </select>
-                <textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Motivo obrigatório da troca" rows={3} className="w-full resize-none rounded-xl border border-stone-200 px-3 py-2.5 text-sm" />
+                <textarea
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                  placeholder="Motivo obrigatório da troca"
+                  rows={3}
+                  className="w-full resize-none rounded-xl border border-psi-soft bg-white px-3 py-2.5 text-xs text-ink focus:outline-none focus:border-psi-vibrant focus:ring-2 focus:ring-psi-vibrant/20 font-medium"
+                />
                 {error && <p className="text-xs font-semibold text-rose-700">{error}</p>}
-                <button onClick={submit} disabled={saving || !professionalId || !reason.trim()} className="w-full rounded-xl bg-teal-800 px-4 py-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-40">
+                <button
+                  type="button"
+                  onClick={submit}
+                  disabled={saving || !professionalId || !reason.trim()}
+                  className="btn-primary w-full text-xs font-black py-3 rounded-xl disabled:cursor-not-allowed disabled:opacity-40"
+                >
                   {saving ? 'Registrando troca…' : 'Confirmar reatribuição'}
                 </button>
               </div>
             )}
           </section>
 
-          <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-500">
+          <p className="rounded-xl border border-psi-soft/60 bg-psi-soft/30 p-3 text-[11px] leading-relaxed text-muted">
             Esta área mostra apenas dados operacionais. Conteúdo de sessões e prontuário clínico não é exposto à gestão.
           </p>
         </div>
@@ -112,9 +132,20 @@ export default function PatientManagementDrawer({ patient, psychologists, onClos
 }
 
 function Info({ label, value }: { label: string; value?: string }) {
-  return <div className="rounded-xl border border-stone-200 bg-white p-3"><p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{label}</p><p className="mt-1 text-sm font-semibold text-slate-800">{value || 'Não informado'}</p></div>;
+  return (
+    <div className="rounded-xl border border-psi-soft/60 bg-white p-3 shadow-sm">
+      <p className="text-[10px] font-black uppercase tracking-wider text-muted">{label}</p>
+      <p className="mt-1 text-xs font-bold text-ink">{value || 'Não informado'}</p>
+    </div>
+  );
 }
 
 function Metric({ icon: Icon, label, value }: { icon: typeof Clock3; label: string; value: string }) {
-  return <div className="rounded-xl bg-slate-900 p-3 text-white"><Icon className="mb-3 h-4 w-4 text-teal-300" /><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{label}</p><p className="mt-1 text-sm font-black">{value}</p></div>;
+  return (
+    <div className="rounded-xl bg-psi-darkest p-3 text-white border border-white/10 shadow-sm">
+      <Icon className="mb-2 h-4 w-4 text-psi-vibrant" />
+      <p className="text-[9px] font-bold uppercase tracking-wider text-psi-soft/70">{label}</p>
+      <p className="mt-1 text-sm font-black text-white">{value}</p>
+    </div>
+  );
 }

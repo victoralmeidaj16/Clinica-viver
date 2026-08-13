@@ -100,6 +100,36 @@ const cadastroIncompletoParaRodizio = (psi: PsicologoCadastro): boolean =>
   psi.status === 'APROVADO' &&
   ((psi.modalidadesAtendidas ?? []).length === 0 || (psi.turnosDisponiveis ?? []).length === 0);
 
+/** Status do prazo reutilizado na leitura em cartões da fila, no celular. */
+function BadgeSla({ item }: { item: LeadFila }) {
+  if (item.confirmadoEm) {
+    return (
+      <span className="bg-sky-100 text-sky-800 border border-sky-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full whitespace-nowrap">
+        Contato confirmado
+      </span>
+    );
+  }
+  if (item.slaStatus === 'VERDE') {
+    return (
+      <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full whitespace-nowrap">
+        Normal (&lt; 12h)
+      </span>
+    );
+  }
+  if (item.slaStatus === 'AMARELO') {
+    return (
+      <span className="bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full whitespace-nowrap">
+        Atenção (&gt; 12h)
+      </span>
+    );
+  }
+  return (
+    <span className="bg-rose-100 text-rose-800 border border-rose-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full whitespace-nowrap">
+      Estourado (&gt; 24h)
+    </span>
+  );
+}
+
 export default function GestaoCockpitPage() {
   const [abaAtiva, setAbaAtiva] = useState<'FILA' | 'CREDENCIAMENTOS' | 'PROFISSIONAIS'>('FILA');
 
@@ -330,11 +360,13 @@ export default function GestaoCockpitPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* No celular os três botões viram uma coluna: lado a lado, cada um
+            ficaria com duas palavras por linha e um alvo de toque estreito. */}
+        <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2">
           <button
             type="button"
             onClick={() => void recarregar()}
-            className="bg-surface hover:bg-slate-100 border border-line text-ink font-extrabold text-xs px-4 py-3 rounded-2xl transition-all flex items-center gap-2"
+            className="bg-surface hover:bg-slate-100 border border-line text-ink font-extrabold text-xs px-4 py-3 rounded-2xl transition-all flex items-center justify-center gap-2"
           >
             <RefreshCw className="w-4 h-4 text-psi-vibrant" />
             Atualizar fila
@@ -343,7 +375,7 @@ export default function GestaoCockpitPage() {
           <button
             type="button"
             onClick={() => setNovoPsiModal(true)}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs px-4 py-3 rounded-2xl shadow-lg shadow-emerald-600/20 transition-all flex items-center gap-2"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs px-4 py-3 rounded-2xl shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2"
           >
             <UserCheck className="w-4 h-4" />
             + Cadastrar Psicólogo Manualmente
@@ -352,7 +384,7 @@ export default function GestaoCockpitPage() {
           <button
             type="button"
             onClick={() => setNovoLeadModal(true)}
-            className="bg-psi-vibrant hover:bg-psi-vibrant/90 text-white font-extrabold text-xs px-5 py-3 rounded-2xl shadow-lg shadow-psi-vibrant/30 transition-all flex items-center gap-2"
+            className="bg-psi-vibrant hover:bg-psi-vibrant/90 text-white font-extrabold text-xs px-5 py-3 rounded-2xl shadow-lg shadow-psi-vibrant/30 transition-all flex items-center justify-center gap-2"
           >
             <UserPlus className="w-4 h-4" />
             Cadastro Manual de Lead (WhatsApp)
@@ -362,8 +394,8 @@ export default function GestaoCockpitPage() {
 
       {/* Modal de Cadastrar Lead Manual */}
       {novoLeadModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-surface rounded-3xl p-6 border border-line shadow-2xl max-w-md w-full space-y-4">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-surface rounded-3xl p-5 sm:p-6 border border-line shadow-2xl max-w-md w-full space-y-4 my-auto max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-black text-ink">Inserção Manual de Lead</h2>
               <button
@@ -408,7 +440,7 @@ export default function GestaoCockpitPage() {
                 onOtherChange={(generoOutro) => setManualForm((current) => ({ ...current, generoOutro }))}
               />
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="font-bold text-ink block mb-1">Modalidade</label>
                   <select
@@ -519,12 +551,13 @@ export default function GestaoCockpitPage() {
         </div>
       </div>
 
-      {/* Navegação de Abas */}
-      <div className="flex items-center gap-2 border-b border-line pb-2">
+      {/* Navegação de Abas — deslizam de lado no celular em vez de encolher
+          até o rótulo virar duas letras por linha. */}
+      <div className="flex items-center gap-2 border-b border-line pb-2 overflow-x-auto no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
         <button
           type="button"
           onClick={() => setAbaAtiva('FILA')}
-          className={`px-5 py-2.5 rounded-2xl text-xs font-extrabold transition-all flex items-center gap-2 ${
+          className={`shrink-0 whitespace-nowrap px-5 py-2.5 rounded-2xl text-xs font-extrabold transition-all flex items-center gap-2 ${
             abaAtiva === 'FILA'
               ? 'bg-psi-vibrant text-white shadow-md'
               : 'bg-surface text-muted hover:text-ink hover:bg-slate-100 border border-line'
@@ -537,7 +570,7 @@ export default function GestaoCockpitPage() {
         <button
           type="button"
           onClick={() => setAbaAtiva('PROFISSIONAIS')}
-          className={`px-5 py-2.5 rounded-2xl text-xs font-extrabold transition-all flex items-center gap-2 ${
+          className={`shrink-0 whitespace-nowrap px-5 py-2.5 rounded-2xl text-xs font-extrabold transition-all flex items-center gap-2 ${
             abaAtiva === 'PROFISSIONAIS'
               ? 'bg-psi-vibrant text-white shadow-md'
               : 'bg-surface text-muted hover:text-ink hover:bg-slate-100 border border-line'
@@ -550,7 +583,7 @@ export default function GestaoCockpitPage() {
         <button
           type="button"
           onClick={() => setAbaAtiva('CREDENCIAMENTOS')}
-          className={`px-5 py-2.5 rounded-2xl text-xs font-extrabold transition-all flex items-center gap-2 ${
+          className={`shrink-0 whitespace-nowrap px-5 py-2.5 rounded-2xl text-xs font-extrabold transition-all flex items-center gap-2 ${
             abaAtiva === 'CREDENCIAMENTOS'
               ? 'bg-psi-vibrant text-white shadow-md'
               : 'bg-surface text-muted hover:text-ink hover:bg-slate-100 border border-line'
@@ -569,7 +602,7 @@ export default function GestaoCockpitPage() {
       {/* Conteúdo da Aba 1: Fila de Triagem */}
       {abaAtiva === 'FILA' && (
         <div className="bg-surface rounded-3xl border border-line shadow-card overflow-hidden space-y-4">
-          <div className="p-6 border-b border-line flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="p-5 sm:p-6 border-b border-line flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <h3 className="font-extrabold text-base text-ink">Monitoramento da Fila de Atribuição (SLA 24h)</h3>
               <p className="text-xs text-muted">Leads em andamento e contagem regressiva para confirmação via WhatsApp</p>
@@ -578,22 +611,22 @@ export default function GestaoCockpitPage() {
             {/* Barra de Filtros Rápida */}
             <div className="flex flex-wrap items-center gap-2 text-xs">
               {/* Busca */}
-              <div className="relative">
+              <div className="relative w-full sm:w-auto">
                 <input
                   type="text"
                   placeholder="Buscar paciente ou psi..."
                   value={filtroBusca}
                   onChange={(e) => setFiltroBusca(e.target.value)}
-                  className="pl-8 pr-3 py-2 bg-slate-50 border border-line rounded-xl text-ink focus:outline-none focus:border-psi-vibrant w-44"
+                  className="w-full sm:w-44 pl-8 pr-3 py-2 bg-slate-50 border border-line rounded-xl text-ink focus:outline-none focus:border-psi-vibrant"
                 />
-                <Search className="w-3.5 h-3.5 text-muted absolute left-2.5 top-3" />
+                <Search className="w-3.5 h-3.5 text-muted absolute left-2.5 top-1/2 -translate-y-1/2" />
               </div>
 
               {/* Filtro por Modalidade */}
               <select
                 value={filtroModalidade}
                 onChange={(e) => setFiltroModalidade(e.target.value)}
-                className="py-2 px-3 bg-slate-50 border border-line rounded-xl font-bold text-ink focus:outline-none focus:border-psi-vibrant"
+                className="flex-1 min-w-[9.5rem] sm:flex-none py-2 px-3 bg-slate-50 border border-line rounded-xl font-bold text-ink focus:outline-none focus:border-psi-vibrant"
               >
                 <option value="TODAS">Todas Modalidades</option>
                 <option value="SOCIAL">Atendimento Social</option>
@@ -605,7 +638,7 @@ export default function GestaoCockpitPage() {
               <select
                 value={filtroTurno}
                 onChange={(e) => setFiltroTurno(e.target.value)}
-                className="py-2 px-3 bg-slate-50 border border-line rounded-xl font-bold text-ink focus:outline-none focus:border-psi-vibrant"
+                className="flex-1 min-w-[8rem] sm:flex-none py-2 px-3 bg-slate-50 border border-line rounded-xl font-bold text-ink focus:outline-none focus:border-psi-vibrant"
               >
                 <option value="TODOS">Todos Turnos</option>
                 <option value="MANHA">Manhã</option>
@@ -615,7 +648,86 @@ export default function GestaoCockpitPage() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          {/**
+           * Até `lg`, cada lead é um cartão.
+           *
+           * A fila tem sete colunas — nome, telefone, modalidade, psicólogo,
+           * tempo, status e ação. Espremidas num aparelho de mão, viram
+           * palavras de uma letra por linha; postas para rolar de lado,
+           * escondem justamente a cor do SLA, que é o motivo de alguém abrir
+           * esta tela. O cartão põe status e prazo em cima, onde a decisão
+           * acontece. O status e o botão são os mesmos componentes usados na
+           * tabela, para as duas leituras não divergirem.
+           */}
+          <div className="lg:hidden divide-y divide-line">
+            {carregando ? (
+              <p className="px-5 py-8 text-center text-muted text-xs font-semibold">Carregando a fila…</p>
+            ) : leadsFiltrados.length === 0 ? (
+              <p className="px-5 py-8 text-center text-muted text-xs font-semibold">
+                {leads.length === 0
+                  ? 'Nenhuma solicitação recebida até agora.'
+                  : 'Nenhum lead encontrado com os filtros selecionados.'}
+              </p>
+            ) : (
+              leadsFiltrados.map((item) => (
+                <article key={item.id} className="p-5 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-extrabold text-sm text-ink truncate">{item.nomePaciente}</p>
+                      <p className="text-[10px] text-muted font-mono">{item.protocolo}</p>
+                    </div>
+                    <BadgeSla item={item} />
+                  </div>
+
+                  <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                    <div className="min-w-0">
+                      <dt className="text-[10px] font-bold uppercase tracking-wider text-muted">Contato</dt>
+                      <dd className="font-semibold text-ink truncate">
+                        <a href={`tel:${item.telefone.replace(/\D/g, '')}`} className="hover:text-psi-vibrant">
+                          {item.telefone}
+                        </a>
+                      </dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="text-[10px] font-bold uppercase tracking-wider text-muted">Tempo decorrido</dt>
+                      <dd className="font-mono font-bold text-ink">
+                        {item.horasDecorridas === null ? '—' : `${item.horasDecorridas.toFixed(1)}h`}
+                      </dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="text-[10px] font-bold uppercase tracking-wider text-muted">Modalidade / turno</dt>
+                      <dd className="font-semibold text-ink">{item.servico || item.modalidade || '—'}</dd>
+                      <dd className="text-[10px] text-muted">{item.turno}</dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="text-[10px] font-bold uppercase tracking-wider text-muted">Psicólogo</dt>
+                      <dd className="font-bold text-psi-vibrant truncate">
+                        {item.psicologoNome ?? <span className="text-amber-700">Sem profissional elegível</span>}
+                      </dd>
+                      {(item.transbordos ?? 0) > 0 && (
+                        <dd className="text-[10px] text-amber-700 font-bold">
+                          após {item.transbordos} {item.transbordos === 1 ? 'transbordo' : 'transbordos'}
+                        </dd>
+                      )}
+                    </div>
+                  </dl>
+
+                  {!item.confirmadoEm && item.psicologoAlocadoId && (
+                    <button
+                      type="button"
+                      onClick={() => handleForcarTransbordo(item.id)}
+                      className="w-full bg-surface hover:bg-slate-100 border border-line text-ink font-bold text-[11px] px-3 py-2.5 rounded-xl transition-all inline-flex items-center justify-center gap-1"
+                    >
+                      <ArrowRightLeft className="w-3.5 h-3.5 text-psi-vibrant" />
+                      Forçar Transbordo
+                    </button>
+                  )}
+                </article>
+              ))
+            )}
+          </div>
+
+          <div className="hidden lg:block overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-line">
                 <tr>

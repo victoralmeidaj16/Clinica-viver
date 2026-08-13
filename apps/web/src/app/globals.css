@@ -16,21 +16,44 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
   }
+
+  /* O layout nunca deve rolar de lado: uma tabela larga rola dentro do próprio
+     container, não arrastando a página inteira junto. */
+  html,
+  body {
+    overflow-x: hidden;
+  }
+
+  /**
+   * O Safari do iPhone dá zoom sozinho ao focar um campo com fonte menor que
+   * 16 px — e a interface usa `text-xs` em quase todo formulário. O resultado
+   * era a página ampliar a cada toque num input e não voltar sozinha. Só o
+   * tamanho do texto do campo muda, e só em tela pequena.
+   */
+  @media (max-width: 640px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+    }
+  }
 }
 
 @layer components {
   /* Cards com bordas levemente arredondadas (rounded-2xl / 20px) e sombras extremamente leves sem bordas pesadas */
+  /* O respiro interno encolhe no celular: 24 px de cada lado consomem um oitavo
+     da largura de um aparelho comum e espremem o conteúdo que importa. */
   .card {
-    @apply bg-surface rounded-2xl p-6 shadow-card border border-psi-soft/40 transition-all duration-200;
+    @apply bg-surface rounded-2xl p-5 sm:p-6 shadow-card border border-psi-soft/40 transition-all duration-200;
   }
-  
+
   /* Cards de Grande Contraste (Estilo o card dark das dashboards de referência) */
   .card-contrast {
-    @apply bg-psi-darkest text-white rounded-2xl p-6 shadow-contrast transition-all duration-200;
+    @apply bg-psi-darkest text-white rounded-2xl p-5 sm:p-6 shadow-contrast transition-all duration-200;
   }
 
   .card-vibrant {
-    @apply bg-psi-deep text-white rounded-2xl p-6 shadow-lift transition-all duration-200;
+    @apply bg-psi-deep text-white rounded-2xl p-5 sm:p-6 shadow-lift transition-all duration-200;
   }
 
   .card-hover {
@@ -78,6 +101,31 @@
 
   .chip-dark {
     @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-psi-darkest text-white;
+  }
+
+  /**
+   * Rolagem sem a barra à vista — usada no menu lateral e nas faixas de
+   * conteúdo que deslizam de lado no celular. A rolagem continua existindo
+   * para o toque e para o teclado; só o desenho da barra sai.
+   */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /**
+   * Tabela que não cabe: rola dentro da própria moldura, com o embalo do
+   * toque, em vez de esticar a página.
+   */
+  .table-scroll {
+    @apply -mx-5 overflow-x-auto sm:mx-0;
+    -webkit-overflow-scrolling: touch;
+  }
+  .table-scroll > table {
+    @apply min-w-[42rem];
   }
 }
 

@@ -223,6 +223,15 @@ Central multicanal para mensagens transacionais por **WhatsApp, push e e-mail**:
 - alertas de estouro de SLA de 24h com notificação de transbordo;
 - atribuição de tarefas e metas terapêuticas.
 
+**Sino do sistema (header da gestão e do psicólogo):** lista derivada do estado
+real da fila e do credenciamento, sem cadastro paralelo de avisos. A gestão vê
+paciente sem profissional elegível, prazo de primeiro contato em risco ou
+vencido, repasses e credenciamentos aguardando análise; o psicólogo vê apenas o
+que é dele — paciente atribuído com o prazo restante, paciente que saiu da sua
+fila e o estado do próprio credenciamento. Só a marca de "já li" é persistida
+(`clinica_notificacoes_leituras`), por usuário, de modo que o aviso continue
+correto quando a situação muda e o ponto vermelho não volte a cada login.
+
 ---
 
 ## 12. Supervisão Clínica, Retenção & Cockpit da Gestão

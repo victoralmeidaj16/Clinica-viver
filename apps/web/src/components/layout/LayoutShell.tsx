@@ -12,6 +12,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   const router = useRouter();
   const [auth, setAuth] = useState<{ role: 'admin' | 'psicologo'; displayName: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [menuAberto, setMenuAberto] = useState(false);
   const isVitrinePage = pathname === '/vitrine';
   // O psicólogo abre a confirmação de contato a partir do link do WhatsApp,
   // frequentemente de outro aparelho e sem sessão. Exigir login aqui faria a
@@ -43,6 +44,25 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
     if (!allowed) router.replace(auth.role === 'admin' ? '/gestao/cockpit' : '/cockpit');
   }, [auth, isPublicPage, pathname, router]);
 
+  /**
+   * Enquanto a gaveta está aberta, o corpo não rola por baixo dela e a tecla
+   * Esc a fecha — as duas coisas que um menu sobreposto precisa devolver a
+   * quem o abriu.
+   */
+  useEffect(() => {
+    if (!menuAberto) return;
+    const anterior = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const tecla = (evento: KeyboardEvent) => {
+      if (evento.key === 'Escape') setMenuAberto(false);
+    };
+    document.addEventListener('keydown', tecla);
+    return () => {
+      document.body.style.overflow = anterior;
+      document.removeEventListener('keydown', tecla);
+    };
+  }, [menuAberto]);
+
   if (isPublicPage) {
     return <div className="w-full min-h-screen">{children}</div>;
   }
@@ -51,11 +71,31 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
 
   return (
     <div className="flex min-h-screen bg-canvas text-ink antialiased w-full">
-      <Sidebar role={auth.role} onLogout={() => { void fetch('/api/auth/logout', { method: 'POST' }).finally(() => router.replace('/login')); }} />
+      <Sidebar
+        role={auth.role}
+        aberto={menuAberto}
+        onFechar={() => setMenuAberto(false)}
+        onLogout={() => { void fetch('/api/auth/logout', { method: 'POST' }).finally(() => router.replace('/login')); }}
+      />
+
+      {/* Véu da gaveta: escurece o conteúdo e fecha o menu ao toque fora dele. */}
+      {menuAberto && (
+        <button
+          type="button"
+          aria-label="Fechar menu"
+          onClick={() => setMenuAberto(false)}
+          className="fixed inset-0 z-40 bg-psi-darkest/50 backdrop-blur-[2px] lg:hidden"
+        />
+      )}
+
       <div className="flex-1 flex flex-col min-w-0">
-        <Header displayName={auth.displayName} role={auth.role} />
+        <Header
+          displayName={auth.displayName}
+          role={auth.role}
+          onAbrirMenu={() => setMenuAberto(true)}
+        />
         <DemoNotice />
-        <main className="p-8 flex-1">{children}</main>
+        <main className="p-4 sm:p-6 lg:p-8 flex-1">{children}</main>
       </div>
     </div>
   );

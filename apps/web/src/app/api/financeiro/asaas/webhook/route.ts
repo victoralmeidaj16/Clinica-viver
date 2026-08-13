@@ -1,48 +1,58 @@
+import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
+import { reconcileAsaasPayment } from '@/server/payments/paymentLinkRepository';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const ASAAS_WEBHOOK_TOKEN = process.env.ASAAS_WEBHOOK_TOKEN || 'VIVERMAISPSICOLOGIA0101.';
+function authorized(received: string | null, expected: string): boolean {
+  if (!received) return false;
+  const left = Buffer.from(received);
+  const right = Buffer.from(expected);
+  return left.length === right.length && timingSafeEqual(left, right);
+}
 
 export async function POST(request: Request) {
+  const expectedToken = process.env.ASAAS_WEBHOOK_TOKEN?.trim();
+  if (!expectedToken) {
+    console.error('[asaas-webhook] ASAAS_WEBHOOK_TOKEN não configurado.');
+    return NextResponse.json({ error: 'Webhook indisponível.' }, { status: 503 });
+  }
+  if (!authorized(request.headers.get('asaas-access-token'), expectedToken)) {
+    return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
+  }
+
   try {
-    // 1. Validar token de autenticação do Webhook
-    const tokenHeader = request.headers.get('asaas-access-token');
-    if (tokenHeader && tokenHeader !== ASAAS_WEBHOOK_TOKEN) {
-      console.warn('Tentativa de Webhook com token inválido:', tokenHeader);
-      return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
+    const payload = await request.json() as Record<string, unknown>;
+    const payment = payload.payment as Record<string, unknown> | undefined;
+    const eventType = String(payload.event ?? '');
+    const paymentId = String(payment?.id ?? '');
+    if (!paymentId || !eventType) {
+      return NextResponse.json({ error: 'Evento inválido.' }, { status: 400 });
     }
-
-    const payload = await request.json();
-    const event = payload.event;
-    const payment = payload.payment;
-
-    console.log(`[Asaas Webhook] Evento recebido: ${event} para cobrança ${payment?.id}`);
-
-    if (event === 'PAYMENT_CONFIRMED' || event === 'PAYMENT_RECEIVED') {
-      const valorBruto = payment.value || 0;
-      const creditoPsicologo70 = Math.round(valorBruto * 0.7 * 100) / 100;
-      const receitaClinica30 = Math.round((valorBruto - creditoPsicologo70) * 100) / 100;
-
-      console.log(`[Asaas Webhook] Pagamento Confirmado!`, {
-        cobrancaId: payment.id,
-        valorBruto,
-        creditoPsicologo70,
-        receitaClinica30,
-        cliente: payment.customer,
-        externalReference: payment.externalReference,
-      });
-
-      // Aqui registramos o histórico em relatórios/banco de dados
+    if (!['PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED'].includes(eventType)) {
+      return NextResponse.json({ received: true, ignored: true });
     }
-
-    return NextResponse.json({ received: true });
+    const amountCents = Math.round(Number(payment?.value ?? 0) * 100);
+    if (!Number.isSafeInteger(amountCents) || amountCents <= 0) {
+      return NextResponse.json({ error: 'Valor inválido.' }, { status: 400 });
+    }
+    const eventId = String(payload.id || `${eventType}:${paymentId}`);
+    const result = await reconcileAsaasPayment({
+      eventId,
+      eventType,
+      paymentId,
+      amountCents,
+      receivedAt: String(payment?.paymentDate || payment?.confirmedDate || new Date().toISOString()),
+      billingType: String(payment?.billingType || 'UNDEFINED'),
+    });
+    if (result === 'unknown') {
+      // 200 evita reentregas infinitas de cobranças que não nasceram nesta aplicação.
+      return NextResponse.json({ received: true, ignored: true });
+    }
+    return NextResponse.json({ received: true, duplicate: result === 'duplicate' });
   } catch (error) {
-    console.error('Erro ao processar Webhook do Asaas:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Falha ao processar Webhook.' },
-      { status: 500 }
-    );
+    console.error('[asaas-webhook] Falha ao conciliar:', error instanceof Error ? error.message : error);
+    return NextResponse.json({ error: 'Falha ao processar webhook.' }, { status: 500 });
   }
 }

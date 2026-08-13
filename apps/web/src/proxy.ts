@@ -7,7 +7,7 @@ import { readSessionValue } from '@/server/auth';
 // continua no LayoutShell e, principalmente, nas APIs.
 export function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
-  const persistentApi = ['/api/application/', '/api/auth/', '/api/infra/'].some(
+  const persistentApi = ['/api/application/', '/api/auth/', '/api/infra/', '/api/pagamento/', '/api/financeiro/asaas/'].some(
     (prefix) => pathname.startsWith(prefix)
   );
 

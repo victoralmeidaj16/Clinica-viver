@@ -1,344 +1,139 @@
 'use client';
 
-import React, { useState } from 'react';
-import {
-  CreditCard,
-  TrendingUp,
-  DollarSign,
-  Calendar,
-  CheckCircle2,
-  Download,
-  Percent,
-  FileSpreadsheet,
-  Building2,
-  Clock,
-  Filter,
-  Search,
-  Copy,
-  Share2,
-  ExternalLink,
-  QrCode,
-  Check,
-} from 'lucide-react';
-import {
-  MODALIDADES_PAGAMENTO,
-  reaisDeCentavos,
-  type ModalidadePagamento,
-  type ModalidadePagamentoSlug,
-} from '@/lib/modalidadesPagamento';
+import { useCallback, useEffect, useState } from 'react';
+import { Check, Copy, CreditCard, ExternalLink, FileSpreadsheet, Share2 } from 'lucide-react';
+import { applicationRequest } from '@/lib/applicationApi';
+import { reaisDeCentavos, type ModalidadePagamentoSlug } from '@/lib/modalidadesPagamento';
+
+interface Transaction {
+  id: string;
+  patientName: string;
+  receivedAt: string;
+  amountCents: number;
+  professionalCreditCents: number;
+  clinicRevenueCents: number;
+  method: string;
+}
+
+interface FinancialData {
+  professionalName: string;
+  paymentToken: string;
+  modalities: Record<ModalidadePagamentoSlug, number>;
+  receivedCents: number;
+  professionalCreditCents: number;
+  transactions: Transaction[];
+}
+
+const labels = { social: 'Sessão Social', particular: 'Sessão Particular' } as const;
+
+function initialDates() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  return { start: `${year}-${month}-01`, end: `${year}-${month}-${String(new Date(year, now.getMonth() + 1, 0).getDate()).padStart(2, '0')}` };
+}
 
 export default function MeuFinanceiroPage() {
-  const [dataInicio, setDataInicio] = useState('2026-08-01');
-  const [dataFim, setDataFim] = useState('2026-08-31');
-  // Qual das duas modalidades acabou de ser copiada, para o "Copiado!" aparecer
-  // no botão certo — um estado booleano só acenderia os dois ao mesmo tempo.
-  const [linkCopiado, setLinkCopiado] = useState<ModalidadePagamentoSlug | null>(null);
+  const initial = initialDates();
+  const [startDate, setStartDate] = useState(initial.start);
+  const [endDate, setEndDate] = useState(initial.end);
+  const [data, setData] = useState<FinancialData | null>(null);
+  const [error, setError] = useState<string>();
+  const [copied, setCopied] = useState<ModalidadePagamentoSlug>();
 
-  // Link permanente do psicólogo logado (slug dinâmico)
-  const psicologoSlug = 'dr-lucas-silva';
-  const origem = typeof window !== 'undefined'
-    ? window.location.origin
-    : 'https://app.clinicavivermais.cloud';
+  const load = useCallback(() => applicationRequest<FinancialData>(
+    `/financial/me?startDate=${startDate}&endDate=${endDate}`
+  ).then((result) => { setData(result); setError(undefined); })
+    .catch((cause) => setError(
+      cause instanceof Error ? cause.message : 'Não foi possível carregar o financeiro.'
+    )), [startDate, endDate]);
 
-  const linkDaModalidade = (modalidade: ModalidadePagamento) =>
-    `${origem}/pagar/${psicologoSlug}/${modalidade.slug}`;
+  useEffect(() => { void load(); }, [load]);
 
-  const handleCopiarLink = (modalidade: ModalidadePagamento) => {
-    void navigator.clipboard.writeText(linkDaModalidade(modalidade));
-    setLinkCopiado(modalidade.slug);
-    window.setTimeout(() => setLinkCopiado(null), 3000);
+  const link = (modality: ModalidadePagamentoSlug) =>
+    `${window.location.origin}/pagar/${data?.paymentToken}/${modality}`;
+
+  const copy = async (modality: ModalidadePagamentoSlug) => {
+    await navigator.clipboard.writeText(link(modality));
+    setCopied(modality);
+    window.setTimeout(() => setCopied(undefined), 2500);
   };
 
-  // O valor vai escrito na mensagem, e não só embutido no link: o paciente
-  // precisa poder conferir o que combinou antes de abrir qualquer página.
-  const handleEnviarWhatsapp = (modalidade: ModalidadePagamento) => {
-    const texto = encodeURIComponent(
-      `Olá! Segue o link seguro para o pagamento da nossa consulta de psicoterapia ` +
-      `(${modalidade.rotulo} — ${reaisDeCentavos(modalidade.valorCentavos)}), via Pix ou cartão:\n👉 ${linkDaModalidade(modalidade)}`
+  const share = (modality: ModalidadePagamentoSlug) => {
+    if (!data) return;
+    const text = encodeURIComponent(
+      `Olá! Segue o link seguro para pagamento da consulta (${labels[modality]} — ${reaisDeCentavos(data.modalities[modality])}):\n${link(modality)}`
     );
-    window.open(`https://wa.me/?text=${texto}`, '_blank');
+    window.open(`https://wa.me/?text=${text}`, '_blank', 'noopener,noreferrer');
   };
 
-  const [extrato] = useState({
-    alunoNome: 'Dr. Lucas Silva (Pós-Graduação)',
-    saldoAcumulado70: 441.00,
-    proximaMensalidadeBruta: 890.00,
-    proximaMensalidadeLiquida: 449.00,
-    dataVencimentoBoleto: '10/08/2026',
-    historicoTransacoes: [
-      {
-        id: 'PAY-89312',
-        paciente: 'João Pedro Severo',
-        data: '05/08/2026',
-        valorSessao: 75.00,
-        credito70: 52.50,
-        receitaClinica30: 22.50,
-        status: 'PAGO',
-        formaPagamento: 'Pix Dynamic QR Code',
-      },
-      {
-        id: 'PAY-89210',
-        paciente: 'Camila Fernandes',
-        data: '04/08/2026',
-        valorSessao: 130.00,
-        credito70: 91.00,
-        receitaClinica30: 39.00,
-        status: 'PAGO',
-        formaPagamento: 'Cartão de Crédito 2x',
-      },
-      {
-        id: 'PAY-88941',
-        paciente: 'Roberto Mendes',
-        data: '01/08/2026',
-        valorSessao: 130.00,
-        credito70: 91.00,
-        receitaClinica30: 39.00,
-        status: 'PAGO',
-        formaPagamento: 'Pix Copia e Cola',
-      },
-      {
-        id: 'PAY-88402',
-        paciente: 'Ana Paula Rocha',
-        data: '28/07/2026',
-        valorSessao: 75.00,
-        credito70: 52.50,
-        receitaClinica30: 22.50,
-        status: 'PAGO',
-        formaPagamento: 'Pix Dynamic QR Code',
-      },
-      {
-        id: 'PAY-88119',
-        paciente: 'Fernando Souza',
-        data: '25/07/2026',
-        valorSessao: 220.00,
-        credito70: 154.00,
-        receitaClinica30: 66.00,
-        status: 'PAGO',
-        formaPagamento: 'Cartão de Crédito 3x',
-      },
-    ],
-  });
-
-  const handleFiltrarPeriodo = (e: React.FormEvent) => {
-    e.preventDefault();
-    alert(`Filtrando relatórios de atendimentos para o período de ${dataInicio} a ${dataFim}.`);
+  const exportCsv = () => {
+    if (!data) return;
+    const rows = [['Data', 'Paciente', 'Valor', 'Crédito 70%', 'Método'], ...data.transactions.map((item) => [
+      item.receivedAt, item.patientName, (item.amountCents / 100).toFixed(2),
+      (item.professionalCreditCents / 100).toFixed(2), item.method,
+    ])];
+    const blob = new Blob([`\uFEFF${rows.map((row) => row.join(';')).join('\n')}`], { type: 'text/csv;charset=utf-8' });
+    const anchor = document.createElement('a');
+    anchor.href = URL.createObjectURL(blob);
+    anchor.download = `meu-financeiro-${startDate}-${endDate}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(anchor.href);
   };
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <span className="chip-accent text-[11px] mb-1">Extrato Financeiro do Aluno</span>
           <h1 className="text-2xl font-black text-ink flex items-center gap-2">
-            <CreditCard className="w-6 h-6 text-psi-vibrant" />
-            Meu Financeiro & Relatório de Atendimentos
+            <CreditCard className="w-6 h-6 text-psi-vibrant" /> Meu Financeiro
           </h1>
-          <p className="text-xs text-muted">
-            Acompanhe o registro de 70% de crédito das suas consultas para o demonstrativo de abatimento da mensalidade por período.
-          </p>
+          <p className="text-xs text-muted">Links de pagamento e valores conciliados pelo Asaas.</p>
         </div>
-
-        <button
-          type="button"
-          onClick={() => alert('Exportando extrato filtrado por período em formato CSV...')}
-          className="bg-surface hover:bg-slate-50 text-ink border border-line font-extrabold text-xs px-4 py-2.5 rounded-2xl shadow-card transition-all flex items-center gap-2"
-        >
-          <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-          Exportar Relatório (CSV)
+        <button onClick={exportCsv} disabled={!data} className="rounded-2xl border border-line bg-surface px-4 py-2.5 font-bold flex items-center gap-2 text-xs disabled:opacity-50">
+          <FileSpreadsheet className="w-4 h-4" /> Exportar CSV
         </button>
       </div>
 
-      {/* BANNER DOS LINKS PERMANENTES DE PAGAMENTO DO PSICÓLOGO */}
-      <div className="bg-gradient-to-r from-emerald-900/90 via-slate-900 to-teal-900 text-white p-6 rounded-3xl border border-emerald-500/30 shadow-xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+      {error && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error}</div>}
 
-        <div className="relative z-10 space-y-5">
-          <div className="space-y-1.5 max-w-2xl">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 uppercase tracking-wider">
-              <QrCode className="w-3.5 h-3.5" />
-              Seus Links Permanentes de Recebimento
-            </div>
-            <h2 className="text-lg font-black text-white">Um link para cada valor de sessão</h2>
-            <p className="text-xs text-slate-300">
-              Envie ao paciente o link da modalidade combinada. O valor já vai fixo na página — não
-              há o que escolher errado. O pagamento cai no Asaas por Pix ou cartão e os 70% de
-              crédito são contabilizados automaticamente.
-            </p>
-          </div>
-
-          {/* Um cartão por modalidade: o valor é o que identifica o link. */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {MODALIDADES_PAGAMENTO.map((modalidade) => (
-              <div
-                key={modalidade.slug}
-                className="bg-slate-950/60 border border-slate-700/80 rounded-2xl p-4 space-y-3"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-400 block">
-                      {modalidade.rotulo}
-                    </span>
-                    <span className="text-xl font-black text-white">
-                      {reaisDeCentavos(modalidade.valorCentavos)}
-                    </span>
-                  </div>
-                  <a
-                    href={linkDaModalidade(modalidade)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-2.5 rounded-2xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all shrink-0"
-                    title={`Abrir a página de pagamento — ${modalidade.rotulo}`}
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                  </a>
-                </div>
-
-                <div className="bg-slate-950/80 border border-slate-700/80 rounded-xl px-3 py-2 text-[11px] font-mono text-emerald-300 truncate">
-                  {linkDaModalidade(modalidade)}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleCopiarLink(modalidade)}
-                    className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs px-4 py-2.5 rounded-2xl shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    {linkCopiado === modalidade.slug ? (
-                      <>
-                        <Check className="w-4 h-4" />
-                        Copiado!
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-4 h-4" />
-                        Copiar Link
-                      </>
-                    )}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleEnviarWhatsapp(modalidade)}
-                    className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-extrabold text-xs px-4 py-2.5 rounded-2xl border border-slate-600 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Share2 className="w-4 h-4 text-emerald-400" />
-                    Enviar WhatsApp
-                  </button>
-                </div>
+      <section className="bg-slate-900 text-white p-6 rounded-3xl space-y-5">
+        <div>
+          <h2 className="font-black">Links permanentes de {data?.professionalName ?? 'pagamento'}</h2>
+          <p className="text-xs text-slate-300 mt-1">O CPF do paciente deve possuir uma sessão pendente no valor correspondente.</p>
+        </div>
+        <div className="grid lg:grid-cols-2 gap-4">
+          {(['social', 'particular'] as const).map((modality) => (
+            <div key={modality} className="rounded-2xl border border-slate-700 bg-slate-950/60 p-4 space-y-3">
+              <div className="flex justify-between items-center">
+                <div><p className="text-xs text-emerald-400 font-bold">{labels[modality]}</p>
+                  <p className="text-xl font-black">{data ? reaisDeCentavos(data.modalities[modality]) : '—'}</p></div>
+                {data && <a href={link(modality)} target="_blank" rel="noreferrer" aria-label="Abrir link"><ExternalLink className="w-4 h-4" /></a>}
               </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-
-      {/* FILTRO DE PERÍODO COM DATAS (SOLICITADO POR GIULIANA) */}
-      <form onSubmit={handleFiltrarPeriodo} className="bg-surface p-5 rounded-3xl border border-line shadow-card flex flex-col sm:flex-row sm:items-end justify-between gap-4 text-xs">
-        <div className="flex flex-col sm:flex-row items-center gap-4 flex-1">
-          <div className="w-full sm:w-auto">
-            <label className="font-bold text-ink block mb-1">Data Inicial</label>
-            <input
-              type="date"
-              value={dataInicio}
-              onChange={(e) => setDataInicio(e.target.value)}
-              className="bg-slate-50 border border-line rounded-xl p-2.5 text-ink font-semibold focus:outline-none focus:border-psi-vibrant w-full"
-            />
-          </div>
-
-          <div className="w-full sm:w-auto">
-            <label className="font-bold text-ink block mb-1">Data Final</label>
-            <input
-              type="date"
-              value={dataFim}
-              onChange={(e) => setDataFim(e.target.value)}
-              className="bg-slate-50 border border-line rounded-xl p-2.5 text-ink font-semibold focus:outline-none focus:border-psi-vibrant w-full"
-            />
-          </div>
-        </div>
-
-        <button
-          type="submit"
-          className="bg-psi-vibrant text-white font-extrabold text-xs px-5 py-3 rounded-2xl shadow-md hover:bg-psi-vibrant/90 transition-all flex items-center justify-center gap-2"
-        >
-          <Filter className="w-4 h-4" />
-          Filtrar Período
-        </button>
-      </form>
-
-      {/* KPI Card de Saldo de Crédito */}
-      <div className="grid grid-cols-1 gap-5">
-        <div className="bg-gradient-to-br from-psi-darkest to-slate-900 text-white rounded-3xl p-6 shadow-contrast relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-psi-soft/80">Saldo de Crédito de Atendimentos (70%)</span>
-            <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-              <Percent className="w-4 h-4" />
+              <div className="truncate rounded-xl border border-slate-700 px-3 py-2 text-[11px] font-mono text-emerald-300">{data ? link(modality) : 'Carregando…'}</div>
+              <div className="flex gap-2">
+                <button disabled={!data} onClick={() => void copy(modality)} className="flex-1 rounded-xl bg-emerald-500 p-2.5 text-xs font-black text-slate-950 flex justify-center gap-1">
+                  {copied === modality ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} {copied === modality ? 'Copiado' : 'Copiar'}
+                </button>
+                <button disabled={!data} onClick={() => share(modality)} className="flex-1 rounded-xl bg-slate-700 p-2.5 text-xs font-bold flex justify-center gap-1"><Share2 className="w-4 h-4" /> WhatsApp</button>
+              </div>
             </div>
-          </div>
-          <div className="mt-4">
-            <h2 className="text-3xl font-black text-white">
-              R$ {extrato.saldoAcumulado70.toFixed(2).replace('.', ',')}
-            </h2>
-            <p className="text-[11px] text-emerald-400 font-semibold mt-1 flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              Acumulado no período selecionado para registro de controle
-            </p>
-          </div>
+          ))}
         </div>
-      </div>
+      </section>
 
-      {/* Tabela de Atendimentos & Split */}
-      <div className="bg-surface rounded-3xl border border-line shadow-card overflow-hidden">
-        <div className="p-6 border-b border-line flex items-center justify-between">
-          <div>
-            <h3 className="font-extrabold text-base text-ink">Histórico de Atendimentos no Período</h3>
-            <p className="text-xs text-muted">Transações conciliadas automaticamente via Asaas no intervalo selecionado</p>
-          </div>
-          <span className="bg-emerald-100 text-emerald-800 text-[11px] font-bold px-3 py-1 rounded-full border border-emerald-200">
-            {extrato.historicoTransacoes.length} Atendimentos no Período
-          </span>
+      <section className="bg-surface border border-line rounded-3xl p-5 space-y-5">
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="text-xs font-bold">Início<input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="block mt-1 input" /></label>
+          <label className="text-xs font-bold">Fim<input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="block mt-1 input" /></label>
+          <button onClick={() => void load()} className="btn-primary text-xs">Atualizar</button>
+          <div className="sm:ml-auto"><p className="text-xs text-muted">Crédito do período (70%)</p><p className="text-2xl font-black text-emerald-600">{reaisDeCentavos(data?.professionalCreditCents ?? 0)}</p></div>
         </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-line">
-              <tr>
-                <th className="px-6 py-4">ID Transação</th>
-                <th className="px-6 py-4">Paciente</th>
-                <th className="px-6 py-4">Data</th>
-                <th className="px-6 py-4">Forma de Pgto</th>
-                <th className="px-6 py-4">Valor Total</th>
-                <th className="px-6 py-4 text-emerald-700">Seu Crédito (70%)</th>
-                <th className="px-6 py-4 text-slate-500">Clínica (30%)</th>
-                <th className="px-6 py-4">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {extrato.historicoTransacoes.map((item) => (
-                <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="px-6 py-4 font-mono font-bold text-ink">{item.id}</td>
-                  <td className="px-6 py-4 font-extrabold text-ink">{item.paciente}</td>
-                  <td className="px-6 py-4 text-muted">{item.data}</td>
-                  <td className="px-6 py-4 text-muted">{item.formaPagamento}</td>
-                  <td className="px-6 py-4 font-bold text-ink">R$ {item.valorSessao.toFixed(2).replace('.', ',')}</td>
-                  <td className="px-6 py-4 font-black text-emerald-600 bg-emerald-50/50">
-                    R$ {item.credito70.toFixed(2).replace('.', ',')}
-                  </td>
-                  <td className="px-6 py-4 font-semibold text-slate-500">
-                    R$ {item.receitaClinica30.toFixed(2).replace('.', ',')}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="inline-flex items-center gap-1 text-[11px] font-extrabold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                      <CheckCircle2 className="w-3 h-3" />
-                      {item.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr className="text-left text-muted border-b border-line"><th className="py-3">Data</th><th>Paciente</th><th>Pagamento</th><th>Crédito 70%</th><th>Forma</th></tr></thead>
+          <tbody>{data?.transactions.map((item) => <tr key={item.id} className="border-b border-line/70"><td className="py-3">{new Date(item.receivedAt).toLocaleDateString('pt-BR')}</td><td className="font-bold">{item.patientName}</td><td>{reaisDeCentavos(item.amountCents)}</td><td className="text-emerald-700 font-bold">{reaisDeCentavos(item.professionalCreditCents)}</td><td>{item.method}</td></tr>)}</tbody></table>
+          {data?.transactions.length === 0 && <p className="text-center text-muted py-8">Nenhum pagamento conciliado no período.</p>}
         </div>
-      </div>
+      </section>
     </div>
   );
 }

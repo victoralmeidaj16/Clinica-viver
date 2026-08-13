@@ -35,6 +35,34 @@ export interface AsaasPaymentResult {
   };
 }
 
+async function withPixQrCode(payment: Record<string, unknown>): Promise<AsaasPaymentResult> {
+  let pixData: AsaasPaymentResult['pixQrCode'];
+  try {
+    const pixRes = await fetch(`${ASAAS_API_URL}/payments/${payment.id}/pixQrCode`, {
+      headers: getHeaders(),
+    });
+    if (pixRes.ok) {
+      const pixJson = await pixRes.json();
+      pixData = {
+        encodedImage: pixJson.encodedImage ? `data:image/png;base64,${pixJson.encodedImage}` : '',
+        payload: pixJson.payload || '',
+        expirationDate: pixJson.expirationDate,
+      };
+    }
+  } catch {
+    // A URL da fatura continua válida mesmo se o QR Code estiver indisponível.
+  }
+  return {
+    id: String(payment.id), customer: String(payment.customer), value: Number(payment.value),
+    netValue: payment.netValue === undefined ? undefined : Number(payment.netValue),
+    billingType: String(payment.billingType), status: String(payment.status),
+    dueDate: String(payment.dueDate),
+    invoiceUrl: String(payment.invoiceUrl || `https://www.asaas.com/i/${payment.id}`),
+    bankSlipUrl: payment.bankSlipUrl ? String(payment.bankSlipUrl) : undefined,
+    pixQrCode: pixData,
+  };
+}
+
 const ASAAS_API_URL = process.env.ASAAS_API_URL || 'https://api.asaas.com/v3';
 const ASAAS_API_KEY = process.env.ASAAS_API_KEY || '';
 
@@ -85,9 +113,7 @@ export async function getOrCreateAsaasCustomer(input: AsaasCustomerInput): Promi
   });
 
   if (!createRes.ok) {
-    const errorBody = await createRes.text();
-    console.error('Erro ao criar cliente Asaas:', errorBody);
-    throw new Error(`Falha ao registrar cliente no Asaas: ${createRes.statusText}`);
+    throw new Error(`Falha ao registrar cliente no Asaas (${createRes.status}).`);
   }
 
   const newCustomer = await createRes.json();
@@ -117,43 +143,30 @@ export async function createAsaasPayment(input: AsaasPaymentInput): Promise<Asaa
   });
 
   if (!paymentRes.ok) {
-    const errorBody = await paymentRes.text();
-    console.error('Erro ao criar cobrança Asaas:', errorBody);
-    throw new Error(`Falha ao criar cobrança no Asaas: ${paymentRes.statusText}`);
+    throw new Error(`Falha ao criar cobrança no Asaas (${paymentRes.status}).`);
   }
 
-  const payment = await paymentRes.json();
+  return withPixQrCode(await paymentRes.json());
+}
 
-  // Buscar QR Code Pix se a cobrança permitir Pix
-  let pixData: AsaasPaymentResult['pixQrCode'] = undefined;
-  try {
-    const pixRes = await fetch(`${ASAAS_API_URL}/payments/${payment.id}/pixQrCode`, {
-      method: 'GET',
-      headers: getHeaders(),
-    });
+export async function findAsaasPaymentByExternalReference(
+  externalReference: string
+): Promise<AsaasPaymentResult | null> {
+  if (!ASAAS_API_KEY) throw new Error('Chave ASAAS_API_KEY não configurada no ambiente.');
+  const response = await fetch(
+    `${ASAAS_API_URL}/payments?externalReference=${encodeURIComponent(externalReference)}&limit=1`,
+    { headers: getHeaders() }
+  );
+  if (!response.ok) throw new Error('Falha ao consultar a cobrança no Asaas.');
+  const body = await response.json();
+  return body.data?.[0] ? withPixQrCode(body.data[0]) : null;
+}
 
-    if (pixRes.ok) {
-      const pixJson = await pixRes.json();
-      pixData = {
-        encodedImage: pixJson.encodedImage ? `data:image/png;base64,${pixJson.encodedImage}` : '',
-        payload: pixJson.payload || '',
-        expirationDate: pixJson.expirationDate,
-      };
-    }
-  } catch (err) {
-    console.warn('Não foi possível obter o QR Code Pix do Asaas para a cobrança:', payment.id, err);
-  }
-
-  return {
-    id: payment.id,
-    customer: payment.customer,
-    value: payment.value,
-    netValue: payment.netValue,
-    billingType: payment.billingType,
-    status: payment.status,
-    dueDate: payment.dueDate,
-    invoiceUrl: payment.invoiceUrl || `https://www.asaas.com/i/${payment.id}`,
-    bankSlipUrl: payment.bankSlipUrl,
-    pixQrCode: pixData,
-  };
+export async function getAsaasPayment(id: string): Promise<AsaasPaymentResult> {
+  if (!ASAAS_API_KEY) throw new Error('Chave ASAAS_API_KEY não configurada no ambiente.');
+  const response = await fetch(`${ASAAS_API_URL}/payments/${encodeURIComponent(id)}`, {
+    headers: getHeaders(),
+  });
+  if (!response.ok) throw new Error('Falha ao consultar a cobrança no Asaas.');
+  return withPixQrCode(await response.json());
 }

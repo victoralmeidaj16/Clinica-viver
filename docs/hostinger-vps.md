@@ -81,6 +81,24 @@ curl -sS -H "Authorization: Bearer $CRON_SECRET" \
 O resultado precisa trazer `"ready": true`, `"mysql": "ok"` e o `version`
 igual a `.deploy-sha`.
 
+### Asaas para links de pagamento
+
+As credenciais ficam somente em `/opt/viver-mais/infra/clinic/.env`. Para
+homologar sem movimentar dinheiro real, configure primeiro:
+
+```sh
+ASAAS_API_URL=https://api-sandbox.asaas.com/v3
+ASAAS_API_KEY=<nova chave do sandbox>
+ASAAS_WEBHOOK_TOKEN=<token aleatório e exclusivo>
+```
+
+No painel Asaas, cadastre o webhook em
+`https://app.clinicavivermais.cloud/api/financeiro/asaas/webhook`, usando
+exatamente o mesmo token. A aplicação exige o cabeçalho de autenticação e
+concilia `PAYMENT_CONFIRMED` e `PAYMENT_RECEIVED` de modo idempotente.
+As chaves não devem ser configuradas na Vercel: as rotas de pagamento são
+encaminhadas ao backend da VPS.
+
 ### Transbordo automático do SLA
 
 O serviço `sla-sweeper` do Compose chama, pela rede Docker privada, a rota

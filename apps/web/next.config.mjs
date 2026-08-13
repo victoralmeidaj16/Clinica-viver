@@ -31,6 +31,14 @@ const nextConfig = {
         source: '/api/infra/:path*',
         destination: `${backendOrigin}/api/infra/:path*`,
       },
+      {
+        source: '/api/pagamento/:path*',
+        destination: `${backendOrigin}/api/pagamento/:path*`,
+      },
+      {
+        source: '/api/financeiro/asaas/:path*',
+        destination: `${backendOrigin}/api/financeiro/asaas/:path*`,
+      },
     ];
   },
 };

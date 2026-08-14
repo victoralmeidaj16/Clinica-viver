@@ -6,7 +6,19 @@ export async function applicationRequest<T>(path: string, init: RequestInit = {}
     cache: 'no-store',
     headers: { ...(init.body ? { 'Content-Type': 'application/json' } : {}), ...init.headers },
   });
-  const envelope = await response.json() as ApiEnvelope<T>;
+
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    throw new Error(`Erro de conexão com o servidor (${response.status}). Tente novamente em instantes.`);
+  }
+
+  let envelope: ApiEnvelope<T>;
+  try {
+    envelope = (await response.json()) as ApiEnvelope<T>;
+  } catch {
+    throw new Error('Resposta inválida do servidor.');
+  }
+
   if (!response.ok || !envelope.ok || envelope.data === undefined) throw new Error(envelope.error?.message ?? 'Não foi possível concluir a operação.');
   return envelope.data;
 }

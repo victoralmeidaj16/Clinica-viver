@@ -2,7 +2,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const appDirectory = path.dirname(fileURLToPath(import.meta.url));
-const backendOrigin = process.env.BACKEND_ORIGIN?.trim().replace(/\/$/, '');
+const backendOrigin =
+  process.env.BACKEND_ORIGIN?.trim().replace(/\/$/, '') ||
+  (process.env.VERCEL ? 'https://app.clinicavivermais.cloud' : undefined);
 
 if (backendOrigin && !backendOrigin.startsWith('https://')) {
   throw new Error('BACKEND_ORIGIN precisa usar HTTPS.');
@@ -22,6 +24,10 @@ const nextConfig = {
       {
         source: '/api/application/:path*',
         destination: `${backendOrigin}/api/application/:path*`,
+      },
+      {
+        source: '/api/agenda/:path*',
+        destination: `${backendOrigin}/api/agenda/:path*`,
       },
       {
         source: '/api/auth/:path*',

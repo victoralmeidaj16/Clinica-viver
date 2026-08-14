@@ -7,6 +7,7 @@ import { AgendaBlocks, type BloqueioAgenda } from '@/components/scheduling/Agend
 import { AgendaShareCard } from '@/components/scheduling/AgendaShareCard';
 import { AvailabilityEditor, type JanelaEditavel } from '@/components/scheduling/AvailabilityEditor';
 import { UpcomingSessions, type AgendamentoResumo } from '@/components/scheduling/UpcomingSessions';
+import { ProfessionalCalendarView } from '@/components/scheduling/ProfessionalCalendarView';
 
 interface AgendaOverview {
   professionalName: string;
@@ -16,14 +17,6 @@ interface AgendaOverview {
   appointments: AgendamentoResumo[];
 }
 
-/**
- * A agenda do profissional.
- *
- * Grade semanal, bloqueios e link público moram na mesma tela porque são a
- * mesma decisão vista de três ângulos: o que o paciente vai encontrar quando
- * abrir o link. Separá-los em abas faria o profissional publicar um link antes
- * de ter horário nenhum cadastrado.
- */
 export default function AgendaPage() {
   const [dados, setDados] = useState<AgendaOverview>();
   const [erro, setErro] = useState<string>();
@@ -31,14 +24,19 @@ export default function AgendaPage() {
   const carregar = useCallback(
     () =>
       applicationRequest<AgendaOverview>('/agenda')
-        .then((resultado) => { setDados(resultado); setErro(undefined); })
+        .then((resultado) => {
+          setDados(resultado);
+          setErro(undefined);
+        })
         .catch((causa) =>
           setErro(causa instanceof Error ? causa.message : 'Não foi possível carregar a agenda.')
         ),
     []
   );
 
-  useEffect(() => { void carregar(); }, [carregar]);
+  useEffect(() => {
+    void carregar();
+  }, [carregar]);
 
   const salvarGrade = async (availability: JanelaEditavel[]) => {
     const resposta = await applicationRequest<{ availability: JanelaEditavel[] }>(
@@ -50,14 +48,16 @@ export default function AgendaPage() {
 
   const adicionarBloqueio = async (input: { inicioDia: string; fimDia: string; motivo: string }) => {
     const resposta = await applicationRequest<{ blocks: BloqueioAgenda[] }>('/agenda/bloqueios', {
-      method: 'POST', body: JSON.stringify(input),
+      method: 'POST',
+      body: JSON.stringify(input),
     });
     setDados((atual) => (atual ? { ...atual, blocks: resposta.blocks } : atual));
   };
 
   const removerBloqueio = async (id: string) => {
     const resposta = await applicationRequest<{ blocks: BloqueioAgenda[] }>(
-      `/agenda/bloqueios/${encodeURIComponent(id)}`, { method: 'DELETE' }
+      `/agenda/bloqueios/${encodeURIComponent(id)}`,
+      { method: 'DELETE' }
     );
     setDados((atual) => (atual ? { ...atual, blocks: resposta.blocks } : atual));
   };
@@ -79,8 +79,7 @@ export default function AgendaPage() {
           Sua agenda de atendimentos
         </h1>
         <p className="text-xs text-muted">
-          Defina os horários em que atende, bloqueie períodos e envie ao paciente um link para ele
-          mesmo marcar a sessão.
+          Defina os horários em que atende, selecione datas no calendário, bloqueie períodos e compartilhe seu link exclusivo.
         </p>
       </div>
 
@@ -89,12 +88,24 @@ export default function AgendaPage() {
       )}
 
       {!dados && !erro && (
-        <div className="py-20 flex justify-center"><Loader2 className="w-7 h-7 animate-spin text-psi-vibrant" /></div>
+        <div className="py-20 flex justify-center">
+          <Loader2 className="w-7 h-7 animate-spin text-psi-vibrant" />
+        </div>
       )}
 
       {dados && (
         <>
           <AgendaShareCard token={dados.agendaToken} professionalName={dados.professionalName} />
+
+          {/* Calendário Interativo do Psicólogo */}
+          <ProfessionalCalendarView
+            availability={dados.availability}
+            blocks={dados.blocks}
+            appointments={dados.appointments}
+            onAdicionarBloqueio={adicionarBloqueio}
+            onRemoverBloqueio={removerBloqueio}
+          />
+
           <AvailabilityEditor janelas={dados.availability} onSalvar={salvarGrade} />
           <AgendaBlocks bloqueios={dados.blocks} onAdicionar={adicionarBloqueio} onRemover={removerBloqueio} />
           <UpcomingSessions agendamentos={dados.appointments} onCancelar={cancelarSessao} />

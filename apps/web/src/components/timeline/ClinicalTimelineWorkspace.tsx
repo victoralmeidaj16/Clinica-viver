@@ -3,8 +3,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { searchClinicalTimeline, type ClinicalTimelineEntry } from '@thats-life/core';
 import { applicationRequest } from '@/lib/applicationApi';
-import { DEMO_CLINICAL_TIMELINE } from '@/lib/demoClinicalTimeline';
-import { INITIAL_PATIENTS } from '@/lib/mockData';
 import ClinicalMemorySearch from './ClinicalMemorySearch';
 import TimelineFeed from './TimelineFeed';
 import TimelineFilters, { TIMELINE_FILTERS } from './TimelineFilters';
@@ -12,32 +10,53 @@ import TimelineHeader, { DEMO_PROFESSIONALS } from './TimelineHeader';
 import { Download, ShieldCheck, FileCheck, Award, Sparkles } from 'lucide-react';
 
 const DEFAULT_QUERY = 'Quando começou a relatar dificuldades no trabalho?';
+const EMPTY_ENTRIES: readonly ClinicalTimelineEntry[] = [];
+
+interface TimelinePatient {
+  id: string;
+  displayName: string;
+}
 
 export default function ClinicalTimelineWorkspace() {
-  const [selectedPatientId, setSelectedPatientId] = useState('pac_01');
+  const [selectedPatientId, setSelectedPatientId] = useState('');
   const [selectedProfessionalId, setSelectedProfessionalId] = useState('prof-1');
   const [activeFilterId, setActiveFilterId] = useState('all');
   const [draftQuery, setDraftQuery] = useState(DEFAULT_QUERY);
   const [activeQuery, setActiveQuery] = useState(DEFAULT_QUERY);
   const [apiEntries, setApiEntries] = useState<ClinicalTimelineEntry[] | null>(null);
+  const [patients, setPatients] = useState<TimelinePatient[]>([]);
+  const [loadError, setLoadError] = useState<string>();
 
   useEffect(() => {
     let cancelled = false;
+    applicationRequest<TimelinePatient[]>('/patients')
+      .then((items) => {
+        if (cancelled) return;
+        setPatients(items);
+        setSelectedPatientId((current) => current || items[0]?.id || '');
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setLoadError(error instanceof Error ? error.message : 'Não foi possível carregar seus pacientes.');
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedPatientId) return;
+    let cancelled = false;
     applicationRequest<{ entries: ClinicalTimelineEntry[] }>(`/timeline?patientId=${selectedPatientId}`)
       .then((data) => {
-        if (!cancelled && data?.entries?.length) {
-          setApiEntries(data.entries);
-        }
+        if (!cancelled) { setApiEntries(data.entries); setLoadError(undefined); }
       })
-      .catch(() => {
-        // Fallback local em caso de desconexão
+      .catch((error: unknown) => {
+        if (!cancelled) setLoadError(error instanceof Error ? error.message : 'Não foi possível carregar o prontuário.');
       });
     return () => {
       cancelled = true;
     };
   }, [selectedPatientId]);
 
-  const allEntries = apiEntries ?? DEMO_CLINICAL_TIMELINE;
+  const allEntries = apiEntries ?? EMPTY_ENTRIES;
 
   const activeFilter = TIMELINE_FILTERS.find(
     (filter) => filter.id === activeFilterId
@@ -57,8 +76,7 @@ export default function ClinicalTimelineWorkspace() {
     [activeQuery, allEntries]
   );
 
-  const selectedPatient =
-    INITIAL_PATIENTS.find((p) => p.id === selectedPatientId) ?? INITIAL_PATIENTS[0];
+  const selectedPatient = patients.find((p) => p.id === selectedPatientId);
 
   const selectedProfessional =
     DEMO_PROFESSIONALS.find((p) => p.id === selectedProfessionalId) ?? DEMO_PROFESSIONALS[0];
@@ -73,9 +91,8 @@ export default function ClinicalTimelineWorkspace() {
 ================================================================================
 THAT'S LIFE PSI - DOSSIÊ CLINICO LONGITUDINAL VERIFICÁVEL
 ================================================================================
-Paciente: ${selectedPatient.nome}
-Contato: ${selectedPatient.telefone} | ${selectedPatient.email}
-Plano Terapêutico: ${selectedPatient.planoAtendimento}
+Paciente: ${selectedPatient?.displayName ?? 'Não identificado'}
+Plano Terapêutico: Consultar prontuário clínico autorizado
 Profissional Responsável: ${selectedProfessional.name} (${selectedProfessional.crp})
 Papel no Atendimento: ${selectedProfessional.role}
 Especialidade: ${selectedProfessional.specialty}
@@ -115,7 +132,7 @@ Dossiê emitido pelo motor Thats Life Psi com rastreabilidade legal.
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `dossie-longitudinal-${selectedPatient.nome.toLowerCase().replace(/\s+/g, '-')}.txt`;
+    a.download = `dossie-longitudinal-${(selectedPatient?.displayName ?? 'paciente').toLowerCase().replace(/\s+/g, '-')}.txt`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -128,8 +145,13 @@ Dossiê emitido pelo motor Thats Life Psi com rastreabilidade legal.
         onSelectPatient={setSelectedPatientId}
         selectedProfessionalId={selectedProfessionalId}
         onSelectProfessional={setSelectedProfessionalId}
+        patients={patients}
         entries={allEntries}
       />
+
+      {loadError && <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{loadError}</div>}
+
+      {!selectedPatientId && !loadError && <div className="card py-10 text-center text-sm text-muted">Você ainda não possui pacientes vinculados ao seu perfil.</div>}
 
       {/* Card de Destaque do Papel do Psicólogo & Dossiê Verificável */}
       <div className="card bg-white p-5 space-y-4 border border-line shadow-card">
@@ -171,7 +193,7 @@ Dossiê emitido pelo motor Thats Life Psi com rastreabilidade legal.
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
           <div className="p-3.5 rounded-xl bg-psi-light border border-psi-soft space-y-1">
             <span className="text-[10px] font-bold uppercase tracking-wider text-psi-deep">Plano Ativo do Paciente</span>
-            <p className="font-bold text-ink">{selectedPatient.planoAtendimento}</p>
+            <p className="font-bold text-ink">Consulte os registros autorizados deste prontuário.</p>
           </div>
 
           <div className="p-3.5 rounded-xl bg-psi-light border border-psi-soft space-y-1">

@@ -10,7 +10,11 @@ import {
   Lock,
 } from 'lucide-react';
 import type { ClinicalTimelineEntry } from '@thats-life/core';
-import { INITIAL_PATIENTS } from '@/lib/mockData';
+
+export interface TimelinePatientOption {
+  id: string;
+  displayName: string;
+}
 
 export interface ProfessionalRoleOption {
   id: string;
@@ -57,6 +61,7 @@ interface TimelineHeaderProps {
   onSelectPatient: (id: string) => void;
   selectedProfessionalId: string;
   onSelectProfessional: (id: string) => void;
+  patients: readonly TimelinePatientOption[];
   entries: readonly ClinicalTimelineEntry[];
 }
 
@@ -65,10 +70,11 @@ export default function TimelineHeader({
   onSelectPatient,
   selectedProfessionalId,
   onSelectProfessional,
+  patients,
   entries,
 }: TimelineHeaderProps) {
   const selectedPatient =
-    INITIAL_PATIENTS.find((p) => p.id === selectedPatientId) ?? INITIAL_PATIENTS[0];
+    patients.find((p) => p.id === selectedPatientId) ?? patients[0];
 
   const selectedProfessional =
     DEMO_PROFESSIONALS.find((p) => p.id === selectedProfessionalId) ?? DEMO_PROFESSIONALS[0];
@@ -103,9 +109,9 @@ export default function TimelineHeader({
                 onChange={(e) => onSelectPatient(e.target.value)}
                 className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer"
               >
-                {INITIAL_PATIENTS.map((patient) => (
+                {patients.map((patient) => (
                   <option key={patient.id} value={patient.id} className="text-ink">
-                    {patient.nome}
+                    {patient.displayName}
                   </option>
                 ))}
               </select>
@@ -145,7 +151,7 @@ export default function TimelineHeader({
             </div>
 
             <h1 className="max-w-3xl font-serif text-2xl sm:text-3xl font-bold leading-tight text-white">
-              Histórico Clínico Auditável de {selectedPatient.nome}
+              Histórico Clínico Auditável de {selectedPatient?.displayName ?? 'seu paciente'}
             </h1>
 
             <p className="max-w-2xl text-xs sm:text-sm leading-relaxed text-psi-soft/80">

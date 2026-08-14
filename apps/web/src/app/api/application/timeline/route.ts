@@ -11,7 +11,10 @@ export async function GET(request: Request) {
     const context = await resolveRequestContext(request);
     const { searchParams } = new URL(request.url);
 
-    const patientId = searchParams.get('patientId') || 'patient-1';
+    const patientId = searchParams.get('patientId');
+    if (!patientId) {
+      throw new Error('Selecione um paciente para consultar a linha do tempo.');
+    }
     const query = searchParams.get('query') || undefined;
     const categoriesParam = searchParams.get('categories');
 

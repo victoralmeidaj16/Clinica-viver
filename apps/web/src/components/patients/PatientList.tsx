@@ -17,7 +17,6 @@ import {
   CalendarPlus,
   Loader2,
   X,
-  Share2,
 } from 'lucide-react';
 import { applicationRequest } from '@/lib/applicationApi';
 

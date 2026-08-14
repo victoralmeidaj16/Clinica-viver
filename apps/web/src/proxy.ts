@@ -7,7 +7,7 @@ import { readSessionValue } from '@/server/auth';
 // continua no LayoutShell e, principalmente, nas APIs.
 export function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
-  const persistentApi = ['/api/application/', '/api/auth/', '/api/infra/', '/api/pagamento/', '/api/financeiro/asaas/'].some(
+  const persistentApi = ['/api/application/', '/api/auth/', '/api/infra/', '/api/pagamento/', '/api/agenda/', '/api/financeiro/asaas/'].some(
     (prefix) => pathname.startsWith(prefix)
   );
 
@@ -19,11 +19,11 @@ export function proxy(request: NextRequest) {
     return NextResponse.rewrite(destination);
   }
 
-  // `/pagar/` é o link permanente de cobrança: o paciente não tem sessão, e é
-  // esse o ponto. Sem estar aqui, a VPS redireciona para o login quem recebeu
-  // o link no WhatsApp — a Vercel não mostrava o problema porque devolve
-  // `next()` antes desta checagem.
-  const publicPage = pathname === '/' || pathname === '/login' || pathname === '/ativar-conta' || pathname === '/vitrine' || pathname.startsWith('/pagar/') || pathname.startsWith('/_next') || pathname.startsWith('/api/auth');
+  // `/pagar/` e `/agendar/` são os links permanentes que o paciente recebe no
+  // WhatsApp: ele não tem sessão, e é esse o ponto. Sem estar aqui, a VPS
+  // redireciona para o login quem abre o link — a Vercel não mostrava o
+  // problema porque devolve `next()` antes desta checagem.
+  const publicPage = pathname === '/' || pathname === '/login' || pathname === '/ativar-conta' || pathname === '/vitrine' || pathname.startsWith('/pagar/') || pathname.startsWith('/agendar/') || pathname.startsWith('/_next') || pathname.startsWith('/api/auth');
   if (publicPage || pathname.startsWith('/api/')) return NextResponse.next();
   // Na Vercel o domínio público é apenas um proxy para a VPS. A sessão é
   // assinada e validada pelo backend da VPS; tentar validá-la novamente com

@@ -5,6 +5,7 @@ import {
   getAsaasPayment,
   getOrCreateAsaasCustomer,
 } from '@/server/adapters/asaasAdapter';
+import { rateLimited, validCpf } from '@/server/http/publicRequest';
 import {
   bindProviderPayment,
   reservePendingCharge,
@@ -14,38 +15,6 @@ import {
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const attempts = new Map<string, { count: number; resetAt: number }>();
-
-function rateLimited(request: Request): boolean {
-  const key = request.headers.get('x-real-ip') ||
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-  const now = Date.now();
-  if (attempts.size > 5_000) {
-    for (const [candidate, value] of attempts) {
-      if (value.resetAt <= now) attempts.delete(candidate);
-    }
-  }
-  const current = attempts.get(key);
-  if (!current || current.resetAt <= now) {
-    attempts.set(key, { count: 1, resetAt: now + 10 * 60_000 });
-    return false;
-  }
-  current.count += 1;
-  return current.count > 8;
-}
-
-function validCpf(value: string): boolean {
-  const cpf = value.replace(/\D/g, '');
-  if (!/^\d{11}$/.test(cpf) || /^(\d)\1{10}$/.test(cpf)) return false;
-  const digit = (part: string, weight: number) => {
-    const total = [...part].reduce((sum, item, index) => sum + Number(item) * (weight - index), 0);
-    const result = 11 - (total % 11);
-    return result > 9 ? 0 : result;
-  };
-  return digit(cpf.slice(0, 9), 10) === Number(cpf[9]) &&
-    digit(cpf.slice(0, 10), 11) === Number(cpf[10]);
-}
-
 function method(type: string): 'pix' | 'card' | 'other' {
   if (type === 'PIX') return 'pix';
   if (type === 'CREDIT_CARD') return 'card';
@@ -53,7 +22,7 @@ function method(type: string): 'pix' | 'card' | 'other' {
 }
 
 export async function POST(request: Request) {
-  if (rateLimited(request)) {
+  if (rateLimited(request, 'pagamento-gerar')) {
     return NextResponse.json(
       { error: 'Muitas tentativas. Aguarde alguns minutos antes de tentar novamente.' },
       { status: 429, headers: { 'Retry-After': '600' } }

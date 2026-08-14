@@ -90,6 +90,51 @@ export async function getProfessionalPaymentProfile(
   return rows[0] ? profile(rows[0]) : null;
 }
 
+export interface PagamentoRecebido {
+  ref: string;
+  patientName: string;
+  amountCents: number;
+  receivedAt: string;
+  method: string;
+}
+
+/**
+ * Pagamentos conciliados dos pacientes de um profissional.
+ *
+ * Alimenta o sino. A conciliação já grava o fato em `financeiro_pagamentos`
+ * quando o webhook do Asaas chega, então o aviso é derivado dessa linha em vez
+ * de escrito por um segundo caminho — a mesma escolha que o resto das
+ * notificações faz, e a razão pela qual "seu paciente pagou" não pode aparecer
+ * para uma cobrança que foi estornada depois.
+ */
+export async function listRecentConfirmedPayments(
+  organizationId: string,
+  professionalId: string,
+  desde: Date
+): Promise<PagamentoRecebido[]> {
+  const [rows] = await getMysqlPool().query<RowDataPacket[]>(
+    `SELECT g.ref_core, g.recebido_em, g.valor_centavos, g.forma,
+            COALESCE(pa.nome_social, pa.nome) AS paciente_nome
+       FROM financeiro_pagamentos g
+       JOIN financeiro_cobrancas c
+         ON c.instituicao_id = g.instituicao_id AND c.ref_core = g.cobranca_ref
+       LEFT JOIN clinica_pacientes pa
+         ON pa.instituicao_id = c.instituicao_id AND pa.ref_core = c.paciente_ref
+      WHERE g.instituicao_id = ? AND g.organizacao_ref = ? AND c.profissional_ref = ?
+        AND g.status = 'confirmed' AND g.recebido_em >= ?
+      ORDER BY g.recebido_em DESC
+      LIMIT 40`,
+    [instituicaoId(), organizationId, professionalId, desde]
+  );
+  return rows.map((row) => ({
+    ref: String(row.ref_core),
+    patientName: String(row.paciente_nome ?? 'Paciente'),
+    amountCents: Number(row.valor_centavos),
+    receivedAt: new Date(row.recebido_em).toISOString(),
+    method: String(row.forma ?? 'other'),
+  }));
+}
+
 export async function reservePendingCharge(input: {
   token: string;
   modality: PaymentModality;

@@ -15,6 +15,19 @@ interface Transaction {
   method: string;
 }
 
+type PaymentStatus = 'draft' | 'paid' | 'pending' | 'partially_paid' | 'overdue' | 'refunded' | 'cancelled';
+
+interface Receivable {
+  chargeId: string;
+  sessionId: string;
+  patientName: string;
+  dueAt: string;
+  status: PaymentStatus;
+  amountCents: number;
+  receivedCents: number;
+  outstandingCents: number;
+}
+
 interface FinancialData {
   professionalName: string;
   paymentToken: string;
@@ -22,9 +35,30 @@ interface FinancialData {
   receivedCents: number;
   professionalCreditCents: number;
   transactions: Transaction[];
+  receivables: Receivable[];
 }
 
 const labels = { social: 'Sessão Social', particular: 'Sessão Particular' } as const;
+
+const paymentStatusLabel: Record<PaymentStatus, string> = {
+  draft: 'Rascunho',
+  paid: 'Pago',
+  pending: 'Pendente',
+  partially_paid: 'Parcial',
+  overdue: 'Vencido',
+  refunded: 'Estornado',
+  cancelled: 'Cancelado',
+};
+
+const paymentStatusStyle: Record<PaymentStatus, string> = {
+  draft: 'bg-slate-100 text-slate-700 border-slate-200',
+  paid: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  pending: 'bg-sky-100 text-sky-800 border-sky-200',
+  partially_paid: 'bg-amber-100 text-amber-900 border-amber-200',
+  overdue: 'bg-rose-100 text-rose-800 border-rose-200',
+  refunded: 'bg-slate-100 text-slate-700 border-slate-200',
+  cancelled: 'bg-slate-100 text-slate-500 border-slate-200',
+};
 
 function initialDates() {
   const now = new Date();
@@ -132,6 +166,17 @@ export default function MeuFinanceiroPage() {
         <div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr className="text-left text-muted border-b border-line"><th className="py-3">Data</th><th>Paciente</th><th>Pagamento</th><th>Crédito 70%</th><th>Forma</th></tr></thead>
           <tbody>{data?.transactions.map((item) => <tr key={item.id} className="border-b border-line/70"><td className="py-3">{new Date(item.receivedAt).toLocaleDateString('pt-BR')}</td><td className="font-bold">{item.patientName}</td><td>{reaisDeCentavos(item.amountCents)}</td><td className="text-emerald-700 font-bold">{reaisDeCentavos(item.professionalCreditCents)}</td><td>{item.method}</td></tr>)}</tbody></table>
           {data?.transactions.length === 0 && <p className="text-center text-muted py-8">Nenhum pagamento conciliado no período.</p>}
+        </div>
+      </section>
+
+      <section className="bg-surface border border-line rounded-3xl p-5 space-y-4">
+        <div>
+          <h2 className="font-black text-ink">Status dos atendimentos</h2>
+          <p className="text-xs text-muted mt-1">Acompanhe as cobranças das suas sessões e identifique o que ainda está em aberto.</p>
+        </div>
+        <div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr className="text-left text-muted border-b border-line"><th className="py-3">Vencimento</th><th>Paciente</th><th>Status</th><th>Valor</th><th>Recebido</th><th>Em aberto</th></tr></thead>
+          <tbody>{data?.receivables.map((item) => <tr key={item.chargeId} className="border-b border-line/70"><td className="py-3">{new Date(item.dueAt).toLocaleDateString('pt-BR')}</td><td className="font-bold">{item.patientName}</td><td><span className={`inline-flex rounded-full border px-2 py-1 font-bold ${paymentStatusStyle[item.status]}`}>{paymentStatusLabel[item.status]}</span></td><td>{reaisDeCentavos(item.amountCents)}</td><td className="text-emerald-700 font-bold">{reaisDeCentavos(item.receivedCents)}</td><td className={item.outstandingCents > 0 ? 'font-bold text-amber-700' : 'text-muted'}>{reaisDeCentavos(item.outstandingCents)}</td></tr>)}</tbody></table>
+          {data?.receivables.length === 0 && <p className="text-center text-muted py-8">Nenhuma cobrança de atendimento encontrada.</p>}
         </div>
       </section>
     </div>

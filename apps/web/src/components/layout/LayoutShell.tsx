@@ -23,8 +23,12 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   // permanente jogaria no login exatamente a pessoa que o link foi criado para
   // atender — quem autoriza a página é o próprio endereço.
   const isPaginaPagamento = pathname.startsWith('/pagar/');
+  // Mesma razão para o link de marcação. E precisa vir antes da checagem de
+  // papel: `/agendar/...` casa com o prefixo `/agenda` da lista de páginas do
+  // profissional, e sem sair antes o paciente seria mandado ao login.
+  const isPaginaAgendamento = pathname.startsWith('/agendar/');
   const isPublicPage =
-    pathname === '/login' || pathname === '/ativar-conta' || pathname === '/' || isVitrinePage || isConfirmacaoContato || isPaginaPagamento;
+    pathname === '/login' || pathname === '/ativar-conta' || pathname === '/' || isVitrinePage || isConfirmacaoContato || isPaginaPagamento || isPaginaAgendamento;
 
   useEffect(() => {
     if (isPublicPage) {

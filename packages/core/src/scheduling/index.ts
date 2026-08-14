@@ -1,4 +1,5 @@
 export * from './types';
+export * from './availabilityGrid';
 export * from './validation';
 export * from './eventFactory';
 export * from './aggregate';

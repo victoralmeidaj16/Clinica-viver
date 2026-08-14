@@ -2,6 +2,8 @@ import {
   assertStaffAuthorized,
   exportFinancialReportCsv,
   generateFinancialReports,
+  reconcileSessionReceivables,
+  type ChargeStatus,
   type FinancialFilter,
 } from '@thats-life/core';
 import type { RequestContext } from './context';
@@ -67,6 +69,23 @@ export async function getMyFinancialData(
       };
     })
     .sort((left, right) => right.receivedAt.localeCompare(left.receivedAt));
+
+  // O razão já chega filtrado pelo perfil profissional. Conciliar aqui, antes
+  // de expor os dados, permite ao psicólogo acompanhar cada atendimento sem
+  // receber cobranças ou pacientes de outros profissionais.
+  const receivables = reconcileSessionReceivables(ledger)
+    .map((receivable) => ({
+      chargeId: receivable.chargeId,
+      sessionId: receivable.sessionId,
+      patientName: names.get(receivable.patientId) ?? 'Paciente',
+      dueAt: receivable.dueAt,
+      status: receivable.chargeStatus as ChargeStatus,
+      amountCents: receivable.netAmountCents,
+      receivedCents: Math.max(receivable.paidAmountCents - receivable.refundedAmountCents, 0),
+      outstandingCents: receivable.outstandingAmountCents,
+    }))
+    .sort((left, right) => right.dueAt.localeCompare(left.dueAt));
+
   return {
     professionalId,
     receivedCents: transactions.reduce((sum, item) => sum + item.amountCents, 0),
@@ -74,6 +93,7 @@ export async function getMyFinancialData(
       (sum, item) => sum + item.professionalCreditCents, 0
     ),
     transactions,
+    receivables,
   };
 }
 

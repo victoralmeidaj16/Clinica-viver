@@ -6,8 +6,45 @@ import { cadastroDaSessao, SemAcessoError } from '@/server/application/psycholog
 import {
   montarLista,
   notificacoesDaGestao,
+  notificacoesDePagamento,
   notificacoesDoPsicologo,
+  type NotificacaoDerivada,
 } from '@/server/application/notificacoes';
+import { getApplicationStore } from '@/server/application/store';
+import { listRecentConfirmedPayments } from '@/server/payments/paymentLinkRepository';
+import { isMysqlConfigured } from '@/server/oci/runtime';
+
+/** Janela de pagamentos consultada; a retenção do sino já corta em 30 dias. */
+const DIAS_DE_PAGAMENTOS = 30;
+
+/**
+ * Pagamentos dos pacientes de quem está logado.
+ *
+ * Falha em silêncio de propósito: o sino existe para a fila de triagem, e uma
+ * indisponibilidade do financeiro não pode derrubar o aviso de que alguém está
+ * há dois dias sem primeiro contato.
+ */
+async function pagamentosDoPsicologo(
+  organizationId: string,
+  userId: string
+): Promise<NotificacaoDerivada[]> {
+  if (!isMysqlConfigured()) return [];
+  try {
+    const membership = await getApplicationStore().identities.findMembershipByUser(
+      organizationId,
+      userId
+    );
+    const professionalId = membership?.professionalProfileId;
+    if (!professionalId) return [];
+    const desde = new Date(Date.now() - DIAS_DE_PAGAMENTOS * 24 * 60 * 60 * 1000);
+    return notificacoesDePagamento(
+      await listRecentConfirmedPayments(organizationId, professionalId, desde)
+    );
+  } catch (error) {
+    console.error('Erro ao ler pagamentos para o sino:', error);
+    return [];
+  }
+}
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -43,7 +80,11 @@ export async function GET() {
         ? notificacoesDaGestao(state, agora)
         : await (async () => {
             const cadastro = await cadastroDaSessao(session);
-            return cadastro ? notificacoesDoPsicologo(state, cadastro, agora) : [];
+            if (!cadastro) return [];
+            return [
+              ...notificacoesDoPsicologo(state, cadastro, agora),
+              ...(await pagamentosDoPsicologo(session.organizationId, session.userId)),
+            ];
           })();
 
     const lidas = await getLeiturasRepository().lidas(session.userId);

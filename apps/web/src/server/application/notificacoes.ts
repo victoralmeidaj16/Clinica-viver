@@ -2,6 +2,7 @@ import 'server-only';
 
 import type { CadastroPsicologoRecord, TriagemPacienteRecord } from './persistence';
 import type { CaptureState } from '@/server/persistence/captureRepository';
+import type { PagamentoRecebido } from '@/server/payments/paymentLinkRepository';
 import {
   classificarSla,
   horasDesdeAlocacao,
@@ -187,6 +188,49 @@ export function notificacoesDoPsicologo(
 
   itens.push(...notificacoesDoCadastro(cadastro));
   return itens;
+}
+
+/**
+ * "Seu paciente pagou."
+ *
+ * Sai de `financeiro_pagamentos`, não do webhook: o aviso e a linha do
+ * financeiro passam a contar a mesma história, e um estorno que apague a
+ * conciliação apaga junto o aviso — o que uma notificação gravada no momento
+ * do webhook não faria.
+ *
+ * A chave carrega a referência do pagamento, então um segundo pagamento do
+ * mesmo paciente volta a aparecer como não lido em vez de ser silenciado pela
+ * leitura do anterior.
+ */
+export function notificacoesDePagamento(
+  pagamentos: readonly PagamentoRecebido[]
+): NotificacaoDerivada[] {
+  const dinheiro = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+  return pagamentos.map((pagamento) => ({
+    chave: `pagamento-recebido:${pagamento.ref}`,
+    tipo: 'pagamento-recebido',
+    titulo: 'Pagamento recebido',
+    descricao: `${pagamento.patientName} pagou ${dinheiro.format(pagamento.amountCents / 100)} via ${rotuloForma(pagamento.method)}.`,
+    ocorridoEm: pagamento.receivedAt,
+    severidade: 'INFO',
+    href: '/meu-financeiro',
+    pendente: false,
+  }));
+}
+
+function rotuloForma(forma: string): string {
+  switch (forma) {
+    case 'pix':
+      return 'Pix';
+    case 'card':
+      return 'cartão';
+    case 'cash':
+      return 'dinheiro';
+    case 'bank_transfer':
+      return 'transferência';
+    default:
+      return 'pagamento online';
+  }
 }
 
 /** Avisos sobre o próprio credenciamento e sobre a participação no rodízio. */

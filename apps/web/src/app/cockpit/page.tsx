@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   CheckCircle2,
   Zap,
@@ -11,33 +12,53 @@ import {
   Calendar,
   Copy,
   UserPlus,
-  Lock,
+  FileText,
+  Share2,
+  Send,
+  AlertCircle,
+  ChevronRight,
+  User,
+  AlertTriangle,
+  MessageCircle,
 } from 'lucide-react';
+import { applicationRequest } from '@/lib/applicationApi';
 
+interface PatientOption {
+  id: string;
+  displayName: string;
+  phone?: string;
+  status?: string;
+  nextAppointmentAt?: string;
+}
 
-/**
- * Horário de alocação do lead de demonstração: três horas atrás, para o
- * contador de SLA nascer no meio da janela de 24h. Fica fora do componente
- * porque `Date.now()` durante o render é impuro — cada render produziria um
- * instante diferente.
- */
+interface AppointmentSummary {
+  id: string;
+  patientId: string;
+  pacienteNome?: string;
+  startsAt: string;
+  endsAt: string;
+  status: 'scheduled' | 'confirmed' | 'completed' | 'canceled';
+  modality: 'online' | 'presencial';
+  prontuarioPreenchido?: boolean;
+}
+
 const LEAD_ALOCADO_EM = new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString();
 
 export default function CockpitPage() {
-  // Modal de Adicionar Paciente Manual (Psicólogo)
-  const [modalNovoPaciente, setModalNovoPaciente] = useState(false);
-  const [temNomeSocialManual, setTemNomeSocialManual] = useState(false);
-  const [manualPaciente, setManualPaciente] = useState({
-    nome: '',
-    nomeSocial: '',
-    telefone: '',
-    cpf: '',
-    modalidade: 'ACESSIVEL_SOCIAL',
-    valorFixado: 75.00, // VALOR TRAVADO: Psicólogo não pode alterar valor nem duração
-    duracaoFixada: 50, // DURAÇÃO TRAVADA: 50 minutos
-  });
+  const router = useRouter();
 
-  // Estados do Lead de Triagem atribuído (SLA 24h)
+  // Dados Reais da Aplicação
+  const [patients, setPatients] = useState<PatientOption[]>([]);
+  const [appointments, setAppointments] = useState<AppointmentSummary[]>([]);
+  const [agendaToken, setAgendaToken] = useState<string>('');
+  const [selectedPatientForTimeline, setSelectedPatientForTimeline] = useState<string>('');
+
+  // Estados de Modal e Cópia
+  const [modalNovoPaciente, setModalNovoPaciente] = useState(false);
+  const [copiedAgendaLink, setCopiedAgendaLink] = useState(false);
+  const [copiedLeadLink, setCopiedLeadLink] = useState(false);
+
+  // Lead de Triagem pendente (SLA 24h)
   const [pendingLead, setPendingLead] = useState<{
     id: string;
     nomePaciente: string;
@@ -59,137 +80,473 @@ export default function CockpitPage() {
     confirmado: false,
   });
 
-  const [copiedLink, setCopiedLink] = useState(false);
+  // Cadastro Manual de Paciente
+  const [manualPaciente, setManualPaciente] = useState({
+    nome: '',
+    telefone: '',
+    cpf: '',
+  });
 
-  // Estado da Aba Ativa no Cockpit da Viver Mais
-  const [activeTab, setActiveTab] = useState<'LEADS' | 'PACIENTES' | 'AGENDA' | 'DESCONTO'>('LEADS');
+  useEffect(() => {
+    // Carrega Pacientes
+    applicationRequest<PatientOption[]>('/patients')
+      .then((items) => {
+        if (Array.isArray(items)) {
+          setPatients(items);
+          if (items.length > 0) setSelectedPatientForTimeline(items[0].id);
+        }
+      })
+      .catch(() => {});
+
+    // Carrega Token da Agenda
+    applicationRequest<{ agendaToken?: string }>('/agenda')
+      .then((res) => {
+        if (res?.agendaToken) setAgendaToken(res.agendaToken);
+      })
+      .catch(() => {});
+
+    // Carrega Sessões
+    applicationRequest<AppointmentSummary[]>('/appointments')
+      .then((apps) => {
+        if (Array.isArray(apps)) setAppointments(apps);
+      })
+      .catch(() => {});
+  }, []);
+
+  const publicAgendaUrl = agendaToken
+    ? `${typeof window !== 'undefined' ? window.location.origin : 'https://clinica-viver-web.vercel.app'}/agendar/${agendaToken}`
+    : '';
+
+  // Identifica sessões encerradas pendentes de prontuário (Resolução CFP N.º 01/2009)
+  const sessaoPendenteProntuario = appointments.find(
+    (a) => a.status === 'completed' && !a.prontuarioPreenchido
+  ) || {
+    id: 'demo-pendente-1',
+    patientId: patients[0]?.id || 'p-demo-1',
+    pacienteNome: patients[0]?.displayName || 'João Pedro Severo',
+    startsAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    endsAt: new Date(Date.now() - 23 * 60 * 60 * 1000).toISOString(),
+    status: 'completed' as const,
+    modality: 'online' as const,
+    prontuarioPreenchido: false,
+  };
 
   const handleConfirmContact = async () => {
-    const linkUrl = `https://vivermaispsicologia.com.br/p/PAY-${Math.floor(10000 + Math.random() * 90000)}`;
+    const linkUrl = publicAgendaUrl || `https://clinica-viver-web.vercel.app/agendar/0e1417b497fd11f197d68e553c6656d0`;
     setPendingLead((prev) => ({
       ...prev,
       confirmado: true,
       cobrancaUrl: linkUrl,
     }));
 
-    // Disparar WhatsApp via Evolution API para o paciente
     try {
-      const textoPaciente = `Olá, ${pendingLead.nomePaciente}! 👋✨\n\nAqui é o Dr. Lucas da *Viver Mais Psicologia*.\n\nSua sessão de *${pendingLead.modalidade}* foi confirmada para o turno da *${pendingLead.turno}*!\n\n💳 Para concluir o agendamento e efetuar o pagamento da sessão (R$ 75,00), acesse seu link exclusivo:\n${linkUrl}\n\nEstou ansioso para nosso atendimento!🧠`;
+      const textoPaciente = `Olá, ${pendingLead.nomePaciente}! 👋✨\n\nAqui é o psicólogo da *Viver Mais Psicologia*.\n\nSua vaga para atendimento de *${pendingLead.modalidade}* foi confirmada!\n\n📅 Para escolher o seu melhor dia e horário de atendimento, acesse seu link exclusivo:\n${linkUrl}\n\nEstou no aguardo!🧠`;
 
       await fetch('/api/application/communication/send-text', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Idempotency-Key': crypto.randomUUID(),
-        },
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() },
         body: JSON.stringify({
           number: pendingLead.telefone.replace(/\D/g, ''),
           text: textoPaciente,
         }),
       });
-    } catch (e) {
-      console.warn('[Evolution API Cockpit Confirm] Servidor offline ou desconfigurado:', e);
+    } catch {
+      // Ignora erro de webhook local
     }
   };
 
-  const handleCopyLink = () => {
+  const handleCopyAgendaLink = () => {
+    if (publicAgendaUrl) {
+      navigator.clipboard.writeText(publicAgendaUrl);
+      setCopiedAgendaLink(true);
+      setTimeout(() => setCopiedAgendaLink(false), 3000);
+    }
+  };
+
+  const handleCopyLeadLink = () => {
     if (pendingLead.cobrancaUrl) {
       navigator.clipboard.writeText(pendingLead.cobrancaUrl);
-      setCopiedLink(true);
-      setTimeout(() => setCopiedLink(false), 3000);
+      setCopiedLeadLink(true);
+      setTimeout(() => setCopiedLeadLink(false), 3000);
     }
+  };
+
+  // Lembrete de Sessão em 1-Clique via WhatsApp
+  const handleEnviarLembreteWhatsApp = (app: AppointmentSummary) => {
+    const paciente = patients.find((p) => p.id === app.patientId);
+    const telefone = paciente?.phone?.replace(/\D/g, '') || '';
+    const nome = app.pacienteNome || paciente?.displayName || 'Paciente';
+
+    const dataFormatada = new Date(app.startsAt).toLocaleDateString('pt-BR', {
+      weekday: 'long',
+      day: '2-digit',
+      month: '2-digit',
+      timeZone: 'America/Sao_Paulo',
+    });
+    const horaFormatada = new Date(app.startsAt).toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'America/Sao_Paulo',
+    });
+
+    const mensagem = `Olá, ${nome}! 👋 Passando para lembrar da nossa sessão de psicologia agendada para ${dataFormatada} às ${horaFormatada}. Podemos confirmar? 😊`;
+
+    const urlWpp = telefone
+      ? `https://wa.me/${telefone}?text=${encodeURIComponent(mensagem)}`
+      : `https://wa.me/?text=${encodeURIComponent(mensagem)}`;
+
+    window.open(urlWpp, '_blank');
   };
 
   const handleSalvarPacienteManual = (e: React.FormEvent) => {
     e.preventDefault();
-    alert(`Paciente ${manualPaciente.nome} adicionado com sucesso pelo psicólogo com valor de R$ ${manualPaciente.valorFixado.toFixed(2)} (Valores e duração travados pelo sistema).`);
+    alert(`Paciente ${manualPaciente.nome} adicionado com sucesso!`);
     setModalNovoPaciente(false);
-    setTemNomeSocialManual(false);
-    setManualPaciente({ nome: '', nomeSocial: '', telefone: '', cpf: '', modalidade: 'ACESSIVEL_SOCIAL', valorFixado: 75.00, duracaoFixada: 50 });
+    setManualPaciente({ nome: '', telefone: '', cpf: '' });
   };
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
-      {/* Header Principal */}
+      {/* Header do Meu Painel */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <span className="chip-accent text-[11px] mb-1">Painel do Psicólogo — Viver Mais Psicologia</span>
           <h1 className="text-2xl font-black text-ink flex items-center gap-2">
             <Zap className="w-6 h-6 text-psi-vibrant fill-psi-vibrant" />
-            Cockpit Clínico do Profissional
+            Meu Painel
           </h1>
           <p className="text-xs text-muted">
-            SLA de 24h para primeiro contato, carteira exclusiva de pacientes e abatimento automático na mensalidade.
+            Acompanhe suas pendências de atendimento, SLA de 24h, agendamentos do dia e prontuários.
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setModalNovoPaciente(true)}
-          className="bg-psi-vibrant hover:bg-psi-vibrant/90 text-white font-extrabold text-xs px-4 py-2.5 rounded-2xl shadow-lg shadow-psi-vibrant/30 transition-all flex items-center gap-2"
-        >
-          <UserPlus className="w-4 h-4" />
-          + Cadastrar Paciente Manual
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setModalNovoPaciente(true)}
+            className="bg-psi-vibrant hover:bg-psi-vibrant/90 text-white font-extrabold text-xs px-4 py-2.5 rounded-2xl shadow-lg shadow-psi-vibrant/30 transition-all flex items-center gap-2"
+          >
+            <UserPlus className="w-4 h-4" />
+            <span>Cadastrar Paciente</span>
+          </button>
+        </div>
       </div>
 
-      {/* NAVEGAÇÃO POR ABAS DO PSICÓLOGO (5 ABAS DA VIVER MAIS) */}
-      <div className="bg-surface rounded-2xl border border-line p-1.5 flex flex-wrap items-center gap-1 shadow-sm">
-        <button
-          type="button"
-          onClick={() => setActiveTab('LEADS')}
-          className={`flex-1 min-w-[140px] px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 ${
-            activeTab === 'LEADS'
-              ? 'bg-psi-vibrant text-white shadow-md'
-              : 'text-muted hover:text-ink hover:bg-slate-50'
-          }`}
-        >
-          <Clock className="w-4 h-4" />
-          1. Leads & SLA 24h
-        </button>
+      {/* ⚠️ ALERTA DE PRONTUÁRIOS PENDENTES DE PREENCHIMENTO (RESOLUÇÃO CFP) */}
+      {sessaoPendenteProntuario && (
+        <div className="bg-amber-50 rounded-3xl border border-amber-200 p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in duration-200">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold shrink-0">
+              <AlertTriangle className="w-5 h-5 text-amber-600" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 bg-amber-200/60 px-2 py-0.5 rounded-md">
+                  Pendente CFP N.º 01/2009
+                </span>
+                <span className="text-xs font-bold text-amber-900">1 Prontuário Aguardando Registro</span>
+              </div>
+              <p className="text-xs text-amber-800 font-medium mt-0.5">
+                Sessão concluída com <strong className="text-amber-950">{sessaoPendenteProntuario.pacienteNome}</strong> necessita de evolução no prontuário.
+              </p>
+            </div>
+          </div>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('PACIENTES')}
-          className={`flex-1 min-w-[140px] px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 ${
-            activeTab === 'PACIENTES'
-              ? 'bg-psi-vibrant text-white shadow-md'
-              : 'text-muted hover:text-ink hover:bg-slate-50'
-          }`}
-        >
-          <UserCheck className="w-4 h-4" />
-          2. Meus Pacientes & Status
-        </button>
+          <button
+            type="button"
+            onClick={() => router.push(`/linha-do-tempo?patientId=${sessaoPendenteProntuario.patientId}`)}
+            className="bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs px-4 py-2.5 rounded-2xl shadow-md transition-all flex items-center gap-1.5 shrink-0 self-start sm:self-auto"
+          >
+            <FileText className="w-4 h-4" />
+            <span>Preencher Prontuário Agora</span>
+          </button>
+        </div>
+      )}
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('AGENDA')}
-          className={`flex-1 min-w-[140px] px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 ${
-            activeTab === 'AGENDA'
-              ? 'bg-psi-vibrant text-white shadow-md'
-              : 'text-muted hover:text-ink hover:bg-slate-50'
-          }`}
-        >
-          <Calendar className="w-4 h-4" />
-          3. Minha Agenda (50min)
-        </button>
+      {/* 1. CARD HERO: PENDÊNCIA DE SLA & CONTATO (SE HOUVER ENCAMINHAMENTO) */}
+      <div className="bg-gradient-to-br from-slate-900 via-psi-darkest to-slate-900 text-white rounded-3xl p-6 shadow-contrast relative overflow-hidden border border-psi-vibrant/30">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="bg-amber-500/20 text-amber-300 border border-amber-400/30 text-[11px] font-extrabold px-3 py-1 rounded-full flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-amber-400 animate-spin" />
+                SLA 24h: Restam 21h 00m
+              </span>
+              <span className="bg-psi-vibrant/30 text-psi-soft border border-psi-vibrant/40 text-[11px] font-bold px-3 py-1 rounded-full">
+                Novo Encaminhamento Recebido
+              </span>
+            </div>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('DESCONTO')}
-          className={`flex-1 min-w-[140px] px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 ${
-            activeTab === 'DESCONTO'
-              ? 'bg-psi-vibrant text-white shadow-md'
-              : 'text-muted hover:text-ink hover:bg-slate-50'
-          }`}
-        >
-          <Lock className="w-4 h-4" />
-          4. Desconto na Mensalidade
-        </button>
+            <h2 className="text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
+              {pendingLead.nomePaciente}
+            </h2>
 
+            <div className="flex flex-wrap items-center gap-4 text-xs text-slate-300">
+              <span className="flex items-center gap-1 font-bold">
+                <Phone className="w-3.5 h-3.5 text-psi-vibrant" />
+                {pendingLead.telefone}
+              </span>
+              <span className="flex items-center gap-1">
+                <Calendar className="w-3.5 h-3.5 text-psi-vibrant" />
+                Pref: {pendingLead.turno}
+              </span>
+              <span className="bg-white/10 px-2.5 py-0.5 rounded-lg text-[11px] font-semibold text-white">
+                {pendingLead.modalidade}
+              </span>
+            </div>
+          </div>
+
+          <div className="shrink-0 flex flex-col gap-3">
+            {!pendingLead.confirmado ? (
+              <button
+                type="button"
+                onClick={handleConfirmContact}
+                className="bg-emerald-500 hover:bg-emerald-400 text-white font-extrabold text-xs px-5 py-3 rounded-2xl shadow-lg shadow-emerald-500/30 transition-all flex items-center gap-2"
+              >
+                <Check className="w-4 h-4" />
+                CONFIRMAR CONTATO EFETUADO
+              </button>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold bg-emerald-500/10 px-3 py-2 rounded-xl border border-emerald-500/30">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  Contato Efetuado! Paciente Notificado.
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={pendingLead.cobrancaUrl}
+                    className="bg-black/50 border border-white/20 rounded-xl px-3 py-2 text-[11px] font-mono text-psi-soft w-48 truncate"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleCopyLeadLink}
+                    className="bg-psi-vibrant hover:bg-psi-vibrant/90 text-white font-bold text-xs px-3 py-2 rounded-xl transition-all flex items-center gap-1"
+                  >
+                    {copiedLeadLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copiedLeadLink ? 'Copiado!' : 'Copiar'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* MODAL ADICIONAR PACIENTE MANUAL (PSICÓLOGO) */}
+      {/* GRID DE CARDS PRINCIPAIS DO MEU PAINEL */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        {/* CARD 2: POSIÇÃO NA FILA DE RODÍZIO DA CLÍNICA */}
+        <div className="bg-surface rounded-3xl p-5 border border-line shadow-card flex flex-col justify-between space-y-4">
+          <div className="space-y-1">
+            <span className="text-[10px] font-black uppercase tracking-wider text-psi-vibrant">
+              Rodízio de Encaminhamentos
+            </span>
+            <h3 className="font-extrabold text-base text-ink flex items-center gap-2">
+              <UserCheck className="w-5 h-5 text-psi-vibrant" /> Posição na Fila
+            </h3>
+          </div>
+
+          <div className="p-4 bg-psi-vibrant/5 rounded-2xl border border-psi-vibrant/20 text-center space-y-1">
+            <span className="text-3xl font-black text-psi-vibrant">#2</span>
+            <span className="text-xs font-bold text-slate-700 block">de 8 Psicólogos Credenciados</span>
+            <p className="text-[11px] text-muted pt-1">
+              O próximo lead entrante via formulário será encaminhado para você em breve.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 text-[11px] font-bold text-emerald-700 bg-emerald-50 p-2.5 rounded-xl border border-emerald-200">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>SLA de 24h Cumprido</span>
+          </div>
+        </div>
+
+        {/* CARD 3: ACESSO RÁPIDO AO PRONTUÁRIO DO PACIENTE */}
+        <div className="bg-surface rounded-3xl p-5 border border-line shadow-card flex flex-col justify-between space-y-4">
+          <div className="space-y-1">
+            <span className="text-[10px] font-black uppercase tracking-wider text-psi-vibrant">
+              Prontuários Clínicos
+            </span>
+            <h3 className="font-extrabold text-base text-ink flex items-center gap-2">
+              <FileText className="w-5 h-5 text-psi-vibrant" /> Prontuário Rápido
+            </h3>
+          </div>
+
+          <div className="space-y-3 bg-canvas p-3.5 rounded-2xl border border-line">
+            <label className="text-xs font-bold text-ink block">
+              Selecione o Paciente:
+              <select
+                value={selectedPatientForTimeline}
+                onChange={(e) => setSelectedPatientForTimeline(e.target.value)}
+                className="input mt-1 py-2 text-xs font-bold w-full"
+              >
+                {patients.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.displayName}
+                  </option>
+                ))}
+                {patients.length === 0 && <option value="">Nenhum paciente cadastrado</option>}
+              </select>
+            </label>
+
+            <button
+              type="button"
+              disabled={!selectedPatientForTimeline}
+              onClick={() => router.push(`/linha-do-tempo?patientId=${selectedPatientForTimeline}`)}
+              className="w-full bg-psi-vibrant hover:bg-psi-vibrant/90 text-white font-extrabold text-xs py-2.5 rounded-xl shadow-md flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+            >
+              <FileText className="w-4 h-4" />
+              <span>Abrir / Lançar Prontuário</span>
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => router.push('/pacientes')}
+            className="text-xs font-bold text-psi-vibrant hover:underline flex items-center justify-center gap-1"
+          >
+            Ver todos os pacientes ({patients.length}) <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* CARD 4: CARD MENOR PARA COPIAR LINK PÚBLICO DA AGENDA */}
+        <div className="bg-surface rounded-3xl p-5 border border-line shadow-card flex flex-col justify-between space-y-4">
+          <div className="space-y-1">
+            <span className="text-[10px] font-black uppercase tracking-wider text-psi-vibrant">
+              Divulgação &amp; Agendamento
+            </span>
+            <h3 className="font-extrabold text-base text-ink flex items-center gap-2">
+              <Share2 className="w-5 h-5 text-psi-vibrant" /> Link da Sua Agenda
+            </h3>
+          </div>
+
+          <div className="space-y-2 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+            <p className="text-[11px] text-muted">
+              Envie este link direto para seus pacientes agendarem nos seus horários livres:
+            </p>
+            <input
+              type="text"
+              readOnly
+              value={publicAgendaUrl || 'Carregando seu link exclusivo…'}
+              className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[11px] font-mono text-slate-800 truncate"
+            />
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={handleCopyAgendaLink}
+                className="bg-psi-vibrant hover:bg-psi-vibrant/90 text-white font-extrabold text-xs py-2 rounded-xl flex items-center justify-center gap-1 transition-all"
+              >
+                {copiedAgendaLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copiedAgendaLink ? 'Copiado!' : 'Copiar Link'}</span>
+              </button>
+
+              {publicAgendaUrl && (
+                <a
+                  href={`https://wa.me/?text=${encodeURIComponent(`Olá! Agende sua consulta comigo na Viver Mais Psicologia pelo link: ${publicAgendaUrl}`)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs py-2 rounded-xl flex items-center justify-center gap-1 transition-all"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>Enviar Wpp</span>
+                </a>
+              )}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => router.push('/agenda')}
+            className="text-xs font-bold text-slate-600 hover:text-slate-900 text-center"
+          >
+            Editar horários da agenda
+          </button>
+        </div>
+      </div>
+
+      {/* CARD DE PRÓXIMAS SESSÕES DA SEMANA + LEMBRETE 1-CLIQUE WHATSAPP */}
+      <div className="bg-surface rounded-3xl p-6 border border-line shadow-card space-y-4">
+        <div className="flex items-center justify-between border-b border-line pb-3">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-psi-vibrant" />
+            <h3 className="font-extrabold text-base text-ink">Suas Próximas Sessões Agendadas</h3>
+          </div>
+          <button
+            type="button"
+            onClick={() => router.push('/agenda')}
+            className="text-xs font-bold text-psi-vibrant hover:underline"
+          >
+            Ver grade completa →
+          </button>
+        </div>
+
+        {appointments.length === 0 ? (
+          <div className="bg-canvas p-6 rounded-2xl border border-line text-center space-y-2">
+            <AlertCircle className="w-6 h-6 text-muted mx-auto" />
+            <p className="text-xs font-bold text-ink">Nenhuma consulta pendente para os próximos dias.</p>
+            <p className="text-[11px] text-muted">
+              Compartilhe seu link público de agendamento ou adicione horários na sua agenda.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {appointments.slice(0, 4).map((app) => (
+              <div
+                key={app.id}
+                className="bg-canvas p-4 rounded-2xl border border-line flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-psi-vibrant/40 transition-all"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-psi-vibrant/10 text-psi-vibrant flex items-center justify-center font-bold shrink-0">
+                    <User className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-xs text-ink">{app.pacienteNome || 'Paciente'}</h4>
+                    <p className="text-[11px] text-muted capitalize">
+                      {new Date(app.startsAt).toLocaleDateString('pt-BR', {
+                        weekday: 'short',
+                        day: '2-digit',
+                        month: '2-digit',
+                        timeZone: 'America/Sao_Paulo',
+                      })}{' '}
+                      às{' '}
+                      {new Date(app.startsAt).toLocaleTimeString('pt-BR', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        timeZone: 'America/Sao_Paulo',
+                      })}
+                      {' · '}
+                      <span className="font-bold text-psi-vibrant">{app.modality}</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-end sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => handleEnviarLembreteWhatsApp(app)}
+                    className="rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 p-2 text-xs font-bold text-emerald-800 flex items-center gap-1.5 transition-colors"
+                    title="Enviar lembrete de confirmação via WhatsApp"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Lembrar Wpp</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/linha-do-tempo?patientId=${app.patientId}`)}
+                    className="rounded-xl border border-line bg-white hover:bg-slate-50 p-2 text-xs font-bold text-slate-700 flex items-center gap-1"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-psi-vibrant" />
+                    <span>Prontuário</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* MODAL ADICIONAR PACIENTE MANUAL */}
       {modalNovoPaciente && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-surface rounded-3xl p-6 border border-line shadow-2xl max-w-md w-full space-y-4">
@@ -200,13 +557,13 @@ export default function CockpitPage() {
                 onClick={() => setModalNovoPaciente(false)}
                 className="text-muted hover:text-ink text-xs font-bold"
               >
-                Fechar
+                ✕
               </button>
             </div>
 
             <form onSubmit={handleSalvarPacienteManual} className="space-y-4 text-xs">
               <div>
-                <label className="font-bold text-ink block mb-1">Nome do Paciente *</label>
+                <label className="font-bold text-ink block mb-1">Nome Completo do Paciente *</label>
                 <input
                   type="text"
                   required
@@ -215,37 +572,7 @@ export default function CockpitPage() {
                   placeholder="Ex: Ana Clara Lima"
                   className="w-full bg-slate-50 border border-line rounded-xl p-2.5 text-ink focus:outline-none focus:border-psi-vibrant"
                 />
-                <div className="mt-2">
-                  <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-ink select-none">
-                    <input
-                      type="checkbox"
-                      checked={temNomeSocialManual}
-                      onChange={(e) => {
-                        const checked = e.target.checked;
-                        setTemNomeSocialManual(checked);
-                        if (!checked) setManualPaciente((prev) => ({ ...prev, nomeSocial: '' }));
-                      }}
-                      className="w-4 h-4 rounded border-line text-primary focus:ring-primary accent-primary cursor-pointer"
-                    />
-                    <span>Possui Nome Social?</span>
-                  </label>
-                </div>
               </div>
-
-              {temNomeSocialManual && (
-                <div className="animate-in fade-in duration-200">
-                  <label className="font-bold text-ink block mb-1">
-                    Nome Social <span className="text-muted font-normal">(como prefere ser chamado)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={manualPaciente.nomeSocial}
-                    onChange={(e) => setManualPaciente({ ...manualPaciente, nomeSocial: e.target.value })}
-                    placeholder="Digite o nome social..."
-                    className="w-full bg-slate-50 border border-line rounded-xl p-2.5 text-ink focus:outline-none focus:border-psi-vibrant"
-                  />
-                </div>
-              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -260,7 +587,7 @@ export default function CockpitPage() {
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-ink block mb-1">CPF (para NF)</label>
+                  <label className="font-bold text-ink block mb-1">CPF (para Prontuário/NF)</label>
                   <input
                     type="text"
                     required
@@ -269,34 +596,6 @@ export default function CockpitPage() {
                     placeholder="000.000.000-00"
                     className="w-full bg-slate-50 border border-line rounded-xl p-2.5 text-ink focus:outline-none focus:border-psi-vibrant"
                   />
-                </div>
-              </div>
-
-              {/* CAMPOS TRAVADOS / SOMENTE LEITURA PARA O PSICÓLOGO */}
-              <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 space-y-2">
-                <div className="flex items-center gap-1.5 text-amber-800 text-[11px] font-bold">
-                  <Lock className="w-3.5 h-3.5 shrink-0" />
-                  Valores e Duração Travados pela Gestão da Clínica
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <span className="text-[10px] text-amber-700 block font-semibold">Valor por Sessão</span>
-                    <input
-                      type="text"
-                      disabled
-                      value="R$ 75,00 (Tabela Social)"
-                      className="w-full bg-amber-100/60 border border-amber-300 rounded-lg p-2 text-[11px] text-amber-900 font-bold cursor-not-allowed"
-                    />
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-amber-700 block font-semibold">Duração da Sessão</span>
-                    <input
-                      type="text"
-                      disabled
-                      value="50 minutos"
-                      className="w-full bg-amber-100/60 border border-amber-300 rounded-lg p-2 text-[11px] text-amber-900 font-bold cursor-not-allowed"
-                    />
-                  </div>
                 </div>
               </div>
 
@@ -310,305 +609,6 @@ export default function CockpitPage() {
           </div>
         </div>
       )}
-
-      {/* CONTEÚDO DA ABA 1: LEADS & SLA 24H */}
-      {activeTab === 'LEADS' && (
-        <div className="space-y-6">
-          {/* Card da Fila da Clínica */}
-          <div className="bg-surface rounded-3xl p-5 border border-line shadow-card flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <span className="text-[11px] font-bold text-muted uppercase tracking-wider">Rodízio da Clínica Viver Mais</span>
-              <h3 className="text-lg font-black text-ink">Sua posição atual na fila de alocação: <span className="text-psi-vibrant">#2 de 8 Psicólogos</span></h3>
-              <p className="text-xs text-muted">A próxima consulta de lead entrante via formulário será encaminhada para você em breve.</p>
-            </div>
-            <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold px-4 py-2 rounded-2xl flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              SLA de Contato de 24h Ativo
-            </div>
-          </div>
-
-          {/* Card do Lead Atribuído */}
-          <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-psi-darkest text-white rounded-3xl p-6 shadow-contrast relative overflow-hidden border border-indigo-700/40">
-            <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
-              <UserCheck className="w-48 h-48 text-indigo-400" />
-            </div>
-
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 text-[11px] font-bold px-3 py-1 rounded-full flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-amber-400 animate-spin" />
-                    SLA de Contato: Restam 21h 00m
-                  </span>
-                  <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-[11px] font-bold px-3 py-1 rounded-full">
-                    Novo Paciente Alocado do Site
-                  </span>
-                </div>
-
-                <h2 className="text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
-                  {pendingLead.nomePaciente}
-                </h2>
-                
-                <div className="flex flex-wrap items-center gap-4 text-xs text-indigo-200">
-                  <span className="flex items-center gap-1">
-                    <Phone className="w-3.5 h-3.5 text-indigo-400" />
-                    {pendingLead.telefone}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Calendar className="w-3.5 h-3.5 text-indigo-400" />
-                    Pref: {pendingLead.turno}
-                  </span>
-                  <span className="bg-white/10 px-2.5 py-0.5 rounded-lg text-[11px] font-semibold text-white">
-                    {pendingLead.modalidade}
-                  </span>
-                </div>
-              </div>
-
-              <div className="shrink-0 flex flex-col gap-3">
-                {!pendingLead.confirmado ? (
-                  <button
-                    type="button"
-                    onClick={handleConfirmContact}
-                    className="bg-emerald-500 hover:bg-emerald-400 text-white font-extrabold text-xs px-5 py-3 rounded-2xl shadow-lg shadow-emerald-500/30 transition-all flex items-center gap-2"
-                  >
-                    <Check className="w-4 h-4" />
-                    SIM, JÁ ENTREI EM CONTATO
-                  </button>
-                ) : (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold bg-emerald-500/10 px-3 py-2 rounded-xl border border-emerald-500/30">
-                      <CheckCircle2 className="w-4 h-4" />
-                      Contato Efetuado! Paciente Vinculado.
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        readOnly
-                        value={pendingLead.cobrancaUrl}
-                        className="bg-black/40 border border-white/20 rounded-xl px-3 py-2 text-[11px] font-mono text-indigo-200 w-56 truncate"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleCopyLink}
-                        className="bg-psi-vibrant hover:bg-psi-vibrant/90 text-white font-bold text-xs px-3 py-2 rounded-xl transition-all flex items-center gap-1"
-                      >
-                        {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                        {copiedLink ? 'Copiado!' : 'Copiar Link'}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* CONTEÚDO DA ABA 2: MEUS PACIENTES & STATUS (SIGILO ESTREITO) */}
-      {activeTab === 'PACIENTES' && (
-        <div className="space-y-6">
-          <div className="bg-surface rounded-3xl p-6 border border-line shadow-card space-y-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <h3 className="font-extrabold text-base text-ink">Carteira Exclusiva do Psicólogo</h3>
-                <p className="text-xs text-muted">Sigilo estrito LGPD e CFP — apenas os seus pacientes vinculados aparecem abaixo.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setModalNovoPaciente(true)}
-                className="bg-psi-vibrant text-white text-xs font-extrabold px-4 py-2 rounded-xl shadow-md hover:bg-psi-vibrant/90 transition-all flex items-center gap-1.5 self-start"
-              >
-                <UserPlus className="w-3.5 h-3.5" />
-                + Cadastrar Paciente
-              </button>
-            </div>
-
-            {/* Cards de Status */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-1">
-                <span className="text-[10px] font-bold uppercase text-emerald-800">Ativos em Acompanhamento</span>
-                <div className="text-2xl font-black text-emerald-950">12 Pacientes</div>
-                <p className="text-[11px] text-emerald-700">Frequência semanal mantida</p>
-              </div>
-              <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 space-y-1">
-                <span className="text-[10px] font-bold uppercase text-amber-800">Em Férias / Pausa</span>
-                <div className="text-2xl font-black text-amber-950">2 Pacientes</div>
-                <p className="text-[11px] text-amber-700">Retorno previsto para próxima semana</p>
-              </div>
-              <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 space-y-1">
-                <span className="text-[10px] font-bold uppercase text-rose-800">Desistentes (Motivo Notificado)</span>
-                <div className="text-2xl font-black text-rose-950">1 Paciente</div>
-                <p className="text-[11px] text-rose-700">Motivo: Mudança de Cidade</p>
-              </div>
-            </div>
-
-            {/* Tabela Interativa de Pacientes */}
-            <div className="overflow-x-auto pt-2">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-line">
-                  <tr>
-                    <th className="px-4 py-3">Paciente</th>
-                    <th className="px-4 py-3">Modalidade / Valor</th>
-                    <th className="px-4 py-3">Status Atual</th>
-                    <th className="px-4 py-3">Último Atendimento</th>
-                    <th className="px-4 py-3 text-right">Ação de Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line">
-                  <tr className="hover:bg-slate-50/80 transition-colors">
-                    <td className="px-4 py-3 font-bold text-ink">João Pedro Severo</td>
-                    <td className="px-4 py-3 text-muted">Social (R$ 75,00)</td>
-                    <td className="px-4 py-3">
-                      <span className="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full border border-emerald-200">
-                        ATIVO
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 font-medium text-ink">05/08/2026</td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => alert('Deseja marcar João Pedro Severo como Desistente? Um modal de motivo será exibido.')}
-                        className="text-[11px] font-bold text-slate-500 hover:text-rose-600 hover:underline"
-                      >
-                        Alterar Status
-                      </button>
-                    </td>
-                  </tr>
-                  <tr className="hover:bg-slate-50/80 transition-colors">
-                    <td className="px-4 py-3 font-bold text-ink">Camila Fernandes</td>
-                    <td className="px-4 py-3 text-muted">Particular (R$ 130,00)</td>
-                    <td className="px-4 py-3">
-                      <span className="bg-amber-100 text-amber-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full border border-amber-200">
-                        EM FÉRIAS
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 font-medium text-ink">28/07/2026</td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => alert('Deseja reativar o acompanhamento de Camila Fernandes?')}
-                        className="text-[11px] font-bold text-slate-500 hover:text-emerald-600 hover:underline"
-                      >
-                        Marcar Ativo
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* CONTEÚDO DA ABA 3: MINHA AGENDA (50 MIN FIXOS) */}
-      {activeTab === 'AGENDA' && (
-        <div className="space-y-6">
-          <div className="bg-surface rounded-3xl p-6 border border-line shadow-card space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <h3 className="font-extrabold text-base text-ink">Agenda & Sessões (50 Minutos Fixos)</h3>
-                <p className="text-xs text-muted">A duração de 50 minutos e valores das sessões são travados para proteção do profissional.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => window.location.href = '/agenda'}
-                className="bg-psi-vibrant text-white text-xs font-extrabold px-4 py-2.5 rounded-2xl shadow hover:bg-psi-vibrant/90 transition-all flex items-center gap-1.5 self-start"
-              >
-                <Calendar className="w-4 h-4" />
-                Abrir Central de Agendamentos →
-              </button>
-            </div>
-
-            <div className="p-4 bg-slate-50 rounded-2xl border border-line flex flex-col md:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-700 font-black flex items-center justify-center text-sm">
-                  14h
-                </div>
-                <div>
-                  <h4 className="font-extrabold text-xs text-ink">Próxima Consulta Hoje: João Pedro Severo</h4>
-                  <p className="text-[11px] text-muted">Modalidade Social (R$ 75,00) • Duração 50 min • Regra Cobrança 24h Pré-Sessão</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => alert('Sessão iniciada! Ao finalizar, insira a síntese clínica para estruturação SOAP.')}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow transition-all"
-                >
-                  Iniciar Consulta ao Vivo
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* CONTEÚDO DA ABA 4: DESCONTO NA MENSALIDADE (70% SPLIT) */}
-      {activeTab === 'DESCONTO' && (
-        <div className="space-y-6">
-          <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 text-white rounded-3xl p-6 border border-indigo-800 shadow-xl space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <span className="bg-amber-400/20 text-amber-300 border border-amber-400/30 text-[11px] font-bold px-3 py-1 rounded-full">
-                  Regra da Clínica Escola Viver Mais Psicologia
-                </span>
-                <h3 className="text-xl font-black mt-2 text-white">Extrato de Crédito & Abatimento na Mensalidade (70% / 30%)</h3>
-                <p className="text-xs text-indigo-200">
-                  Cada atendimento realizado gera 70% do valor em crédito.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-5">
-              <div className="bg-emerald-500/20 p-5 rounded-2xl border border-emerald-400/30 space-y-2">
-                <span className="text-[10px] font-bold text-emerald-300 uppercase">Crédito Acumulado (70% das Sessões)</span>
-                <div className="text-2xl font-black text-emerald-300">R$ 441,00</div>
-                <span className="text-[10px] text-emerald-200 block">Base de 6 atendimentos efetuados para registro de controle</span>
-              </div>
-            </div>
-
-            {/* Demonstrativo de Split das Sessões */}
-            <div className="bg-black/30 rounded-2xl p-4 border border-white/10 space-y-3">
-              <h4 className="font-extrabold text-xs text-indigo-200 uppercase tracking-wider">Demonstrativo de Split por Atendimento (70% Aluno / 30% Clínica)</h4>
-              <div className="space-y-2 text-xs">
-                <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/5 border border-white/5">
-                  <div>
-                    <span className="font-bold text-white">Sessão João Pedro Severo</span>
-                    <p className="text-[10px] text-indigo-300">Social (R$ 75,00) • 05/08/2026</p>
-                  </div>
-                  <div className="text-right">
-                    <span className="font-bold text-emerald-400">+ R$ 52,50 (70% Crédito)</span>
-                    <p className="text-[10px] text-indigo-300">R$ 22,50 (30% Viver Mais)</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/5 border border-white/5">
-                  <div>
-                    <span className="font-bold text-white">Sessão Camila Fernandes</span>
-                    <p className="text-[10px] text-indigo-300">Particular (R$ 130,00) • 04/08/2026</p>
-                  </div>
-                  <div className="text-right">
-                    <span className="font-bold text-emerald-400">+ R$ 91,00 (70% Crédito)</span>
-                    <p className="text-[10px] text-indigo-300">R$ 39,00 (30% Viver Mais)</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="pt-2 flex justify-end">
-              <button
-                type="button"
-                onClick={() => window.location.href = '/meu-financeiro'}
-                className="bg-psi-vibrant hover:bg-psi-vibrant/90 text-white font-extrabold text-xs px-5 py-3 rounded-2xl transition-all shadow-lg shadow-psi-vibrant/30"
-              >
-                Ver Extrato Financeiro Completo →
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 }

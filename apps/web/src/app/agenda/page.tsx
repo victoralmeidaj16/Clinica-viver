@@ -79,7 +79,7 @@ export default function AgendaPage() {
           Sua agenda de atendimentos
         </h1>
         <p className="text-xs text-muted">
-          Defina os horários em que atende, selecione datas no calendário, bloqueie períodos e compartilhe seu link exclusivo.
+          Seus turnos cadastrados habilitam automaticamente a grade inicial de segunda a sexta. Você ainda pode ajustar horários, bloquear períodos e compartilhar seu link exclusivo.
         </p>
       </div>
 

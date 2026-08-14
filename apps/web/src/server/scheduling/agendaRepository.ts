@@ -5,6 +5,7 @@ import type { RowDataPacket } from 'mysql2';
 import { getMysqlPool } from '@/server/oci/runtime';
 import { instituicaoId, rowId } from '@/server/persistence/mysql/mappers';
 import {
+  disponibilidadePadraoDoCadastro,
   FUSO_CLINICA,
   gerarSlots,
   type IntervaloOcupado,
@@ -132,6 +133,40 @@ export interface JanelaEditavel {
   modalidade: 'presencial' | 'online';
 }
 
+interface PreferenciasAgendaRow extends RowDataPacket {
+  turnos_disponiveis: unknown;
+  modalidade_atendimento: string | null;
+}
+
+function listaJson(valor: unknown): string[] {
+  let dados = valor;
+  if (typeof valor === 'string') {
+    try {
+      dados = JSON.parse(valor) as unknown;
+    } catch {
+      dados = [];
+    }
+  }
+  return Array.isArray(dados)
+    ? dados.filter((item): item is string => typeof item === 'string')
+    : [];
+}
+
+async function disponibilidadePadrao(professionalId: string): Promise<JanelaEditavel[]> {
+  const [rows] = await getMysqlPool().query<PreferenciasAgendaRow[]>(
+    `SELECT turnos_disponiveis, modalidade_atendimento
+       FROM clinica_cadastros_psicologos
+      WHERE instituicao_id = ? AND profissional_ref = ?
+      ORDER BY atualizado_em DESC
+      LIMIT 1`,
+    [instituicaoId(), professionalId]
+  );
+  return disponibilidadePadraoDoCadastro({
+    turnos: listaJson(rows[0]?.turnos_disponiveis),
+    modalidadeAtendimento: rows[0]?.modalidade_atendimento ?? undefined,
+  });
+}
+
 export async function listAvailability(
   organizationId: string,
   professionalId: string
@@ -146,13 +181,7 @@ export async function listAvailability(
     [instituicaoId(), organizationId, professionalId]
   );
   if (rows.length === 0) {
-    return [1, 2, 3, 4, 5].map((diaSemana) => ({
-      diaSemana,
-      horaInicio: '08:00',
-      horaFim: '18:00',
-      duracaoMin: 50,
-      modalidade: 'online',
-    }));
+    return disponibilidadePadrao(professionalId);
   }
   return rows.map((row) => ({
     diaSemana: Number(row.dia_semana),
@@ -458,7 +487,10 @@ async function ocupacao(
   }));
 }
 
-async function janelas(profissionalRowId: string): Promise<JanelaDisponibilidade[]> {
+async function janelas(
+  profissionalRowId: string,
+  professionalId: string
+): Promise<JanelaDisponibilidade[]> {
   const [rows] = await getMysqlPool().query<RowDataPacket[]>(
     `SELECT dia_semana, hora_inicio, hora_fim, duracao_min, modalidade,
             vigencia_inicio, vigencia_fim
@@ -467,13 +499,7 @@ async function janelas(profissionalRowId: string): Promise<JanelaDisponibilidade
     [instituicaoId(), profissionalRowId]
   );
   if (rows.length === 0) {
-    return [1, 2, 3, 4, 5].map((diaSemana) => ({
-      diaSemana,
-      horaInicio: '08:00',
-      horaFim: '18:00',
-      duracaoMin: 50,
-      modalidade: 'online',
-    }));
+    return disponibilidadePadrao(professionalId);
   }
   return rows.map((row) => ({
     diaSemana: Number(row.dia_semana),
@@ -494,7 +520,7 @@ export async function listAvailableSlots(
   agora: Date = new Date()
 ): Promise<Slot[]> {
   const [grade, ocupados] = await Promise.all([
-    janelas(paciente.professionalRowId),
+    janelas(paciente.professionalRowId, paciente.professionalId),
     ocupacao(paciente.professionalRowId, de, ate),
   ]);
   return gerarSlots(grade, ocupados, de, ate, agora);

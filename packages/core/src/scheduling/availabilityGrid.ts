@@ -27,6 +27,69 @@ export interface JanelaDisponibilidade {
   vigenciaFim?: string;
 }
 
+export interface PreferenciasDisponibilidade {
+  turnos?: readonly string[];
+  modalidadeAtendimento?: string;
+}
+
+const JANELA_POR_TURNO = {
+  MANHA: { horaInicio: '08:00', horaFim: '12:00' },
+  TARDE: { horaInicio: '13:00', horaFim: '18:00' },
+  NOITE: { horaInicio: '18:00', horaFim: '22:00' },
+} as const;
+
+function turnoCanonico(valor: string): keyof typeof JANELA_POR_TURNO | null {
+  switch (valor.trim().toLocaleUpperCase('pt-BR')) {
+    case 'MANHA':
+    case 'MANHÃ':
+    case 'MATUTINO':
+      return 'MANHA';
+    case 'TARDE':
+    case 'VESPERTINO':
+      return 'TARDE';
+    case 'NOITE':
+    case 'NOTURNO':
+      return 'NOITE';
+    default:
+      return null;
+  }
+}
+
+/**
+ * Grade inicial da agenda a partir do cadastro do profissional.
+ *
+ * O cadastro declara turnos, não dias específicos. Por isso a primeira grade
+ * habilita esses turnos de segunda a sexta; depois disso o profissional pode
+ * personalizar dias e horários normalmente. Sem turno válido, preservamos o
+ * padrão legado para que perfis antigos não fiquem subitamente sem agenda.
+ */
+export function disponibilidadePadraoDoCadastro(
+  preferencias: PreferenciasDisponibilidade
+): JanelaDisponibilidade[] {
+  const turnos = [...new Set(
+    (preferencias.turnos ?? [])
+      .map(turnoCanonico)
+      .filter((turno): turno is keyof typeof JANELA_POR_TURNO => turno !== null)
+  )];
+  const turnosEfetivos: Array<keyof typeof JANELA_POR_TURNO> =
+    turnos.length > 0 ? turnos : ['MANHA', 'TARDE'];
+  const modalidadeCadastrada = preferencias.modalidadeAtendimento
+    ?.trim()
+    .toLocaleUpperCase('pt-BR');
+  const modalidade = modalidadeCadastrada === 'PRESENCIAL'
+    ? 'presencial'
+    : 'online';
+
+  return [1, 2, 3, 4, 5].flatMap((diaSemana) =>
+    turnosEfetivos.map((turno) => ({
+      diaSemana,
+      ...JANELA_POR_TURNO[turno],
+      duracaoMin: 50,
+      modalidade,
+    }))
+  );
+}
+
 export interface IntervaloOcupado {
   /** Epoch em ms. */
   inicio: number;

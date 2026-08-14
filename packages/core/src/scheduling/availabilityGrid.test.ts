@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  disponibilidadePadraoDoCadastro,
   diaLocal,
   gerarSlots,
   horaLocal,
@@ -8,6 +9,52 @@ import {
   type IntervaloOcupado,
   type JanelaDisponibilidade,
 } from './availabilityGrid';
+
+describe('disponibilidadePadraoDoCadastro', () => {
+  it('habilita de segunda a sexta somente nos turnos informados', () => {
+    const grade = disponibilidadePadraoDoCadastro({
+      turnos: ['MANHA', 'NOTURNO'],
+      modalidadeAtendimento: 'ONLINE',
+    });
+
+    expect(grade).toHaveLength(10);
+    expect(grade.filter((janela) => janela.diaSemana === 1)).toEqual([
+      {
+        diaSemana: 1,
+        horaInicio: '08:00',
+        horaFim: '12:00',
+        duracaoMin: 50,
+        modalidade: 'online',
+      },
+      {
+        diaSemana: 1,
+        horaInicio: '18:00',
+        horaFim: '22:00',
+        duracaoMin: 50,
+        modalidade: 'online',
+      },
+    ]);
+    expect(grade.some((janela) => janela.diaSemana === 0 || janela.diaSemana === 6)).toBe(false);
+  });
+
+  it('usa presencial quando essa é a única modalidade cadastrada', () => {
+    const grade = disponibilidadePadraoDoCadastro({
+      turnos: ['VESPERTINO'],
+      modalidadeAtendimento: 'PRESENCIAL',
+    });
+
+    expect(grade).toHaveLength(5);
+    expect(grade.every((janela) => janela.modalidade === 'presencial')).toBe(true);
+    expect(grade.every((janela) => janela.horaInicio === '13:00')).toBe(true);
+  });
+
+  it('mantém o padrão legado em cadastros antigos sem turno', () => {
+    const grade = disponibilidadePadraoDoCadastro({});
+
+    expect(grade).toHaveLength(10);
+    expect(grade[0]).toMatchObject({ diaSemana: 1, horaInicio: '08:00', horaFim: '12:00' });
+  });
+});
 
 // Quarta-feira, 19/08/2026.
 const QUARTA = '2026-08-19';

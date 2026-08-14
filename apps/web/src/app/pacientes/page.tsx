@@ -13,6 +13,7 @@ export default function PacientesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [agendaToken, setAgendaToken] = useState<string>();
   const router = useRouter();
 
   // Cadeia de promessa em vez de `await` no corpo: todo `setState` acontece
@@ -34,6 +35,9 @@ export default function PacientesPage() {
 
   useEffect(() => {
     void load();
+    applicationRequest<{ agendaToken: string }>('/agenda')
+      .then((res) => setAgendaToken(res.agendaToken))
+      .catch(() => {});
   }, [load]);
 
   const handleSelectForSession = (patientId: string) => {
@@ -47,7 +51,7 @@ export default function PacientesPage() {
         <div className="flex items-center gap-3">
           <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
           <div>
-            <h3 className="font-extrabold text-xs">Sigilo & Privacidade por Profissional Ativo</h3>
+            <h3 className="font-extrabold text-xs">Sigilo &amp; Privacidade por Profissional Ativo</h3>
             <p className="text-[11px] text-emerald-700">
               Em conformidade com o CFP e LGPD, você visualiza exclusivamente os pacientes vinculados ao seu perfil.
             </p>
@@ -71,8 +75,10 @@ export default function PacientesPage() {
       ) : (
         <PatientList
           patients={patients}
+          agendaToken={agendaToken}
           onSelectForSession={handleSelectForSession}
           onOpenNewPatientModal={() => setIsModalOpen(true)}
+          onPatientUpdated={load}
         />
       )}
 

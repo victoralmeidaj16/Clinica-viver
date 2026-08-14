@@ -20,6 +20,7 @@ import {
   UserPlus,
   LogOut,
   X,
+  FileText,
 } from 'lucide-react';
 
 /**
@@ -50,7 +51,7 @@ export default function Sidebar({
 
   const psicologoItems = [
     {
-      label: 'Cockpit 1-Clique',
+      label: 'Meu Painel',
       href: '/cockpit',
       icon: Zap,
     },
@@ -63,6 +64,11 @@ export default function Sidebar({
       label: 'Meus Pacientes',
       href: '/pacientes',
       icon: Users,
+    },
+    {
+      label: 'Prontuários & Linha do Tempo',
+      href: '/linha-do-tempo',
+      icon: FileText,
     },
     {
       label: 'Meu Financeiro',
@@ -101,6 +107,11 @@ export default function Sidebar({
       label: 'Financeiro & Repasses',
       href: '/gestao/financeiro',
       icon: CreditCard,
+    },
+    {
+      label: 'Prontuários & Linha do Tempo',
+      href: '/linha-do-tempo',
+      icon: FileText,
     },
     {
       label: 'Site / Vitrine de Serviços',

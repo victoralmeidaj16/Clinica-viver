@@ -23,7 +23,16 @@ export function proxy(request: NextRequest) {
   // WhatsApp: ele não tem sessão, e é esse o ponto. Sem estar aqui, a VPS
   // redireciona para o login quem abre o link — a Vercel não mostrava o
   // problema porque devolve `next()` antes desta checagem.
-  const publicPage = pathname === '/' || pathname === '/login' || pathname === '/ativar-conta' || pathname === '/vitrine' || pathname.startsWith('/pagar/') || pathname.startsWith('/agendar/') || pathname.startsWith('/_next') || pathname.startsWith('/api/auth');
+  const publicPage =
+    pathname === '/' ||
+    pathname === '/login' ||
+    pathname === '/ativar-conta' ||
+    pathname === '/vitrine' ||
+    pathname.startsWith('/pagar/') ||
+    pathname.startsWith('/agendar/') ||
+    pathname.startsWith('/confirmar-contato/') ||
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/api/auth');
   if (publicPage || pathname.startsWith('/api/')) return NextResponse.next();
   // Na Vercel o domínio público é apenas um proxy para a VPS. A sessão é
   // assinada e validada pelo backend da VPS; tentar validá-la novamente com
@@ -36,11 +45,11 @@ export function proxy(request: NextRequest) {
     login.searchParams.set('next', pathname);
     return NextResponse.redirect(login);
   }
-  const adminPage = ['/gestao', '/relatorios', '/convenios', '/retencao', '/configuracoes'].some((prefix) => pathname.startsWith(prefix));
+  const adminPage = ['/gestao', '/relatorios', '/convenios', '/retencao', '/configuracoes', '/linha-do-tempo'].some((prefix) => pathname.startsWith(prefix));
   // `/meu-cadastro` é o destino do fluxo de ativação de conta: sem estar nesta
   // lista, o psicólogo que acabava de definir a senha era redirecionado para
   // `/cockpit` no exato momento em que deveria ver o próprio perfil.
-  const professionalPage = ['/cockpit', '/pacientes', '/meu-financeiro', '/agenda', '/sessao', '/meu-cadastro'].some((prefix) => pathname.startsWith(prefix));
+  const professionalPage = ['/cockpit', '/pacientes', '/meu-financeiro', '/agenda', '/sessao', '/meu-cadastro', '/linha-do-tempo', '/relatorios'].some((prefix) => pathname.startsWith(prefix));
   const allowed = session.role === 'admin' ? adminPage : professionalPage;
   if (!allowed) return NextResponse.redirect(new URL(session.role === 'admin' ? '/gestao/cockpit' : '/cockpit', request.url));
   return NextResponse.next();

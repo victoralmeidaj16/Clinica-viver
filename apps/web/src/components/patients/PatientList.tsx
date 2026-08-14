@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import type { PatientDirectoryEntry } from '@/server/application/patientDirectory';
 import {
   Phone,
@@ -10,20 +11,19 @@ import {
   Zap,
   CheckCircle2,
   PauseCircle,
-  UserCheck,
   Search,
   Users,
   Send,
   CalendarPlus,
   Loader2,
   X,
+  FileText,
 } from 'lucide-react';
 import { applicationRequest } from '@/lib/applicationApi';
 
 interface PatientListProps {
   patients: readonly PatientDirectoryEntry[];
   agendaToken?: string;
-  onSelectForSession: (patientId: string) => void;
   onOpenNewPatientModal: () => void;
   onPatientUpdated?: () => void;
 }
@@ -49,10 +49,10 @@ function formatNextAppointment(iso?: string): string {
 export default function PatientList({
   patients,
   agendaToken,
-  onSelectForSession,
   onOpenNewPatientModal,
   onPatientUpdated,
 }: PatientListProps) {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [patientForSchedule, setPatientForSchedule] = useState<PatientDirectoryEntry | null>(null);
   const [scheduleDate, setScheduleDate] = useState('');
@@ -224,8 +224,11 @@ export default function PatientList({
                   <div className="w-11 h-11 rounded-2xl bg-primary/10 text-primary font-bold flex items-center justify-center text-base border border-primary/20">
                     {patient.displayName.charAt(0)}
                   </div>
-                  <div>
-                    <h3 className="font-extrabold text-sm text-ink">{patient.displayName}</h3>
+                  <div
+                    onClick={() => router.push(`/linha-do-tempo?patientId=${patient.id}`)}
+                    className="cursor-pointer group/patient"
+                  >
+                    <h3 className="font-extrabold text-sm text-ink group-hover/patient:text-psi-vibrant transition-colors">{patient.displayName}</h3>
                     {patient.phone && (
                       <p className="text-xs text-muted flex items-center gap-1">
                         <Phone className="w-3 h-3" />
@@ -251,15 +254,6 @@ export default function PatientList({
                 </span>
               </div>
 
-              {/* Profissional responsável */}
-              <div className="bg-canvas p-3 rounded-xl border border-line text-xs space-y-1">
-                <span className="font-bold text-muted uppercase text-[10px] tracking-wide">Profissional Responsável</span>
-                <p className="text-ink font-medium leading-snug flex items-center gap-1.5">
-                  <UserCheck className="w-3.5 h-3.5 text-primary" />
-                  {patient.professionalName ?? 'Não atribuído'}
-                </p>
-              </div>
-
               {/* Metadados da Agenda */}
               <div className="flex items-center justify-between text-xs text-muted pt-1 border-t border-line">
                 <div className="flex items-center gap-1.5">
@@ -276,11 +270,11 @@ export default function PatientList({
             {/* Ações Rápidas (3 Botões) */}
             <div className="space-y-2 pt-2 border-t border-slate-100">
               <button
-                onClick={() => onSelectForSession(patient.id)}
+                onClick={() => router.push(`/linha-do-tempo?patientId=${patient.id}`)}
                 className="w-full btn-outline text-xs py-2.5 justify-center gap-2 group"
               >
-                <Zap className="w-3.5 h-3.5 text-accent group-hover:scale-110 transition-transform" />
-                <span>Iniciar sessão no Cockpit</span>
+                <FileText className="w-3.5 h-3.5 text-psi-vibrant group-hover:scale-110 transition-transform" />
+                <span>Ver Prontuário do Paciente</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
 

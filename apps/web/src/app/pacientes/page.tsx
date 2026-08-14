@@ -5,7 +5,6 @@ import PatientList from '@/components/patients/PatientList';
 import NewPatientModal from '@/components/patients/NewPatientModal';
 import { applicationRequest } from '@/lib/applicationApi';
 import type { PatientDirectoryEntry } from '@/server/application/patientDirectory';
-import { useRouter } from 'next/navigation';
 import { ShieldCheck, Lock, AlertTriangle } from 'lucide-react';
 
 export default function PacientesPage() {
@@ -14,7 +13,6 @@ export default function PacientesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [agendaToken, setAgendaToken] = useState<string>();
-  const router = useRouter();
 
   // Cadeia de promessa em vez de `await` no corpo: todo `setState` acontece
   // dentro de callback, nunca de forma síncrona no efeito. O estado já nasce
@@ -39,10 +37,6 @@ export default function PacientesPage() {
       .then((res) => setAgendaToken(res.agendaToken))
       .catch(() => {});
   }, [load]);
-
-  const handleSelectForSession = (patientId: string) => {
-    router.push(`/cockpit?patient=${encodeURIComponent(patientId)}`);
-  };
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -76,7 +70,6 @@ export default function PacientesPage() {
         <PatientList
           patients={patients}
           agendaToken={agendaToken}
-          onSelectForSession={handleSelectForSession}
           onOpenNewPatientModal={() => setIsModalOpen(true)}
           onPatientUpdated={load}
         />

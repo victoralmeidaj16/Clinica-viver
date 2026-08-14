@@ -66,7 +66,7 @@ export default function Sidebar({
       icon: Users,
     },
     {
-      label: 'Prontuários & Linha do Tempo',
+      label: 'Prontuários dos Pacientes',
       href: '/linha-do-tempo',
       icon: FileText,
     },
@@ -109,7 +109,7 @@ export default function Sidebar({
       icon: CreditCard,
     },
     {
-      label: 'Prontuários & Linha do Tempo',
+      label: 'Prontuários dos Pacientes',
       href: '/linha-do-tempo',
       icon: FileText,
     },

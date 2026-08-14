@@ -98,11 +98,11 @@ export function PublicBookingCalendar({ diasDisponiveis, diaSelecionado, onSelec
               disabled={!livre}
               onClick={() => onSelecionar(dia)}
               aria-pressed={ativo}
-              className={`aspect-square rounded-xl text-xs font-bold transition-colors ${
+              className={`aspect-square rounded-xl text-xs font-bold transition-all ${
                 ativo
-                  ? 'bg-emerald-500 text-slate-950'
+                  ? 'bg-psi-vibrant text-white shadow-lg shadow-psi-vibrant/30 scale-105'
                   : livre
-                    ? 'bg-slate-800 text-emerald-300 hover:bg-slate-700 border border-emerald-500/30'
+                    ? 'bg-slate-950 text-psi-soft hover:bg-psi-vibrant hover:text-white border border-psi-vibrant/30'
                     : 'text-slate-600'
               }`}
             >

@@ -1,18 +1,38 @@
 'use client';
 
 import { use, useEffect, useRef, useState } from 'react';
-import { ArrowRight, CalendarCheck, CalendarDays, Clock, FileText, Loader2, User } from 'lucide-react';
+import { ArrowRight, CalendarCheck, CalendarDays, Clock, FileText, Loader2, User, Brain } from 'lucide-react';
 import { PublicBookingCalendar } from '@/components/scheduling/PublicBookingCalendar';
 
-interface Props { params: Promise<{ token: string }> }
-interface Horario { inicio: string; hora: string; modalidade: string }
-interface DiaComHorarios { dia: string; horarios: Horario[] }
-interface Agenda { pacienteNome: string; professionalName: string; dias: DiaComHorarios[] }
-interface Confirmado { inicio: string; fim: string; modalidade: string }
+interface Props {
+  params: Promise<{ token: string }>;
+}
+interface Horario {
+  inicio: string;
+  hora: string;
+  modalidade: string;
+}
+interface DiaComHorarios {
+  dia: string;
+  horarios: Horario[];
+}
+interface Agenda {
+  pacienteNome: string;
+  professionalName: string;
+  dias: DiaComHorarios[];
+}
+interface Confirmado {
+  inicio: string;
+  fim: string;
+  modalidade: string;
+}
 
 function rotuloDia(dia: string): string {
   return new Date(`${dia}T12:00:00Z`).toLocaleDateString('pt-BR', {
-    weekday: 'long', day: '2-digit', month: 'long', timeZone: 'UTC',
+    weekday: 'long',
+    day: '2-digit',
+    month: 'long',
+    timeZone: 'UTC',
   });
 }
 
@@ -41,23 +61,25 @@ export default function AgendarPage({ params }: Props) {
 
   const identificar = async (event: React.FormEvent) => {
     event.preventDefault();
-    setLoading(true); setError(undefined);
+    setLoading(true);
+    setError(undefined);
     try {
       const response = await fetch('/api/agenda/horarios', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, cpf }),
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || 'Não foi possível carregar os horários.');
-      setAgenda(body); setDiaSelecionado(undefined);
+      setAgenda(body);
+      setDiaSelecionado(undefined);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Não foi possível carregar os horários.');
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // A rolagem é o que emenda os dois passos: o calendário ocupa a tela inteira
-  // no celular, e sem ela o paciente escolhe o dia e não vê que a lista de
-  // horários apareceu logo abaixo.
   const selecionarDia = (dia: string) => {
     setDiaSelecionado(dia);
     window.requestAnimationFrame(() =>
@@ -65,103 +87,207 @@ export default function AgendarPage({ params }: Props) {
     );
   };
 
-  /** Recarrega a grade sem mexer no estado de erro nem no passo da tela. */
   const recarregarHorarios = async () => {
     const response = await fetch('/api/agenda/horarios', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token, cpf }),
     });
     if (response.ok) setAgenda(await response.json());
   };
 
   const agendar = async (horario: Horario) => {
-    setSalvando(horario.inicio); setError(undefined);
+    setSalvando(horario.inicio);
+    setError(undefined);
     try {
       const response = await fetch('/api/agenda/agendar', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, cpf, inicio: horario.inicio }),
       });
       const body = await response.json();
       if (!response.ok) {
-        // Conflito devolve o paciente à lista já sem o horário tomado, em vez
-        // de deixá-lo tentando de novo no botão que acabou de falhar.
         if (response.status === 409) await recarregarHorarios();
         throw new Error(body.error || 'Não foi possível agendar.');
       }
       setConfirmado(body);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Não foi possível agendar.');
-    } finally { setSalvando(undefined); }
+    } finally {
+      setSalvando(undefined);
+    }
   };
 
   if (loading && !professionalName) {
-    return <div className="py-20 flex justify-center"><Loader2 className="w-7 h-7 animate-spin text-emerald-400" /></div>;
+    return (
+      <div className="py-20 flex justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-psi-vibrant" />
+      </div>
+    );
   }
+
   if (!professionalName) {
-    return <div className="rounded-3xl border border-rose-500/30 bg-rose-500/10 p-6 text-sm text-rose-200">{error || 'Link de agendamento inválido.'}</div>;
+    return (
+      <div className="rounded-3xl border border-rose-500/30 bg-rose-500/10 p-6 text-sm text-rose-200">
+        {error || 'Link de agendamento inválido.'}
+      </div>
+    );
   }
 
   const horariosDoDia = agenda?.dias.find((item) => item.dia === diaSelecionado)?.horarios ?? [];
 
-  return <div className="space-y-6">
-    <section className="bg-slate-800/80 border border-slate-700 rounded-3xl p-6 flex items-center gap-4">
-      <div className="w-16 h-16 rounded-2xl bg-slate-700 flex items-center justify-center"><User className="w-8 h-8 text-emerald-400" /></div>
-      <div>
-        <p className="text-[10px] uppercase tracking-widest text-emerald-400 font-black">Agenda de</p>
-        <h1 className="text-xl text-white font-black">{professionalName}</h1>
-        <p className="text-xs text-slate-400">Clínica Viver Mais</p>
-      </div>
-    </section>
-
-    {confirmado ? <section className="bg-slate-800/80 border border-emerald-500/30 rounded-3xl p-6 text-center space-y-4">
-      <div className="inline-flex gap-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 text-xs font-bold text-emerald-400">
-        <CalendarCheck className="w-4 h-4" /> Sessão agendada
-      </div>
-      <p className="text-2xl text-white font-black capitalize">{rotuloDia(confirmado.inicio.slice(0, 10))}</p>
-      <p className="text-lg text-emerald-300 font-bold">
-        {new Date(confirmado.inicio).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })}
-        {' · '}{confirmado.modalidade === 'online' ? 'Atendimento online' : 'Atendimento presencial'}
-      </p>
-      <p className="text-xs text-slate-400">{professionalName} já foi avisado. Guarde este horário.</p>
-    </section> : !agenda ? <form onSubmit={identificar} className="bg-slate-800/60 border border-slate-700 rounded-3xl p-6 space-y-5">
-      <div>
-        <h2 className="font-black text-white flex gap-2"><CalendarDays className="w-5 h-5 text-emerald-400" /> Marcar sua sessão</h2>
-        <p className="text-xs text-slate-400 mt-1">Identifique seu cadastro pelo CPF para ver os horários disponíveis.</p>
-      </div>
-      {error && <div className="rounded-2xl bg-rose-500/10 border border-rose-500/30 p-4 text-xs text-rose-300">{error}</div>}
-      <label className="text-xs font-bold text-slate-300 block">CPF do paciente
-        <div className="relative mt-1">
-          <FileText className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-          <input required inputMode="numeric" autoComplete="off" value={cpf} onChange={(e) => setCpf(e.target.value)} placeholder="000.000.000-00" className="w-full rounded-2xl bg-slate-900 border border-slate-700 py-2.5 pl-10 pr-4 text-white" />
+  return (
+    <div className="space-y-6 max-w-xl mx-auto py-6 px-4">
+      {/* Banner Principal com Branding Viver Mais Psi */}
+      <section className="bg-gradient-to-r from-slate-900 via-psi-darkest to-slate-900 border border-slate-700/60 rounded-3xl p-6 flex items-center gap-4 shadow-xl">
+        <div className="w-14 h-14 rounded-2xl bg-psi-vibrant text-white flex items-center justify-center shrink-0 shadow-lg shadow-psi-vibrant/30">
+          <Brain className="w-7 h-7" />
         </div>
-      </label>
-      <button disabled={loading} className="w-full rounded-2xl bg-emerald-500 p-4 text-sm font-black text-slate-950 flex justify-center gap-2 disabled:opacity-50">
-        {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Continuar <ArrowRight className="w-5 h-5" /></>}
-      </button>
-    </form> : <>
-      <section className="bg-slate-800/60 border border-slate-700 rounded-3xl p-6 space-y-5">
         <div>
-          <p className="text-xs text-emerald-400 font-bold">Olá, {agenda.pacienteNome}</p>
-          <h2 className="font-black text-white flex gap-2 mt-1"><CalendarDays className="w-5 h-5 text-emerald-400" /> Escolha o dia</h2>
+          <span className="text-[10px] uppercase tracking-widest text-psi-soft font-black px-2 py-0.5 rounded-md bg-psi-vibrant/20 border border-psi-vibrant/30">
+            Agenda Online
+          </span>
+          <h1 className="text-xl text-white font-black mt-1">{professionalName}</h1>
+          <p className="text-xs text-slate-300">Viver Mais Psicologia — Atendimento &amp; Saúde</p>
         </div>
-        {agenda.dias.length === 0
-          ? <p className="rounded-2xl bg-slate-900 border border-slate-700 p-4 text-xs text-slate-400">Não há horários livres nas próximas semanas. Fale com {professionalName} pelo WhatsApp.</p>
-          : <PublicBookingCalendar diasDisponiveis={agenda.dias.map((item) => item.dia)} diaSelecionado={diaSelecionado} onSelecionar={selecionarDia} />}
       </section>
 
-      {diaSelecionado && <section ref={passoHorario} className="bg-slate-800/60 border border-slate-700 rounded-3xl p-6 space-y-5 scroll-mt-6">
-        <h2 className="font-black text-white flex gap-2"><Clock className="w-5 h-5 text-emerald-400" /> Escolha o horário</h2>
-        <label className="text-xs font-bold text-slate-300 block">Dia selecionado
-          <input readOnly value={rotuloDia(diaSelecionado)} className="mt-1 w-full rounded-2xl bg-slate-900 border border-emerald-500/30 py-2.5 px-4 text-emerald-300 font-bold capitalize" />
-        </label>
-        {error && <div className="rounded-2xl bg-rose-500/10 border border-rose-500/30 p-4 text-xs text-rose-300">{error}</div>}
-        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-          {horariosDoDia.map((horario) => <button key={horario.inicio} type="button" disabled={Boolean(salvando)} onClick={() => void agendar(horario)} className="rounded-2xl border border-emerald-500/30 bg-slate-900 py-3 text-sm font-black text-emerald-300 hover:bg-emerald-500 hover:text-slate-950 transition-colors disabled:opacity-40">
-            {salvando === horario.inicio ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : horario.hora}
-          </button>)}
-        </div>
-        {horariosDoDia.length === 0 && <p className="text-xs text-slate-400">Os horários deste dia acabaram de ser ocupados. Escolha outro dia acima.</p>}
-      </section>}
-    </>}
-  </div>;
+      {confirmado ? (
+        <section className="bg-slate-900 border border-emerald-500/40 rounded-3xl p-6 text-center space-y-4 shadow-2xl">
+          <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-4 py-1.5 text-xs font-bold text-emerald-400">
+            <CalendarCheck className="w-4 h-4" /> Sessão Agendada com Sucesso
+          </div>
+          <p className="text-2xl text-white font-black capitalize">{rotuloDia(confirmado.inicio.slice(0, 10))}</p>
+          <p className="text-lg text-emerald-300 font-bold">
+            {new Date(confirmado.inicio).toLocaleTimeString('pt-BR', {
+              hour: '2-digit',
+              minute: '2-digit',
+              timeZone: 'America/Sao_Paulo',
+            })}
+            {' · '}
+            {confirmado.modalidade === 'online' ? 'Atendimento Online' : 'Atendimento Presencial'}
+          </p>
+          <p className="text-xs text-slate-400">
+            {professionalName} já recebeu a confirmação do seu horário.
+          </p>
+        </section>
+      ) : !agenda ? (
+        <form
+          onSubmit={identificar}
+          className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 space-y-5 shadow-xl"
+        >
+          <div>
+            <h2 className="font-black text-white flex items-center gap-2">
+              <CalendarDays className="w-5 h-5 text-psi-vibrant" /> Marcar Sua Consulta
+            </h2>
+            <p className="text-xs text-slate-400 mt-1">
+              Informe seu CPF para validar seu cadastro e visualizar os horários livres.
+            </p>
+          </div>
+
+          {error && (
+            <div className="rounded-2xl bg-rose-500/10 border border-rose-500/30 p-4 text-xs text-rose-300">
+              {error}
+            </div>
+          )}
+
+          <label className="text-xs font-bold text-slate-300 block">
+            CPF do Paciente
+            <div className="relative mt-1">
+              <FileText className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-500" />
+              <input
+                required
+                inputMode="numeric"
+                autoComplete="off"
+                value={cpf}
+                onChange={(e) => setCpf(e.target.value)}
+                placeholder="000.000.000-00"
+                className="w-full rounded-2xl bg-slate-950 border border-slate-700 py-3 pl-11 pr-4 text-white text-xs font-bold focus:border-psi-vibrant outline-none"
+              />
+            </div>
+          </label>
+
+          <button
+            disabled={loading}
+            className="w-full rounded-2xl bg-psi-vibrant hover:bg-psi-vibrant/90 p-4 text-xs font-black text-white flex justify-center items-center gap-2 shadow-lg shadow-psi-vibrant/30 disabled:opacity-50 transition-all"
+          >
+            {loading ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <>
+                Continuar <ArrowRight className="w-4 h-4" />
+              </>
+            )}
+          </button>
+        </form>
+      ) : (
+        <>
+          <section className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 space-y-5 shadow-xl">
+            <div>
+              <p className="text-xs text-psi-soft font-bold">Olá, {agenda.pacienteNome}</p>
+              <h2 className="font-black text-white flex items-center gap-2 mt-1">
+                <CalendarDays className="w-5 h-5 text-psi-vibrant" /> Escolha o Dia
+              </h2>
+            </div>
+            {agenda.dias.length === 0 ? (
+              <p className="rounded-2xl bg-slate-950 border border-slate-800 p-4 text-xs text-slate-400">
+                Não há horários livres nas próximas semanas. Fale com {professionalName} pelo WhatsApp.
+              </p>
+            ) : (
+              <PublicBookingCalendar
+                diasDisponiveis={agenda.dias.map((item) => item.dia)}
+                diaSelecionado={diaSelecionado}
+                onSelecionar={selecionarDia}
+              />
+            )}
+          </section>
+
+          {diaSelecionado && (
+            <section
+              ref={passoHorario}
+              className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 space-y-5 scroll-mt-6 shadow-xl"
+            >
+              <h2 className="font-black text-white flex items-center gap-2">
+                <Clock className="w-5 h-5 text-psi-vibrant" /> Escolha o Horário
+              </h2>
+              <label className="text-xs font-bold text-slate-300 block">
+                Dia Selecionado
+                <input
+                  readOnly
+                  value={rotuloDia(diaSelecionado)}
+                  className="mt-1 w-full rounded-2xl bg-slate-950 border border-psi-vibrant/30 py-2.5 px-4 text-psi-soft font-bold capitalize text-xs"
+                />
+              </label>
+
+              {error && (
+                <div className="rounded-2xl bg-rose-500/10 border border-rose-500/30 p-4 text-xs text-rose-300">
+                  {error}
+                </div>
+              )}
+
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                {horariosDoDia.map((horario) => (
+                  <button
+                    key={horario.inicio}
+                    type="button"
+                    disabled={Boolean(salvando)}
+                    onClick={() => void agendar(horario)}
+                    className="rounded-2xl border border-psi-vibrant/30 bg-slate-950 py-3 text-xs font-black text-psi-soft hover:bg-psi-vibrant hover:text-white transition-all disabled:opacity-40"
+                  >
+                    {salvando === horario.inicio ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : horario.hora}
+                  </button>
+                ))}
+              </div>
+
+              {horariosDoDia.length === 0 && (
+                <p className="text-xs text-slate-400">
+                  Os horários deste dia acabaram de ser ocupados. Escolha outro dia acima.
+                </p>
+              )}
+            </section>
+          )}
+        </>
+      )}
+    </div>
+  );
 }

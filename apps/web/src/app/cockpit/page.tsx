@@ -16,9 +16,7 @@ import {
   Share2,
   Send,
   AlertCircle,
-  ChevronRight,
   User,
-  AlertTriangle,
   MessageCircle,
 } from 'lucide-react';
 import { applicationRequest } from '@/lib/applicationApi';
@@ -117,7 +115,7 @@ export default function CockpitPage() {
     ? `${typeof window !== 'undefined' ? window.location.origin : 'https://clinica-viver-web.vercel.app'}/agendar/${agendaToken}`
     : '';
 
-  // Identifica sessões encerradas pendentes de prontuário (Resolução CFP N.º 01/2009)
+  // Identifica sessões encerradas (registro opcional no prontuário)
   const sessaoPendenteProntuario = appointments.find(
     (a) => a.status === 'completed' && !a.prontuarioPreenchido
   ) || {
@@ -232,22 +230,22 @@ export default function CockpitPage() {
         </div>
       </div>
 
-      {/* ⚠️ ALERTA DE PRONTUÁRIOS PENDENTES DE PREENCHIMENTO (RESOLUÇÃO CFP) */}
+      {/* CARD DE PRONTUÁRIOS (REGISTRO OPCIONAL NAS CORES DA PLATAFORMA) */}
       {sessaoPendenteProntuario && (
-        <div className="bg-amber-50 rounded-3xl border border-amber-200 p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in duration-200">
+        <div className="bg-psi-vibrant/5 rounded-3xl border border-psi-vibrant/20 p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in duration-200">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold shrink-0">
-              <AlertTriangle className="w-5 h-5 text-amber-600" />
+            <div className="w-10 h-10 rounded-2xl bg-psi-vibrant/10 text-psi-vibrant flex items-center justify-center font-bold shrink-0">
+              <FileText className="w-5 h-5 text-psi-vibrant" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 bg-amber-200/60 px-2 py-0.5 rounded-md">
-                  Pendente CFP N.º 01/2009
+                <span className="text-[10px] font-black uppercase tracking-wider text-psi-vibrant bg-psi-vibrant/15 px-2 py-0.5 rounded-md">
+                  Registro Opcional
                 </span>
-                <span className="text-xs font-bold text-amber-900">1 Prontuário Aguardando Registro</span>
+                <span className="text-xs font-bold text-ink">Evolução Clínica do Paciente</span>
               </div>
-              <p className="text-xs text-amber-800 font-medium mt-0.5">
-                Sessão concluída com <strong className="text-amber-950">{sessaoPendenteProntuario.pacienteNome}</strong> necessita de evolução no prontuário.
+              <p className="text-xs text-slate-700 font-medium mt-0.5">
+                Sessão concluída com <strong className="text-ink">{sessaoPendenteProntuario.pacienteNome}</strong>. Deseja registrar observações ou evolução clínica no histórico?
               </p>
             </div>
           </div>
@@ -255,10 +253,10 @@ export default function CockpitPage() {
           <button
             type="button"
             onClick={() => router.push(`/linha-do-tempo?patientId=${sessaoPendenteProntuario.patientId}`)}
-            className="bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs px-4 py-2.5 rounded-2xl shadow-md transition-all flex items-center gap-1.5 shrink-0 self-start sm:self-auto"
+            className="bg-psi-vibrant hover:bg-psi-vibrant/90 text-white font-extrabold text-xs px-4 py-2.5 rounded-2xl shadow-md transition-all flex items-center gap-1.5 shrink-0 self-start sm:self-auto"
           >
             <FileText className="w-4 h-4" />
-            <span>Preencher Prontuário Agora</span>
+            <span>Registrar Evolução (Opcional)</span>
           </button>
         </div>
       )}
@@ -347,17 +345,12 @@ export default function CockpitPage() {
             </h3>
           </div>
 
-          <div className="p-4 bg-psi-vibrant/5 rounded-2xl border border-psi-vibrant/20 text-center space-y-1">
+          <div className="p-4 bg-psi-vibrant/5 rounded-2xl border border-psi-vibrant/20 text-center space-y-1 my-auto">
             <span className="text-3xl font-black text-psi-vibrant">#2</span>
             <span className="text-xs font-bold text-slate-700 block">de 8 Psicólogos Credenciados</span>
             <p className="text-[11px] text-muted pt-1">
               O próximo lead entrante via formulário será encaminhado para você em breve.
             </p>
-          </div>
-
-          <div className="flex items-center gap-2 text-[11px] font-bold text-emerald-700 bg-emerald-50 p-2.5 rounded-xl border border-emerald-200">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>SLA de 24h Cumprido</span>
           </div>
         </div>
 
@@ -372,7 +365,7 @@ export default function CockpitPage() {
             </h3>
           </div>
 
-          <div className="space-y-3 bg-canvas p-3.5 rounded-2xl border border-line">
+          <div className="space-y-3 bg-canvas p-3.5 rounded-2xl border border-line my-auto">
             <label className="text-xs font-bold text-ink block">
               Selecione o Paciente:
               <select
@@ -399,14 +392,6 @@ export default function CockpitPage() {
               <span>Abrir / Lançar Prontuário</span>
             </button>
           </div>
-
-          <button
-            type="button"
-            onClick={() => router.push('/pacientes')}
-            className="text-xs font-bold text-psi-vibrant hover:underline flex items-center justify-center gap-1"
-          >
-            Ver todos os pacientes ({patients.length}) <ChevronRight className="w-3.5 h-3.5" />
-          </button>
         </div>
 
         {/* CARD 4: CARD MENOR PARA COPIAR LINK PÚBLICO DA AGENDA */}
@@ -420,7 +405,7 @@ export default function CockpitPage() {
             </h3>
           </div>
 
-          <div className="space-y-2 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+          <div className="space-y-2 bg-slate-50 p-3.5 rounded-2xl border border-slate-200 my-auto">
             <p className="text-[11px] text-muted">
               Envie este link direto para seus pacientes agendarem nos seus horários livres:
             </p>
@@ -453,14 +438,6 @@ export default function CockpitPage() {
               )}
             </div>
           </div>
-
-          <button
-            type="button"
-            onClick={() => router.push('/agenda')}
-            className="text-xs font-bold text-slate-600 hover:text-slate-900 text-center"
-          >
-            Editar horários da agenda
-          </button>
         </div>
       </div>
 

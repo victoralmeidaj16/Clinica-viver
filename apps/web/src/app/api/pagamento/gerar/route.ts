@@ -74,7 +74,7 @@ export async function POST(request: Request) {
     const checkout = await reservePendingCharge({ token, modality, cpf });
     if (!checkout) {
       return NextResponse.json({
-        error: 'Não encontramos uma sessão pendente desta modalidade para este CPF. Fale com seu psicólogo antes de tentar novamente.',
+        error: 'Não encontramos este CPF entre os pacientes vinculados ao psicólogo. Confira os dados ou fale com a clínica.',
       }, { status: 404 });
     }
 

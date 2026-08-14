@@ -61,14 +61,14 @@ export default function PaymentPage({ params }: Props) {
     </section>
 
     {!payment ? <form onSubmit={generate} className="bg-slate-800/60 border border-slate-700 rounded-3xl p-6 space-y-5">
-      <div><h2 className="font-black text-white flex gap-2"><CreditCard className="w-5 h-5 text-emerald-400" /> Pagamento da consulta</h2><p className="text-xs text-slate-400 mt-1">Identifique a sessão pendente pelo CPF do paciente.</p></div>
+      <div><h2 className="font-black text-white flex gap-2"><CreditCard className="w-5 h-5 text-emerald-400" /> Pagamento da consulta</h2><p className="text-xs text-slate-400 mt-1">Identifique seu cadastro pelo CPF para gerar o pagamento.</p></div>
       <div className="rounded-2xl bg-emerald-500/10 border border-emerald-500/30 p-4"><p className="text-xs text-emerald-400 font-bold">{labels[kind]}</p><p className="text-2xl text-white font-black">{reaisDeCentavos(amount)}</p></div>
       {error && <div className="rounded-2xl bg-rose-500/10 border border-rose-500/30 p-4 text-xs text-rose-300">{error}</div>}
       <label className="text-xs font-bold text-slate-300 block">CPF do paciente
         <div className="relative mt-1"><FileText className="absolute left-3 top-3 w-4 h-4 text-slate-400" /><input required inputMode="numeric" autoComplete="off" value={cpf} onChange={(e) => setCpf(e.target.value)} placeholder="000.000.000-00" className="w-full rounded-2xl bg-slate-900 border border-slate-700 py-2.5 pl-10 pr-4 text-white" /></div>
       </label>
       <button disabled={loading} className="w-full rounded-2xl bg-emerald-500 p-4 text-sm font-black text-slate-950 flex justify-center gap-2 disabled:opacity-50">{loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Gerar pagamento <ArrowRight className="w-5 h-5" /></>}</button>
-      <p className="text-[11px] text-slate-500 text-center">O CPF é usado apenas para localizar a cobrança já registrada e identificar o pagamento.</p>
+      <p className="text-[11px] text-slate-500 text-center">Não é necessário possuir consulta agendada. O CPF é usado para localizar seu cadastro com o psicólogo.</p>
     </form> : <section className="bg-slate-800/80 border border-slate-700 rounded-3xl p-6 text-center space-y-5">
       <div className="inline-flex gap-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 text-xs font-bold text-emerald-400"><Check className="w-4 h-4" /> Cobrança gerada</div>
       <p className="text-3xl text-white font-black">{reaisDeCentavos(Math.round((payment.valor ?? amount / 100) * 100))}</p>

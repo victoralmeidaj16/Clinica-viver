@@ -71,6 +71,7 @@ function getHeaders(): Record<string, string> {
   const cleanedKey = ASAAS_API_KEY.replace(/^\\/, '');
   return {
     'Content-Type': 'application/json',
+    'User-Agent': 'ClinicaViverMais/1.0 (Node.js)',
     'access_token': cleanedKey,
   };
 }

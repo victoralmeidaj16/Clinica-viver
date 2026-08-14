@@ -100,7 +100,7 @@ export default function MeuFinanceiroPage() {
       <section className="bg-slate-900 text-white p-6 rounded-3xl space-y-5">
         <div>
           <h2 className="font-black">Links permanentes de {data?.professionalName ?? 'pagamento'}</h2>
-          <p className="text-xs text-slate-300 mt-1">O CPF do paciente deve possuir uma sessão pendente no valor correspondente.</p>
+          <p className="text-xs text-slate-300 mt-1">O paciente precisa apenas estar cadastrado e vinculado ao seu perfil; não é necessário ter consulta agendada.</p>
         </div>
         <div className="grid lg:grid-cols-2 gap-4">
           {(['social', 'particular'] as const).map((modality) => (

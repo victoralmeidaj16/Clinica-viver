@@ -101,60 +101,103 @@ export async function reservePendingCharge(input: {
     const amountColumn = input.modality === 'social'
       ? 'p.valor_social_centavos'
       : 'p.valor_sessao_centavos';
-    const [rows] = await connection.query<RowDataPacket[]>(
-      `SELECT c.ref_core AS cobranca_ref, c.paciente_ref, p.nome AS profissional_nome,
-              ${amountColumn} AS valor_centavos, t.nome_paciente, t.cpf, t.telefone, t.email,
-              x.id AS checkout_ref, x.referencia_externa, x.provedor_pagamento_ref
+    const [patientRows] = await connection.query<RowDataPacket[]>(
+      `SELECT o.ref_core AS organizacao_ref, p.ref_core AS profissional_ref,
+              p.nome AS profissional_nome, ${amountColumn} AS valor_centavos,
+              pa.ref_core AS paciente_ref, t.nome_paciente, t.cpf, t.telefone, t.email
          FROM clinica_profissionais p
          JOIN clinica_organizacoes o ON o.id = p.organizacao_id
-         JOIN financeiro_cobrancas c
-           ON c.instituicao_id = p.instituicao_id AND c.organizacao_ref = o.ref_core
-          AND c.profissional_ref = p.ref_core
          JOIN clinica_triagens_pacientes t
-           ON t.instituicao_id = c.instituicao_id AND t.paciente_ref = c.paciente_ref
-         LEFT JOIN financeiro_checkouts_asaas x
-           ON x.instituicao_id = c.instituicao_id AND x.cobranca_ref = c.ref_core
+           ON t.instituicao_id = p.instituicao_id AND t.organizacao_ref = o.ref_core
+          AND t.paciente_ref IS NOT NULL
+         JOIN clinica_pacientes pa
+           ON pa.instituicao_id = t.instituicao_id AND pa.ref_core = t.paciente_ref
         WHERE p.instituicao_id = ? AND p.token_link_pagamento = ? AND p.ativo = 1
           AND REPLACE(REPLACE(REPLACE(t.cpf, '.', ''), '-', ''), ' ', '') = ?
-          AND c.status IN ('pending', 'overdue') AND c.valor_centavos = ${amountColumn}
-        ORDER BY c.vence_em, c.criado_em
+          AND (pa.profissional_id = p.id OR EXISTS (
+            SELECT 1 FROM clinica_pacientes_profissionais pp
+             WHERE pp.paciente_id = pa.id AND pp.profissional_id = p.id
+          ))
+        ORDER BY t.atualizado_em DESC
         LIMIT 1 FOR UPDATE`,
       [instituicaoId(), input.token, input.cpf]
     );
-    const row = rows[0];
-    if (!row) {
+    const patient = patientRows[0];
+    if (!patient) {
       await connection.rollback();
       return null;
     }
 
-    const checkoutId = String(row.checkout_ref || randomUUID());
-    const externalReference = String(
-      row.referencia_externa || `VM-${checkoutId.replaceAll('-', '')}`
+    const [chargeRows] = await connection.query<RowDataPacket[]>(
+      `SELECT c.ref_core AS cobranca_ref, x.id AS checkout_ref,
+              x.referencia_externa, x.provedor_pagamento_ref
+         FROM financeiro_cobrancas c
+         LEFT JOIN financeiro_checkouts_asaas x
+           ON x.instituicao_id = c.instituicao_id AND x.cobranca_ref = c.ref_core
+        WHERE c.instituicao_id = ? AND c.organizacao_ref = ?
+          AND c.profissional_ref = ? AND c.paciente_ref = ?
+          AND c.valor_centavos = ? AND c.status IN ('pending', 'overdue')
+        ORDER BY c.criado_em DESC LIMIT 1 FOR UPDATE`,
+      [instituicaoId(), patient.organizacao_ref, patient.profissional_ref,
+        patient.paciente_ref, Number(patient.valor_centavos)]
     );
-    if (!row.checkout_ref) {
+    let charge: {
+      cobranca_ref: string;
+      checkout_ref?: string;
+      referencia_externa?: string;
+      provedor_pagamento_ref?: string;
+    } | undefined = chargeRows[0] ? {
+      cobranca_ref: String(chargeRows[0].cobranca_ref),
+      checkout_ref: chargeRows[0].checkout_ref ? String(chargeRows[0].checkout_ref) : undefined,
+      referencia_externa: chargeRows[0].referencia_externa
+        ? String(chargeRows[0].referencia_externa) : undefined,
+      provedor_pagamento_ref: chargeRows[0].provedor_pagamento_ref
+        ? String(chargeRows[0].provedor_pagamento_ref) : undefined,
+    } : undefined;
+    if (!charge) {
+      const reference = `charge-link-${randomUUID()}`;
+      await connection.execute(
+        `INSERT INTO financeiro_cobrancas
+           (id, instituicao_id, organizacao_ref, ref_core, sessao_ref, paciente_ref,
+            profissional_ref, emitida_em, vence_em, valor_centavos, status,
+            descricao, criado_em, atualizado_em)
+         VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3),
+                 ?, 'pending', 'Pagamento direto de psicoterapia',
+                 CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3))`,
+        [rowId('cobranca', reference), instituicaoId(), patient.organizacao_ref,
+          reference, `payment-link-${reference}`, patient.paciente_ref,
+          patient.profissional_ref, Number(patient.valor_centavos)]
+      );
+      charge = { cobranca_ref: reference };
+    }
+
+    const checkoutId = String(charge.checkout_ref || randomUUID());
+    const externalReference = String(
+      charge.referencia_externa || `VM-${checkoutId.replaceAll('-', '')}`
+    );
+    if (!charge.checkout_ref) {
       await connection.execute(
         `INSERT INTO financeiro_checkouts_asaas
            (id, instituicao_id, organizacao_ref, cobranca_ref, modalidade, referencia_externa)
-         VALUES (?, ?, (SELECT organizacao_ref FROM financeiro_cobrancas
-                          WHERE instituicao_id = ? AND ref_core = ?), ?, ?, ?)`,
-        [rowId('checkout', checkoutId), instituicaoId(), instituicaoId(), row.cobranca_ref,
-          row.cobranca_ref, input.modality, externalReference]
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [rowId('checkout', checkoutId), instituicaoId(), patient.organizacao_ref,
+          charge.cobranca_ref, input.modality, externalReference]
       );
     }
     await connection.commit();
     return {
       id: checkoutId,
       externalReference,
-      chargeId: String(row.cobranca_ref),
-      patientId: String(row.paciente_ref),
-      patientName: String(row.nome_paciente),
-      patientCpf: String(row.cpf).replace(/\D/g, ''),
-      patientPhone: row.telefone ? String(row.telefone) : undefined,
-      patientEmail: row.email ? String(row.email) : undefined,
-      amountCents: Number(row.valor_centavos),
-      professionalName: String(row.profissional_nome),
-      providerPaymentId: row.provedor_pagamento_ref
-        ? String(row.provedor_pagamento_ref)
+      chargeId: String(charge.cobranca_ref),
+      patientId: String(patient.paciente_ref),
+      patientName: String(patient.nome_paciente),
+      patientCpf: String(patient.cpf).replace(/\D/g, ''),
+      patientPhone: patient.telefone ? String(patient.telefone) : undefined,
+      patientEmail: patient.email ? String(patient.email) : undefined,
+      amountCents: Number(patient.valor_centavos),
+      professionalName: String(patient.profissional_nome),
+      providerPaymentId: charge.provedor_pagamento_ref
+        ? String(charge.provedor_pagamento_ref)
         : undefined,
     };
   } catch (error) {

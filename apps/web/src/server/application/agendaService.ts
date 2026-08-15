@@ -7,6 +7,7 @@ import {
   cancelAppointment,
   createBlock,
   deleteBlock,
+  getContatosDaSessao,
   getProfessionalAgendaProfile,
   listAppointments,
   listAvailability,
@@ -14,6 +15,7 @@ import {
   replaceAvailability,
   type JanelaEditavel,
 } from '@/server/scheduling/agendaRepository';
+import { avisarSessaoCancelada } from '@/server/scheduling/agendaAvisos';
 
 /**
  * A agenda pelo lado de quem atende.
@@ -168,6 +170,10 @@ export async function cancelAgendaAppointment(
   if (!motivo.trim()) {
     throw new ApplicationError('INVALID_INPUT', 'O motivo do cancelamento é obrigatório.', 400);
   }
+  // Os contatos são lidos antes do UPDATE porque a mensagem fala do horário
+  // que deixou de valer, e depois do cancelamento a linha continua lá mas o
+  // aviso já não teria de onde tirar "sua sessão de quinta às 14h".
+  const sessao = await getContatosDaSessao(appointmentId);
   const cancelado = await cancelAppointment(
     organizationId,
     professionalId,
@@ -177,6 +183,8 @@ export async function cancelAgendaAppointment(
   if (!cancelado) {
     throw new ApplicationError('NOT_FOUND', 'Agendamento não encontrado ou já cancelado.', 404);
   }
+  if (sessao) await avisarSessaoCancelada(sessao);
+
   const desde = new Date(Date.now() - 60 * 60_000);
   return { appointments: await listAppointments(organizationId, professionalId, desde) };
 }

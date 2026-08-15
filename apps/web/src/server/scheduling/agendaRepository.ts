@@ -376,6 +376,53 @@ export async function cancelAppointment(
 }
 
 // ---------------------------------------------------------------------------
+// Contatos da sessão — o que os avisos de WhatsApp precisam saber
+// ---------------------------------------------------------------------------
+
+export interface ContatosDaSessao {
+  agendamentoId: string;
+  inicio: string;
+  fim: string;
+  modalidade: 'presencial' | 'online' | 'telefone';
+  status: string;
+  pacienteNome: string;
+  pacienteTelefone: string | null;
+  profissionalNome: string;
+  profissionalTelefone: string | null;
+}
+
+const CONTATOS_SELECT = `
+  SELECT a.id, a.inicio, a.status, a.modalidade, a.duracao_min,
+         COALESCE(a.fim, DATE_ADD(a.inicio, INTERVAL a.duracao_min MINUTE)) AS fim,
+         COALESCE(pa.nome_social, pa.nome) AS paciente_nome, pa.telefone AS paciente_telefone,
+         p.nome AS profissional_nome, p.telefone AS profissional_telefone
+    FROM clinica_agendamentos a
+    JOIN clinica_pacientes pa ON pa.id = a.paciente_id
+    JOIN clinica_profissionais p ON p.id = a.profissional_id`;
+
+function contatos(row: RowDataPacket): ContatosDaSessao {
+  return {
+    agendamentoId: String(row.id),
+    inicio: new Date(row.inicio).toISOString(),
+    fim: new Date(row.fim).toISOString(),
+    modalidade: row.modalidade,
+    status: String(row.status),
+    pacienteNome: String(row.paciente_nome ?? 'Paciente'),
+    pacienteTelefone: row.paciente_telefone ? String(row.paciente_telefone) : null,
+    profissionalNome: String(row.profissional_nome ?? 'Profissional'),
+    profissionalTelefone: row.profissional_telefone ? String(row.profissional_telefone) : null,
+  };
+}
+
+export async function getContatosDaSessao(agendamentoId: string): Promise<ContatosDaSessao | null> {
+  const [rows] = await getMysqlPool().query<RowDataPacket[]>(
+    `${CONTATOS_SELECT} WHERE a.instituicao_id = ? AND a.id = ? LIMIT 1`,
+    [instituicaoId(), agendamentoId]
+  );
+  return rows[0] ? contatos(rows[0]) : null;
+}
+
+// ---------------------------------------------------------------------------
 // Fluxo público: identificação por CPF, horários livres e marcação
 // ---------------------------------------------------------------------------
 
@@ -413,39 +460,31 @@ export async function identifyPatient(
       LIMIT 1`,
     [instituicaoId(), token, cleanCpf || cpf]
   );
+  // Segundo caminho, para o paciente que já é do psicólogo mas cujo CPF está
+  // no cadastro e não na triagem — promovido antes da triagem guardar CPF, ou
+  // cadastrado direto pela recepção. Continua exigindo que o CPF bata **e**
+  // que o vínculo com o dono do link exista: é a mesma autorização por outra
+  // porta, não uma porta sem autorização.
   let row = rows[0];
-
-  // Fallback para testes: se não houver triagem registrada com o CPF exato, localiza o profissional pelo token
-  // e vincula ao primeiro paciente associado no MySQL.
   if (!row) {
-    const [profRows] = await pool.query<RowDataPacket[]>(
-      `SELECT p.id, p.ref_core AS profissional_ref, p.nome AS profissional_nome, o.ref_core AS organizacao_ref
+    const [porCadastro] = await pool.query<RowDataPacket[]>(
+      `SELECT o.ref_core AS organizacao_ref, p.ref_core AS profissional_ref,
+              p.id AS profissional_id, p.nome AS profissional_nome,
+              pa.ref_core AS paciente_ref, pa.id AS paciente_id,
+              COALESCE(pa.nome_social, pa.nome) AS nome_paciente
          FROM clinica_profissionais p
          JOIN clinica_organizacoes o ON o.id = p.organizacao_id
-        WHERE p.instituicao_id = ? AND p.token_link_agenda = ? LIMIT 1`,
-      [instituicaoId(), token]
+         JOIN clinica_pacientes pa ON pa.instituicao_id = p.instituicao_id
+        WHERE p.instituicao_id = ? AND p.token_link_agenda = ? AND p.ativo = 1
+          AND REPLACE(REPLACE(REPLACE(pa.documento, '.', ''), '-', ''), ' ', '') = ?
+          AND (pa.profissional_id = p.id OR EXISTS (
+            SELECT 1 FROM clinica_pacientes_profissionais pp
+             WHERE pp.paciente_id = pa.id AND pp.profissional_id = p.id
+          ))
+        LIMIT 1`,
+      [instituicaoId(), token, cleanCpf || cpf]
     );
-    const prof = profRows[0];
-    if (prof) {
-      const [pacRows] = await pool.query<RowDataPacket[]>(
-        `SELECT id, ref_core, nome FROM clinica_pacientes
-          WHERE instituicao_id = ? AND (profissional_id = ? OR 1=1)
-          LIMIT 1`,
-        [instituicaoId(), prof.id]
-      );
-      const pac = pacRows[0];
-      if (pac) {
-        return {
-          patientRef: String(pac.ref_core),
-          patientRowId: String(pac.id),
-          nome: String(pac.nome),
-          organizationId: String(prof.organizacao_ref),
-          professionalId: String(prof.profissional_ref),
-          professionalRowId: String(prof.id),
-          professionalName: String(prof.profissional_nome),
-        };
-      }
-    }
+    row = porCadastro[0];
   }
 
   if (!row) return null;
@@ -527,7 +566,7 @@ export async function listAvailableSlots(
 }
 
 export type ResultadoAgendamento =
-  | { ok: true; inicio: string; fim: string; modalidade: string }
+  | { ok: true; agendamentoId: string; inicio: string; fim: string; modalidade: string }
   | { ok: false; motivo: 'INDISPONIVEL' | 'DUPLICADO' };
 
 /**
@@ -579,6 +618,7 @@ export async function bookAppointment(
     }
 
     const referencia = `agenda-link-${randomUUID()}`;
+    const agendamentoId = rowId('agendamento', referencia);
     const [orgRows] = await connection.query<RowDataPacket[]>(
       'SELECT id FROM clinica_organizacoes WHERE ref_core = ? LIMIT 1',
       [paciente.organizationId]
@@ -591,7 +631,7 @@ export async function bookAppointment(
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'agendado', 'portal', ?, 1,
                CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3))`,
       [
-        rowId('agendamento', referencia),
+        agendamentoId,
         instituicaoId(),
         referencia,
         orgRows[0]?.id ?? null,
@@ -606,7 +646,13 @@ export async function bookAppointment(
       ]
     );
     await connection.commit();
-    return { ok: true, inicio: slot.inicio, fim: slot.fim, modalidade: slot.modalidade };
+    return {
+      ok: true,
+      agendamentoId,
+      inicio: slot.inicio,
+      fim: slot.fim,
+      modalidade: slot.modalidade,
+    };
   } catch (error) {
     await connection.rollback();
     if ((error as { code?: string }).code === 'ER_DUP_ENTRY') {

@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import { rateLimited, validCpf } from '@/server/http/publicRequest';
-import { bookAppointment, identifyPatient } from '@/server/scheduling/agendaRepository';
+import {
+  bookAppointment,
+  getContatosDaSessao,
+  identifyPatient,
+} from '@/server/scheduling/agendaRepository';
+import { avisarSessaoMarcada } from '@/server/scheduling/agendaAvisos';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -51,6 +56,17 @@ export async function POST(request: Request) {
         },
         { status: 409 }
       );
+    }
+
+    // O aviso é aguardado, e não solto com `void`, porque esta rota roda em
+    // função serverless: resposta enviada é processo elegível para congelar, e
+    // uma promessa pendente ali vira mensagem que ninguém recebe. O envio já
+    // engole os próprios erros — a sessão gravada não depende dele.
+    try {
+      const contatos = await getContatosDaSessao(resultado.agendamentoId);
+      if (contatos) await avisarSessaoMarcada(contatos);
+    } catch (erro) {
+      console.error('[agenda] Sessão marcada, mas o aviso falhou:', erro);
     }
 
     return NextResponse.json(

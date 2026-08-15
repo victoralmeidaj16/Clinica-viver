@@ -36,7 +36,10 @@ export type FinalidadeMensagem =
   | 'recebimento_paciente'
   | 'boas_vindas_psicologo'
   | 'alerta_coordenacao'
-  | 'resposta_psicologo';
+  | 'resposta_psicologo'
+  | 'agenda_confirmacao_paciente'
+  | 'agenda_confirmacao_psicologo'
+  | 'agenda_cancelamento_paciente';
 
 export interface ResultadoEnvio {
   finalidade: FinalidadeMensagem;
@@ -70,7 +73,7 @@ function evolutionConfig(): { url: string; apiKey: string; instancia: string } |
  * rede. Enquanto a operação está em piloto, número fora da lista não é assunto
  * do provedor — a mensagem não deve sequer sair daqui.
  */
-async function enviarTexto(
+export async function enviarTexto(
   telefone: string,
   texto: string,
   finalidade: FinalidadeMensagem,

@@ -28,7 +28,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   // profissional, e sem sair antes o paciente seria mandado ao login.
   const isPaginaAgendamento = pathname.startsWith('/agendar/');
   const isPublicPage =
-    pathname === '/login' || pathname === '/ativar-conta' || pathname === '/' || isVitrinePage || isConfirmacaoContato || isPaginaPagamento || isPaginaAgendamento;
+    pathname === '/login' || pathname === '/ativar-conta' || pathname === '/redefinir-senha' || pathname === '/' || isVitrinePage || isConfirmacaoContato || isPaginaPagamento || isPaginaAgendamento;
 
   useEffect(() => {
     if (isPublicPage) {

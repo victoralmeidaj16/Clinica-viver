@@ -1,8 +1,11 @@
 import {
   assertStaffAuthorized,
+  avaliarBaseFiscalAtendimento,
+  competenciaNfseDoAtendimento,
   dividirSplit7030Centavos,
   generateFinancialReports,
   type ChargeStatus,
+  type FinancialCharge,
   type FinancialFilter,
   type SessionReceivable,
 } from '@thats-life/core';
@@ -12,6 +15,9 @@ import { getCaptureRepository } from '@/server/persistence/captureRepository';
 import { statusCertificadoNfse, type StatusCertificadoNfse } from '@/server/fiscal/certificadoNfse';
 import { PRESTADOR_NFSE, SERVICO_NFSE } from '@/server/fiscal/prestador';
 import { ambienteNfse, type AmbienteNfse } from '@/server/fiscal/sefinNacional';
+import { NfseRepository, type StatusEmissaoNfse } from '@/server/fiscal/nfseRepository';
+import { isMysqlConfigured } from '@/server/oci/runtime';
+import type { PatientContactCapable } from '@/server/persistence/mysql/identityRepository';
 import { ApplicationError } from './http';
 
 /**
@@ -41,6 +47,8 @@ export interface AtendimentoFinanceiroClinica {
   emAbertoCents: number;
   creditoPsicologoCents: number;
   receitaClinicaCents: number;
+  nfseStatus: StatusEmissaoNfse | 'none';
+  nfseNumero?: string;
 }
 
 export interface ConsolidadoPsicologo {
@@ -127,6 +135,12 @@ export async function getClinicFinanceOverview(
   );
 
   const nomes = await resolverNomes(organizationId);
+  const emissoes = isMysqlConfigured()
+    ? await new NfseRepository().porCobrancas(
+        organizationId,
+        bundle.receivables.map((item) => item.chargeId)
+      )
+    : new Map();
 
   const atendimentos = bundle.receivables.map((receivable): AtendimentoFinanceiroClinica => {
     const recebidoCents = recebidoLiquido(receivable);
@@ -148,6 +162,8 @@ export async function getClinicFinanceOverview(
       emAbertoCents: receivable.outstandingAmountCents,
       creditoPsicologoCents,
       receitaClinicaCents,
+      nfseStatus: emissoes.get(receivable.chargeId)?.status ?? 'none',
+      nfseNumero: emissoes.get(receivable.chargeId)?.numeroNfse,
     };
   });
 
@@ -221,7 +237,8 @@ const CONFIGURACAO_FISCAL_VIVER_MAIS = {
 
 export interface PreviaNfse {
   chargeId: string;
-  paciente: { nome: string; cpf?: string; email?: string };
+  /** `pacienteRef` é o que a tela usa para gravar o CPF que estiver faltando. */
+  paciente: { ref: string; nome: string; cpf?: string; email?: string };
   competencia: string;
   valorCents: number;
   servico: typeof CONFIGURACAO_FISCAL_VIVER_MAIS;
@@ -232,12 +249,76 @@ export interface PreviaNfse {
   certificado: StatusCertificadoNfse;
 }
 
+/**
+ * O adaptador em uso sabe ler contato de paciente? Em modo demonstração não
+ * sabe, e a prévia segue com o que a triagem tiver.
+ */
+function contactSource(valor: unknown): PatientContactCapable | null {
+  const candidato = valor as Partial<PatientContactCapable>;
+  return typeof candidato.listPatientContacts === 'function' ? (candidato as PatientContactCapable) : null;
+}
+
 /** Emissão fiscal é uma atribuição da administração, não de billing em geral. */
-function exigirAdminFiscal(context: RequestContext) {
+export function exigirAdminFiscal(context: RequestContext) {
   const eAdmin = context.actor.roles.some((role) => role === 'owner' || role === 'admin');
   if (!eAdmin) {
     throw new ApplicationError('FORBIDDEN', 'A emissão de NFS-e é exclusiva do perfil administrador.', 403);
   }
+}
+
+/**
+ * Resolve o fato gerador da cobrança.
+ *
+ * A cobrança informa quando foi criada; a NFS-e precisa de quando o serviço
+ * foi prestado. Primeiro procuramos a sessão clínica, depois o agendamento
+ * concluído (inclusive o que aponta para a sessão clínica). Referências
+ * sintéticas de links antigos não viram competência por aproximação: emitir
+ * no dia errado é pior do que pedir a correção do vínculo.
+ */
+async function competenciaFiscalDaCobranca(
+  organizationId: string,
+  charge: FinancialCharge
+): Promise<string> {
+  const store = getApplicationStore();
+  const sessao = await store.sessions.getById(organizationId, charge.sessionId);
+  if (sessao) {
+    if (sessao.status !== 'completed') {
+      throw new ApplicationError(
+        'INVALID_FISCAL_STATE',
+        'A NFS-e só pode ser emitida para um atendimento concluído.',
+        422
+      );
+    }
+    return competenciaNfseDoAtendimento(sessao.actualStart ?? sessao.scheduledStart);
+  }
+
+  const agendamentoDireto = await store.appointments.getById(organizationId, charge.sessionId);
+  const agendamentosDoPaciente = agendamentoDireto
+    ? []
+    : await store.appointments.list({
+        organizationId,
+        patientId: charge.patientId,
+        professionalId: charge.professionalId,
+        statuses: ['completed'],
+      });
+  const agendamento = agendamentoDireto
+    ?? agendamentosDoPaciente.find((item) => item.clinicalSessionId === charge.sessionId);
+
+  if (!agendamento) {
+    throw new ApplicationError(
+      'FISCAL_SESSION_REQUIRED',
+      'A cobrança não está vinculada a um atendimento. Vincule-a à sessão realizada antes de emitir a NFS-e.',
+      422
+    );
+  }
+  if (agendamento.status !== 'completed') {
+    throw new ApplicationError(
+      'INVALID_FISCAL_STATE',
+      'A NFS-e só pode ser emitida para um atendimento concluído.',
+      422
+    );
+  }
+  return competenciaNfseDoAtendimento(agendamento.startsAt);
 }
 
 /**
@@ -264,19 +345,44 @@ export async function getNfsePreview(
   const valorEstornado = ledger.refunds
     .filter((refund) => ledger.payments.some((payment) => payment.id === refund.paymentId && payment.chargeId === chargeId))
     .reduce((total, refund) => total + refund.amountCents, 0);
-  const valorLiquidoRecebido = Math.max(valorRecebido - valorEstornado, 0);
-  if (valorLiquidoRecebido === 0) {
-    throw new ApplicationError('INVALID_FISCAL_STATE', 'A NFS-e só pode ser preparada para um pagamento confirmado.', 422);
+  const baseFiscal = avaliarBaseFiscalAtendimento({
+    valorBrutoCents: charge.amountCents,
+    valorPagoConfirmadoCents: valorRecebido,
+    valorEstornadoCents: valorEstornado,
+    statusCobranca: charge.status,
+  });
+  if (!baseFiscal.apta) {
+    if (baseFiscal.motivo === 'estorno_exige_revisao') {
+      throw new ApplicationError(
+        'FISCAL_REFUND_REVIEW_REQUIRED',
+        'Esta cobrança possui estorno. Defina com a contabilidade se a nota deve ser cancelada ou substituída antes de prosseguir.',
+        422
+      );
+    }
+    throw new ApplicationError(
+      'INVALID_FISCAL_STATE',
+      baseFiscal.motivo === 'sem_pagamento_confirmado'
+        ? 'A NFS-e só pode ser preparada para um pagamento confirmado.'
+        : 'A NFS-e só pode ser preparada para uma cobrança integralmente quitada.',
+      422
+    );
   }
-  if (charge.status !== 'paid') {
-    throw new ApplicationError('INVALID_FISCAL_STATE', 'A NFS-e só pode ser preparada para uma cobrança integralmente quitada.', 422);
-  }
+
+  const competencia = await competenciaFiscalDaCobranca(organizationId, charge);
 
   const paciente = await store.identities.getPatient(organizationId, charge.patientId);
   const state = await getCaptureRepository().read();
   const lead = state.triagensPacientes.find((item) => item.pacienteRef === charge.patientId);
+
+  // O CPF pode estar em dois lugares, e os dois valem: a triagem, para quem
+  // chegou pela vitrine, e o cadastro, para quem a recepção lançou direto.
+  // Olhar só a triagem transformava metade dos pacientes em nota impossível.
+  const contatos = contactSource(store.identities);
+  const cadastro = contatos ? (await contatos.listPatientContacts(organizationId))[charge.patientId] : undefined;
+  const cpf = lead?.cpf?.replace(/\D/g, '') || cadastro?.documento?.replace(/\D/g, '') || undefined;
+
   const camposPendentes: string[] = [];
-  if (!lead?.cpf) camposPendentes.push('CPF do tomador');
+  if (!cpf) camposPendentes.push('CPF do tomador');
 
   // O certificado responde se a emissão é possível hoje. Antes isto era um
   // `false` fixo; agora vencer o certificado, ou trocá-lo por um de outro
@@ -286,12 +392,15 @@ export async function getNfsePreview(
   return {
     chargeId,
     paciente: {
+      ref: charge.patientId,
       nome: paciente?.displayName ?? lead?.nomePaciente ?? charge.patientId,
-      cpf: lead?.cpf,
-      email: lead?.email,
+      cpf,
+      email: lead?.email ?? cadastro?.email,
     },
-    competencia: charge.issuedAt.slice(0, 10),
-    valorCents: valorLiquidoRecebido,
+    competencia,
+    // A nota documenta o serviço prestado. Taxa do gateway, split 70/30 e
+    // data/valor do repasse não reduzem o valor fiscal do atendimento.
+    valorCents: baseFiscal.valorCents,
     servico: CONFIGURACAO_FISCAL_VIVER_MAIS,
     camposPendentes,
     integracaoConfigurada: certificado.apto,

@@ -200,7 +200,31 @@ export async function reservePendingCharge(input: {
         ? String(chargeRows[0].provedor_pagamento_ref) : undefined,
     } : undefined;
     if (!charge) {
+      // O link permanente não pode inventar uma "sessão" na hora do
+      // pagamento. A cobrança nasce do último atendimento concluído que ainda
+      // não tem cobrança; é esse vínculo que fornece a competência da NFS-e.
+      const [attendanceRows] = await connection.query<RowDataPacket[]>(
+        `SELECT a.ref_core AS agendamento_ref, a.sessao_clinica_ref
+           FROM clinica_agendamentos a
+           LEFT JOIN financeiro_cobrancas existente
+             ON existente.instituicao_id = a.instituicao_id
+            AND existente.organizacao_ref = ?
+            AND existente.sessao_ref IN (a.ref_core, a.sessao_clinica_ref)
+          WHERE a.instituicao_id = ? AND a.paciente_id = ? AND a.profissional_id = ?
+            AND a.status = 'realizado' AND existente.id IS NULL
+          ORDER BY a.inicio DESC
+          LIMIT 1 FOR UPDATE`,
+        [patient.organizacao_ref, instituicaoId(), rowId('paciente', String(patient.paciente_ref)),
+          rowId('profissional', String(patient.profissional_ref))]
+      );
+      const attendance = attendanceRows[0];
+      if (!attendance) {
+        await connection.rollback();
+        return null;
+      }
+
       const reference = `charge-link-${randomUUID()}`;
+      const sessionReference = String(attendance.sessao_clinica_ref || attendance.agendamento_ref);
       await connection.execute(
         `INSERT INTO financeiro_cobrancas
            (id, instituicao_id, organizacao_ref, ref_core, sessao_ref, paciente_ref,
@@ -210,7 +234,7 @@ export async function reservePendingCharge(input: {
                  ?, 'pending', 'Pagamento direto de psicoterapia',
                  CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3))`,
         [rowId('cobranca', reference), instituicaoId(), patient.organizacao_ref,
-          reference, `payment-link-${reference}`, patient.paciente_ref,
+          reference, sessionReference, patient.paciente_ref,
           patient.profissional_ref, Number(patient.valor_centavos)]
       );
       charge = { cobranca_ref: reference };

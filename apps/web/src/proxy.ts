@@ -27,6 +27,7 @@ export function proxy(request: NextRequest) {
     pathname === '/' ||
     pathname === '/login' ||
     pathname === '/ativar-conta' ||
+    pathname === '/redefinir-senha' ||
     pathname === '/vitrine' ||
     pathname.startsWith('/pagar/') ||
     pathname.startsWith('/agendar/') ||

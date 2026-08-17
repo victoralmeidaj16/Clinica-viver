@@ -1,17 +1,17 @@
 import 'server-only';
 
 import { gunzipSync } from 'node:zlib';
-import { gerarDpsPsicologia } from '@thats-life/core';
+import { gerarDpsPsicologia, gerarPedidoCancelamentoNfse, TIPO_EVENTO_CANCELAMENTO } from '@thats-life/core';
 import type { RequestContext } from './context';
 import { ApplicationError } from './http';
-import { getNfsePreview } from './clinicFinanceService';
+import { exigirAdminFiscal, getNfsePreview } from './clinicFinanceService';
 import { getApplicationStore } from './store';
 import { exigirCertificadoNfseApto } from '@/server/fiscal/certificadoNfse';
 import { NfseRepository, exigirPersistenciaFiscal, type EmissaoNfse } from '@/server/fiscal/nfseRepository';
 import { PRESTADOR_NFSE, SERVICO_NFSE } from '@/server/fiscal/prestador';
 import {
   ambienteNfse, CODIGO_TP_AMB, consultarChavePorDps, dpsJaGerouNfse, enviarDps,
-  SefinNacionalError, type RespostaSefin,
+  registrarEvento, SefinNacionalError, type RespostaSefin,
 } from '@/server/fiscal/sefinNacional';
 import { assinarXmlFiscal } from '@/server/fiscal/assinaturaXmlFiscal';
 import { validarDpsAssinada } from '@/server/fiscal/validacaoDps';
@@ -173,5 +173,176 @@ export async function emitirNfse(context: RequestContext, chargeId: string, conf
     });
     if (error instanceof ApplicationError) throw error;
     throw new ApplicationError('NFSE_EMISSION_FAILED', error instanceof Error ? error.message : 'Não foi possível emitir a NFS-e.', sefin?.status && sefin.status < 500 ? 422 : 502);
+  }
+}
+
+/**
+ * Situação fiscal da cobrança, do jeito que a administração precisa ver.
+ *
+ * Sem isto, emitir era um ato sem consequência visível: a resposta da SEFIN
+ * aparecia uma vez no modal e desaparecia com ele. Quem abrisse a tela no dia
+ * seguinte não tinha como saber se a nota existe, falhou ou foi cancelada.
+ *
+ * A chave de acesso continua fora do resumo, como a clínica pediu. Ela está no
+ * XML, que é o documento — e o XML pode ser baixado.
+ */
+export async function consultarEmissaoNfse(context: RequestContext, chargeId: string) {
+  exigirAdminFiscal(context);
+  exigirPersistenciaFiscal();
+
+  const repositorio = new NfseRepository();
+  const emissao = await repositorio.porCobranca(context.actor.organizationId, chargeId);
+  if (!emissao) return { chargeId, status: 'none' as const };
+
+  const eventos = await repositorio.eventos(emissao.id);
+  return {
+    chargeId,
+    status: emissao.status,
+    ambiente: emissao.ambiente,
+    numeroNfse: emissao.numeroNfse,
+    serie: emissao.serie,
+    numeroDps: emissao.numeroDps,
+    competencia: emissao.competencia,
+    valorCents: emissao.valorCents,
+    canceladoEm: emissao.canceladoEm,
+    cancelamentoMotivo: emissao.cancelamentoMotivo,
+    erroCodigo: emissao.erroCodigo,
+    erroMensagem: emissao.erroMensagem,
+    xmlNfseDisponivel: Boolean(emissao.nfseXml),
+    xmlDpsDisponivel: Boolean(emissao.dpsXml),
+    podeCancelar: emissao.status === 'issued' && Boolean(emissao.chaveAcesso),
+    eventos: eventos.map((evento) => ({
+      tipoEvento: evento.tipoEvento,
+      numeroPedido: evento.numeroPedido,
+      status: evento.status,
+      motivo: evento.motivo,
+      criadoEm: evento.criadoEm,
+      erroMensagem: evento.erroMensagem,
+    })),
+  };
+}
+
+export type TipoXmlFiscal = 'nfse' | 'dps';
+
+/**
+ * XML do documento fiscal, para arquivo e para o contador.
+ *
+ * É o XML que a SEFIN devolveu, guardado como veio — não uma remontagem a
+ * partir das colunas. Em discussão fiscal o que vale é o documento assinado.
+ */
+export async function xmlDaEmissaoNfse(
+  context: RequestContext,
+  chargeId: string,
+  tipo: TipoXmlFiscal
+): Promise<{ nomeArquivo: string; xml: string }> {
+  exigirAdminFiscal(context);
+  exigirPersistenciaFiscal();
+
+  const emissao = await new NfseRepository().porCobranca(context.actor.organizationId, chargeId);
+  if (!emissao) throw new ApplicationError('NOT_FOUND', 'Esta cobrança não tem NFS-e registrada.', 404);
+
+  const xml = tipo === 'nfse' ? emissao.nfseXml : emissao.dpsXml;
+  if (!xml) {
+    throw new ApplicationError(
+      'NOT_FOUND',
+      tipo === 'nfse'
+        ? 'O XML da NFS-e ainda não foi recebido da SEFIN para esta cobrança.'
+        : 'A DPS desta cobrança ainda não foi gerada.',
+      404
+    );
+  }
+
+  const identificacao = tipo === 'nfse' ? emissao.numeroNfse ?? emissao.numeroDps : emissao.numeroDps;
+  return { nomeArquivo: `${tipo}-${emissao.serie}-${identificacao}.xml`, xml };
+}
+
+/**
+ * Cancela a NFS-e por evento `101101`.
+ *
+ * Não existe apagar: o cancelamento é outro documento assinado, com sequencial
+ * próprio, e o prazo para registrá-lo é definido pelo município. Passado o
+ * prazo, a via é substituir a nota — outro evento, que este fluxo não cobre.
+ *
+ * A ordem importa: reserva-se o sequencial no banco antes de falar com a SEFIN,
+ * e a emissão só sai de `issued` depois de a SEFIN aceitar. Marcar como
+ * cancelada antes do aceite produziria a pior das divergências — a clínica
+ * achando que não deve o ISS de uma nota que continua válida na prefeitura.
+ */
+export async function cancelarNfse(
+  context: RequestContext,
+  chargeId: string,
+  entrada: { confirmar: unknown; motivo: unknown; codigoMotivo?: unknown }
+) {
+  exigirAdminFiscal(context);
+  if (entrada.confirmar !== true) {
+    throw new ApplicationError('CONFIRMATION_REQUIRED', 'Confirme o cancelamento antes de registrar o evento.', 400);
+  }
+  exigirPersistenciaFiscal();
+
+  const motivo = String(entrada.motivo ?? '').trim();
+  const codigoMotivo = String(entrada.codigoMotivo ?? '1').trim();
+
+  const ambiente = ambienteNfse();
+  if (ambiente !== 'producao_restrita') {
+    throw new ApplicationError('NFSE_PRODUCTION_NOT_RELEASED', 'O cancelamento está liberado somente no ambiente restrito durante a homologação.', 422);
+  }
+
+  const repositorio = new NfseRepository();
+  const emissao = await repositorio.porCobranca(context.actor.organizationId, chargeId);
+  if (!emissao) throw new ApplicationError('NOT_FOUND', 'Esta cobrança não tem NFS-e registrada.', 404);
+  if (emissao.status === 'cancelled') {
+    throw new ApplicationError('INVALID_FISCAL_STATE', 'Esta NFS-e já está cancelada.', 409);
+  }
+  if (emissao.status !== 'issued') {
+    throw new ApplicationError('INVALID_FISCAL_STATE', 'Só uma NFS-e emitida pode ser cancelada.', 422);
+  }
+  if (!emissao.chaveAcesso) {
+    throw new ApplicationError('INVALID_FISCAL_STATE', 'A chave de acesso desta NFS-e não foi registrada; consulte a nota antes de cancelar.', 422);
+  }
+  // Cancelar em ambiente diferente do que emitiu significaria pedir à SEFIN o
+  // cancelamento de uma nota que, ali, não existe.
+  if (emissao.ambiente !== ambiente) {
+    throw new ApplicationError('INVALID_FISCAL_STATE', `Esta nota foi emitida no ambiente ${emissao.ambiente} e só pode ser cancelada nele.`, 422);
+  }
+
+  const reserva = await repositorio.reservarEvento({
+    emissaoId: emissao.id, tipoEvento: TIPO_EVENTO_CANCELAMENTO, chaveAcesso: emissao.chaveAcesso,
+    motivoCodigo: codigoMotivo, motivo, usuarioId: context.actor.userId,
+  });
+
+  try {
+    const pedido = gerarPedidoCancelamentoNfse({
+      ambiente: CODIGO_TP_AMB[ambiente],
+      chaveAcesso: emissao.chaveAcesso,
+      cnpjAutor: PRESTADOR_NFSE.cnpj,
+      numeroPedido: reserva.numeroPedido,
+      ocorridoEm: dataHoraDps(),
+      versaoAplicativo: process.env.NFSE_VERSAO_APLICATIVO?.trim() || 'viver-mais-1.0',
+      codigoMotivo,
+      motivo,
+    });
+    const xmlAssinado = assinarXmlFiscal(pedido.xml, exigirCertificadoNfseApto(), {
+      idDoElemento: pedido.id, nomeDoElemento: 'infPedReg',
+    });
+    await repositorio.salvarPedidoEvento(reserva.id, pedido.id, xmlAssinado);
+
+    const resposta = await registrarEvento(emissao.chaveAcesso, xmlAssinado);
+    await repositorio.registrarCancelamento({
+      emissaoId: emissao.id, eventoId: reserva.id, motivo,
+      status: resposta.status, corpo: resposta.corpo,
+    });
+    return { status: 'cancelled' as const, numeroNfse: emissao.numeroNfse, ambiente };
+  } catch (error) {
+    const sefin = error instanceof SefinNacionalError ? error : undefined;
+    await repositorio.registrarFalhaEvento(reserva.id, {
+      status: sefin?.status, corpo: sefin?.corpo, codigo: sefin ? codigoDaFalha(sefin.corpo) : undefined,
+      mensagem: error instanceof Error ? error.message : 'Falha desconhecida no cancelamento da NFS-e.',
+    });
+    if (error instanceof ApplicationError) throw error;
+    throw new ApplicationError(
+      'NFSE_CANCELLATION_FAILED',
+      error instanceof Error ? error.message : 'Não foi possível cancelar a NFS-e.',
+      sefin?.status && sefin.status < 500 ? 422 : 502
+    );
   }
 }

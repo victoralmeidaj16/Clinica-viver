@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     const checkout = await reservePendingCharge({ token, modality, cpf });
     if (!checkout) {
       return NextResponse.json({
-        error: 'Não encontramos este CPF entre os pacientes vinculados ao psicólogo. Confira os dados ou fale com a clínica.',
+        error: 'Não encontramos um atendimento concluído e pendente de pagamento para este CPF e psicólogo. Confira os dados ou fale com a clínica.',
       }, { status: 404 });
     }
 

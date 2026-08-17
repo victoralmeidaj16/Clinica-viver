@@ -14,7 +14,7 @@
     "web:build": "npm run build --workspace @thats-life/web",
     "lint": "npm run lint --workspace @thats-life/web",
     "typecheck": "npm run check --workspace @thats-life/core && npm run typecheck --workspace @thats-life/web",
-    "test": "npm run test --workspace @thats-life/core",
+    "test": "npm run test --workspace @thats-life/core && npm run test --workspace @thats-life/web",
     "check": "npm run lint && npm run typecheck && npm run test && npm run web:build",
     "db:up": "docker compose -f infra/mysql/docker-compose.dev.yml up -d --wait",
     "db:down": "docker compose -f infra/mysql/docker-compose.dev.yml down",

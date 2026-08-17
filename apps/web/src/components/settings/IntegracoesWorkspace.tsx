@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ShieldCheck, QrCode, CreditCard, MessageSquare, Check, RefreshCw, Key, Globe, Sparkles } from 'lucide-react';
+import { ShieldCheck, QrCode, CreditCard, MessageSquare, Check, RefreshCw, Key, Globe } from 'lucide-react';
 import { getDefaultIntegrationSettings, type IntegrationSettings } from '@thats-life/core';
+import { NfseIntegrationCard } from './NfseIntegrationCard';
 
 export default function IntegracoesWorkspace() {
   const [settings, setSettings] = useState<IntegrationSettings>(getDefaultIntegrationSettings());
@@ -65,9 +66,9 @@ export default function IntegracoesWorkspace() {
           <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400">
             Hub de Conexões Externas
           </span>
-          <h1 className="text-3xl font-extrabold mt-1">Integrações do Psicólogo</h1>
+          <h1 className="text-3xl font-extrabold mt-1">Integrações da Clínica</h1>
           <p className="text-xs text-slate-400 mt-2 max-w-xl">
-            Configure suas credenciais privadas para cobrança via **Asaas** e automação de mensagens via **Evolution API (WhatsApp)**.
+            Acompanhe cobranças, mensagens e a preparação fiscal da NFS-e em um só lugar.
           </p>
         </div>
         <div className="flex items-center space-x-2 bg-slate-800/80 px-4 py-2 rounded-2xl border border-slate-700 text-xs font-semibold text-emerald-400">
@@ -243,6 +244,8 @@ export default function IntegracoesWorkspace() {
           )}
         </div>
       </div>
+
+      <NfseIntegrationCard />
     </div>
   );
 }

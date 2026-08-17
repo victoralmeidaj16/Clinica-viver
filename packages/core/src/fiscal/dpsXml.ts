@@ -1,4 +1,5 @@
 import { comporIdentificadorDps } from './identificadorDps';
+import { codigo, escaparXml, somenteDigitos } from './xmlFiscal';
 
 /** Namespace da DPS no XSD oficial `DPS_v1.01.xsd`. */
 export const NAMESPACE_NFSE = 'http://www.sped.fazenda.gov.br/nfse';
@@ -52,17 +53,6 @@ export interface GerarDpsPsicologiaInput {
 export interface DpsGerada {
   id: string;
   xml: string;
-}
-
-const somenteDigitos = (valor: string | number) => String(valor).replace(/\D/g, '');
-
-function escaparXml(valor: string): string {
-  return valor
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
 }
 
 function textoObrigatorio(valor: string, campo: string, maximo: number): string {
@@ -137,12 +127,6 @@ function serieDps(valor: string | number): string {
     throw new Error('A série própria da DPS deve estar entre 00001 e 49999.');
   }
   return serie.padStart(5, '0');
-}
-
-function codigo(valor: string, campo: string, tamanho: number): string {
-  const limpo = somenteDigitos(valor);
-  if (limpo.length !== tamanho) throw new Error(`${campo} deve ter ${tamanho} dígitos.`);
-  return limpo;
 }
 
 /**

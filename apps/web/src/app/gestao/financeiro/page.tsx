@@ -17,7 +17,16 @@ import {
   Wallet,
 } from 'lucide-react';
 import { applicationRequest, commandHeaders } from '@/lib/applicationApi';
-import { NfsePreviewModal, type NfsePreview } from '@/components/financial/NfsePreviewModal';
+import {
+  NfsePreviewModal,
+  type NfseEmissao,
+  type NfsePreview,
+} from '@/components/financial/NfsePreviewModal';
+import {
+  nfseRowAction,
+  nfseRowTone,
+  type NfseRowStatus,
+} from '@/components/financial/nfsePresentation';
 
 /**
  * Financeiro da clínica.
@@ -46,6 +55,8 @@ interface Atendimento {
   emAbertoCents: number;
   creditoPsicologoCents: number;
   receitaClinicaCents: number;
+  nfseStatus: NfseRowStatus;
+  nfseNumero?: string;
 }
 
 interface ConsolidadoPsicologo {
@@ -132,11 +143,27 @@ export default function FinanceiroClinicaPage() {
   const [status, setStatus] = useState<'TODOS' | Atendimento['status']>('TODOS');
   const [exportando, setExportando] = useState(false);
   const [nfseAberta, setNfseAberta] = useState(false);
+  const [cobrancaNfseId, setCobrancaNfseId] = useState<string | null>(null);
   const [previaNfse, setPreviaNfse] = useState<NfsePreview | null>(null);
+  const [emissaoNfse, setEmissaoNfse] = useState<NfseEmissao | null>(null);
   const [carregandoNfse, setCarregandoNfse] = useState(false);
   const [emitindoNfse, setEmitindoNfse] = useState(false);
+  const [cancelandoNfse, setCancelandoNfse] = useState(false);
+  const [salvandoCpf, setSalvandoCpf] = useState(false);
   const [erroNfse, setErroNfse] = useState('');
   const [sucessoNfse, setSucessoNfse] = useState('');
+  // Quem pode emitir nota é a administração. O servidor já recusava o resto,
+  // mas o botão aparecia para todo mundo — e um botão que só devolve 403 é uma
+  // promessa falsa, não uma proteção.
+  const [eAdmin, setEAdmin] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelado = false;
+    applicationRequest<{ role: 'admin' | 'psicologo' }>('/../auth/me')
+      .then((sessao) => { if (!cancelado) setEAdmin(sessao.role === 'admin'); })
+      .catch(() => { if (!cancelado) setEAdmin(false); });
+    return () => { cancelado = true; };
+  }, []);
 
   // A busca sai da renderização e uma resposta antiga nunca sobrescreve a
   // atual: quem troca o período duas vezes seguidas vê o resultado do segundo
@@ -201,20 +228,57 @@ export default function FinanceiroClinicaPage() {
 
   const abrirPreviaNfse = async (chargeId: string) => {
     setNfseAberta(true);
+    setCobrancaNfseId(chargeId);
     setPreviaNfse(null);
+    setEmissaoNfse(null);
     setErroNfse('');
     setSucessoNfse('');
     setCarregandoNfse(true);
     try {
-      const previa = await applicationRequest<NfsePreview>(
-        `/financial/clinica/${encodeURIComponent(chargeId)}/nfse/preview`
-      );
+      const caminho = `/financial/clinica/${encodeURIComponent(chargeId)}/nfse`;
+      const [resultadoPrevia, resultadoEmissao] = await Promise.allSettled([
+        applicationRequest<NfsePreview>(`${caminho}/preview`),
+        applicationRequest<NfseEmissao>(caminho),
+      ]);
+
+      const previa = resultadoPrevia.status === 'fulfilled' ? resultadoPrevia.value : null;
+      const emissao = resultadoEmissao.status === 'fulfilled'
+        ? resultadoEmissao.value
+        : ({ status: 'none' } as NfseEmissao);
       setPreviaNfse(previa);
-    } catch (causa) {
-      setErroNfse(causa instanceof Error ? causa.message : 'Não foi possível preparar a NFS-e.');
+      setEmissaoNfse(emissao);
+
+      // Uma nota já emitida continua consultável mesmo quando a cobrança passa
+      // a exigir revisão (por exemplo, após estorno). A falha da nova prévia não
+      // pode esconder XML, número e cancelamento que já existem.
+      if (!previa && emissao.status === 'none') {
+        const causa = resultadoPrevia.status === 'rejected'
+          ? resultadoPrevia.reason
+          : resultadoEmissao.status === 'rejected'
+            ? resultadoEmissao.reason
+            : null;
+        setErroNfse(causa instanceof Error ? causa.message : 'Não foi possível preparar a NFS-e.');
+      } else if (!previa && resultadoPrevia.status === 'rejected') {
+        setErroNfse(
+          resultadoPrevia.reason instanceof Error
+            ? resultadoPrevia.reason.message
+            : 'A nota pode ser consultada, mas os dados atuais da cobrança exigem revisão.'
+        );
+      }
     } finally {
       setCarregandoNfse(false);
     }
+  };
+
+  const atualizarLinhaNfse = (chargeId: string, emissao: NfseEmissao) => {
+    setPanorama((atual) => atual
+      ? {
+          ...atual,
+          atendimentos: atual.atendimentos.map((item) => item.chargeId === chargeId
+            ? { ...item, nfseStatus: emissao.status, nfseNumero: emissao.numeroNfse }
+            : item),
+        }
+      : atual);
   };
 
   const confirmarEmissaoNfse = async () => {
@@ -227,11 +291,68 @@ export default function FinanceiroClinicaPage() {
         { method: 'POST', headers: commandHeaders(), body: JSON.stringify({ confirmar: true }) }
       );
       setSucessoNfse(`NFS-e${resultado.numeroNfse ? ` nº ${resultado.numeroNfse}` : ''} emitida com sucesso.`);
+      const emissao = await applicationRequest<NfseEmissao>(
+        `/financial/clinica/${encodeURIComponent(previaNfse.chargeId)}/nfse`
+      );
+      setEmissaoNfse(emissao);
+      atualizarLinhaNfse(previaNfse.chargeId, emissao);
     } catch (causa) {
       setErroNfse(causa instanceof Error ? causa.message : 'Não foi possível emitir a NFS-e.');
     } finally {
       setEmitindoNfse(false);
     }
+  };
+
+  const cancelarEmissaoNfse = async (motivo: string) => {
+    if (!cobrancaNfseId) return;
+    setCancelandoNfse(true);
+    setErroNfse('');
+    try {
+      await applicationRequest(
+        `/financial/clinica/${encodeURIComponent(cobrancaNfseId)}/nfse/cancelar`,
+        {
+          method: 'POST',
+          headers: commandHeaders(),
+          body: JSON.stringify({ confirmar: true, motivo }),
+        }
+      );
+      setSucessoNfse('NFS-e cancelada com sucesso.');
+      const emissao = await applicationRequest<NfseEmissao>(
+        `/financial/clinica/${encodeURIComponent(cobrancaNfseId)}/nfse`
+      );
+      setEmissaoNfse(emissao);
+      atualizarLinhaNfse(cobrancaNfseId, emissao);
+    } catch (causa) {
+      setErroNfse(causa instanceof Error ? causa.message : 'Não foi possível cancelar a NFS-e.');
+    } finally {
+      setCancelandoNfse(false);
+    }
+  };
+
+  const salvarCpfDaNfse = async (cpf: string) => {
+    if (!previaNfse) return;
+    setSalvandoCpf(true);
+    setErroNfse('');
+    try {
+      await applicationRequest(
+        `/gestao/pacientes/${encodeURIComponent(previaNfse.paciente.ref)}/cpf`,
+        { method: 'PUT', body: JSON.stringify({ cpf }) }
+      );
+      const previaAtualizada = await applicationRequest<NfsePreview>(
+        `/financial/clinica/${encodeURIComponent(previaNfse.chargeId)}/nfse/preview`
+      );
+      setPreviaNfse(previaAtualizada);
+      setSucessoNfse('CPF salvo. Confira os dados antes de emitir.');
+    } catch (causa) {
+      setErroNfse(causa instanceof Error ? causa.message : 'Não foi possível salvar o CPF.');
+    } finally {
+      setSalvandoCpf(false);
+    }
+  };
+
+  const urlXmlNfse = (tipo: 'nfse' | 'dps') => {
+    if (!cobrancaNfseId) return '#';
+    return `/api/application/financial/clinica/${encodeURIComponent(cobrancaNfseId)}/nfse/xml?tipo=${tipo}`;
   };
 
   const atendimentos = useMemo(() => {
@@ -520,7 +641,14 @@ export default function FinanceiroClinicaPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
-              {atendimentos.map((item) => (
+              {atendimentos.map((item) => {
+                const acaoNfse = nfseRowAction({
+                  paymentStatus: item.status,
+                  nfseStatus: item.nfseStatus,
+                  isAdmin: eAdmin === true,
+                  numero: item.nfseNumero,
+                });
+                return (
                 <tr key={item.chargeId} className="hover:bg-slate-50/80 transition-colors">
                   <td className="px-6 py-4">
                     <p className="font-extrabold text-ink">{item.pacienteNome}</p>
@@ -546,21 +674,22 @@ export default function FinanceiroClinicaPage() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    {item.status === 'paid' ? (
+                    {acaoNfse.clickable ? (
                       <button
                         type="button"
                         onClick={() => void abrirPreviaNfse(item.chargeId)}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-psi-vibrant/30 bg-psi-soft/40 px-3 py-2 text-[11px] font-extrabold text-psi-deep transition-colors hover:bg-psi-soft"
+                        className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-[11px] font-extrabold transition-colors ${nfseRowTone[acaoNfse.tone]}`}
                       >
                         <FileText className="h-3.5 w-3.5" />
-                        Gerar NFS-e
+                        {acaoNfse.label}
                       </button>
                     ) : (
-                      <span className="text-[10px] font-semibold text-muted">Aguardando pagamento</span>
+                      <span className="text-[10px] font-semibold text-muted">{acaoNfse.label}</span>
                     )}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
 
@@ -590,12 +719,18 @@ export default function FinanceiroClinicaPage() {
       {nfseAberta && (
         <NfsePreviewModal
           previa={previaNfse}
+          emissao={emissaoNfse}
           carregando={carregandoNfse}
           erro={erroNfse}
           sucesso={sucessoNfse}
           emitindo={emitindoNfse}
+          cancelando={cancelandoNfse}
+          salvandoCpf={salvandoCpf}
           onConfirmar={() => void confirmarEmissaoNfse()}
+          onCancelar={(motivo) => void cancelarEmissaoNfse(motivo)}
+          onSalvarCpf={(cpf) => void salvarCpfDaNfse(cpf)}
           onFechar={() => setNfseAberta(false)}
+          urlXml={urlXmlNfse}
         />
       )}
     </div>

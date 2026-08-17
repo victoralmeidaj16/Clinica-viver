@@ -1,6 +1,6 @@
 import 'server-only';
 
-import type { RowDataPacket } from 'mysql2';
+import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import type { Pool, PoolConnection } from 'mysql2/promise';
 import type {
   IdentityRepository,
@@ -101,6 +101,12 @@ interface ReatribuicaoRow extends RowDataPacket {
 export interface PatientContact {
   phone?: string;
   email?: string;
+  /**
+   * CPF do cadastro. Mora na mesma coluna que a recepção sempre usou
+   * (`clinica_pacientes.documento`) e é o tomador da NFS-e quando o paciente
+   * não veio pela triagem — sem ele, a nota não sai e não havia onde preencher.
+   */
+  documento?: string;
 }
 
 /**
@@ -113,7 +119,16 @@ export interface PatientContactCapable {
   savePatientContact(patientId: string, contact: PatientContact): Promise<void>;
 }
 
-export class MysqlIdentityRepository implements IdentityRepository, PatientContactCapable {
+/**
+ * Gravar o CPF é capacidade separada de gravar contato porque quem chama é
+ * outro: contato sai do fluxo operacional, CPF sai da correção cadastral que a
+ * administração faz para poder emitir a nota.
+ */
+export interface PatientDocumentCapable {
+  savePatientDocument(organizationId: string, patientId: string, documento: string): Promise<boolean>;
+}
+
+export class MysqlIdentityRepository implements IdentityRepository, PatientContactCapable, PatientDocumentCapable {
   constructor(private readonly pool: Pool = getMysqlPool()) {}
 
   private async rows<T>(sql: string, params: unknown[]): Promise<T[]> {
@@ -482,23 +497,42 @@ export class MysqlIdentityRepository implements IdentityRepository, PatientConta
    * por onde `PatientProfile` passa, incluindo evento de domínio.
    */
   async listPatientContacts(organizationId: string): Promise<Record<string, PatientContact>> {
-    const rows = await this.rows<{ ref_core: string; telefone: string | null; email: string | null }>(
-      `SELECT pa.ref_core, pa.telefone, pa.email
+    const rows = await this.rows<{ ref_core: string; telefone: string | null; email: string | null; documento: string | null }>(
+      `SELECT pa.ref_core, pa.telefone, pa.email, pa.documento
          FROM clinica_pacientes pa
          JOIN clinica_organizacoes o ON o.id = pa.organizacao_id
         WHERE pa.instituicao_id = ? AND o.ref_core = ?`,
       [instituicaoId(), organizationId]
     );
     return Object.fromEntries(
-      rows.map((row) => [row.ref_core, { phone: row.telefone ?? undefined, email: row.email ?? undefined }])
+      rows.map((row) => [
+        row.ref_core,
+        { phone: row.telefone ?? undefined, email: row.email ?? undefined, documento: row.documento ?? undefined },
+      ])
     );
   }
 
   async savePatientContact(patientId: string, contact: PatientContact): Promise<void> {
+    // `documento` fica de fora de propósito: quem grava contato não tem o CPF
+    // em mãos, e um `?? null` aqui apagaria o dado fiscal a cada telefone novo.
     await this.pool.execute(
       'UPDATE clinica_pacientes SET telefone = ?, email = ? WHERE instituicao_id = ? AND ref_core = ?',
       [contact.phone ?? null, contact.email ?? null, instituicaoId(), patientId]
     );
+  }
+
+  /** Devolve `false` quando o paciente não existe nesta organização. */
+  async savePatientDocument(organizationId: string, patientId: string, documento: string): Promise<boolean> {
+    const [resultado] = await this.pool.execute<ResultSetHeader>(
+      `UPDATE clinica_pacientes pa
+         JOIN clinica_organizacoes o ON o.id = pa.organizacao_id
+          SET pa.documento = ?
+        WHERE pa.instituicao_id = ? AND o.ref_core = ? AND pa.ref_core = ?`,
+      [documento, instituicaoId(), organizationId, patientId]
+    );
+    // `affectedRows` conta a linha encontrada mesmo quando o CPF já era esse,
+    // que é o que interessa: a pergunta é se o paciente existe.
+    return resultado.affectedRows > 0;
   }
 
   // -------------------------------------------------------------------------

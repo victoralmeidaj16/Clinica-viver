@@ -55,6 +55,30 @@ export interface DpsGerada {
   xml: string;
 }
 
+/**
+ * Total de tributos: o grupo é sempre obrigatório, o conteúdo é que muda.
+ *
+ * Duas regras da SEFIN se cruzam aqui, e as duas foram descobertas na produção
+ * restrita com o CNPJ da clínica:
+ *
+ * - `E0712` — para ME/EPP o `indTotTrib` **não pode** ser informado. A
+ *   estimativa de tributos da Lei 12.741/2012 não se aplica a quem recolhe
+ *   pelo Simples, e mandar o campo zerado é informar zero, não omitir.
+ * - `E1235` — mas `trib` exige `totTrib` (ou `tribFed`) presente. Remover o
+ *   grupo inteiro quebra o esquema.
+ *
+ * A saída que o esquema oferece é a outra forma do grupo: o percentual
+ * `pTotTribSN`, previsto justamente para optante do Simples.
+ *
+ * Não há ramo alternativo porque `opcaoSimplesNacional` é tipado como `'3'` —
+ * este gerador atende um caso, o da clínica. Se um dia ele precisar servir a
+ * quem não é optante, é aqui que o `indTotTrib` volta.
+ */
+function grupoTotalTributos(): string {
+  return `
+        <totTrib><pTotTribSN>0.00</pTotTribSN></totTrib>`;
+}
+
 function textoObrigatorio(valor: string, campo: string, maximo: number): string {
   const limpo = valor.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').trim();
   if (!limpo) throw new Error(`${campo} é obrigatório para gerar a DPS.`);
@@ -200,8 +224,7 @@ export function gerarDpsPsicologia(input: GerarDpsPsicologiaInput): DpsGerada {
         <tribMun>
           <tribISSQN>1</tribISSQN>
           <tpRetISSQN>1</tpRetISSQN>
-        </tribMun>
-        <totTrib><indTotTrib>0</indTotTrib></totTrib>
+        </tribMun>${grupoTotalTributos()}
       </trib>
     </valores>
   </infDPS>

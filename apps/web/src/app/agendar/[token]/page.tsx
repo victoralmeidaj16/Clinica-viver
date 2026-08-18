@@ -128,7 +128,7 @@ export default function AgendarPage({ params }: Props) {
 
   if (!professionalName) {
     return (
-      <div className="rounded-3xl border border-rose-500/30 bg-rose-500/10 p-6 text-sm text-rose-200">
+      <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-sm font-semibold text-rose-800">
         {error || 'Link de agendamento inválido.'}
       </div>
     );
@@ -139,7 +139,7 @@ export default function AgendarPage({ params }: Props) {
   return (
     <div className="space-y-6 max-w-xl mx-auto py-6 px-4">
       {/* Banner Principal com Branding Viver Mais Psi */}
-      <section className="bg-gradient-to-r from-slate-900 via-psi-darkest to-slate-900 border border-slate-700/60 rounded-3xl p-6 flex items-center gap-4 shadow-xl">
+      <section className="card-contrast rounded-2xl p-6 flex items-center gap-4">
         <div className="w-14 h-14 rounded-2xl bg-psi-vibrant text-white flex items-center justify-center shrink-0 shadow-lg shadow-psi-vibrant/30">
           <Brain className="w-7 h-7" />
         </div>
@@ -148,17 +148,17 @@ export default function AgendarPage({ params }: Props) {
             Agenda Online
           </span>
           <h1 className="text-xl text-white font-black mt-1">{professionalName}</h1>
-          <p className="text-xs text-slate-300">Viver Mais Psicologia — Atendimento &amp; Saúde</p>
+          <p className="text-xs text-psi-soft/80">Viver Mais Psicologia — Atendimento &amp; Saúde</p>
         </div>
       </section>
 
       {confirmado ? (
-        <section className="bg-slate-900 border border-emerald-500/40 rounded-3xl p-6 text-center space-y-4 shadow-2xl">
-          <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-4 py-1.5 text-xs font-bold text-emerald-400">
+        <section className="card border-psi-vibrant/40 text-center space-y-4">
+          <div className="chip-accent text-xs">
             <CalendarCheck className="w-4 h-4" /> Sessão Agendada com Sucesso
           </div>
-          <p className="text-2xl text-white font-black capitalize">{rotuloDia(confirmado.inicio.slice(0, 10))}</p>
-          <p className="text-lg text-emerald-300 font-bold">
+          <p className="text-2xl text-ink font-black capitalize">{rotuloDia(confirmado.inicio.slice(0, 10))}</p>
+          <p className="text-lg text-psi-deep font-bold">
             {new Date(confirmado.inicio).toLocaleTimeString('pt-BR', {
               hour: '2-digit',
               minute: '2-digit',
@@ -167,34 +167,34 @@ export default function AgendarPage({ params }: Props) {
             {' · '}
             {confirmado.modalidade === 'online' ? 'Atendimento Online' : 'Atendimento Presencial'}
           </p>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-muted">
             {professionalName} já recebeu a confirmação do seu horário.
           </p>
         </section>
       ) : !agenda ? (
         <form
           onSubmit={identificar}
-          className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 space-y-5 shadow-xl"
+          className="card space-y-5"
         >
           <div>
-            <h2 className="font-black text-white flex items-center gap-2">
+            <h2 className="font-black text-ink flex items-center gap-2">
               <CalendarDays className="w-5 h-5 text-psi-vibrant" /> Marcar Sua Consulta
             </h2>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-muted mt-1">
               Informe seu CPF para validar seu cadastro e visualizar os horários livres.
             </p>
           </div>
 
           {error && (
-            <div className="rounded-2xl bg-rose-500/10 border border-rose-500/30 p-4 text-xs text-rose-300">
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-xs font-semibold text-rose-800">
               {error}
             </div>
           )}
 
-          <label className="text-xs font-bold text-slate-300 block">
+          <label className="text-xs font-bold text-ink block">
             CPF do Paciente
             <div className="relative mt-1">
-              <FileText className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-500" />
+              <FileText className="absolute left-3.5 top-3.5 w-4 h-4 text-muted" />
               <input
                 required
                 inputMode="numeric"
@@ -202,7 +202,7 @@ export default function AgendarPage({ params }: Props) {
                 value={cpf}
                 onChange={(e) => setCpf(e.target.value)}
                 placeholder="000.000.000-00"
-                className="w-full rounded-2xl bg-slate-950 border border-slate-700 py-3 pl-11 pr-4 text-white text-xs font-bold focus:border-psi-vibrant outline-none"
+                className="input py-3 pl-11 text-xs font-bold"
               />
             </div>
           </label>
@@ -222,15 +222,15 @@ export default function AgendarPage({ params }: Props) {
         </form>
       ) : (
         <>
-          <section className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 space-y-5 shadow-xl">
+          <section className="card space-y-5">
             <div>
-              <p className="text-xs text-psi-soft font-bold">Olá, {agenda.pacienteNome}</p>
-              <h2 className="font-black text-white flex items-center gap-2 mt-1">
+              <p className="text-xs text-psi-vibrant font-bold">Olá, {agenda.pacienteNome}</p>
+              <h2 className="font-black text-ink flex items-center gap-2 mt-1">
                 <CalendarDays className="w-5 h-5 text-psi-vibrant" /> Escolha o Dia
               </h2>
             </div>
             {agenda.dias.length === 0 ? (
-              <p className="rounded-2xl bg-slate-950 border border-slate-800 p-4 text-xs text-slate-400">
+              <p className="rounded-2xl border border-line bg-soft/50 p-4 text-xs text-muted">
                 Não há horários livres nas próximas semanas. Fale com {professionalName} pelo WhatsApp.
               </p>
             ) : (
@@ -245,22 +245,22 @@ export default function AgendarPage({ params }: Props) {
           {diaSelecionado && (
             <section
               ref={passoHorario}
-              className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 space-y-5 scroll-mt-6 shadow-xl"
+              className="card space-y-5 scroll-mt-6"
             >
-              <h2 className="font-black text-white flex items-center gap-2">
+              <h2 className="font-black text-ink flex items-center gap-2">
                 <Clock className="w-5 h-5 text-psi-vibrant" /> Escolha o Horário
               </h2>
-              <label className="text-xs font-bold text-slate-300 block">
+              <label className="text-xs font-bold text-ink block">
                 Dia Selecionado
                 <input
                   readOnly
                   value={rotuloDia(diaSelecionado)}
-                  className="mt-1 w-full rounded-2xl bg-slate-950 border border-psi-vibrant/30 py-2.5 px-4 text-psi-soft font-bold capitalize text-xs"
+                  className="mt-1 w-full rounded-2xl border border-psi-vibrant/30 bg-psi-soft/60 py-2.5 px-4 text-psi-darkest font-bold capitalize text-xs"
                 />
               </label>
 
               {error && (
-                <div className="rounded-2xl bg-rose-500/10 border border-rose-500/30 p-4 text-xs text-rose-300">
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-xs font-semibold text-rose-800">
                   {error}
                 </div>
               )}
@@ -272,7 +272,7 @@ export default function AgendarPage({ params }: Props) {
                     type="button"
                     disabled={Boolean(salvando)}
                     onClick={() => void agendar(horario)}
-                    className="rounded-2xl border border-psi-vibrant/30 bg-slate-950 py-3 text-xs font-black text-psi-soft hover:bg-psi-vibrant hover:text-white transition-all disabled:opacity-40"
+                    className="rounded-2xl border border-psi-vibrant/30 bg-surface py-3 text-xs font-black text-psi-deep hover:bg-psi-vibrant hover:text-white hover:border-psi-vibrant transition-all disabled:opacity-40"
                   >
                     {salvando === horario.inicio ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : horario.hora}
                   </button>
@@ -280,7 +280,7 @@ export default function AgendarPage({ params }: Props) {
               </div>
 
               {horariosDoDia.length === 0 && (
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-muted">
                   Os horários deste dia acabaram de ser ocupados. Escolha outro dia acima.
                 </p>
               )}

@@ -5,6 +5,12 @@ import { ApplicationError } from './http';
 import { getApplicationStore, persistApplicationState } from './store';
 import { captureStateAsSnapshot, getCaptureRepository } from '@/server/persistence/captureRepository';
 import { recalcularPacientesAtivos } from './viverMaisRodizio';
+import {
+  emptySnapshot,
+  readSnapshot,
+  writeSnapshot,
+  type AuditoriaDesistenciaRecord,
+} from './persistence';
 
 /**
  * Cadastro de pacientes visto pela equipe.
@@ -28,7 +34,19 @@ export interface PatientDirectoryEntry {
   nextAppointmentAt?: string;
   /** Sessões efetivamente realizadas — não agendadas. */
   completedSessions: number;
+  /** Há uma desistência aberta para este paciente na auditoria de retenção. */
+  dropoutRegistered: boolean;
 }
+
+const DROPOUT_REASONS = [
+  'FINANCEIRO',
+  'INSATISFACAO_CONDUTA',
+  'TROCA_ABORDAGEM',
+  'MOTIVOS_PESSOAIS',
+  'OUTRO',
+] as const;
+
+type DropoutReason = (typeof DROPOUT_REASONS)[number];
 
 function contactSource(identities: unknown): PatientContactCapable | null {
   const candidate = identities as Partial<PatientContactCapable>;
@@ -60,6 +78,16 @@ export async function listPatientDirectory(context: RequestContext): Promise<rea
       : patients;
 
   const now = Date.now();
+  const openDropouts = new Set(
+    (readSnapshot()?.auditoriaDesistencias ?? [])
+      .filter(
+        (dropout) =>
+          !dropout.reengajado &&
+          (!dropout.organizationId || dropout.organizationId === organizationId)
+      )
+      .map((dropout) => dropout.pacienteId)
+      .filter((patientId): patientId is string => Boolean(patientId))
+  );
   const professionalNames = new Map<string, string>();
   for (const patient of visible) {
     if (!patient.primaryProfessionalId || professionalNames.has(patient.primaryProfessionalId)) continue;
@@ -90,8 +118,118 @@ export async function listPatientDirectory(context: RequestContext): Promise<rea
         : undefined,
       nextAppointmentAt: next?.startsAt,
       completedSessions: own.filter((appointment) => appointment.status === 'completed').length,
+      dropoutRegistered: openDropouts.has(patient.id),
     };
   });
+}
+
+/**
+ * Registra a saída a partir da carteira do próprio psicólogo.
+ *
+ * A gestão continua usando a tela de auditoria. Esta operação é
+ * deliberadamente mais estreita: exige perfil profissional e paciente
+ * atribuído ao ator, sem aceitar nome de paciente ou psicólogo vindos do
+ * navegador.
+ */
+export async function registerPatientDropout(
+  context: RequestContext,
+  body: Record<string, unknown>
+): Promise<AuditoriaDesistenciaRecord> {
+  const isProfessional =
+    context.actor.roles.includes('professional') &&
+    !context.actor.roles.some((role) => role === 'owner' || role === 'admin');
+  const professionalId = context.actor.professionalProfileId;
+  if (!isProfessional || !professionalId) {
+    throw new ApplicationError(
+      'FORBIDDEN',
+      'Somente o psicólogo responsável pode registrar a desistência nesta página.',
+      403
+    );
+  }
+
+  const patientId = String(body.patientId ?? '').trim();
+  const reason = String(body.motivo ?? '').trim() as DropoutReason;
+  if (!patientId || !DROPOUT_REASONS.includes(reason)) {
+    throw new ApplicationError('INVALID_INPUT', 'Paciente e motivo da desistência são obrigatórios.', 400);
+  }
+
+  const store = getApplicationStore();
+  const patient = await store.identities.getPatient(context.actor.organizationId, patientId);
+  if (!patient) throw new ApplicationError('NOT_FOUND', 'Paciente não encontrado.', 404);
+  assertStaffAuthorized(context.actor, 'patients.write', {
+    organizationId: context.actor.organizationId,
+    patientId: patient.id,
+    assignedProfessionalIds: patient.assignedProfessionalIds,
+  });
+  if (!patient.assignedProfessionalIds.includes(professionalId)) {
+    throw new ApplicationError('FORBIDDEN', 'Este paciente não pertence à sua carteira.', 403);
+  }
+
+  const snapshot = readSnapshot() ?? emptySnapshot();
+  const recordId = `desistencia-${context.idempotencyKey}`;
+  const repeatedCommand = (snapshot.auditoriaDesistencias ?? []).find((item) => item.id === recordId);
+  if (repeatedCommand) return repeatedCommand;
+
+  const alreadyOpen = (snapshot.auditoriaDesistencias ?? []).some(
+    (item) =>
+      item.pacienteId === patient.id &&
+      !item.reengajado &&
+      (!item.organizationId || item.organizationId === context.actor.organizationId)
+  );
+  if (alreadyOpen) {
+    throw new ApplicationError('CONFLICT', 'Este paciente já possui uma desistência em acompanhamento.', 409);
+  }
+
+  const professional = await store.identities.getProfessional(
+    context.actor.organizationId,
+    professionalId
+  );
+  if (!professional) throw new ApplicationError('NOT_FOUND', 'Perfil profissional não encontrado.', 404);
+
+  const description = String(body.descricaoDetalhada ?? '').trim().slice(0, 2000);
+  const suggestedAction = String(body.acaoSugestao ?? '').trim().slice(0, 500);
+  const now = new Date().toISOString();
+  const dropout: AuditoriaDesistenciaRecord = {
+    id: recordId,
+    organizationId: context.actor.organizationId,
+    pacienteId: patient.id,
+    pacienteNome: patient.displayName,
+    psicologoId: professionalId,
+    psicologoNome: professional.displayName,
+    motivo: reason,
+    descricaoDetalhada: description || 'Saída do acompanhamento registrada pelo psicólogo responsável.',
+    acaoSugestao: suggestedAction || 'Contato de reengajamento prioritário',
+    dataDesistencia: now,
+    reengajado: false,
+    permitirTrocaPsicologo: Boolean(body.permitirTrocaPsicologo),
+  };
+
+  await store.identities.savePatient({ ...patient, status: 'discharged', updatedAt: now });
+  await writeSnapshot({
+    ...snapshot,
+    auditoriaDesistencias: [dropout, ...(snapshot.auditoriaDesistencias ?? [])],
+    savedAt: now,
+  });
+
+  // A triagem guarda o vínculo pelo `pacienteRef`. Marcar a saída aqui libera
+  // imediatamente a capacidade sem atribuir o prontuário a outra pessoa.
+  await getCaptureRepository().mutate((state) => {
+    const next = recalcularPacientesAtivos({
+      ...captureStateAsSnapshot(state),
+      triagensPacientes: state.triagensPacientes.map((lead) =>
+        lead.pacienteRef === patient.id ? { ...lead, status: 'DESISTENTE' as const } : lead
+      ),
+    });
+    return {
+      next: {
+        triagensPacientes: next.triagensPacientes ?? [],
+        cadastrosPsicologos: next.cadastrosPsicologos ?? [],
+      },
+      result: null,
+    };
+  });
+
+  return dropout;
 }
 
 export async function createPatient(

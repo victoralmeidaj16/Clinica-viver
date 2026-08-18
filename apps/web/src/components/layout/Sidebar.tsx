@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -23,142 +23,59 @@ import {
   FileText,
 } from 'lucide-react';
 
+const psicologoItems = [
+  { label: 'Meu Painel', href: '/cockpit', icon: Zap },
+  { label: 'Meu Cadastro', href: '/meu-cadastro', icon: UserPlus },
+  { label: 'Meus Pacientes', href: '/pacientes', icon: Users },
+  { label: 'Prontuários dos Pacientes', href: '/linha-do-tempo', icon: FileText },
+  { label: 'Meu Financeiro', href: '/meu-financeiro', icon: CreditCard },
+  { label: 'Agenda & Horários', href: '/agenda', icon: CalendarDays },
+  { label: 'Site / Vitrine de Serviços', href: '/vitrine', icon: Sparkles },
+];
+
+const gestaoItems = [
+  { label: 'Gestão de Psicólogos', href: '/gestao/psicologos', icon: UserCheck },
+  { label: 'Gestão de Pacientes', href: '/gestao/pacientes', icon: Users },
+  { label: 'Cockpit da Clínica (SLA)', href: '/gestao/cockpit', icon: Shield },
+  { label: 'Financeiro & Repasses', href: '/gestao/financeiro', icon: CreditCard },
+  { label: 'Site / Vitrine de Serviços', href: '/vitrine', icon: Sparkles },
+  { label: '11 Indicadores Mensais', href: '/relatorios', icon: BarChart3 },
+  { label: 'Convênios PJ', href: '/convenios', icon: Briefcase },
+  { label: 'Auditoria & Retenção', href: '/retencao', icon: TrendingDown },
+  { label: 'Integrações (Asaas/Wpp)', href: '/configuracoes/integracoes', icon: Brain },
+];
+
 /**
- * Menu lateral — gaveta no celular, coluna fixa no desktop.
- *
- * A largura de 16 rem era subtraída da tela em qualquer tamanho: num aparelho
- * de 390 px sobravam pouco mais de 130 px para o conteúdo, o que deixava o
- * cockpit ilegível justamente onde ele é mais consultado — o psicólogo abre o
- * sistema pelo link que chega no WhatsApp, no celular. A partir de `lg` nada
- * muda: a coluna volta a ser fixa e o botão de minimizar continua onde estava.
- *
- * O estado de aberto/fechado mora no `LayoutShell` porque quem o alterna é o
- * botão do header, do outro lado da árvore.
+ * Menu lateral — gaveta no celular, coluna fixa que acompanha o viewport no desktop.
  */
 export default function Sidebar({
   role,
   onLogout,
   aberto,
   onFechar,
+  isCollapsed = false,
+  onToggleCollapse,
 }: {
   role: 'admin' | 'psicologo';
   onLogout: () => void;
   aberto: boolean;
   onFechar: () => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }) {
   const pathname = usePathname();
-  const [isCollapsed, setIsCollapsed] = useState(false);
-
-  const psicologoItems = [
-    {
-      label: 'Meu Painel',
-      href: '/cockpit',
-      icon: Zap,
-    },
-    {
-      label: 'Meu Cadastro',
-      href: '/meu-cadastro',
-      icon: UserPlus,
-    },
-    {
-      label: 'Meus Pacientes',
-      href: '/pacientes',
-      icon: Users,
-    },
-    {
-      label: 'Prontuários dos Pacientes',
-      href: '/linha-do-tempo',
-      icon: FileText,
-    },
-    {
-      label: 'Meu Financeiro',
-      href: '/meu-financeiro',
-      icon: CreditCard,
-    },
-    {
-      label: 'Agenda & Horários',
-      href: '/agenda',
-      icon: CalendarDays,
-    },
-    {
-      label: 'Site / Vitrine de Serviços',
-      href: '/vitrine',
-      icon: Sparkles,
-    },
-  ];
-
-  const gestaoItems = [
-    {
-      label: 'Gestão de Psicólogos',
-      href: '/gestao/psicologos',
-      icon: UserCheck,
-    },
-    {
-      label: 'Gestão de Pacientes',
-      href: '/gestao/pacientes',
-      icon: Users,
-    },
-    {
-      label: 'Cockpit da Clínica (SLA)',
-      href: '/gestao/cockpit',
-      icon: Shield,
-    },
-    {
-      label: 'Financeiro & Repasses',
-      href: '/gestao/financeiro',
-      icon: CreditCard,
-    },
-    {
-      label: 'Prontuários dos Pacientes',
-      href: '/linha-do-tempo',
-      icon: FileText,
-    },
-    {
-      label: 'Site / Vitrine de Serviços',
-      href: '/vitrine',
-      icon: Sparkles,
-    },
-    {
-      label: '11 Indicadores Mensais',
-      href: '/relatorios',
-      icon: BarChart3,
-    },
-    {
-      label: 'Convênios PJ',
-      href: '/convenios',
-      icon: Briefcase,
-    },
-    {
-      label: 'Auditoria & Retenção',
-      href: '/retencao',
-      icon: TrendingDown,
-    },
-    {
-      label: 'Integrações (Asaas/Wpp)',
-      href: '/configuracoes/integracoes',
-      icon: Brain,
-    },
-  ];
-
   const isProfessional = role === 'psicologo';
   const navItems = isProfessional ? psicologoItems : gestaoItems;
-
-  // Minimizar é recurso de desktop: na gaveta o menu ou está aberto por
-  // inteiro ou fechado, e um menu de ícones sem rótulo em tela de toque só
-  // adiciona adivinhação.
   const colapsado = isCollapsed;
 
   return (
     <aside
       id="menu-lateral"
-      // `invisible` fechado, e não só o deslocamento: um menu apenas empurrado
-      // para fora da tela continua no caminho do teclado e do leitor de tela.
-      // A transição inclui `visibility` para que o painel só suma ao terminar
-      // de deslizar. Em `lg` ele é sempre visível, independente do estado.
       className={`bg-psi-darkest text-white flex flex-col justify-between select-none shadow-contrast z-50
-        fixed inset-y-0 left-0 w-[17rem] max-w-[85vw] transition-[transform,visibility] duration-300
-        lg:sticky lg:top-0 lg:bottom-auto lg:shrink-0 lg:z-40 lg:visible lg:translate-x-0 lg:max-w-none lg:h-screen
+        fixed inset-y-0 left-0 transition-all duration-300
         ${aberto ? 'translate-x-0 visible' : '-translate-x-full invisible'}
+        lg:visible lg:translate-x-0 lg:z-40
+        w-[17rem] max-w-[85vw] lg:max-w-none
         ${colapsado ? 'lg:w-20' : 'lg:w-64'}`}
     >
       <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
@@ -187,7 +104,7 @@ export default function Sidebar({
           </button>
           <button
             type="button"
-            onClick={() => setIsCollapsed(!isCollapsed)}
+            onClick={onToggleCollapse}
             className="hidden lg:block p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
             title={colapsado ? 'Expandir Menu' : 'Minimizar Menu'}
           >
@@ -195,7 +112,7 @@ export default function Sidebar({
           </button>
         </div>
 
-        {/* O perfil vem da sessão; não é um seletor visual. */}
+        {/* Perfil ativo */}
         <div className={`p-3 border-b border-white/10 ${colapsado ? 'lg:hidden' : ''}`}>
           <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
             <p className="text-[10px] uppercase tracking-widest text-psi-soft/50">Perfil ativo</p>
@@ -219,9 +136,6 @@ export default function Sidebar({
               <Link
                 key={item.href}
                 href={item.href}
-                // Navegar fecha a gaveta: no celular a página nova aparece
-                // atrás do menu, e deixá-lo aberto obrigaria a um segundo toque
-                // para ver o que se acabou de pedir.
                 onClick={onFechar}
                 title={colapsado ? item.label : undefined}
                 className={`flex items-center gap-3 px-3.5 py-3 lg:py-2.5 rounded-xl text-xs font-bold transition-all duration-200 group ${
@@ -237,6 +151,7 @@ export default function Sidebar({
           })}
         </nav>
       </div>
+
       <div className="border-t border-white/10 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <button
           type="button"

@@ -9,6 +9,13 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   try {
     const context = await resolveRequestContext(request);
+
+    // Conforme o CFP e a LGPD, administradores não possuem acesso a prontuários clínicos.
+    // Apenas psicólogos (papel profissional) acessam prontuários dos seus pacientes atribuídos.
+    if (!context.actor.roles.includes('professional')) {
+      throw new Error('Acesso negado: O perfil de administrador não possui acesso aos prontuários clínicos dos pacientes.');
+    }
+
     const { searchParams } = new URL(request.url);
 
     const patientId = searchParams.get('patientId');

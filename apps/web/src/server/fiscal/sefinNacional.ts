@@ -211,9 +211,16 @@ export async function dpsJaGerouNfse(identificadorDps: string): Promise<boolean>
 
 /** `POST /nfse/{chaveAcesso}/eventos` — cancelamento, substituição, manifestação. */
 export function registrarEvento(chaveAcesso: string, xmlAssinado: string) {
+  // Mesmo envelope da DPS: JSON com o XML compactado em base64. Enviar o XML
+  // cru devolvia `HTTP 415 Unsupported Media Type` — o manual é explícito em
+  // dizer que as mensagens da API trafegam em JSON, e só o documento fiscal
+  // dentro delas é que é XML.
+  const conteudo = JSON.stringify({
+    pedidoRegistroEventoXmlGZipB64: gzipSync(Buffer.from(xmlAssinado, 'utf8')).toString('base64'),
+  });
   return requisitar('POST', `/nfse/${chaveAcesso}/eventos`, {
-    conteudo: xmlAssinado,
-    tipo: 'application/xml',
+    conteudo,
+    tipo: 'application/json',
   });
 }
 

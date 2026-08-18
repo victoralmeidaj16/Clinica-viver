@@ -203,6 +203,7 @@ export interface LancamentoLedgerAluno {
 
 export interface AuditoriaDesistenciaRecord {
   id: string;
+  organizationId?: string;
   pacienteId?: string;
   pacienteNome: string;
   psicologoId?: string;

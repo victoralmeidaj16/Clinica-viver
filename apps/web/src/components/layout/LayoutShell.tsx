@@ -1,8 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
 import DemoNotice from '@/components/layout/DemoNotice';
@@ -13,19 +12,11 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   const [auth, setAuth] = useState<{ role: 'admin' | 'psicologo'; displayName: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [menuAberto, setMenuAberto] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
   const isVitrinePage = pathname === '/vitrine';
-  // O psicólogo abre a confirmação de contato a partir do link do WhatsApp,
-  // frequentemente de outro aparelho e sem sessão. Exigir login aqui faria a
-  // confirmação de 24h depender de lembrar uma senha no meio de uma conversa —
-  // quem autoriza a página é o token assinado no próprio link.
   const isConfirmacaoContato = pathname.startsWith('/confirmar-contato/');
-  // Quem paga é o paciente, que não tem conta no sistema. Exigir sessão no link
-  // permanente jogaria no login exatamente a pessoa que o link foi criado para
-  // atender — quem autoriza a página é o próprio endereço.
   const isPaginaPagamento = pathname.startsWith('/pagar/');
-  // Mesma razão para o link de marcação. E precisa vir antes da checagem de
-  // papel: `/agendar/...` casa com o prefixo `/agenda` da lista de páginas do
-  // profissional, e sem sair antes o paciente seria mandado ao login.
   const isPaginaAgendamento = pathname.startsWith('/agendar/');
   const isPublicPage =
     pathname === '/login' || pathname === '/ativar-conta' || pathname === '/redefinir-senha' || pathname === '/' || isVitrinePage || isConfirmacaoContato || isPaginaPagamento || isPaginaAgendamento;
@@ -46,17 +37,12 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     if (!auth || isPublicPage) return;
-    const adminPage = ['/gestao', '/relatorios', '/convenios', '/retencao', '/configuracoes', '/linha-do-tempo'].some((prefix) => pathname.startsWith(prefix));
+    const adminPage = ['/gestao', '/relatorios', '/convenios', '/retencao', '/configuracoes'].some((prefix) => pathname.startsWith(prefix));
     const professionalPage = ['/cockpit', '/meu-cadastro', '/pacientes', '/meu-financeiro', '/agenda', '/sessao', '/linha-do-tempo', '/relatorios'].some((prefix) => pathname.startsWith(prefix));
     const allowed = auth.role === 'admin' ? adminPage : professionalPage;
     if (!allowed) router.replace(auth.role === 'admin' ? '/gestao/cockpit' : '/cockpit');
   }, [auth, isPublicPage, pathname, router]);
 
-  /**
-   * Enquanto a gaveta está aberta, o corpo não rola por baixo dela e a tecla
-   * Esc a fecha — as duas coisas que um menu sobreposto precisa devolver a
-   * quem o abriu.
-   */
   useEffect(() => {
     if (!menuAberto) return;
     const anterior = document.body.style.overflow;
@@ -83,10 +69,11 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
         role={auth.role}
         aberto={menuAberto}
         onFechar={() => setMenuAberto(false)}
+        isCollapsed={isCollapsed}
+        onToggleCollapse={() => setIsCollapsed(!isCollapsed)}
         onLogout={() => { void fetch('/api/auth/logout', { method: 'POST' }).finally(() => router.replace('/login')); }}
       />
 
-      {/* Véu da gaveta: escurece o conteúdo e fecha o menu ao toque fora dele. */}
       {menuAberto && (
         <button
           type="button"
@@ -96,7 +83,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
         />
       )}
 
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${isCollapsed ? 'lg:pl-20' : 'lg:pl-64'}`}>
         <Header
           displayName={auth.displayName}
           role={auth.role}

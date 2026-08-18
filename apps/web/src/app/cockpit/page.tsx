@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   CheckCircle2,
@@ -41,6 +41,12 @@ interface AppointmentSummary {
 }
 
 const LEAD_ALOCADO_EM = new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString();
+
+// Horários do exemplo de prontuário pendente, fixados no carregamento do
+// módulo. Ler o relógio dentro do render faria o valor mudar sozinho a cada
+// re-render — instabilidade que o React sinaliza como erro.
+const EXEMPLO_SESSAO_INICIO = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+const EXEMPLO_SESSAO_FIM = new Date(Date.now() - 23 * 60 * 60 * 1000).toISOString();
 
 export default function CockpitPage() {
   const router = useRouter();
@@ -115,19 +121,25 @@ export default function CockpitPage() {
     ? `${typeof window !== 'undefined' ? window.location.origin : 'https://clinica-viver-web.vercel.app'}/agendar/${agendaToken}`
     : '';
 
-  // Identifica sessões encerradas (registro opcional no prontuário)
-  const sessaoPendenteProntuario = appointments.find(
-    (a) => a.status === 'completed' && !a.prontuarioPreenchido
-  ) || {
-    id: 'demo-pendente-1',
-    patientId: patients[0]?.id || 'p-demo-1',
-    pacienteNome: patients[0]?.displayName || 'João Pedro Severo',
-    startsAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    endsAt: new Date(Date.now() - 23 * 60 * 60 * 1000).toISOString(),
-    status: 'completed' as const,
-    modality: 'online' as const,
-    prontuarioPreenchido: false,
-  };
+  // Identifica sessões encerradas (registro opcional no prontuário).
+  //
+  // O horário do exemplo é calculado uma vez, e não a cada render: ler o
+  // relógio durante a renderização faz o valor mudar sozinho a cada
+  // re-render, e o React trata isso como resultado instável.
+  const sessaoPendenteProntuario = useMemo(
+    () =>
+      appointments.find((a) => a.status === 'completed' && !a.prontuarioPreenchido) || {
+        id: 'demo-pendente-1',
+        patientId: patients[0]?.id || 'p-demo-1',
+        pacienteNome: patients[0]?.displayName || 'João Pedro Severo',
+        startsAt: EXEMPLO_SESSAO_INICIO,
+        endsAt: EXEMPLO_SESSAO_FIM,
+        status: 'completed' as const,
+        modality: 'online' as const,
+        prontuarioPreenchido: false,
+      },
+    [appointments, patients]
+  );
 
   const handleConfirmContact = async () => {
     const linkUrl = publicAgendaUrl || `https://clinica-viver-web.vercel.app/agendar/0e1417b497fd11f197d68e553c6656d0`;

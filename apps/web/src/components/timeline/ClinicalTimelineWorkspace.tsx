@@ -56,6 +56,8 @@ function ClinicalTimelineContent() {
   const [apiEntries, setApiEntries] = useState<ClinicalTimelineEntry[] | null>(null);
   const [patients, setPatients] = useState<TimelinePatient[]>([]);
   const [appointments, setAppointments] = useState<AppointmentSummary[]>([]);
+  /** Instante em que a lista de sessões chegou — a régua do "que ainda vem". */
+  const [carregadoEm, setCarregadoEm] = useState(0);
   const [loadError, setLoadError] = useState<string>();
 
   // Estado para Cadastro Manual de Prontuário
@@ -118,6 +120,11 @@ function ClinicalTimelineContent() {
         if (!cancelled && Array.isArray(items)) {
           const patientApps = items.filter((a) => a.patientId === selectedPatientId);
           setAppointments(patientApps);
+          // O relógio é lido junto com a chegada dos dados, e não durante a
+          // renderização: dentro do render o valor mudaria a cada re-render,
+          // e "a próxima sessão" passaria a depender de quantas vezes o React
+          // decidiu redesenhar a tela.
+          setCarregadoEm(Date.now());
         }
       })
       .catch(() => {
@@ -146,7 +153,7 @@ function ClinicalTimelineContent() {
     if (!selectedPatient?.nextAppointmentAt) {
       return appointments.find(
         (a) =>
-          Date.parse(a.startsAt) >= Date.now() &&
+          Date.parse(a.startsAt) >= carregadoEm &&
           (a.status === 'scheduled' || a.status === 'confirmed')
       );
     }
@@ -158,7 +165,7 @@ function ClinicalTimelineContent() {
       status: 'confirmed' as const,
       modality: 'online' as const,
     };
-  }, [selectedPatient, appointments, selectedPatientId]);
+  }, [selectedPatient, appointments, selectedPatientId, carregadoEm]);
 
   // Adiciona Prontuário Manualmente
   const handleSalvarProntuarioManual = async (e: React.FormEvent) => {

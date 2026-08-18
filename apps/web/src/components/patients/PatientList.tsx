@@ -8,7 +8,6 @@ import {
   Calendar,
   Clock,
   ArrowRight,
-  Zap,
   CheckCircle2,
   PauseCircle,
   Search,
@@ -18,14 +17,17 @@ import {
   Loader2,
   X,
   FileText,
+  UserX,
 } from 'lucide-react';
 import { applicationRequest } from '@/lib/applicationApi';
+import PatientDropoutModal from './PatientDropoutModal';
 
 interface PatientListProps {
   patients: readonly PatientDirectoryEntry[];
   agendaToken?: string;
   onOpenNewPatientModal: () => void;
   onPatientUpdated?: () => void;
+  canRegisterDropout?: boolean;
 }
 
 const STATUS_LABEL: Record<PatientDirectoryEntry['status'], string> = {
@@ -51,6 +53,7 @@ export default function PatientList({
   agendaToken,
   onOpenNewPatientModal,
   onPatientUpdated,
+  canRegisterDropout = false,
 }: PatientListProps) {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
@@ -61,6 +64,7 @@ export default function PatientList({
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [scheduleError, setScheduleError] = useState<string>();
   const [scheduleSuccess, setScheduleSuccess] = useState<string>();
+  const [patientForDropout, setPatientForDropout] = useState<PatientDirectoryEntry | null>(null);
 
   // KPIs Rápidos
   const pacientesAtivosCount = patients.filter((p) => p.status === 'active').length;
@@ -250,7 +254,7 @@ export default function PatientList({
                   ) : (
                     <PauseCircle className="w-3 h-3 text-amber-600" />
                   )}
-                  {STATUS_LABEL[patient.status]}
+                  {patient.dropoutRegistered ? 'Desistente' : STATUS_LABEL[patient.status]}
                 </span>
               </div>
 
@@ -301,6 +305,19 @@ export default function PatientList({
                   <span>Enviar Agenda</span>
                 </button>
               </div>
+
+              {canRegisterDropout && !patient.dropoutRegistered && patient.status !== 'discharged' && (
+                <button
+                  type="button"
+                  onClick={() => setPatientForDropout(patient)}
+                  className="w-full rounded-xl border border-rose-200 bg-rose-50 p-2 text-[11px] font-bold text-rose-700 transition-colors hover:bg-rose-100"
+                >
+                  <span className="flex items-center justify-center gap-1.5">
+                    <UserX className="h-3.5 w-3.5" />
+                    Registrar desistência
+                  </span>
+                </button>
+              )}
             </div>
           </div>
         ))}
@@ -411,6 +428,15 @@ export default function PatientList({
             </form>
           </div>
         </div>
+      )}
+
+      {patientForDropout && (
+        <PatientDropoutModal
+          key={patientForDropout.id}
+          patient={patientForDropout}
+          onClose={() => setPatientForDropout(null)}
+          onRegistered={() => onPatientUpdated?.()}
+        />
       )}
     </div>
   );

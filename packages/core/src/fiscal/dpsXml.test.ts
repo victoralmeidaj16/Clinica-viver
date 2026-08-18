@@ -40,9 +40,24 @@ describe('gerarDpsPsicologia', () => {
     expect(dps.xml).toContain('<vServ>75.00</vServ>');
     expect(dps.xml).toContain('<tribISSQN>1</tribISSQN>');
     expect(dps.xml).toContain('<tpRetISSQN>1</tpRetISSQN>');
-    expect(dps.xml).toContain('<indTotTrib>0</indTotTrib>');
     expect(dps.xml).not.toContain('<IBSCBS>');
   });
+
+  /**
+   * As duas regras abaixo foram descobertas em produção restrita, com o CNPJ
+   * real da clínica: a SEFIN rejeitou `indTotTrib` para ME/EPP (E0712) e, ao
+   * remover o grupo inteiro, rejeitou o esquema (E1235). Ficam em teste para
+   * que uma "simplificação" futura não reintroduza a rejeição.
+   */
+  it('usa pTotTribSN para optante ME/EPP, sem indTotTrib', () => {
+    const dps = gerarDpsPsicologia(base); // opcaoSimplesNacional '3'
+
+    expect(dps.xml).toContain('<pTotTribSN>0.00</pTotTribSN>');
+    expect(dps.xml).not.toContain('<indTotTrib>');
+    // O grupo continua presente: sem ele o XSD recusa o elemento `trib`.
+    expect(dps.xml).toContain('<totTrib>');
+  });
+
 
   it('rejeita inscrição do tomador inválida antes de assinar o XML', () => {
     expect(() => gerarDpsPsicologia({ ...base, tomador: { ...base.tomador, cpfOuCnpj: '111.111.111-11' } })).toThrow(/CPF ou CNPJ/);

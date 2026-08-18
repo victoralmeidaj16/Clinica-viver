@@ -13,6 +13,7 @@ export default function PacientesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [agendaToken, setAgendaToken] = useState<string>();
+  const [canRegisterDropout, setCanRegisterDropout] = useState(false);
 
   // Cadeia de promessa em vez de `await` no corpo: todo `setState` acontece
   // dentro de callback, nunca de forma síncrona no efeito. O estado já nasce
@@ -36,6 +37,12 @@ export default function PacientesPage() {
     applicationRequest<{ agendaToken: string }>('/agenda')
       .then((res) => setAgendaToken(res.agendaToken))
       .catch(() => {});
+    fetch('/api/auth/me', { cache: 'no-store' })
+      .then((response) => response.json())
+      .then((envelope: { data?: { role?: string } }) => {
+        setCanRegisterDropout(envelope.data?.role === 'psicologo');
+      })
+      .catch(() => setCanRegisterDropout(false));
   }, [load]);
 
   return (
@@ -72,6 +79,7 @@ export default function PacientesPage() {
           agendaToken={agendaToken}
           onOpenNewPatientModal={() => setIsModalOpen(true)}
           onPatientUpdated={load}
+          canRegisterDropout={canRegisterDropout}
         />
       )}
 

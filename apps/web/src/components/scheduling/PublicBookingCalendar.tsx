@@ -65,17 +65,17 @@ export function PublicBookingCalendar({ diasDisponiveis, diaSelecionado, onSelec
           disabled={mes <= primeiroMes}
           onClick={() => setMes(deslocarMes(mes, -1))}
           aria-label="Mês anterior"
-          className="rounded-xl border border-slate-700 p-2 text-slate-300 disabled:opacity-30"
+          className="rounded-xl border border-line p-2 text-psi-deep hover:bg-psi-soft transition-colors disabled:opacity-30"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
-        <p className="text-sm font-black text-white capitalize">{rotuloMes(mes)}</p>
+        <p className="text-sm font-black text-ink capitalize">{rotuloMes(mes)}</p>
         <button
           type="button"
           disabled={mes >= ultimoMes}
           onClick={() => setMes(deslocarMes(mes, 1))}
           aria-label="Próximo mês"
-          className="rounded-xl border border-slate-700 p-2 text-slate-300 disabled:opacity-30"
+          className="rounded-xl border border-line p-2 text-psi-deep hover:bg-psi-soft transition-colors disabled:opacity-30"
         >
           <ChevronRight className="w-4 h-4" />
         </button>
@@ -83,7 +83,7 @@ export function PublicBookingCalendar({ diasDisponiveis, diaSelecionado, onSelec
 
       <div className="grid grid-cols-7 gap-1 text-center">
         {DIAS_SEMANA.map((letra, indice) => (
-          <span key={`${letra}-${indice}`} className="text-[10px] font-bold text-slate-500 py-1">
+          <span key={`${letra}-${indice}`} className="text-[10px] font-bold text-muted py-1">
             {letra}
           </span>
         ))}
@@ -102,8 +102,8 @@ export function PublicBookingCalendar({ diasDisponiveis, diaSelecionado, onSelec
                 ativo
                   ? 'bg-psi-vibrant text-white shadow-lg shadow-psi-vibrant/30 scale-105'
                   : livre
-                    ? 'bg-slate-950 text-psi-soft hover:bg-psi-vibrant hover:text-white border border-psi-vibrant/30'
-                    : 'text-slate-600'
+                    ? 'bg-surface text-psi-deep hover:bg-psi-vibrant hover:text-white border border-psi-vibrant/30 font-bold'
+                    : 'text-muted/50'
               }`}
             >
               {Number(dia.slice(8, 10))}
@@ -112,7 +112,7 @@ export function PublicBookingCalendar({ diasDisponiveis, diaSelecionado, onSelec
         })}
       </div>
 
-      <p className="text-[11px] text-slate-500 text-center">
+      <p className="text-[11px] text-muted text-center">
         Apenas os dias destacados têm horários livres.
       </p>
     </div>

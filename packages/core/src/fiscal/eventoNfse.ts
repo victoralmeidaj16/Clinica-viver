@@ -17,6 +17,23 @@ import { codigo, dataHoraComOffset, escaparXml, somenteDigitos, textoObrigatorio
  *     do código, não o significado dele, justamente para não inventar uma
  *     tabela que o manual define.
  *
+ * ## Estado verificado (produção restrita, agosto/2026)
+ *
+ * A emissão funciona ponta a ponta, mas **o cancelamento ainda não**. Testado
+ * contra `SefinNacional_1.6.0` com o certificado real, o esquema recusa o `Id`:
+ *
+ *     E1235 — The 'Id' attribute is invalid ... datatype 'TSIdPedRegEvt'
+ *             The Pattern constraint failed.
+ *
+ * Foram sondadas 14 composições (prefixos `PRE`/`PED`/`EVE`/`ID`/nenhum,
+ * sequencial de 1 a 5 dígitos, tipo do evento antes e depois da chave, e sem
+ * tipo). Todas recusadas — ou seja, o formato não é nenhuma variação óbvia da
+ * regra da NF-e, e sair testando às cegas só gera ruído.
+ *
+ * O que destrava: o padrão de `TSIdPedRegEvt` no `pedRegEvento_v1.00.xsd`, que
+ * está no pacote de esquemas do Anexo I. Uma linha do XSD resolve, e é por isso
+ * que este comentário existe em vez de mais um palpite no código.
+ *
  * O prazo de cancelamento também é municipal: passado o prazo, a via é a
  * substituição da nota, que é outro evento e outro gerador.
  */

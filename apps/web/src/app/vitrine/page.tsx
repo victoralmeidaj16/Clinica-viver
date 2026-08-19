@@ -6,6 +6,7 @@ import { GenderFields } from '@/components/forms/GenderFields';
 import { CadastroPsicologoForm } from '@/components/forms/CadastroPsicologoForm';
 import { OPCOES_AVALIACAO_PSICOLOGICA, NecessidadesSelector } from '@/components/forms/necessidades';
 import { validateGender, type GenderValue } from '@/lib/gender';
+import { CAMPO_ARMADILHA } from '@/lib/triagemSubmissao';
 import {
   Sparkles,
   Heart,
@@ -270,6 +271,13 @@ export default function ViverMaisLandingPage() {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  /**
+   * Campo-armadilha. Fica fora da tela e fora da navegação por teclado, então
+   * ninguém que preenche o formulário chega nele; robô que preenche tudo o que
+   * encontra, sim. O servidor recusa o envio quando ele volta preenchido.
+   */
+  const [armadilha, setArmadilha] = useState('');
+
   const handleSelectServiceAndPrice = (serviceKey: ServicoKey, modalidadeType: ModalidadeKey) => {
     setSelectedService(serviceKey);
     setSelectedModalidade(modalidadeType);
@@ -309,6 +317,7 @@ export default function ViverMaisLandingPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
+          [CAMPO_ARMADILHA]: armadilha,
           paraQuemE: selectedService === 'ORIENTACAO_PARENTAL' ? undefined : (form.paraQuemE === 'Outro' && form.paraQuemEOutro.trim() ? `Outro: ${form.paraQuemEOutro.trim()}` : form.paraQuemE),
           servico: selectedService ? precos[selectedService]?.titulo : '',
           servicoKey: selectedService,
@@ -1086,6 +1095,19 @@ export default function ViverMaisLandingPage() {
                 <Send className="w-4 h-4" />
                 Finalizar agendamento
               </button>
+              {/* Campo-armadilha: invisível para quem preenche, isca para robô. */}
+              <div aria-hidden="true" className="absolute -left-[9999px] h-0 w-0 overflow-hidden">
+                <label htmlFor={CAMPO_ARMADILHA}>Não preencha este campo</label>
+                <input
+                  id={CAMPO_ARMADILHA}
+                  name={CAMPO_ARMADILHA}
+                  type="text"
+                  value={armadilha}
+                  onChange={(e) => setArmadilha(e.target.value)}
+                  tabIndex={-1}
+                  autoComplete="off"
+                />
+              </div>
             </form>
           </div>
         )}

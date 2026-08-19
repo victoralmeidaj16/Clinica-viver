@@ -36,6 +36,18 @@ export async function exigirGestao(): Promise<void> {
 }
 
 /**
+ * A mesma pergunta de `exigirGestao`, respondida sem lançar.
+ *
+ * Serve a quem precisa decidir entre dois caminhos válidos em vez de barrar —
+ * é o caso do teto por IP na entrada de leads, que a gestão pode ultrapassar
+ * cadastrando quem chegou pelo WhatsApp.
+ */
+export async function ehGestao(): Promise<boolean> {
+  const sessao = await readSession();
+  return sessao?.role === 'admin';
+}
+
+/**
  * Autoriza a varredura do SLA.
  *
  * Dois caminhos, porque ela tem dois chamadores legítimos: o agendador, que

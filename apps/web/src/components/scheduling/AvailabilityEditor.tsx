@@ -1,25 +1,14 @@
 'use client';
 
-import { useState } from 'react';
-import { Clock, Plus, Save, Trash2, Layers, CheckSquare, Sparkles } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { AlertCircle, CalendarClock, CheckCircle2, Save } from 'lucide-react';
+import { AvailabilityCopyPanel } from './AvailabilityCopyPanel';
+import { AvailabilityDayCard } from './AvailabilityDayCard';
+import {
+  assinatura, DIAS, erroDaGrade, ordenar, padraoDaGrade, type JanelaEditavel,
+} from './availabilityEditorModel';
 
-export interface JanelaEditavel {
-  diaSemana: number;
-  horaInicio: string;
-  horaFim: string;
-  duracaoMin: number;
-  modalidade: 'presencial' | 'online';
-}
-
-const DIAS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
-
-const NOVA_JANELA: JanelaEditavel = {
-  diaSemana: 1,
-  horaInicio: '08:00',
-  horaFim: '12:00',
-  duracaoMin: 50,
-  modalidade: 'online',
-};
+export type { JanelaEditavel } from './availabilityEditorModel';
 
 interface Props {
   janelas: readonly JanelaEditavel[];
@@ -27,331 +16,150 @@ interface Props {
 }
 
 export function AvailabilityEditor({ janelas, onSalvar }: Props) {
-  const [rascunho, setRascunho] = useState<JanelaEditavel[]>([...janelas]);
+  const [rascunho, setRascunho] = useState<JanelaEditavel[]>(() => ordenar(janelas));
+  const [expandido, setExpandido] = useState(() => janelas[0]?.diaSemana ?? 1);
+  const [copiarDe, setCopiarDe] = useState<number>();
+  const [destinos, setDestinos] = useState<number[]>([]);
   const [salvando, setSalvando] = useState(false);
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string }>();
+  const padrao = useMemo(() => padraoDaGrade(janelas), [janelas]);
+  const alterado = assinatura(rascunho) !== assinatura(janelas);
+  const erro = erroDaGrade(rascunho);
 
-  // Estado para Edição / Criação em Lote
-  const [mostrarLote, setMostrarLote] = useState(false);
-  const [diasSelecionadosLote, setDiasSelecionadosLote] = useState<number[]>([1, 2, 3, 4, 5]); // Seg a Sex por padrão
-  const [loteHoraInicio, setLoteHoraInicio] = useState('08:00');
-  const [loteHoraFim, setLoteHoraFim] = useState('18:00');
-  const [loteDuracao, setLoteDuracao] = useState(50);
-  const [loteModalidade, setLoteModalidade] = useState<'online' | 'presencial'>('online');
-
-  const alterar = (indice: number, campo: Partial<JanelaEditavel>) =>
-    setRascunho((atual) => atual.map((item, i) => (i === indice ? { ...item, ...campo } : item)));
-
-  const alternarDiaLote = (diaNum: number) => {
-    setDiasSelecionadosLote((prev) =>
-      prev.includes(diaNum) ? prev.filter((d) => d !== diaNum) : [...prev, diaNum]
-    );
+  const janelasDoDia = (dia: number) => rascunho.filter((janela) => janela.diaSemana === dia);
+  const substituirDia = (dia: number, novas: readonly JanelaEditavel[]) => {
+    setRascunho((atual) => ordenar([...atual.filter((janela) => janela.diaSemana !== dia), ...novas]));
+    setAviso(undefined);
   };
 
-  const selecionarDiasUteis = () => setDiasSelecionadosLote([1, 2, 3, 4, 5]);
-  const selecionarTodosDias = () => setDiasSelecionadosLote([0, 1, 2, 3, 4, 5, 6]);
-
-  const aplicarLote = () => {
-    if (diasSelecionadosLote.length === 0) {
-      setAviso({ tipo: 'erro', texto: 'Selecione pelo menos um dia para aplicar em lote.' });
+  const alternarDia = (dia: number) => {
+    const atuais = janelasDoDia(dia);
+    if (atuais.length > 0) {
+      substituirDia(dia, []);
       return;
     }
+    substituirDia(dia, [{ diaSemana: dia, horaInicio: '08:00', horaFim: '12:00', ...padrao }]);
+    setExpandido(dia);
+  };
 
-    // Cria novas janelas para cada dia selecionado no lote
-    const novasJanelasLote: JanelaEditavel[] = diasSelecionadosLote.map((diaSemana) => ({
-      diaSemana,
-      horaInicio: loteHoraInicio,
-      horaFim: loteHoraFim,
-      duracaoMin: loteDuracao,
-      modalidade: loteModalidade,
-    }));
+  const alterarJanela = (dia: number, indice: number, campo: Partial<JanelaEditavel>) => {
+    substituirDia(dia, janelasDoDia(dia).map((janela, atual) => atual === indice ? { ...janela, ...campo } : janela));
+  };
 
-    // Remove janelas antigas dos dias selecionados para substituir pelas novas do lote
-    const rascunhoFiltrado = rascunho.filter((j) => !diasSelecionadosLote.includes(j.diaSemana));
-    const rascunhoAtualizado = [...rascunhoFiltrado, ...novasJanelasLote].sort(
-      (a, b) => a.diaSemana - b.diaSemana || a.horaInicio.localeCompare(b.horaInicio)
-    );
+  const alterarRegra = (dia: number, campo: Partial<JanelaEditavel>) => {
+    substituirDia(dia, janelasDoDia(dia).map((janela) => ({ ...janela, ...campo })));
+  };
 
-    setRascunho(rascunhoAtualizado);
-    setAviso({
-      tipo: 'ok',
-      texto: `Grade configurada em lote para ${diasSelecionadosLote.length} dia(s). Clique em "Salvar grade" para publicar.`,
-    });
-    setMostrarLote(false);
+  const adicionarPeriodo = (dia: number) => {
+    const atuais = janelasDoDia(dia);
+    const ultimo = atuais.at(-1);
+    const inicio = ultimo?.horaFim ?? '08:00';
+    const horaFim = inicio < '18:00' ? '18:00' : '22:00';
+    substituirDia(dia, [...atuais, {
+      diaSemana: dia,
+      horaInicio: inicio,
+      horaFim,
+      duracaoMin: ultimo?.duracaoMin ?? padrao.duracaoMin,
+      modalidade: ultimo?.modalidade ?? padrao.modalidade,
+    }]);
+  };
+
+  const aplicarCopia = () => {
+    if (copiarDe === undefined || destinos.length === 0) return;
+    const origem = janelasDoDia(copiarDe);
+    setRascunho((atual) => ordenar([
+      ...atual.filter((janela) => !destinos.includes(janela.diaSemana)),
+      ...destinos.flatMap((dia) => origem.map((janela) => ({ ...janela, diaSemana: dia }))),
+    ]));
+    setAviso({ tipo: 'ok', texto: `Horários copiados para ${destinos.length} ${destinos.length === 1 ? 'dia' : 'dias'}. Salve para publicar.` });
+    setCopiarDe(undefined);
+    setDestinos([]);
   };
 
   const salvar = async () => {
+    if (erro || !alterado) return;
     setSalvando(true);
     setAviso(undefined);
     try {
-      await onSalvar(rascunho);
-      setAviso({ tipo: 'ok', texto: 'Grade publicada com sucesso! O link do paciente já mostra os novos horários.' });
+      await onSalvar(ordenar(rascunho));
+      setAviso({ tipo: 'ok', texto: 'Disponibilidade publicada. O link dos pacientes já está atualizado.' });
     } catch (causa) {
-      setAviso({ tipo: 'erro', texto: causa instanceof Error ? causa.message : 'Não foi possível salvar a grade.' });
+      setAviso({ tipo: 'erro', texto: causa instanceof Error ? causa.message : 'Não foi possível salvar a disponibilidade.' });
     } finally {
       setSalvando(false);
     }
   };
 
   return (
-    <div className="bg-surface rounded-3xl border border-line shadow-card overflow-hidden space-y-0">
-      {/* Header com Branding Viver Mais */}
-      <div className="p-6 border-b border-line bg-gradient-to-r from-slate-900 to-psi-darkest text-white flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <span className="text-[10px] font-black uppercase tracking-widest text-psi-vibrant bg-psi-vibrant/20 px-2.5 py-1 rounded-full border border-psi-vibrant/30">
-            Grade Semanal de Atendimento
-          </span>
-          <h3 className="font-extrabold text-lg text-white flex items-center gap-2 mt-1">
-            <Clock className="w-5 h-5 text-psi-vibrant" /> Horários que você atende
-          </h3>
-          <p className="text-xs text-slate-300">
-            Defina os períodos disponíveis na semana. Cada janela vira horários agendáveis para o paciente.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setMostrarLote(!mostrarLote)}
-            className="rounded-2xl border border-psi-vibrant/40 bg-psi-vibrant/20 hover:bg-psi-vibrant/30 px-3.5 py-2.5 text-xs font-bold text-psi-soft flex items-center gap-1.5 transition-colors"
-          >
-            <Layers className="w-4 h-4 text-psi-vibrant" />
-            <span>Configurar em Lote</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => void salvar()}
-            disabled={salvando}
-            className="rounded-2xl bg-psi-vibrant hover:bg-psi-vibrant/90 text-white font-extrabold text-xs px-4 py-2.5 shadow-lg shadow-psi-vibrant/30 flex items-center gap-2 transition-all disabled:opacity-50"
-          >
-            <Save className="w-4 h-4" /> {salvando ? 'Salvando…' : 'Salvar grade'}
-          </button>
-        </div>
-      </div>
-
-      {aviso && (
-        <p
-          className={`px-6 py-3 text-xs font-bold ${
-            aviso.tipo === 'ok' ? 'bg-emerald-50 text-emerald-800 border-b border-emerald-200' : 'bg-rose-50 text-rose-800 border-b border-rose-200'
-          }`}
-        >
-          {aviso.texto}
-        </p>
-      )}
-
-      {/* Painel de Configuração em Lote (Modificar em Lote) */}
-      {mostrarLote && (
-        <div className="p-6 bg-psi-vibrant/5 border-b border-psi-vibrant/20 space-y-4 animate-in fade-in duration-200">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-psi-vibrant" />
-              <h4 className="font-extrabold text-sm text-ink">Aplicar Horários para Múltiplos Dias</h4>
-            </div>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={selecionarDiasUteis}
-                className="text-[11px] font-bold text-psi-vibrant hover:underline"
-              >
-                Dias Úteis (Seg-Sex)
-              </button>
-              <span className="text-slate-300">|</span>
-              <button
-                type="button"
-                onClick={selecionarTodosDias}
-                className="text-[11px] font-bold text-psi-vibrant hover:underline"
-              >
-                Todos os Dias
-              </button>
-            </div>
-          </div>
-
-          {/* Seleção de Dias */}
-          <div className="flex flex-wrap gap-2">
-            {DIAS.map((dia, num) => {
-              const selecionado = diasSelecionadosLote.includes(num);
-              return (
-                <button
-                  key={dia}
-                  type="button"
-                  onClick={() => alternarDiaLote(num)}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 ${
-                    selecionado
-                      ? 'bg-psi-vibrant text-white border-psi-vibrant shadow-sm'
-                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  <CheckSquare className={`w-3.5 h-3.5 ${selecionado ? 'text-white' : 'text-slate-300'}`} />
-                  {dia}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Horários e Regras do Lote */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white p-4 rounded-2xl border border-slate-200">
-            <label className="text-[11px] font-bold text-ink">
-              Horário Início
-              <input
-                type="time"
-                value={loteHoraInicio}
-                onChange={(e) => setLoteHoraInicio(e.target.value)}
-                className="input mt-1 py-2 text-xs w-full"
-              />
-            </label>
-
-            <label className="text-[11px] font-bold text-ink">
-              Horário Fim
-              <input
-                type="time"
-                value={loteHoraFim}
-                onChange={(e) => setLoteHoraFim(e.target.value)}
-                className="input mt-1 py-2 text-xs w-full"
-              />
-            </label>
-
-            <label className="text-[11px] font-bold text-ink">
-              Duração Sessão
-              <select
-                value={loteDuracao}
-                onChange={(e) => setLoteDuracao(Number(e.target.value))}
-                className="input mt-1 py-2 text-xs w-full"
-              >
-                {[30, 45, 50, 60, 90].map((min) => (
-                  <option key={min} value={min}>
-                    {min} minutos
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="text-[11px] font-bold text-ink">
-              Modalidade
-              <select
-                value={loteModalidade}
-                onChange={(e) => setLoteModalidade(e.target.value as 'online' | 'presencial')}
-                className="input mt-1 py-2 text-xs w-full"
-              >
-                <option value="online">Online</option>
-                <option value="presencial">Presencial</option>
-              </select>
-            </label>
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setMostrarLote(false)}
-              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              onClick={aplicarLote}
-              className="px-4 py-2 rounded-xl bg-psi-vibrant text-white text-xs font-extrabold hover:bg-psi-vibrant/90 shadow-md"
-            >
-              Aplicar para {diasSelecionadosLote.length} Dia(s)
-            </button>
+    <section className="overflow-hidden rounded-3xl border border-line bg-surface shadow-card">
+      <header className="bg-psi-darkest px-5 py-6 text-white sm:px-7">
+        <div className="flex items-start gap-3">
+          <span className="rounded-xl bg-white/10 p-2.5"><CalendarClock className="h-5 w-5 text-psi-vibrant" /></span>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[.2em] text-psi-vibrant">Grade semanal de atendimento</p>
+            <h2 className="mt-1 text-xl font-extrabold">Disponibilidade semanal</h2>
+            <p className="mt-1 max-w-2xl text-xs leading-relaxed text-psi-soft/75">Defina os dias e períodos em que pacientes podem agendar uma sessão.</p>
           </div>
         </div>
-      )}
+      </header>
 
-      {/* Lista de Janelas Cadastradas */}
-      <div className="p-6 space-y-3">
-        {rascunho.length === 0 && (
-          <p className="text-xs text-muted py-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-            Nenhuma janela de atendimento cadastrada. Utilize a opção acima para adicionar horários ou configurar em lote.
-          </p>
+      <div className="space-y-3 p-4 sm:p-6">
+        {aviso && (
+          <div role="status" className={`flex items-center gap-2 rounded-xl border px-4 py-3 text-xs font-bold ${aviso.tipo === 'ok' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-rose-200 bg-rose-50 text-rose-800'}`}>
+            {aviso.tipo === 'ok' ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <AlertCircle className="h-4 w-4 shrink-0" />}{aviso.texto}
+          </div>
         )}
 
-        {rascunho.map((janela, indice) => (
-          <div
-            key={indice}
-            className="flex flex-wrap items-end gap-3 rounded-2xl border border-line bg-canvas/60 p-4 transition-all hover:border-psi-vibrant/40"
-          >
-            <label className="text-[11px] font-bold text-ink">
-              Dia da Semana
-              <select
-                value={janela.diaSemana}
-                onChange={(e) => alterar(indice, { diaSemana: Number(e.target.value) })}
-                className="input mt-1 py-2 text-xs font-bold text-slate-800"
-              >
-                {DIAS.map((dia, numero) => (
-                  <option key={dia} value={numero}>
-                    {dia}
-                  </option>
-                ))}
-              </select>
-            </label>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-extrabold text-ink">Seus dias de atendimento</h3>
+            <p className="text-[11px] text-muted">Ative um dia e abra-o para editar os períodos.</p>
+          </div>
+          <span className="shrink-0 rounded-full bg-psi-soft px-3 py-1.5 text-[10px] font-bold text-psi-deep">{new Set(rascunho.map((janela) => janela.diaSemana)).size} dias ativos</span>
+        </div>
 
-            <label className="text-[11px] font-bold text-ink">
-              Das
-              <input
-                type="time"
-                value={janela.horaInicio}
-                onChange={(e) => alterar(indice, { horaInicio: e.target.value })}
-                className="input mt-1 py-2 text-xs font-bold text-slate-800"
+        {DIAS.map((_, dia) => {
+          const doDia = janelasDoDia(dia);
+          return (
+            <div key={dia} className="space-y-3">
+              <AvailabilityDayCard
+                dia={dia}
+                janelas={doDia}
+                expandido={expandido === dia}
+                padrao={padrao}
+                onExpandir={() => setExpandido((atual) => atual === dia ? -1 : dia)}
+                onAlternar={() => alternarDia(dia)}
+                onAlterar={(indice, campo) => alterarJanela(dia, indice, campo)}
+                onAlterarRegra={(campo) => alterarRegra(dia, campo)}
+                onAdicionar={() => adicionarPeriodo(dia)}
+                onRemover={(indice) => substituirDia(dia, doDia.filter((_, atual) => atual !== indice))}
+                onCopiar={() => { setCopiarDe(dia); setDestinos([]); }}
               />
-            </label>
+              {copiarDe === dia && (
+                <AvailabilityCopyPanel
+                  origem={dia}
+                  selecionados={destinos}
+                  onAlternar={(destino) => setDestinos((atual) => atual.includes(destino) ? atual.filter((item) => item !== destino) : [...atual, destino])}
+                  onCancelar={() => { setCopiarDe(undefined); setDestinos([]); }}
+                  onAplicar={aplicarCopia}
+                />
+              )}
+            </div>
+          );
+        })}
 
-            <label className="text-[11px] font-bold text-ink">
-              Até
-              <input
-                type="time"
-                value={janela.horaFim}
-                onChange={(e) => alterar(indice, { horaFim: e.target.value })}
-                className="input mt-1 py-2 text-xs font-bold text-slate-800"
-              />
-            </label>
-
-            <label className="text-[11px] font-bold text-ink">
-              Duração
-              <select
-                value={janela.duracaoMin}
-                onChange={(e) => alterar(indice, { duracaoMin: Number(e.target.value) })}
-                className="input mt-1 py-2 text-xs font-bold text-slate-800"
-              >
-                {[30, 45, 50, 60, 90].map((minutos) => (
-                  <option key={minutos} value={minutos}>
-                    {minutos} min
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="text-[11px] font-bold text-ink">
-              Modalidade
-              <select
-                value={janela.modalidade}
-                onChange={(e) => alterar(indice, { modalidade: e.target.value as 'presencial' | 'online' })}
-                className="input mt-1 py-2 text-xs font-bold text-slate-800"
-              >
-                <option value="online">Online</option>
-                <option value="presencial">Presencial</option>
-              </select>
-            </label>
-
-            <button
-              type="button"
-              onClick={() => setRascunho((atual) => atual.filter((_, i) => i !== indice))}
-              aria-label="Remover janela"
-              className="ml-auto rounded-xl border border-rose-200 bg-rose-50 p-2.5 text-rose-600 hover:bg-rose-100 transition-colors"
-            >
-              <Trash2 className="w-4 h-4" />
+        {(alterado || erro) && (
+          <div className="sticky bottom-4 z-10 mt-5 flex flex-col gap-3 rounded-2xl border border-psi-vibrant/30 bg-white/95 p-3 shadow-lift backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+            <div className={`flex items-center gap-2 text-xs font-bold ${erro ? 'text-rose-700' : 'text-ink'}`}>
+              {erro ? <AlertCircle className="h-4 w-4 shrink-0" /> : <span className="h-2 w-2 rounded-full bg-amber-400" />}
+              {erro ?? 'Você tem alterações que ainda não foram publicadas.'}
+            </div>
+            <button type="button" onClick={() => void salvar()} disabled={salvando || Boolean(erro)} className="btn-accent shrink-0 px-5 py-2.5 text-xs">
+              <Save className="h-4 w-4" /> {salvando ? 'Salvando…' : 'Salvar alterações'}
             </button>
           </div>
-        ))}
-
-        <button
-          type="button"
-          onClick={() => setRascunho((atual) => [...atual, NOVA_JANELA])}
-          className="btn-outline text-xs w-full justify-center py-3 border-dashed"
-        >
-          <Plus className="w-4 h-4 text-psi-vibrant" /> Adicionar janela individual
-        </button>
+        )}
       </div>
-    </div>
+    </section>
   );
 }

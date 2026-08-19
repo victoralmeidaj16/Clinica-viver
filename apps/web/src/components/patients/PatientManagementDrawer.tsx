@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { CalendarDays, CircleDollarSign, Clock3, UserRoundCog, X } from 'lucide-react';
+import PatientDropoutPanel from './PatientDropoutPanel';
 import type { ManagedPatient, ManagedPsychologist } from './managementTypes';
 
 interface Props {
@@ -9,13 +10,15 @@ interface Props {
   psychologists: readonly ManagedPsychologist[];
   onClose: () => void;
   onReassign: (patientId: string, professionalId: string, reason: string) => Promise<void>;
+  /** Recarrega a fila depois de registrar a saída ou o reengajamento. */
+  onDropoutChange: () => Promise<void>;
 }
 
 const money = (cents: number) => new Intl.NumberFormat('pt-BR', {
   style: 'currency', currency: 'BRL',
 }).format(cents / 100);
 
-export default function PatientManagementDrawer({ patient, psychologists, onClose, onReassign }: Props) {
+export default function PatientManagementDrawer({ patient, psychologists, onClose, onReassign, onDropoutChange }: Props) {
   const [professionalId, setProfessionalId] = useState(patient?.psicologoId ?? '');
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
@@ -121,6 +124,8 @@ export default function PatientManagementDrawer({ patient, psychologists, onClos
               </div>
             )}
           </section>
+
+          <PatientDropoutPanel patient={patient} onChange={onDropoutChange} />
 
           <p className="rounded-xl border border-psi-soft/60 bg-psi-soft/30 p-3 text-[11px] leading-relaxed text-muted">
             Esta área mostra apenas dados operacionais. Conteúdo de sessões e prontuário clínico não é exposto à gestão.

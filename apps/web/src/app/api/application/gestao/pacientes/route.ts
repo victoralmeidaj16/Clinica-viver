@@ -3,7 +3,8 @@ import type { PatientProfile } from '@thats-life/core';
 import { readSession } from '@/server/auth';
 import { getApplicationStore } from '@/server/application/store';
 import { getCaptureRepository } from '@/server/persistence/captureRepository';
-import type { TriagemPacienteRecord } from '@/server/application/persistence';
+import { readSnapshot, type TriagemPacienteRecord } from '@/server/application/persistence';
+import { desistenciaDoPaciente } from '@/lib/desistencias';
 import type { PatientContact, PatientContactCapable } from '@/server/persistence/mysql/identityRepository';
 import { exigirGestao, NaoAutorizadoError } from '@/server/viverMaisGestaoAuth';
 
@@ -80,6 +81,13 @@ export async function GET() {
       capture.triagensPacientes.map((lead) => [lead.pacienteRef ?? `lead:${lead.id}`, lead])
     );
 
+    // A auditoria de desistências deixou de ter tela própria e passou a ser
+    // conduzida daqui, do cadastro. Ela mora só no snapshot em arquivo — não
+    // há tabela para ela —, e por isso é lida à parte da captação.
+    const auditoria = (readSnapshot()?.auditoriaDesistencias ?? []).filter(
+      (registro) => !registro.organizationId || registro.organizationId === organizationId
+    );
+
     const data = [...patientIds].map((id) => {
       const patient = patientsById.get(id);
       const lead = patient ? leadsByPatient.get(patient.id) : leadsBySyntheticId.get(id);
@@ -96,6 +104,7 @@ export async function GET() {
         : 0;
       const professionalId = patient?.primaryProfessionalId
         ?? capture.cadastrosPsicologos.find((psi) => psi.id === lead?.psicologoAlocadoId)?.profissionalRef;
+      const desistencia = desistenciaDoPaciente(auditoria, { patientId, leadId: lead?.id });
 
       return {
         id: patientId ?? id,
@@ -143,6 +152,16 @@ export async function GET() {
           proximaEm: ownAppointments
             .filter((item) => ['scheduled', 'confirmed'].includes(item.status) && Date.parse(item.startsAt) >= Date.now())
             .sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt))[0]?.startsAt,
+        },
+        desistencia: desistencia && {
+          id: desistencia.id,
+          motivo: desistencia.motivo,
+          descricaoDetalhada: desistencia.descricaoDetalhada,
+          acaoSugestao: desistencia.acaoSugestao,
+          dataDesistencia: desistencia.dataDesistencia,
+          reengajado: desistencia.reengajado,
+          observacoesReengajamento: desistencia.observacoesReengajamento,
+          permitirTrocaPsicologo: desistencia.permitirTrocaPsicologo,
         },
         financeiro: {
           cobrancas: ownCharges.length,

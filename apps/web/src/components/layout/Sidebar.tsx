@@ -14,7 +14,6 @@ import {
   ChevronRight,
   Shield,
   Briefcase,
-  TrendingDown,
   BarChart3,
   Sparkles,
   UserPlus,
@@ -41,7 +40,6 @@ const gestaoItems = [
   { label: 'Site / Vitrine de Serviços', href: '/vitrine', icon: Sparkles },
   { label: '11 Indicadores Mensais', href: '/relatorios', icon: BarChart3 },
   { label: 'Convênios PJ', href: '/convenios', icon: Briefcase },
-  { label: 'Auditoria & Retenção', href: '/retencao', icon: TrendingDown },
   { label: 'Integrações (Asaas/Wpp)', href: '/configuracoes/integracoes', icon: Brain },
 ];
 

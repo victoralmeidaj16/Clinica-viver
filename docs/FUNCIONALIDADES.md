@@ -237,7 +237,7 @@ correto quando a situação muda e o ponto vermelho não volte a cada login.
 ## 12. Supervisão Clínica, Retenção & Cockpit da Gestão
 
 - **Anonimização Inteligente por IA:** remove dados pessoais identificáveis para submissão do relato clínico ao painel do supervisor em pós-graduações.
-- **Auditoria de Desistências & Retenção:** captura obrigatoriamente o motivo do cancelamento/abandono (financeiro, insatisfação, troca de abordagem) e gera fila de ação para contato de reengajamento.
+- **Auditoria de Desistências & Retenção:** captura obrigatoriamente o motivo do cancelamento/abandono (financeiro, insatisfação, troca de abordagem) e gera fila de ação para contato de reengajamento. Vive dentro do cadastro, em `/gestao/pacientes` para a gestão e em `/pacientes` para o psicólogo responsável — a tela separada `/retencao` foi removida.
 - **Cockpit de Gestão da Clínica (11 Relatórios em Tempo Real):**
   1. *Fila de Espera:* posição dos psicólogos no rodízio.
   2. *SLA de 24h:* alertas visuais de contatos pendentes.

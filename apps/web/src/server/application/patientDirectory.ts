@@ -5,6 +5,7 @@ import { ApplicationError } from './http';
 import { getApplicationStore, persistApplicationState } from './store';
 import { captureStateAsSnapshot, getCaptureRepository } from '@/server/persistence/captureRepository';
 import { recalcularPacientesAtivos } from './viverMaisRodizio';
+import { motivoValido } from '@/lib/desistencias';
 import {
   emptySnapshot,
   readSnapshot,
@@ -37,16 +38,6 @@ export interface PatientDirectoryEntry {
   /** Há uma desistência aberta para este paciente na auditoria de retenção. */
   dropoutRegistered: boolean;
 }
-
-const DROPOUT_REASONS = [
-  'FINANCEIRO',
-  'INSATISFACAO_CONDUTA',
-  'TROCA_ABORDAGEM',
-  'MOTIVOS_PESSOAIS',
-  'OUTRO',
-] as const;
-
-type DropoutReason = (typeof DROPOUT_REASONS)[number];
 
 function contactSource(identities: unknown): PatientContactCapable | null {
   const candidate = identities as Partial<PatientContactCapable>;
@@ -148,8 +139,8 @@ export async function registerPatientDropout(
   }
 
   const patientId = String(body.patientId ?? '').trim();
-  const reason = String(body.motivo ?? '').trim() as DropoutReason;
-  if (!patientId || !DROPOUT_REASONS.includes(reason)) {
+  const reason = String(body.motivo ?? '').trim();
+  if (!patientId || !motivoValido(reason)) {
     throw new ApplicationError('INVALID_INPUT', 'Paciente e motivo da desistência são obrigatórios.', 400);
   }
 

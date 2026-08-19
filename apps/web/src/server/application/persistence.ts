@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { mkdir, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import type { MotivoDesistencia } from '@/lib/desistencias';
 import type {
   Appointment,
   ClinicalRecord,
@@ -205,10 +206,18 @@ export interface AuditoriaDesistenciaRecord {
   id: string;
   organizationId?: string;
   pacienteId?: string;
+  /**
+   * Lead da triagem que originou a saída.
+   *
+   * Existe porque quem desiste antes de o contato ser confirmado nunca chegou a
+   * ter `pacienteId` — e sem esta chave o registro ficaria órfão, invisível no
+   * cadastro de onde a gestão passou a conduzir a auditoria.
+   */
+  leadId?: string;
   pacienteNome: string;
   psicologoId?: string;
   psicologoNome: string;
-  motivo: 'FINANCEIRO' | 'INSATISFACAO_CONDUTA' | 'TROCA_ABORDAGEM' | 'MOTIVOS_PESSOAIS' | 'OUTRO';
+  motivo: MotivoDesistencia;
   descricaoDetalhada?: string;
   acaoSugestao?: string;
   dataDesistencia: string;

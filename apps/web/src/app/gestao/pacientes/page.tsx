@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ArrowDownWideNarrow, Clock3, Search, ShieldCheck, UserRoundX, UsersRound } from 'lucide-react';
+import { AlertTriangle, ArrowDownWideNarrow, Clock3, HeartHandshake, Search, ShieldCheck, UserRoundX, UsersRound, UserX } from 'lucide-react';
 import PatientManagementDrawer from '@/components/patients/PatientManagementDrawer';
 import type { ManagedPatient, ManagedPsychologist, PatientManagementStatus } from '@/components/patients/managementTypes';
 
@@ -106,6 +106,17 @@ export default function GestaoPacientesPage() {
   const unassigned = patients.filter((patient) => patient.slaStatus === 'SEM_ALOCACAO').length;
   const active = patients.filter((patient) => patient.status === 'ATIVO').length;
 
+  // As duas métricas que a página `/retencao` calculava e que não podiam se
+  // perder na mudança: quantas saídas houve e quantas voltaram.
+  const dropouts = patients.filter((patient) => patient.desistencia);
+  const reengaged = dropouts.filter((patient) => patient.desistencia?.reengajado).length;
+  const reengagedRate = dropouts.length > 0 ? Math.round((reengaged / dropouts.length) * 100) : 0;
+
+  // O drawer precisa acompanhar a recarga: registrar a desistência troca o
+  // conteúdo de `patients`, e sem reencontrar a linha pelo id o painel
+  // continuaria exibindo o paciente como estava antes do registro.
+  const selectedPatient = selected ? patients.find((patient) => patient.id === selected.id) ?? selected : null;
+
   const reassign = async (patientId: string, professionalId: string, reason: string) => {
     const response = await fetch('/api/application/patients', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -136,10 +147,17 @@ export default function GestaoPacientesPage() {
               Da primeira triagem ao acompanhamento: alocação, espera, agenda e situação financeira em uma única fila operacional.
             </p>
           </div>
-          <div className="grid grid-cols-3 gap-2 sm:gap-3">
+          <div className="grid grid-cols-3 gap-2 sm:gap-3 xl:grid-cols-5">
             <Kpi label="Ativos" value={active} icon={UsersRound} tone="text-psi-vibrant" />
             <Kpi label="SLA +24h" value={overdue} icon={Clock3} tone="text-amber-300" />
             <Kpi label="Sem alocação" value={unassigned} icon={UserRoundX} tone="text-rose-300" />
+            <Kpi label="Desistências" value={dropouts.length} icon={UserX} tone="text-rose-300" />
+            <Kpi
+              label={`Reengajados · ${reengagedRate}%`}
+              value={reengaged}
+              icon={HeartHandshake}
+              tone="text-emerald-300"
+            />
           </div>
         </div>
       </header>
@@ -310,6 +328,14 @@ export default function GestaoPacientesPage() {
                       <span className={`inline-block rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${statusClass[patient.status]}`}>
                         {statusLabel[patient.status]}
                       </span>
+                      {/* O desfecho do reengajamento era o que a fila da página
+                          de retenção mostrava. Sem ele aqui, uma saída revertida
+                          ficaria indistinguível de uma saída definitiva. */}
+                      {patient.desistencia?.reengajado && (
+                        <span className="mt-1 block w-fit rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-800">
+                          reengajado
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -321,10 +347,11 @@ export default function GestaoPacientesPage() {
 
       <PatientManagementDrawer
         key={selected?.id ?? 'closed'}
-        patient={selected}
+        patient={selectedPatient}
         psychologists={psychologists}
         onClose={() => setSelected(null)}
         onReassign={reassign}
+        onDropoutChange={load}
       />
     </div>
   );

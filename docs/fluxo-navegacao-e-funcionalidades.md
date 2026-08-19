@@ -39,7 +39,7 @@ Telas e fluxos administrativos para diretoria, recepção, supervisores e contro
 | `/relatorios` | **11 Indicadores & Período** | Dashboard com os 11 indicadores operacionais/financeiros e relatórios filtrados por data. |
 | `/triagem` | **Robô & Triagem WhatsApp** | Monitoramento de leads de entrada, rodízio fair-share (Round-Robin) e indicação inteligente. |
 | `/pacientes` | **Base Geral de Pacientes** | Visão administrativa de todos os pacientes da clínica e vínculos com alunos/estagiários. |
-| `/retencao` | **Monitor de Evasão** | Alerta de pacientes inativos há 14/30 dias e gestão de campanhas de reativação. |
+| `/gestao/pacientes` | **Auditoria de desistências** | Registro da saída e do reengajamento dentro do cadastro do paciente. Substituiu a rota `/retencao`, removida. |
 | `/supervisao` | **Supervisão Geral** | Painel do supervisor para revisar, assinar e emitir pareceres de atendimentos em formação. |
 | `/convenios` | **Gestão de Convênios** | Tabela de repasses, faturamento e integração com operadoras de planos de saúde. |
 | `/configuracoes` | **Configurações & Tabela Fixa** | Cadastro de tabelas de preço (Social/Particular), limites de duração e controle de permissões. |
@@ -217,13 +217,22 @@ flowchart TB
 
 ---
 
-### 8. 🛡️ Monitor de Retenção e Engajamento (`/retencao`)
+### 8. 🛡️ Auditoria de Desistências e Reengajamento (`/gestao/pacientes`)
 * **Fluxo de Navegação:**
-  * Painel de prevenção ao abandono do tratamento psicológico.
+  * Não é mais uma tela própria. A rota `/retencao` foi removida: a auditoria é
+    conduzida a partir da linha do paciente, no painel lateral da gestão de
+    pacientes.
 * **Funcionalidades Principais:**
-  * **Alerta de Inatividade:** Identificação automática de pacientes sem sessões agendadas há mais de 14 ou 30 dias.
-  * **Risco de Evasão:** Métricas de faltas recorrentes ou desmarcações consecutivas.
-  * **Campanha de Reativação:** Ações rápidas para envio de mensagens acolhedoras via WhatsApp para agendamento de retorno.
+  * **Registro da Saída:** motivo obrigatório (financeiro, insatisfação com a
+    conduta, troca de abordagem, motivos pessoais, outro), detalhes e ação
+    sugerida de reengajamento. A identidade do paciente e do psicólogo vem do
+    cadastro, não de campo digitado.
+  * **Efeito Operacional:** o paciente deixa de contar como acompanhamento ativo
+    e a vaga do profissional é liberada no rodízio.
+  * **Fila de Reengajamento:** obtida filtrando `Status = Desistente` na
+    própria tabela; o selo `reengajado` marca quem já voltou.
+  * **Métricas:** total de desistências e taxa de reengajamento no cabeçalho da
+    página.
 
 ---
 
@@ -238,4 +247,4 @@ flowchart TB
 | **Relatórios Global (`/relatorios`)** | Visão individualizada | Visão consolidada 11 indicadores |
 | **Financeiro Global (`/financeiro`)** | Sem acesso | Completo |
 | **Supervisão (`/supervisao`)** | Criar/Ver seus casos | Validar & Assinar todos |
-| **Retenção (`/retencao`)** | Ver seus pacientes em risco | Ver métricas gerais |
+| **Desistências** | Registrar a saída de paciente da própria carteira (`/pacientes`) | Registrar e auditar a saída de qualquer paciente (`/gestao/pacientes`) |

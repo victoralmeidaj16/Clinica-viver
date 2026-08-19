@@ -1,5 +1,19 @@
+import type { MotivoDesistencia } from '@/lib/desistencias';
+
 export type PatientManagementStatus = 'EM_TRIAGEM' | 'ATIVO' | 'ALTA' | 'DESISTENTE';
 export type PatientSlaStatus = 'SEM_ALOCACAO' | 'ESTOURADO' | 'NO_PRAZO' | 'CONCLUIDO';
+
+/** Auditoria da saída daquele paciente, quando existe. */
+export interface PatientDropout {
+  id: string;
+  motivo: MotivoDesistencia;
+  descricaoDetalhada?: string;
+  acaoSugestao?: string;
+  dataDesistencia: string;
+  reengajado: boolean;
+  observacoesReengajamento?: string;
+  permitirTrocaPsicologo?: boolean;
+}
 
 export interface ManagedPatient {
   id: string;
@@ -34,6 +48,7 @@ export interface ManagedPatient {
   slaStatus: PatientSlaStatus;
   agenda: { total: number; realizadas: number; proximaEm?: string };
   financeiro: { cobrancas: number; totalCentavos: number; emAbertoCentavos: number };
+  desistencia?: PatientDropout;
 }
 
 export interface ManagedPsychologist { id: string; nome: string; }

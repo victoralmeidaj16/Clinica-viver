@@ -10,18 +10,28 @@ export interface BloqueioAgenda {
   motivo?: string;
 }
 
+export type NovoBloqueioAgenda =
+  | { tipo: 'dia'; inicioDia: string; fimDia: string; motivo: string }
+  | { tipo: 'horario'; data: string; horaInicio: string; horaFim: string; motivo: string };
+
 interface Props {
   bloqueios: readonly BloqueioAgenda[];
-  onAdicionar: (input: { inicioDia: string; fimDia: string; motivo: string }) => Promise<void>;
+  onAdicionar: (input: NovoBloqueioAgenda) => Promise<void>;
   onRemover: (id: string) => Promise<void>;
 }
 
 function rotuloPeriodo(bloqueio: BloqueioAgenda): string {
   const formato = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeZone: 'America/Sao_Paulo' });
+  const formatoHora = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
   const inicio = formato.format(new Date(bloqueio.inicio));
   // O fim é gravado no primeiro instante do dia seguinte; exibi-lo cru mostraria
   // ao profissional um dia a mais do que ele bloqueou.
   const fim = formato.format(new Date(Date.parse(bloqueio.fim) - 1));
+  const horaInicio = formatoHora.format(new Date(bloqueio.inicio));
+  const horaFim = formatoHora.format(new Date(bloqueio.fim));
+  const diaInteiro = horaInicio === '00:00' && horaFim === '00:00';
+  if (!diaInteiro && inicio === fim) return `${inicio}, ${horaInicio} às ${horaFim}`;
+  if (!diaInteiro) return `${inicio}, ${horaInicio} até ${fim}, ${horaFim}`;
   return inicio === fim ? inicio : `${inicio} a ${fim}`;
 }
 
@@ -37,7 +47,7 @@ export function AgendaBlocks({ bloqueios, onAdicionar, onRemover }: Props) {
     evento.preventDefault();
     setSalvando(true); setErro(undefined);
     try {
-      await onAdicionar({ inicioDia, fimDia: fimDia || inicioDia, motivo });
+      await onAdicionar({ tipo: 'dia', inicioDia, fimDia: fimDia || inicioDia, motivo });
       setInicioDia(''); setFimDia(''); setMotivo('');
     } catch (causa) {
       setErro(causa instanceof Error ? causa.message : 'Não foi possível bloquear o período.');

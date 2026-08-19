@@ -279,30 +279,61 @@ export async function createBlock(
   organizationId: string,
   professionalId: string,
   input: { inicio: string; fim: string; motivo?: string }
-): Promise<void> {
-  const pool = getMysqlPool();
-  const [profRows] = await pool.query<RowDataPacket[]>(
-    `SELECT p.id FROM clinica_profissionais p
-       JOIN clinica_organizacoes o ON o.id = p.organizacao_id
-      WHERE p.instituicao_id = ? AND o.ref_core = ? AND p.ref_core = ? LIMIT 1`,
-    [instituicaoId(), organizationId, professionalId]
-  );
-  const profissionalRowId = profRows[0]?.id as string | undefined;
-  if (!profissionalRowId) throw new Error('Perfil profissional não encontrado.');
+): Promise<'created' | 'appointment_conflict' | 'block_conflict'> {
+  const connection = await getMysqlPool().getConnection();
+  try {
+    await connection.beginTransaction();
+    const [profRows] = await connection.query<RowDataPacket[]>(
+      `SELECT p.id FROM clinica_profissionais p
+         JOIN clinica_organizacoes o ON o.id = p.organizacao_id
+        WHERE p.instituicao_id = ? AND o.ref_core = ? AND p.ref_core = ?
+        LIMIT 1 FOR UPDATE`,
+      [instituicaoId(), organizationId, professionalId]
+    );
+    const profissionalRowId = profRows[0]?.id as string | undefined;
+    if (!profissionalRowId) throw new Error('Perfil profissional não encontrado.');
 
-  await pool.execute(
-    `INSERT INTO clinica_agenda_bloqueios
-       (id, instituicao_id, profissional_id, inicio, fim, motivo)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [
-      randomUUID(),
-      instituicaoId(),
-      profissionalRowId,
-      new Date(input.inicio),
-      new Date(input.fim),
-      input.motivo?.trim() || null,
-    ]
-  );
+    const parametros = [
+      instituicaoId(), profissionalRowId, new Date(input.fim), new Date(input.inicio),
+    ];
+    const [agendamentos] = await connection.query<RowDataPacket[]>(
+      `SELECT id FROM clinica_agendamentos
+        WHERE instituicao_id = ? AND profissional_id = ? AND status <> 'cancelado'
+          AND inicio < ? AND COALESCE(fim, DATE_ADD(inicio, INTERVAL duracao_min MINUTE)) > ?
+        LIMIT 1 FOR UPDATE`,
+      parametros
+    );
+    if (agendamentos.length > 0) {
+      await connection.rollback();
+      return 'appointment_conflict';
+    }
+
+    const [bloqueios] = await connection.query<RowDataPacket[]>(
+      `SELECT id FROM clinica_agenda_bloqueios
+        WHERE instituicao_id = ? AND profissional_id = ? AND inicio < ? AND fim > ?
+        LIMIT 1 FOR UPDATE`,
+      parametros
+    );
+    if (bloqueios.length > 0) {
+      await connection.rollback();
+      return 'block_conflict';
+    }
+
+    await connection.execute(
+      `INSERT INTO clinica_agenda_bloqueios
+         (id, instituicao_id, profissional_id, inicio, fim, motivo)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [randomUUID(), instituicaoId(), profissionalRowId, new Date(input.inicio),
+        new Date(input.fim), input.motivo?.trim() || null]
+    );
+    await connection.commit();
+    return 'created';
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 }
 
 export async function deleteBlock(
@@ -613,6 +644,21 @@ export async function bookAppointment(
       ]
     );
     if (conflitos.length > 0) {
+      await connection.rollback();
+      return { ok: false, motivo: 'INDISPONIVEL' };
+    }
+
+    // A leitura inicial dos slots acontece antes da transação. Revalidar os
+    // bloqueios sob o mesmo mutex do profissional fecha a corrida entre um
+    // paciente agendando e o psicólogo bloqueando um compromisso externo.
+    const [bloqueios] = await connection.query<RowDataPacket[]>(
+      `SELECT b.id FROM clinica_agenda_bloqueios b
+        WHERE b.instituicao_id = ? AND b.profissional_id = ?
+          AND b.inicio < ? AND b.fim > ?
+        FOR UPDATE`,
+      [instituicaoId(), paciente.professionalRowId, new Date(slot.fim), new Date(slot.inicio)]
+    );
+    if (bloqueios.length > 0) {
       await connection.rollback();
       return { ok: false, motivo: 'INDISPONIVEL' };
     }

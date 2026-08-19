@@ -1,8 +1,8 @@
 import 'server-only';
 
-import { instanteLocal } from '@thats-life/core';
 import type { RequestContext } from './context';
 import { ApplicationError } from './http';
+import { parseAgendaBlockInput } from '@/server/scheduling/agendaBlockInput';
 import {
   cancelAppointment,
   createBlock,
@@ -138,20 +138,20 @@ export async function saveAvailability(context: RequestContext, janelas: readonl
  */
 export async function addBlock(context: RequestContext, body: Record<string, unknown>) {
   const { organizationId, professionalId } = perfilDaSessao(context);
-  const inicioDia = String(body.inicioDia ?? '');
-  const fimDia = String(body.fimDia ?? inicioDia);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(inicioDia) || !/^\d{4}-\d{2}-\d{2}$/.test(fimDia)) {
-    throw new ApplicationError('INVALID_INPUT', 'Informe as datas do bloqueio.', 400);
-  }
-  if (fimDia < inicioDia) {
-    throw new ApplicationError('INVALID_INPUT', 'A data final não pode ser anterior à inicial.', 400);
-  }
+  const parsed = parseAgendaBlockInput(body);
+  if (!parsed.ok) throw new ApplicationError('INVALID_INPUT', parsed.mensagem, 400);
 
-  await createBlock(organizationId, professionalId, {
-    inicio: new Date(instanteLocal(inicioDia, '00:00')).toISOString(),
-    fim: new Date(instanteLocal(fimDia, '00:00') + 24 * 60 * 60_000).toISOString(),
-    motivo: typeof body.motivo === 'string' ? body.motivo : undefined,
-  });
+  const resultado = await createBlock(organizationId, professionalId, parsed.intervalo);
+  if (resultado === 'appointment_conflict') {
+    throw new ApplicationError(
+      'APPOINTMENT_CONFLICT',
+      'Já existe uma sessão da clínica nesse período. Cancele ou reagende a sessão antes de bloquear.',
+      409
+    );
+  }
+  if (resultado === 'block_conflict') {
+    throw new ApplicationError('BLOCK_CONFLICT', 'Esse período já possui um bloqueio.', 409);
+  }
   return { blocks: await listBlocks(organizationId, professionalId) };
 }
 

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { CalendarDays, Loader2 } from 'lucide-react';
 import { applicationRequest } from '@/lib/applicationApi';
-import { AgendaBlocks, type BloqueioAgenda } from '@/components/scheduling/AgendaBlocks';
+import { AgendaBlocks, type BloqueioAgenda, type NovoBloqueioAgenda } from '@/components/scheduling/AgendaBlocks';
 import { AgendaShareCard } from '@/components/scheduling/AgendaShareCard';
 import { AvailabilityEditor, type JanelaEditavel } from '@/components/scheduling/AvailabilityEditor';
 import { UpcomingSessions, type AgendamentoResumo } from '@/components/scheduling/UpcomingSessions';
@@ -46,7 +46,7 @@ export default function AgendaPage() {
     setDados((atual) => (atual ? { ...atual, availability: resposta.availability } : atual));
   };
 
-  const adicionarBloqueio = async (input: { inicioDia: string; fimDia: string; motivo: string }) => {
+  const adicionarBloqueio = async (input: NovoBloqueioAgenda) => {
     const resposta = await applicationRequest<{ blocks: BloqueioAgenda[] }>('/agenda/bloqueios', {
       method: 'POST',
       body: JSON.stringify(input),

@@ -26,25 +26,43 @@ function texto(elemento: Element | undefined): string | undefined {
   return elemento?.textContent?.trim() || undefined;
 }
 
+interface LeiauteFiscal {
+  /** Elemento raiz do documento, como o esquema o nomeia. */
+  raiz: string;
+  /** Elemento assinado, que carrega o atributo `Id`. */
+  elementoAssinado: string;
+  /** Versões do leiaute aceitas no atributo `versao` da raiz. */
+  versoes: readonly string[];
+  /** Padrão do `Id`, conforme o tipo simples do esquema. */
+  padraoId: RegExp;
+  /** Como descrever o padrão do `Id` a quem lê o erro. */
+  descricaoId: string;
+}
+
 /**
  * Pré-validação estrutural do XML que complementa o XSD oficial. Em tempo de
  * execução verificamos também as regras que o XSD deliberadamente não fixa
  * (por exemplo URI e algoritmos XMLDSig), antes de abrir conexão com a SEFIN.
  */
-export function validarDpsAssinada(xml: string, certificado: CertificadoNfse): void {
+function validarXmlFiscalAssinado(
+  xml: string,
+  certificado: CertificadoNfse,
+  leiaute: LeiauteFiscal
+): void {
   const documento = new DOMParser({ errorHandler: { warning() {}, error() {}, fatalError() {} } }).parseFromString(xml, 'application/xml');
   const raiz = documento.documentElement;
-  if (!raiz || raiz.localName !== 'DPS' || raiz.namespaceURI !== NS_NFSE || raiz.getAttribute('versao') !== '1.01') {
-    throw new Error('A DPS assinada não está no leiaute NFS-e v1.01.');
+  const versao = raiz?.getAttribute('versao') ?? '';
+  if (!raiz || raiz.localName !== leiaute.raiz || raiz.namespaceURI !== NS_NFSE || !leiaute.versoes.includes(versao)) {
+    throw new Error(`O XML assinado não está no leiaute NFS-e ${leiaute.raiz} ${leiaute.versoes.join(' ou ')}.`);
   }
 
-  const informacao = elementos(documento, NS_NFSE, 'infDPS');
+  const informacao = elementos(documento, NS_NFSE, leiaute.elementoAssinado);
   const assinatura = elementos(documento, NS_DSIG, 'Signature');
   if (informacao.length !== 1 || assinatura.length !== 1) {
-    throw new Error('A DPS deve conter exatamente um infDPS e uma assinatura XMLDSig.');
+    throw new Error(`O documento deve conter exatamente um ${leiaute.elementoAssinado} e uma assinatura XMLDSig.`);
   }
-  const dpsId = informacao[0].getAttribute('Id') ?? '';
-  if (!/^DPS\d{42}$/.test(dpsId)) throw new Error('O Id da DPS não respeita o formato DPS seguido de 42 dígitos.');
+  const id = informacao[0].getAttribute('Id') ?? '';
+  if (!leiaute.padraoId.test(id)) throw new Error(`O Id do documento não respeita o formato ${leiaute.descricaoId}.`);
 
   const assinaturaMethod = elementos(documento, NS_DSIG, 'SignatureMethod')[0]?.getAttribute('Algorithm');
   const canonicalizacao = elementos(documento, NS_DSIG, 'CanonicalizationMethod')[0]?.getAttribute('Algorithm');
@@ -55,21 +73,52 @@ export function validarDpsAssinada(xml: string, certificado: CertificadoNfse): v
     assinaturaMethod !== PERFIL_ASSINATURA_DPS.assinatura ||
     canonicalizacao !== PERFIL_ASSINATURA_DPS.canonicalizacao ||
     digest !== PERFIL_ASSINATURA_DPS.digest ||
-    referencia?.getAttribute('URI') !== `#${dpsId}` ||
+    referencia?.getAttribute('URI') !== `#${id}` ||
     transforms.length !== 2 || transforms[0] !== PERFIL_ASSINATURA_DPS.enveloped ||
     transforms[1] !== PERFIL_ASSINATURA_DPS.canonicalizacao
   ) {
-    throw new Error('A assinatura da DPS não corresponde ao perfil XMLDSig exigido pela NFS-e Nacional.');
+    throw new Error('A assinatura não corresponde ao perfil XMLDSig exigido pela NFS-e Nacional.');
   }
 
   const certificados = elementos(documento, NS_DSIG, 'X509Certificate');
   if (certificados.length !== 1 || !texto(certificados[0])) {
-    throw new Error('A assinatura da DPS deve conter apenas o certificado final (EndCertOnly).');
+    throw new Error('A assinatura deve conter apenas o certificado final (EndCertOnly).');
   }
 
   const verificador = new SignedXml({ publicCert: certificado.certificadoPem });
   verificador.loadSignature(assinatura[0]);
   if (!verificador.checkSignature(xml)) {
-    throw new Error('A assinatura criptográfica da DPS não pôde ser verificada com o certificado da clínica.');
+    throw new Error('A assinatura criptográfica não pôde ser verificada com o certificado da clínica.');
   }
+}
+
+/** Declaração de prestação de serviço, antes do envio à SEFIN. */
+export function validarDpsAssinada(xml: string, certificado: CertificadoNfse): void {
+  validarXmlFiscalAssinado(xml, certificado, {
+    raiz: 'DPS',
+    elementoAssinado: 'infDPS',
+    versoes: ['1.01'],
+    padraoId: /^DPS\d{42}$/,
+    descricaoId: 'DPS seguido de 42 dígitos',
+  });
+}
+
+/**
+ * Pedido de registro de evento (cancelamento), antes do envio à SEFIN.
+ *
+ * Existe porque a falta dela custou caro: o pedido saía sem conferência
+ * nenhuma, e três defeitos de leiaute — `Id` com o sequencial indevido,
+ * `nPedRegEvento` inexistente e a ordem de `CNPJAutor`/`chNFSe` trocada — só
+ * apareceram como `E1235` vindo da SEFIN, um de cada vez, depois de 14
+ * tentativas. O padrão do `Id` aqui é o `TSIdPedRegEvt` do esquema oficial:
+ * `PRE` seguido de 56 dígitos.
+ */
+export function validarPedidoEventoAssinado(xml: string, certificado: CertificadoNfse): void {
+  validarXmlFiscalAssinado(xml, certificado, {
+    raiz: 'pedRegEvento',
+    elementoAssinado: 'infPedReg',
+    versoes: ['1.00', '1.01'],
+    padraoId: /^PRE\d{56}$/,
+    descricaoId: 'PRE seguido de 56 dígitos',
+  });
 }

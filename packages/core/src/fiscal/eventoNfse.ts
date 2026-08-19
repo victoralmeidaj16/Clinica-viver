@@ -7,42 +7,66 @@ import { codigo, dataHoraComOffset, escaparXml, somenteDigitos, textoObrigatorio
  * documento assinado, enviado a `POST /nfse/{chaveAcesso}/eventos`. O evento
  * `101101` é o cancelamento por iniciativa do prestador.
  *
- * O leiaute abaixo segue `pedRegEvento_v1.00.xsd` e o Anexo I do Manual dos
- * Contribuintes. Duas coisas aqui **precisam ser confirmadas contra o MOC
- * vigente antes do primeiro cancelamento em produção**, porque errá-las produz
- * rejeição e não perda de dado:
+ * O leiaute segue `pedRegEvento_v1.01.xsd` do pacote oficial
+ * `NFSe-ESQUEMAS_XSD-v1.01-20260209`, em gov.br/nfse → Documentação Técnica →
+ * Documentação Atual:
  *
- *  1. a composição do `Id` (`PRE` + chave + tipo do evento + sequencial); e
- *  2. a tabela de `cMotivo` do grupo `e101101` — este módulo valida o formato
- *     do código, não o significado dele, justamente para não inventar uma
- *     tabela que o manual define.
+ *     https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/documentacao-atual/nfse-esquemas_xsd-v1-01-20260209.zip
  *
- * ## Estado verificado (produção restrita, agosto/2026)
+ * O XML gerado aqui foi validado contra esse esquema com
+ * `xmllint --schema pedRegEvento_v1.01.xsd`, e é assim que se confere uma
+ * alteração neste arquivo sem depender de uma chamada à SEFIN.
  *
- * A emissão funciona ponta a ponta, mas **o cancelamento ainda não**. Testado
- * contra `SefinNacional_1.6.0` com o certificado real, o esquema recusa o `Id`:
+ * ## O que a produção restrita recusava, e por quê
+ *
+ * Em agosto/2026 a emissão funcionava ponta a ponta e o cancelamento não: o
+ * `SefinNacional_1.6.0` devolvia
  *
  *     E1235 — The 'Id' attribute is invalid ... datatype 'TSIdPedRegEvt'
  *             The Pattern constraint failed.
  *
- * Foram sondadas 14 composições (prefixos `PRE`/`PED`/`EVE`/`ID`/nenhum,
- * sequencial de 1 a 5 dígitos, tipo do evento antes e depois da chave, e sem
- * tipo). Todas recusadas — ou seja, o formato não é nenhuma variação óbvia da
- * regra da NF-e, e sair testando às cegas só gera ruído.
+ * Foram sondadas 14 composições de `Id` às cegas, todas recusadas. A resposta
+ * estava no XSD, e são **três** defeitos, não um:
  *
- * O que destrava: o padrão de `TSIdPedRegEvt` no `pedRegEvento_v1.00.xsd`, que
- * está no pacote de esquemas do Anexo I. Uma linha do XSD resolve, e é por isso
- * que este comentário existe em vez de mais um palpite no código.
+ *  1. **O `Id` tinha três dígitos a mais.** `tiposSimples_v1.01.xsd` define
+ *     `TSIdPedRegEvt` como `maxLength 59` e `pattern "PRE[0-9]{56}"`. São 56
+ *     dígitos = chave de acesso (50) + tipo do evento (6). O sequencial do
+ *     pedido **não entra** — quem o carrega é o `Id` do evento devolvido pela
+ *     SEFIN (`TSIdEvento`, `EVT[0-9]{59}`, que soma os 3 dígitos do
+ *     `nPedRegEvento`). Confundir os dois era o erro.
+ *  2. **`<nPedRegEvento>` não existe no pedido.** A sequência de `TCInfPedReg`
+ *     é `tpAmb`, `verAplic`, `dhEvento`, (`CNPJAutor`|`CPFAutor`), `chNFSe` e o
+ *     grupo do evento. O elemento era invenção nossa, em nenhuma das versões do
+ *     esquema.
+ *  3. **`CNPJAutor` e `chNFSe` estavam trocados.** A sequência é ordenada, e o
+ *     XSD põe o autor antes da chave.
  *
- * O prazo de cancelamento também é municipal: passado o prazo, a via é a
- * substituição da nota, que é outro evento e outro gerador.
+ * O padrão `PRE[0-9]{56}` é idêntico em 1.00 e 1.01 — nunca mudou. O que muda
+ * entre as versões é só o nome do tipo (`TSIdPedRefEvt` em 1.00), o que
+ * descarta a hipótese de leiaute antigo.
+ *
+ * ## O que ainda depende do município
+ *
+ * O `cMotivo` é a tabela `TSCodJustCanc`, que o esquema fecha em três valores —
+ * 1 erro na emissão, 2 serviço não prestado, 9 outros — e este módulo agora
+ * recusa qualquer outro. Já o **prazo** de cancelamento é municipal: vencido
+ * ele, a via é a substituição da nota, que é outro evento (`105102`) e outro
+ * gerador.
  */
 
 export const NAMESPACE_NFSE_EVENTO = 'http://www.sped.fazenda.gov.br/nfse';
-export const VERSAO_PEDIDO_EVENTO = '1.00';
+/**
+ * `TVerNFSe` aceita `1.00` e `1.01`, e a estrutura do cancelamento é idêntica
+ * nas duas — voltar atrás é trocar esta constante e mais nada.
+ */
+export const VERSAO_PEDIDO_EVENTO = '1.01';
 
 /** Cancelamento de NFS-e por solicitação do emitente. */
 export const TIPO_EVENTO_CANCELAMENTO = '101101';
+
+/** Tabela `TSCodJustCanc` do esquema: os únicos motivos que a SEFIN aceita. */
+export const MOTIVOS_CANCELAMENTO_NFSE = ['1', '2', '9'] as const;
+export type MotivoCancelamentoNfse = (typeof MOTIVOS_CANCELAMENTO_NFSE)[number];
 
 export interface PedidoCancelamentoInput {
   /** `1` produção, `2` produção restrita. */
@@ -51,7 +75,13 @@ export interface PedidoCancelamentoInput {
   chaveAcesso: string;
   /** CNPJ de quem pede o evento; é o titular do certificado que assina. */
   cnpjAutor: string;
-  /** Sequencial do pedido para esta nota e este tipo de evento, a partir de 1. */
+  /**
+   * Sequencial do pedido para esta nota e este tipo de evento, a partir de 1.
+   *
+   * Controle da clínica: não entra no `Id` nem no XML — é a SEFIN que o devolve
+   * no `Id` do evento registrado. Fica aqui porque é ele que identifica a
+   * tentativa na trilha fiscal quando um pedido falha e outro é enviado.
+   */
   numeroPedido: number | string;
   /** Data/hora do evento com offset, por exemplo `2026-08-17T14:30:00-03:00`. */
   ocorridoEm: string;
@@ -86,9 +116,11 @@ function numeroPedidoEvento(valor: number | string): string {
 export function gerarPedidoCancelamentoNfse(input: PedidoCancelamentoInput): PedidoEventoGerado {
   const chaveAcesso = codigo(input.chaveAcesso, 'A chave de acesso da NFS-e', 50);
   const cnpjAutor = codigo(input.cnpjAutor, 'O CNPJ do autor do evento', 14);
+  // `TSCodJustCanc` fecha a tabela em três valores. Aceitar dois dígitos
+  // quaisquer, como antes, só adiava a recusa para dentro da SEFIN.
   const codigoMotivo = somenteDigitos(input.codigoMotivo);
-  if (!/^\d{1,2}$/.test(codigoMotivo)) {
-    throw new Error('O código do motivo do cancelamento deve ter 1 ou 2 dígitos.');
+  if (!MOTIVOS_CANCELAMENTO_NFSE.includes(codigoMotivo as MotivoCancelamentoNfse)) {
+    throw new Error('O motivo do cancelamento deve ser 1 (erro na emissão), 2 (serviço não prestado) ou 9 (outros).');
   }
   // O mínimo existe para que a justificativa signifique algo: "erro" não conta
   // por que a nota foi cancelada, e é o tomador que lê esse campo.
@@ -97,17 +129,21 @@ export function gerarPedidoCancelamentoNfse(input: PedidoCancelamentoInput): Ped
   const ocorridoEm = dataHoraComOffset(input.ocorridoEm, 'A data/hora do evento');
   const numeroPedido = numeroPedidoEvento(input.numeroPedido);
 
-  const id = `PRE${chaveAcesso}${TIPO_EVENTO_CANCELAMENTO}${numeroPedido.padStart(3, '0')}`;
+  // `PRE` + chave (50) + tipo do evento (6) = os 56 dígitos de `TSIdPedRegEvt`.
+  const id = `PRE${chaveAcesso}${TIPO_EVENTO_CANCELAMENTO}`;
+  if (!/^PRE\d{56}$/.test(id)) {
+    throw new Error('O Id do pedido de evento não respeita o padrão PRE seguido de 56 dígitos.');
+  }
 
+  // A sequência de `TCInfPedReg` é ordenada: autor antes da chave.
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <pedRegEvento xmlns="${NAMESPACE_NFSE_EVENTO}" versao="${VERSAO_PEDIDO_EVENTO}">
   <infPedReg Id="${id}">
     <tpAmb>${input.ambiente}</tpAmb>
     <verAplic>${escaparXml(versaoAplicativo)}</verAplic>
     <dhEvento>${ocorridoEm}</dhEvento>
-    <nPedRegEvento>${numeroPedido}</nPedRegEvento>
-    <chNFSe>${chaveAcesso}</chNFSe>
     <CNPJAutor>${cnpjAutor}</CNPJAutor>
+    <chNFSe>${chaveAcesso}</chNFSe>
     <e${TIPO_EVENTO_CANCELAMENTO}>
       <xDesc>Cancelamento de NFS-e</xDesc>
       <cMotivo>${codigoMotivo}</cMotivo>

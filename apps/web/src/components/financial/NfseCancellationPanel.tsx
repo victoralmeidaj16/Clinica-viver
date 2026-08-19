@@ -1,14 +1,28 @@
 import { useState } from 'react';
 import { Ban } from 'lucide-react';
+import type { MotivoCancelamentoNfse } from '@thats-life/core';
+
+/**
+ * Tabela `TSCodJustCanc` do esquema da NFS-e nacional — os três únicos códigos
+ * que a SEFIN aceita. Antes o pedido saía sempre como `1`, o que obrigava a
+ * clínica a registrar como "erro na emissão" um atendimento que simplesmente
+ * não aconteceu.
+ */
+const MOTIVOS: ReadonlyArray<[MotivoCancelamentoNfse, string]> = [
+  ['1', 'Erro na emissão'],
+  ['2', 'Serviço não prestado'],
+  ['9', 'Outros'],
+];
 
 export function NfseCancellationPanel({
   cancelando,
   onCancelar,
 }: {
   cancelando: boolean;
-  onCancelar: (motivo: string) => void;
+  onCancelar: (motivo: string, codigoMotivo: MotivoCancelamentoNfse) => void;
 }) {
   const [motivo, setMotivo] = useState('');
+  const [codigoMotivo, setCodigoMotivo] = useState<MotivoCancelamentoNfse>('1');
   const [aberto, setAberto] = useState(false);
   const motivoValido = motivo.trim().length >= 15;
 
@@ -23,6 +37,17 @@ export function NfseCancellationPanel({
         </div>
       ) : (
         <div className="space-y-2">
+          <label htmlFor="codigo-motivo-cancelamento" className="text-[10px] font-bold uppercase tracking-wider text-rose-900">
+            Motivo
+          </label>
+          <select
+            id="codigo-motivo-cancelamento"
+            value={codigoMotivo}
+            onChange={(evento) => setCodigoMotivo(evento.target.value as MotivoCancelamentoNfse)}
+            className="w-full rounded-xl border border-rose-200 bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-rose-400"
+          >
+            {MOTIVOS.map(([codigo, rotulo]) => <option key={codigo} value={codigo}>{rotulo}</option>)}
+          </select>
           <label htmlFor="motivo-cancelamento" className="text-[10px] font-bold uppercase tracking-wider text-rose-900">
             Justificativa do cancelamento
           </label>
@@ -39,12 +64,12 @@ export function NfseCancellationPanel({
             O prazo de cancelamento é definido pelo município. Passado o prazo, a via é substituir a nota.
           </p>
           <div className="flex flex-wrap justify-end gap-2">
-            <button type="button" onClick={() => { setAberto(false); setMotivo(''); }} className="rounded-xl px-3 py-2 text-[11px] font-bold text-muted hover:bg-slate-100">
+            <button type="button" onClick={() => { setAberto(false); setMotivo(''); setCodigoMotivo('1'); }} className="rounded-xl px-3 py-2 text-[11px] font-bold text-muted hover:bg-slate-100">
               Voltar
             </button>
             <button
               type="button"
-              onClick={() => onCancelar(motivo.trim())}
+              onClick={() => onCancelar(motivo.trim(), codigoMotivo)}
               disabled={!motivoValido || cancelando}
               title={motivoValido ? 'Registrar o evento de cancelamento' : 'Descreva o motivo com pelo menos 15 caracteres'}
               className="rounded-xl bg-rose-600 px-4 py-2 text-[11px] font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-50"

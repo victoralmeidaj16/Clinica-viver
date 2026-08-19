@@ -14,7 +14,7 @@ import {
   registrarEvento, SefinNacionalError, type RespostaSefin,
 } from '@/server/fiscal/sefinNacional';
 import { assinarXmlFiscal } from '@/server/fiscal/assinaturaXmlFiscal';
-import { validarDpsAssinada } from '@/server/fiscal/validacaoDps';
+import { validarDpsAssinada, validarPedidoEventoAssinado } from '@/server/fiscal/validacaoXmlFiscal';
 
 function serieDps(): string {
   const numero = Number(process.env.NFSE_DPS_SERIE?.trim() || '1');
@@ -314,6 +314,10 @@ export async function cancelarNfse(
     const xmlAssinado = assinarXmlFiscal(pedido.xml, exigirCertificadoNfseApto(), {
       idDoElemento: pedido.id, nomeDoElemento: 'infPedReg',
     });
+    // Mesma conferência que a DPS já fazia antes de sair. Aqui ela vem depois
+    // de a falta dela ter transformado três erros de leiaute em três viagens à
+    // SEFIN — e o pedido é gravado só depois de passar.
+    validarPedidoEventoAssinado(xmlAssinado, exigirCertificadoNfseApto());
     await repositorio.salvarPedidoEvento(reserva.id, pedido.id, xmlAssinado);
 
     const resposta = await registrarEvento(emissao.chaveAcesso, xmlAssinado);

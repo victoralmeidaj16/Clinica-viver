@@ -2,6 +2,7 @@
 
 import { AlertTriangle, FileText, Loader2, ShieldCheck, X } from 'lucide-react';
 import { NfseCancellationPanel } from './NfseCancellationPanel';
+import type { MotivoCancelamentoNfse } from '@thats-life/core';
 import { NfsePreviewDetails } from './NfsePreviewDetails';
 import { NfseStatusPanel } from './NfseStatusPanel';
 import type { NfseEmissao, NfsePreview } from './nfseTypes';
@@ -18,7 +19,7 @@ interface NfsePreviewModalProps {
   cancelando: boolean;
   salvandoCpf: boolean;
   onConfirmar: () => void;
-  onCancelar: (motivo: string) => void;
+  onCancelar: (motivo: string, codigoMotivo: MotivoCancelamentoNfse) => void;
   onSalvarCpf: (cpf: string) => void;
   onFechar: () => void;
   urlXml: (tipo: 'nfse' | 'dps') => string;

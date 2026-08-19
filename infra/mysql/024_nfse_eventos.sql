@@ -1,9 +1,13 @@
 -- Eventos da NFS-e: cancelamento e o que mais vier depois da emissão.
 --
 -- Nota emitida não se apaga nem se edita: o que existe é um pedido de registro
--- de evento, assinado e numerado por nota. A numeração precisa sobreviver ao
--- processo, porque reenviar um pedido com sequencial repetido é rejeição — e
--- reenviar com sequencial novo, quando o primeiro passou, é um segundo evento.
+-- de evento, assinado e numerado por nota.
+--
+-- O sequencial é controle desta clínica, não do documento: o `Id` do pedido é
+-- `PRE` + chave + tipo do evento (`TSIdPedRegEvt`, 56 dígitos), e quem carrega
+-- o número do pedido é o `Id` do evento que a SEFIN devolve. A numeração
+-- continua persistida porque é ela que distingue uma tentativa da seguinte na
+-- trilha fiscal quando um pedido falha e outro é enviado.
 --
 -- Guarda-se o XML do pedido e a resposta crua da SEFIN pelo mesmo motivo de
 -- `fiscal_nfse_emissoes`: em discussão fiscal o que vale é o documento, não o
@@ -32,7 +36,7 @@ CREATE TABLE IF NOT EXISTS fiscal_nfse_eventos (
   CONSTRAINT fiscal_nfse_eventos_instituicao_fk FOREIGN KEY (instituicao_id) REFERENCES instituicoes(id),
   CONSTRAINT fiscal_nfse_eventos_emissao_fk FOREIGN KEY (emissao_id) REFERENCES fiscal_nfse_emissoes(id),
   -- A trava que impede dois cancelamentos concorrentes da mesma nota virarem
-  -- dois pedidos com o mesmo sequencial.
+  -- duas linhas com o mesmo sequencial, perdendo uma tentativa da trilha.
   UNIQUE KEY fiscal_nfse_eventos_sequencial_uq (instituicao_id, emissao_id, tipo_evento, numero_pedido),
   KEY fiscal_nfse_eventos_chave_idx (instituicao_id, chave_acesso)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

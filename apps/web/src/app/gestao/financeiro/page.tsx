@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import type { MotivoCancelamentoNfse } from '@thats-life/core';
 import {
   AlertTriangle,
   Building2,
@@ -303,7 +304,7 @@ export default function FinanceiroClinicaPage() {
     }
   };
 
-  const cancelarEmissaoNfse = async (motivo: string) => {
+  const cancelarEmissaoNfse = async (motivo: string, codigoMotivo: MotivoCancelamentoNfse) => {
     if (!cobrancaNfseId) return;
     setCancelandoNfse(true);
     setErroNfse('');
@@ -313,7 +314,7 @@ export default function FinanceiroClinicaPage() {
         {
           method: 'POST',
           headers: commandHeaders(),
-          body: JSON.stringify({ confirmar: true, motivo }),
+          body: JSON.stringify({ confirmar: true, motivo, codigoMotivo }),
         }
       );
       setSucessoNfse('NFS-e cancelada com sucesso.');
@@ -727,7 +728,7 @@ export default function FinanceiroClinicaPage() {
           cancelando={cancelandoNfse}
           salvandoCpf={salvandoCpf}
           onConfirmar={() => void confirmarEmissaoNfse()}
-          onCancelar={(motivo) => void cancelarEmissaoNfse(motivo)}
+          onCancelar={(motivo, codigoMotivo) => void cancelarEmissaoNfse(motivo, codigoMotivo)}
           onSalvarCpf={(cpf) => void salvarCpfDaNfse(cpf)}
           onFechar={() => setNfseAberta(false)}
           urlXml={urlXmlNfse}

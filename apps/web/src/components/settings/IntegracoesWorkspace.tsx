@@ -1,28 +1,16 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ShieldCheck, QrCode, CreditCard, MessageSquare, Check, RefreshCw, Key, Globe } from 'lucide-react';
+import { ShieldCheck, QrCode, MessageSquare, Check, RefreshCw, Key, Globe } from 'lucide-react';
 import { getDefaultIntegrationSettings, type IntegrationSettings } from '@thats-life/core';
+import { AsaasIntegrationCard } from './AsaasIntegrationCard';
 import { NfseIntegrationCard } from './NfseIntegrationCard';
 
 export default function IntegracoesWorkspace() {
   const [settings, setSettings] = useState<IntegrationSettings>(getDefaultIntegrationSettings());
-  const [isSaving, setIsSaving] = useState(false);
   const [isConnectingEvolution, setIsConnectingEvolution] = useState(false);
   const [qrCodeGenerated, setQrCodeGenerated] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  const handleSaveAsaas = () => {
-    setIsSaving(true);
-    setTimeout(() => {
-      setIsSaving(false);
-      setSettings((prev) => ({
-        ...prev,
-        asaas: { ...prev.asaas, enabled: true },
-      }));
-      showToast('Integração com Asaas salva e ativada com sucesso!');
-    }, 800);
-  };
 
   const handleConnectEvolution = () => {
     setIsConnectingEvolution(true);
@@ -77,84 +65,10 @@ export default function IntegracoesWorkspace() {
         </div>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
-        {/* Card 1: Integração Asaas (Cobranças / PIX / Cartão) */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between space-y-6">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl border border-blue-100">
-                  <CreditCard className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-slate-900">Asaas (Cobranças & PIX)</h3>
-                  <p className="text-xs text-slate-500">Emissão de boletos, PIX e cartão para pacientes</p>
-                </div>
-              </div>
-              <span
-                className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full ${
-                  settings.asaas.enabled
-                    ? 'bg-emerald-100 text-emerald-800'
-                    : 'bg-slate-100 text-slate-600'
-                }`}
-              >
-                {settings.asaas.enabled ? 'ATIVADO' : 'INATIVO'}
-              </span>
-            </div>
+      <AsaasIntegrationCard />
 
-            <div className="space-y-3 pt-2">
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Ambiente</label>
-                <select
-                  value={settings.asaas.environment}
-                  onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      asaas: {
-                        ...settings.asaas,
-                        environment: e.target.value as IntegrationSettings['asaas']['environment'],
-                      },
-                    })
-                  }
-                  className="w-full text-xs font-semibold p-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none"
-                >
-                  <option value="sandbox">Sandbox (Ambiente de Testes)</option>
-                  <option value="production">Produção (Conta Real Asaas)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Chave de API (API Key Asaas)</label>
-                <div className="relative">
-                  <input
-                    type="password"
-                    placeholder="$aact_YTU5YTE0M2M6..."
-                    value={settings.asaas.apiKey}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        asaas: { ...settings.asaas, apiKey: e.target.value },
-                      })
-                    }
-                    className="w-full text-xs font-mono p-3 pl-9 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none"
-                  />
-                  <Key className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <button
-            onClick={handleSaveAsaas}
-            disabled={isSaving || !settings.asaas.apiKey}
-            className="w-full py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold rounded-xl text-xs flex items-center justify-center space-x-2 transition-all shadow-md shadow-blue-600/20"
-          >
-            {isSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-            <span>Salvar e Ativar Asaas</span>
-          </button>
-        </div>
-
-        {/* Card 2: Evolution API (WhatsApp) */}
+      <div className="grid gap-6">
+        {/* Evolution API (WhatsApp) */}
         <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between space-y-6">
           <div className="space-y-4">
             <div className="flex items-center justify-between">

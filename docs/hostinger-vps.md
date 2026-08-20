@@ -62,10 +62,15 @@ Compose, use o caminho **interno** ao container:
 NFSE_CERT_HOST_DIR=/opt/viver-mais/secrets/nfse
 NFSE_CERT_PFX_PATH=/run/secrets/nfse/certificado.pfx
 NFSE_CERT_PASSWORD=<senha do A1>
-NFSE_AMBIENTE=producao_restrita
+NFSE_AMBIENTE=producao
 NFSE_DPS_SERIE=1
 NFSE_VERSAO_APLICATIVO=viver-mais-1.0
 ```
+
+Use `producao_restrita` somente durante a homologação. Alterar para `producao`
+habilita documentos fiscais com validade jurídica; faça a troca apenas depois
+de confirmar o convênio municipal, o CNPJ do certificado e os dados tributários
+com a contabilidade.
 
 Nunca copie o `.pfx` para `/opt/viver-mais` fora de `secrets/`, nem para a
 Vercel. A migração `020_nfse_dps.sql` precisa estar aplicada antes de liberar
@@ -83,14 +88,17 @@ igual a `.deploy-sha`.
 
 ### Asaas para links de pagamento
 
-As credenciais ficam somente em `/opt/viver-mais/infra/clinic/.env`. Para
-homologar sem movimentar dinheiro real, configure primeiro:
+As credenciais ficam somente em `/opt/viver-mais/infra/clinic/.env`. No
+ambiente produtivo, use a URL oficial e uma chave criada na conta real:
 
 ```sh
-ASAAS_API_URL=https://api-sandbox.asaas.com/v3
-ASAAS_API_KEY=<nova chave do sandbox>
+ASAAS_API_URL=https://api.asaas.com/v3
+ASAAS_API_KEY=<nova-chave-de-producao>
 ASAAS_WEBHOOK_TOKEN=<token aleatório e exclusivo>
 ```
+
+Chave de sandbox (`$aact_hmlg_`) e URL de produção não podem ser misturadas. O
+backend recusa a configuração quando os ambientes não correspondem.
 
 No painel Asaas, cadastre o webhook em
 `https://app.clinicavivermais.cloud/api/financeiro/asaas/webhook`, usando
@@ -98,6 +106,11 @@ exatamente o mesmo token. A aplicação exige o cabeçalho de autenticação e
 concilia `PAYMENT_CONFIRMED` e `PAYMENT_RECEIVED` de modo idempotente.
 As chaves não devem ser configuradas na Vercel: as rotas de pagamento são
 encaminhadas ao backend da VPS.
+
+Depois do deploy, abra **Configurações → Integrações** pelo link da Vercel. O
+cartão do Asaas deve exibir `PRODUÇÃO ATIVA`, e o cartão fiscal deve exibir
+`APTO PARA EMISSÃO`. Esses diagnósticos consultam os provedores reais sem
+mostrar as credenciais e sem criar cobrança ou nota.
 
 ### Transbordo automático do SLA
 

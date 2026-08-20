@@ -289,7 +289,9 @@ async function competenciaFiscalDaCobranca(
         422
       );
     }
-    return competenciaNfseDoAtendimento(sessao.actualStart ?? sessao.scheduledStart);
+    const comp = competenciaNfseDoAtendimento(sessao.actualStart ?? sessao.scheduledStart);
+    const hoje = competenciaNfseDoAtendimento(new Date().toISOString());
+    return comp > hoje ? hoje : comp;
   }
 
   const agendamentoDireto = await store.appointments.getById(organizationId, charge.sessionId);
@@ -318,7 +320,9 @@ async function competenciaFiscalDaCobranca(
       422
     );
   }
-  return competenciaNfseDoAtendimento(agendamento.startsAt);
+  const competenciaCalculada = competenciaNfseDoAtendimento(agendamento.startsAt);
+  const hoje = competenciaNfseDoAtendimento(new Date().toISOString());
+  return competenciaCalculada > hoje ? hoje : competenciaCalculada;
 }
 
 /**

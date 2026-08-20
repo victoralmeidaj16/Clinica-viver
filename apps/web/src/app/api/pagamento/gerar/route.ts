@@ -66,7 +66,7 @@ export async function POST(request: Request) {
         value: checkout.amountCents / 100,
         dueDate,
         description: `Sessão de Psicoterapia - ${checkout.professionalName}`,
-        billingType: 'UNDEFINED',
+        billingType: (checkout.amountCents / 100) < 10 ? 'PIX' : 'UNDEFINED',
         externalReference: checkout.externalReference,
       });
     }

@@ -7,6 +7,7 @@ import { applicationRequest } from '@/lib/applicationApi';
 import TimelineFeed from './TimelineFeed';
 import TimelineFilters, { TIMELINE_FILTERS } from './TimelineFilters';
 import TimelineHeader from './TimelineHeader';
+import TimelineSectionTabs from './TimelineSectionTabs';
 import {
   Plus,
   FileText,
@@ -21,7 +22,6 @@ import {
   Mail,
   Send,
   AlertCircle,
-  Activity,
   ClipboardList,
 } from 'lucide-react';
 
@@ -229,10 +229,10 @@ function ClinicalTimelineContent() {
   return (
     <div className="mx-auto max-w-[1280px] space-y-6 pb-12">
       {/* Barra de Ações Rápidas */}
-      <div className="flex items-center justify-between">
+      <div className="grid grid-cols-1 gap-2 sm:flex sm:items-center sm:justify-between">
         <button
           onClick={() => router.push('/pacientes')}
-          className="inline-flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-psi-vibrant transition-colors bg-white px-3.5 py-2 rounded-2xl border border-slate-200 shadow-sm"
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-600 shadow-sm transition-colors hover:text-psi-vibrant sm:justify-start"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Voltar para Meus Pacientes</span>
@@ -243,7 +243,7 @@ function ClinicalTimelineContent() {
             setActiveTab('prontuarios');
             setMostrarFormNovo(!mostrarFormNovo);
           }}
-          className="rounded-2xl bg-psi-vibrant hover:bg-psi-vibrant/90 text-white font-extrabold text-xs px-4 py-2.5 shadow-lg shadow-psi-vibrant/30 flex items-center gap-2 transition-all"
+          className="flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-psi-vibrant px-4 py-2.5 text-xs font-extrabold text-white shadow-lg shadow-psi-vibrant/30 transition-all hover:bg-psi-vibrant/90"
         >
           <Plus className="w-4 h-4" />
           <span>Registrar Prontuário Manual</span>
@@ -279,13 +279,13 @@ function ClinicalTimelineContent() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Informações do Paciente e Demanda */}
           <div className="md:col-span-2 bg-white rounded-3xl border border-line p-5 shadow-card space-y-4">
-            <div className="flex items-center justify-between border-b border-line pb-3">
-              <div className="flex items-center gap-3">
+            <div className="flex items-start justify-between gap-3 border-b border-line pb-3">
+              <div className="flex min-w-0 items-center gap-3">
                 <div className="w-12 h-12 rounded-2xl bg-psi-vibrant/10 text-psi-vibrant flex items-center justify-center font-bold">
                   <User className="w-6 h-6" />
                 </div>
-                <div>
-                  <h3 className="font-extrabold text-base text-ink">{selectedPatient.displayName}</h3>
+                <div className="min-w-0">
+                  <h3 className="truncate font-extrabold text-base text-ink">{selectedPatient.displayName}</h3>
                   <div className="flex flex-wrap items-center gap-3 text-xs text-muted mt-0.5">
                     {selectedPatient.phone && (
                       <span className="flex items-center gap-1">
@@ -379,50 +379,25 @@ function ClinicalTimelineContent() {
         </div>
       )}
 
-      {/* Abas de Navegação Interna do Prontuário */}
-      <div className="flex border-b border-line gap-2">
-        <button
-          onClick={() => setActiveTab('prontuarios')}
-          className={`px-4 py-2.5 text-xs font-extrabold transition-all border-b-2 flex items-center gap-2 ${
-            activeTab === 'prontuarios'
-              ? 'border-psi-vibrant text-psi-vibrant bg-psi-vibrant/5 rounded-t-xl'
-              : 'border-transparent text-slate-600 hover:text-slate-900'
-          }`}
-        >
-          <FileText className="w-4 h-4" />
-          <span>Prontuários ({allEntries.length})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('sessoes')}
-          className={`px-4 py-2.5 text-xs font-extrabold transition-all border-b-2 flex items-center gap-2 ${
-            activeTab === 'sessoes'
-              ? 'border-psi-vibrant text-psi-vibrant bg-psi-vibrant/5 rounded-t-xl'
-              : 'border-transparent text-slate-600 hover:text-slate-900'
-          }`}
-        >
-          <Activity className="w-4 h-4" />
-          <span>Histórico de Sessões ({appointments.length})</span>
-        </button>
-      </div>
+      <TimelineSectionTabs active={activeTab === 'sessoes' ? 'sessoes' : 'prontuarios'} recordsCount={allEntries.length} sessionsCount={appointments.length} onChange={setActiveTab} />
 
       {/* Formulário de Prontuário Clínico Manual */}
       {mostrarFormNovo && (
         <form
           onSubmit={handleSalvarProntuarioManual}
-          className="bg-white rounded-3xl border border-line p-6 shadow-card space-y-4 animate-in fade-in duration-200"
+          className="animate-in space-y-4 rounded-3xl border border-line bg-white p-4 shadow-card fade-in duration-200 sm:p-6"
         >
-          <div className="flex items-center justify-between border-b border-line pb-3">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-3 border-b border-line pb-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-start gap-2">
               <FileText className="w-5 h-5 text-psi-vibrant" />
-              <h3 className="font-extrabold text-base text-ink">
+              <h3 className="min-w-0 break-words font-extrabold text-base text-ink">
                 Novo Registro de Prontuário Manual — {selectedPatient?.displayName || 'Paciente'}
               </h3>
             </div>
             <button
               type="button"
               onClick={() => setMostrarFormNovo(false)}
-              className="text-xs font-bold text-muted hover:text-ink"
+              className="min-h-11 self-start rounded-xl px-3 text-xs font-bold text-muted hover:bg-canvas hover:text-ink sm:self-auto"
             >
               Cancelar
             </button>
@@ -511,18 +486,18 @@ function ClinicalTimelineContent() {
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="grid grid-cols-1 gap-2 pt-2 sm:flex sm:justify-end">
             <button
               type="button"
               onClick={() => setMostrarFormNovo(false)}
-              className="px-4 py-2 rounded-xl text-xs font-bold text-muted hover:bg-canvas"
+              className="min-h-11 rounded-xl px-4 py-2 text-xs font-bold text-muted hover:bg-canvas"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={salvandoProntuario}
-              className="btn-accent px-5 py-2 text-xs shadow-md flex items-center gap-2"
+              className="btn-accent min-h-11 justify-center px-5 py-2 text-xs shadow-md"
             >
               <Save className="w-4 h-4" />
               {salvandoProntuario ? 'Salvando…' : 'Salvar no Prontuário'}
@@ -551,8 +526,8 @@ function ClinicalTimelineContent() {
       )}
 
       {activeTab === 'sessoes' && (
-        <div className="bg-white rounded-3xl border border-line p-6 shadow-card space-y-4">
-          <div className="flex items-center justify-between border-b border-line pb-3">
+        <div className="space-y-4 rounded-3xl border border-line bg-white p-4 shadow-card sm:p-6">
+          <div className="flex flex-col gap-1 border-b border-line pb-3 sm:flex-row sm:items-center sm:justify-between">
             <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
               <Clock className="w-4 h-4 text-psi-vibrant" /> Histórico Completo de Sessões do Paciente
             </h4>

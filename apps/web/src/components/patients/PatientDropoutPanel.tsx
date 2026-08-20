@@ -52,7 +52,7 @@ export default function PatientDropoutPanel({ patient, onChange }: Props) {
   };
 
   return (
-    <section className="rounded-2xl border border-rose-200/70 bg-rose-50/40 p-5">
+    <section className="rounded-2xl border border-rose-200/70 bg-rose-50/40 p-4 sm:p-5">
       <div className="mb-4 flex items-center gap-2">
         <UserX className="h-4 w-4 text-rose-600" />
         <h3 className="text-sm font-black text-ink">Desistência & reengajamento</h3>
@@ -62,7 +62,7 @@ export default function PatientDropoutPanel({ patient, onChange }: Props) {
 
       {dropout ? (
         <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Campo label="Motivo" valor={rotuloMotivo(dropout.motivo)} />
             <Campo label="Saída registrada em" valor={new Date(dropout.dataDesistencia).toLocaleDateString('pt-BR')} />
           </div>

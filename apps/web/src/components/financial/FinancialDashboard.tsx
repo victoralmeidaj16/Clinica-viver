@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { Download, FileText, Plus, Search, SlidersHorizontal } from 'lucide-react';
 import {
   exportFinancialReportCsv,
-  exportFinancialReportPdf,
   generateFinancialReports,
   type ChargeStatus,
   type FinancialLedger,
@@ -14,28 +13,7 @@ import { applicationRequest } from '@/lib/applicationApi';
 import { demoLedger, people } from './demoLedger';
 import { FinanceMetrics } from './FinanceMetrics';
 import { exportBrandedFinancialPdf } from '@/lib/financialPdfReportBuilder';
-
-const money = (value: number) =>
-  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value / 100);
-
-const date = (value: string) =>
-  new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(new Date(value));
-
-const statusLabel: Record<string, string> = {
-  paid: 'Pago',
-  pending: 'Pendente',
-  partially_paid: 'Parcial',
-  overdue: 'Vencido',
-  refunded: 'Estornado',
-  cancelled: 'Cancelado',
-};
-
-const statusStyle: Record<string, string> = {
-  paid: 'bg-emerald-50 text-emerald-700',
-  pending: 'bg-blue-50 text-blue-700',
-  partially_paid: 'bg-amber-50 text-amber-700',
-  overdue: 'bg-rose-50 text-rose-700',
-};
+import { ReceivablesLedger } from './ReceivablesLedger';
 
 function download(data: string | Uint8Array, type: string, filename: string) {
   const content: BlobPart = typeof data === 'string' ? data : new Uint8Array(data).buffer;
@@ -168,16 +146,16 @@ export function FinancialDashboard() {
       <FinanceMetrics summary={report.summary} />
 
       {showForm && (
-        <div className="flex items-center justify-between rounded-2xl border border-primary/20 bg-soft p-4">
+        <div className="flex flex-col gap-4 rounded-2xl border border-primary/20 bg-soft p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="font-bold text-ink">Cobrança demonstrativa</p>
             <p className="text-xs text-muted">Marina Costa · Sessão avulsa · R$ 250,00</p>
           </div>
-          <div className="flex gap-2">
-            <button onClick={() => setShowForm(false)} className="btn-ghost text-xs">
+          <div className="grid grid-cols-2 gap-2 sm:flex">
+            <button onClick={() => setShowForm(false)} className="btn-ghost min-h-11 justify-center text-xs">
               Cancelar
             </button>
-            <button onClick={createCharge} className="btn-primary py-2 text-xs">
+            <button onClick={createCharge} className="btn-primary min-h-11 justify-center py-2 text-xs">
               Criar cobrança
             </button>
           </div>
@@ -191,14 +169,14 @@ export function FinancialDashboard() {
               <h2 className="font-serif text-2xl font-bold text-ink">Contas a receber</h2>
               <p className="text-xs text-muted">Conciliação calculada por sessão</p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <button onClick={handleExportCsv} className="btn-outline px-3 py-2 text-xs">
+            <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
+              <button onClick={handleExportCsv} className="btn-outline min-h-11 justify-center px-3 py-2 text-xs">
                 <Download className="h-4 w-4" />
                 CSV (Excel PT-BR)
               </button>
               <button
                 onClick={() => exportBrandedFinancialPdf(report)}
-                className="btn-accent px-4 py-2 text-xs shadow-md"
+                className="btn-accent min-h-11 justify-center px-4 py-2 text-xs shadow-md"
               >
                 <FileText className="h-4 w-4" />
                 Exportar PDF Estilizado ⚡
@@ -257,58 +235,7 @@ export function FinancialDashboard() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[850px] text-left text-xs">
-            <thead className="bg-[#faf8f3] text-[10px] uppercase tracking-[0.14em] text-muted">
-              <tr>
-                <th className="px-5 py-3">Paciente / sessão</th>
-                <th>Profissional</th>
-                <th>Vencimento</th>
-                <th>Status</th>
-                <th>Valor líquido</th>
-                <th>Recebido</th>
-                <th>Em aberto</th>
-                <th className="pr-5 text-right">Ação</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {rows.map((item) => (
-                <tr key={item.chargeId} className="transition hover:bg-soft/40">
-                  <td className="px-5 py-4">
-                    <p className="font-bold text-ink">
-                      {people.patients[item.patientId as keyof typeof people.patients] ?? item.patientId}
-                    </p>
-                    <p className="text-[10px] text-muted">{item.sessionId}</p>
-                  </td>
-                  <td>{people.professionals[item.professionalId as keyof typeof people.professionals] ?? item.professionalId}</td>
-                  <td>{date(item.dueAt)}</td>
-                  <td>
-                    <span className={`rounded-full px-2.5 py-1 font-bold ${statusStyle[item.chargeStatus] ?? 'bg-slate-50 text-slate-600'}`}>
-                      {statusLabel[item.chargeStatus]}
-                    </span>
-                  </td>
-                  <td className="font-semibold">{money(item.netAmountCents)}</td>
-                  <td>{money(item.paidAmountCents)}</td>
-                  <td className={item.outstandingAmountCents > 0 ? 'font-bold text-rose-700' : 'text-emerald-700'}>
-                    {money(item.outstandingAmountCents)}
-                  </td>
-                  <td className="pr-5 text-right">
-                    {item.outstandingAmountCents > 0 && (
-                      <button onClick={() => settle(item.chargeId, item.outstandingAmountCents)} className="font-bold text-primary hover:underline">
-                        Dar baixa
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {rows.length === 0 && (
-            <p className="p-10 text-center text-sm text-muted">
-              Nenhuma cobrança encontrada com esses filtros.
-            </p>
-          )}
-        </div>
+        <ReceivablesLedger rows={rows} onSettle={settle} />
       </section>
     </div>
   );

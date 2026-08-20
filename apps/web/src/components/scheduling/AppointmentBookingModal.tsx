@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Calendar, Clock, CreditCard, CheckCircle, Video, ShieldCheck, ArrowRight, User } from 'lucide-react';
+import { Calendar, Clock, CreditCard, CheckCircle, Video, ShieldCheck, ArrowRight } from 'lucide-react';
 
 export function AppointmentBookingModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const [step, setStep] = useState<'date' | 'payment' | 'success'>('date');
@@ -15,38 +15,38 @@ export function AppointmentBookingModal({ isOpen, onClose }: { isOpen: boolean; 
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-      <div className="max-w-lg w-full bg-white rounded-3xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/80 p-0 backdrop-blur-md sm:items-center sm:p-4">
+      <div className="flex max-h-[94dvh] w-full max-w-lg flex-col overflow-y-auto rounded-t-3xl border border-slate-200 bg-white shadow-2xl sm:rounded-3xl">
         {/* Header do Modal */}
-        <div className="bg-slate-900 text-white p-6 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
+        <div className="flex items-start justify-between gap-3 bg-slate-900 p-4 text-white sm:items-center sm:p-6">
+          <div className="flex min-w-0 items-center space-x-3">
             <div className="p-2 bg-indigo-500/20 rounded-xl border border-indigo-400/30">
               <Calendar className="w-5 h-5 text-indigo-400" />
             </div>
-            <div>
-              <h3 className="text-base font-bold">Agendar Consulta Telepresencial</h3>
+            <div className="min-w-0">
+              <h3 className="text-sm font-bold sm:text-base">Agendar Consulta Telepresencial</h3>
               <p className="text-xs text-slate-400">Dra. Mariana Souza • TCC Individual</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white text-xs font-bold p-1">
+          <button type="button" aria-label="Fechar" onClick={onClose} className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl text-xs font-bold text-slate-400 hover:bg-white/10 hover:text-white">
             ✕
           </button>
         </div>
 
         {/* Conteúdo dos Passos */}
-        <div className="p-6 space-y-6 flex-1">
+        <div className="flex-1 space-y-6 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
           {step === 'date' && (
             <div className="space-y-5">
               <div>
                 <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-2">
                   1. Escolha a Data
                 </label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                   {['2026-08-05', '2026-08-06', '2026-08-07'].map((d) => (
                     <button
                       key={d}
                       onClick={() => setSelectedDate(d)}
-                      className={`p-3 rounded-2xl border text-xs font-bold transition-all ${
+                      className={`min-h-11 rounded-2xl border p-3 text-xs font-bold transition-all ${
                         selectedDate === d
                           ? 'border-indigo-600 bg-indigo-50 text-indigo-900 shadow-sm'
                           : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
@@ -62,12 +62,12 @@ export function AppointmentBookingModal({ isOpen, onClose }: { isOpen: boolean; 
                 <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-2">
                   2. Horários Disponíveis
                 </label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {['09:00', '14:00', '16:30'].map((t) => (
                     <button
                       key={t}
                       onClick={() => setSelectedTime(t)}
-                      className={`p-3 rounded-2xl border text-xs font-bold flex items-center justify-center space-x-1.5 transition-all ${
+                      className={`flex min-h-11 items-center justify-center space-x-1.5 rounded-2xl border p-3 text-xs font-bold transition-all ${
                         selectedTime === t
                           ? 'border-indigo-600 bg-indigo-600 text-white shadow-sm'
                           : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
@@ -81,12 +81,12 @@ export function AppointmentBookingModal({ isOpen, onClose }: { isOpen: boolean; 
               </div>
 
               {/* Resumo da Sessão */}
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between text-xs">
+              <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center space-x-2 text-slate-700 font-medium">
                   <Video className="w-4 h-4 text-indigo-600" />
                   <span>Sessão Telepresencial Zoom (50 min)</span>
                 </div>
-                <span className="font-extrabold text-slate-900 text-sm">R$ 250,00</span>
+                <span className="text-sm font-extrabold text-slate-900 sm:text-right">R$ 250,00</span>
               </div>
 
               <button

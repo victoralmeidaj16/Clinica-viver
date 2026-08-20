@@ -32,7 +32,20 @@ export function proxy(request: NextRequest) {
     pathname.startsWith('/pagar/') ||
     pathname.startsWith('/agendar/') ||
     pathname.startsWith('/confirmar-contato/') ||
+    // `/validar` é o endereço impresso na declaração de horas: quem o abre é a
+    // coordenação do curso, que não tem conta na clínica. Mandá-la ao login
+    // seria transformar a conferência em obstáculo.
+    pathname === '/validar' ||
+    pathname.startsWith('/validar/') ||
+    pathname.startsWith('/previa-doc') ||
     pathname.startsWith('/_next') ||
+    // Arquivos de `public/` são servidos na raiz e caem neste matcher. Sem
+    // esta linha, a VPS mandava a logo e as fotos da vitrine para o login: a
+    // resposta ao `<img>` virava um 307, e a página pública abria com as
+    // imagens quebradas. A lista é fechada, e não um `.qualquer-coisa`, para
+    // que nenhuma rota da aplicação passe por engano — o que é sigiloso não
+    // mora em `public/`, mas a trava aqui não depende disso.
+    /\.(png|jpe?g|gif|svg|webp|avif|ico|woff2?|ttf|otf|txt|xml|webmanifest)$/i.test(pathname) ||
     pathname.startsWith('/api/auth');
   if (publicPage || pathname.startsWith('/api/')) return NextResponse.next();
   // Na Vercel o domínio público é apenas um proxy para a VPS. A sessão é

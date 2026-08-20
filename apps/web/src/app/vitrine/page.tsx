@@ -357,19 +357,19 @@ export default function ViverMaisLandingPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <button
               type="button"
               onClick={() => setStep('CADASTRO_PSICOLOGO')}
-              className="text-xs font-extrabold text-purple-700 hover:text-purple-900 px-4 py-2 rounded-xl hover:bg-purple-50 transition-all border border-purple-200 flex items-center gap-1.5"
+              className="text-xs font-extrabold text-purple-700 hover:text-purple-900 px-3 sm:px-4 py-2 rounded-xl hover:bg-purple-50 transition-all border border-purple-200 flex items-center gap-1.5 whitespace-nowrap shrink-0"
             >
-              <UserPlus className="w-4 h-4 text-purple-600" />
-              <span>Quero me cadastrar (Sou Psicólogo)</span>
+              <UserPlus className="w-4 h-4 text-purple-600 shrink-0" />
+              <span className="whitespace-nowrap">Quero me cadastrar (Sou Psicólogo)</span>
             </button>
             <a
               href="#servicos-cards"
               onClick={handleAgendarConsultaScroll}
-              className="bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl transition-all shadow-md active:scale-[0.98]"
+              className="bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs px-3 sm:px-5 py-2.5 rounded-xl transition-all shadow-md active:scale-[0.98] whitespace-nowrap shrink-0"
             >
               Agendar Consulta
             </a>
@@ -425,9 +425,6 @@ export default function ViverMaisLandingPage() {
                     <span className="text-[10px] text-psi-vibrant font-extrabold uppercase block">Atendimento Humanizado</span>
                     <span className="text-xs text-white font-extrabold">Sessões Online ou Presenciais</span>
                   </div>
-                  <span className="bg-emerald-500/20 text-emerald-300 text-[10px] font-bold px-2.5 py-1 rounded-lg border border-emerald-500/30">
-                    SLA 24h
-                  </span>
                 </div>
               </div>
             </div>

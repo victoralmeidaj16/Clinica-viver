@@ -22,7 +22,7 @@ export default function TimelineHeader({
     patients.find((p) => p.id === selectedPatientId) ?? patients[0];
 
   return (
-    <header className="relative overflow-hidden rounded-3xl bg-psi-darkest px-6 py-6 text-white shadow-contrast sm:px-8 border border-white/10">
+    <header className="relative overflow-hidden rounded-3xl border border-white/10 bg-psi-darkest px-4 py-5 text-white shadow-contrast sm:px-8 sm:py-6">
       <div
         aria-hidden="true"
         className="absolute inset-0 opacity-[0.06]"
@@ -36,7 +36,7 @@ export default function TimelineHeader({
       <div className="relative space-y-4">
         {/* Top Controls: Seletor de Paciente Apenas */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-4">
-          <div className="flex items-center gap-2.5 bg-white/10 px-4 py-2 rounded-2xl border border-white/15">
+          <div className="flex min-w-0 flex-1 flex-col items-start gap-1.5 rounded-2xl border border-white/15 bg-white/10 px-3 py-2.5 sm:flex-none sm:flex-row sm:items-center sm:gap-2.5 sm:px-4">
             <User className="w-4 h-4 text-psi-vibrant" />
             <span className="text-[11px] uppercase font-bold text-psi-vibrant tracking-wider">
               Paciente Selecionado:
@@ -44,7 +44,7 @@ export default function TimelineHeader({
             <select
               value={selectedPatientId}
               onChange={(e) => onSelectPatient(e.target.value)}
-              className="bg-transparent text-xs font-black text-white focus:outline-none cursor-pointer"
+              className="min-h-8 w-full min-w-0 cursor-pointer rounded-lg bg-white/10 px-2 text-xs font-black text-white focus:outline-none sm:w-auto sm:bg-transparent sm:px-0"
             >
               {patients.map((patient) => (
                 <option key={patient.id} value={patient.id} className="text-ink font-bold">
@@ -54,7 +54,7 @@ export default function TimelineHeader({
             </select>
           </div>
 
-          <span className="text-xs text-slate-300 font-medium">
+          <span className="hidden text-xs font-medium text-slate-300 sm:inline">
             Seus Pacientes em Acompanhamento
           </span>
         </div>

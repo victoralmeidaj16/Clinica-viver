@@ -1,0 +1,74 @@
+/**
+ * Regras de impressão da declaração de horas.
+ *
+ * Vive num arquivo próprio, importado só pela rota da declaração, porque
+ * `@page` não tem seletor: a regra vale para o documento inteiro assim que a
+ * folha entra. Em `globals.css` ela mudaria a impressão de qualquer tela do
+ * sistema — quem apertasse Ctrl+P no cockpit receberia margem zero sem ter
+ * pedido.
+ */
+
+@page {
+  size: A4;
+  /* Margem zero na página, porque quem controla as margens é o próprio
+     documento (o `p-12` do bloco A4). Sem isto, a margem do navegador se soma
+     à do documento e o conteúdo desce, empurrando o rodapé para uma segunda
+     folha em branco. */
+  margin: 0;
+}
+
+@media print {
+  /* O navegador imprime, por padrão, o próprio cabeçalho — URL, data, "1/1".
+     Num documento oficial isso é ruído impresso sobre a marca da clínica. A
+     margem zero acima é o que o suprime; estas regras cuidam do resto. */
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    background: #ffffff;
+  }
+
+  /* As listras do topo, a marca d'água e o rodapé em onda são fundo. O padrão
+     do navegador é descartar fundo ao imprimir, para poupar tinta — e aqui
+     descartá-lo apagaria a identidade visual do documento. */
+  .declaracao-documento,
+  .declaracao-documento * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /*
+     A declaração é uma folha só, e garantir isso exige medir em milímetros.
+     Na tela o documento usa `min-height: 1123px`, que é a altura do A4 a 96
+     dpi — mas 1123px são 297,05mm, cinco centésimos acima dos 297mm da página.
+     O excedente não some no arredondamento: ele vira uma segunda folha com uma
+     fatia do rodapé, que foi exatamente o que a impressão de teste produziu.
+
+     Em `mm` a medida casa com a caixa da página por construção, sem depender
+     de quantos pixels o navegador resolveu que cabem numa polegada.
+  */
+  .declaracao-documento {
+    width: 210mm;
+    height: 297mm;
+    min-height: 0;
+    max-height: 297mm;
+    max-width: none;
+    margin: 0;
+    box-shadow: none;
+    border-radius: 0;
+    page-break-after: avoid;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}
+
+/**
+ * Serifa no documento, e só nele.
+ *
+ * O template da clínica é serifado; o restante do sistema usa a sans do app.
+ * A família fica aqui em vez de numa classe do Tailwind porque é característica
+ * do documento — quem editar o layout não deve precisar lembrar de repeti-la.
+ */
+.declaracao-documento {
+  font-family: 'Times New Roman', Times, Georgia, serif;
+}

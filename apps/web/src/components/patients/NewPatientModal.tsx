@@ -81,9 +81,9 @@ export default function NewPatientModal({ isOpen, onClose, onPatientCreated }: N
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/60 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-surface border border-line rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-6 relative">
-        <button onClick={onClose} className="absolute top-4 right-4 text-muted hover:text-ink p-1">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/60 p-0 backdrop-blur-sm animate-fadeIn sm:items-center sm:p-4">
+      <div className="relative max-h-[94dvh] w-full max-w-md space-y-5 overflow-y-auto rounded-t-3xl border border-line bg-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:space-y-6 sm:rounded-2xl sm:p-6">
+        <button type="button" aria-label="Fechar" onClick={onClose} className="absolute right-3 top-3 flex min-h-11 min-w-11 items-center justify-center rounded-xl text-muted hover:bg-canvas hover:text-ink sm:right-4 sm:top-4">
           <X className="w-5 h-5" />
         </button>
 
@@ -140,7 +140,7 @@ export default function NewPatientModal({ isOpen, onClose, onPatientCreated }: N
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="font-bold text-ink mb-1 block">Telefone (WhatsApp) *</label>
               <input
@@ -163,7 +163,7 @@ export default function NewPatientModal({ isOpen, onClose, onPatientCreated }: N
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="font-bold text-ink mb-1 block">E-mail</label>
               <input
@@ -214,11 +214,11 @@ export default function NewPatientModal({ isOpen, onClose, onPatientCreated }: N
             </p>
           )}
 
-          <div className="pt-2 flex items-center justify-end gap-3">
-            <button type="button" onClick={onClose} className="btn-ghost text-xs" disabled={saving}>
+          <div className="grid grid-cols-1 gap-2 pt-2 sm:flex sm:items-center sm:justify-end sm:gap-3">
+            <button type="button" onClick={onClose} className="btn-ghost min-h-11 justify-center text-xs" disabled={saving}>
               Cancelar
             </button>
-            <button type="submit" className="btn-primary text-xs py-2.5" disabled={saving}>
+            <button type="submit" className="btn-primary min-h-11 justify-center py-2.5 text-xs" disabled={saving}>
               <Save className="w-4 h-4" />
               <span>{saving ? 'Salvando…' : 'Salvar Paciente'}</span>
             </button>

@@ -60,14 +60,14 @@ export default function PatientDropoutModal({ patient, onClose, onRegistered }: 
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/70 p-0 backdrop-blur-sm sm:items-center sm:p-4"
       role="presentation"
       onMouseDown={(event) => {
         if (event.currentTarget === event.target && !saving) onClose();
       }}
     >
-      <section role="dialog" aria-modal="true" aria-labelledby="dropout-title" className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-rose-100 bg-white shadow-2xl">
-        <div className="border-b border-rose-100 bg-gradient-to-br from-rose-50 via-white to-amber-50 p-6">
+      <section role="dialog" aria-modal="true" aria-labelledby="dropout-title" className="max-h-[94dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-rose-100 bg-white shadow-2xl sm:max-h-[92vh] sm:rounded-3xl">
+        <div className="border-b border-rose-100 bg-gradient-to-br from-rose-50 via-white to-amber-50 p-4 sm:p-6">
           <div className="flex items-start justify-between gap-4">
             <div className="flex gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-rose-600 text-white shadow-lg shadow-rose-200">
@@ -95,7 +95,7 @@ export default function PatientDropoutModal({ patient, onClose, onRegistered }: 
             <button type="button" onClick={onClose} className="btn-accent w-full justify-center py-3 text-xs">Concluir</button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-4 p-6">
+          <form onSubmit={handleSubmit} className="space-y-4 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
             <div className="flex gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-[11px] leading-relaxed text-amber-900">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
               O paciente será marcado como desistente e deixará de contar como acompanhamento ativo.
@@ -131,7 +131,7 @@ export default function PatientDropoutModal({ patient, onClose, onRegistered }: 
               <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
               Registro restrito à gestão e protegido pelas regras de acesso da clínica.
             </div>
-            <div className="flex gap-2 pt-1">
+            <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-2">
               <button type="button" onClick={onClose} disabled={saving} className="flex-1 rounded-2xl border border-slate-200 bg-slate-100 py-3 text-xs font-bold text-slate-700 hover:bg-slate-200 disabled:opacity-50">Cancelar</button>
               <button type="submit" disabled={saving} className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-rose-600 py-3 text-xs font-black text-white shadow-lg shadow-rose-200 transition hover:bg-rose-700 disabled:opacity-50">
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserX className="h-4 w-4" />}

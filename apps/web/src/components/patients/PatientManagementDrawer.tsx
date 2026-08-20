@@ -37,25 +37,25 @@ export default function PatientManagementDrawer({ patient, psychologists, onClos
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-psi-darkest/60 backdrop-blur-[2px]" onMouseDown={onClose}>
-      <aside className="h-full w-full max-w-xl overflow-y-auto bg-surface shadow-2xl border-l border-psi-soft" onMouseDown={(event) => event.stopPropagation()}>
-        <div className="sticky top-0 z-10 flex items-start justify-between border-b border-psi-soft bg-surface/95 p-6 backdrop-blur">
-          <div>
+      <aside className="h-full w-full max-w-xl overflow-y-auto border-l border-psi-soft bg-surface shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-psi-soft bg-surface/95 p-4 backdrop-blur sm:p-6">
+          <div className="min-w-0">
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-psi-vibrant">Visão administrativa</p>
-            <h2 className="mt-1 font-extrabold text-2xl text-ink">{patient.nome}</h2>
+            <h2 className="mt-1 break-words text-xl font-extrabold text-ink sm:text-2xl">{patient.nome}</h2>
             <p className="mt-0.5 text-xs text-muted font-medium">{patient.protocolo ?? patient.id}</p>
           </div>
           <button
             type="button"
             aria-label="Fechar detalhes"
             onClick={onClose}
-            className="rounded-full border border-psi-soft p-2 text-muted hover:bg-psi-soft/50 hover:text-ink transition-colors"
+            className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full border border-psi-soft p-2 text-muted transition-colors hover:bg-psi-soft/50 hover:text-ink"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="space-y-6 p-6">
-          <section className="grid grid-cols-2 gap-3">
+        <div className="space-y-5 p-4 sm:space-y-6 sm:p-6">
+          <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Info label="WhatsApp" value={patient.whatsapp} />
             <Info label="E-mail" value={patient.email} />
             <Info label="CPF" value={patient.cpf} />
@@ -65,7 +65,7 @@ export default function PatientManagementDrawer({ patient, psychologists, onClos
           </section>
 
           {/* O que a pessoa pediu na triagem, do jeito que pediu. */}
-          <section className="grid grid-cols-2 gap-3 border-t border-psi-soft/60 pt-4">
+          <section className="grid grid-cols-1 gap-3 border-t border-psi-soft/60 pt-4 sm:grid-cols-2">
             <Info label="Serviço" value={patient.servicoNome ?? patient.servicoKey} />
             <Info label="Modalidade / turno" value={[patient.modalidade, patient.turno].filter(Boolean).join(' · ')} />
             <Info label="Público" value={patient.paraQuemE} />
@@ -80,13 +80,13 @@ export default function PatientManagementDrawer({ patient, psychologists, onClos
             />
           </section>
 
-          <section className="grid grid-cols-3 gap-3">
+          <section className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-3">
             <Metric icon={Clock3} label="Espera" value={patient.horasEspera ? `${patient.horasEspera}h` : 'Concluída'} />
             <Metric icon={CalendarDays} label="Sessões" value={`${patient.agenda.realizadas}/${patient.agenda.total}`} />
             <Metric icon={CircleDollarSign} label="Em aberto" value={money(patient.financeiro.emAbertoCentavos)} />
           </section>
 
-          <section className="rounded-2xl border border-psi-soft/60 bg-psi-soft/20 p-5">
+          <section className="rounded-2xl border border-psi-soft/60 bg-psi-soft/20 p-4 sm:p-5">
             <div className="mb-4 flex items-center gap-2">
               <UserRoundCog className="h-4 w-4 text-psi-vibrant" />
               <h3 className="text-sm font-black text-ink">Reatribuir psicólogo</h3>

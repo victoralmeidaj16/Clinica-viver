@@ -479,8 +479,7 @@ export default function ViverMaisLandingPage() {
             <div className="space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
                 <div>
-                  <span className="chip-accent text-[11px]">Nossas Especialidades</span>
-                  <h3 className="text-2xl sm:text-3xl font-black text-ink mt-1">Serviços Clínicos Oferecidos</h3>
+                  <h3 className="text-2xl sm:text-3xl font-black text-ink">Serviços Clínicos Oferecidos</h3>
                   <p className="text-xs text-muted">Escolha o serviço mais adequado para o seu momento de vida</p>
                 </div>
               </div>

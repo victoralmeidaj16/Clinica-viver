@@ -37,6 +37,7 @@ export interface NfseEmissao {
   erroMensagem?: string;
   xmlNfseDisponivel?: boolean;
   xmlDpsDisponivel?: boolean;
+  danfseDisponivel?: boolean;
   podeCancelar?: boolean;
   eventos?: readonly {
     tipoEvento: string;

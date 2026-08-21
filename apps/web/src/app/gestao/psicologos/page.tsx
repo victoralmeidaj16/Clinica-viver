@@ -321,7 +321,7 @@ export default function GestaoPsicologosPage() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden divide-y divide-slate-100">
           {filtered.map((p) => (
             <PsicologoCard
               key={p.id}

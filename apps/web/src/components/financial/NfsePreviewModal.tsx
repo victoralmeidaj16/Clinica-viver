@@ -23,11 +23,12 @@ interface NfsePreviewModalProps {
   onSalvarCpf: (cpf: string) => void;
   onFechar: () => void;
   urlXml: (tipo: 'nfse' | 'dps') => string;
+  urlPdf: (download?: boolean) => string;
 }
 
 export function NfsePreviewModal({
   previa, emissao, carregando, erro, sucesso, emitindo, cancelando,
-  salvandoCpf, onConfirmar, onCancelar, onSalvarCpf, onFechar, urlXml,
+  salvandoCpf, onConfirmar, onCancelar, onSalvarCpf, onFechar, urlXml, urlPdf,
 }: NfsePreviewModalProps) {
   const possuiPendencias = (previa?.camposPendentes.length ?? 0) > 0;
   const jaEmitida = emissao?.status === 'issued' || emissao?.status === 'cancelled';
@@ -64,7 +65,7 @@ export function NfsePreviewModal({
               <ShieldCheck className="h-4 w-4 shrink-0" /> {sucesso}
             </div>
           )}
-          {!carregando && emissao && <NfseStatusPanel emissao={emissao} urlXml={urlXml} />}
+          {!carregando && emissao && <NfseStatusPanel emissao={emissao} urlXml={urlXml} urlPdf={urlPdf} />}
           {!carregando && previa && (
             <NfsePreviewDetails previa={previa} jaEmitida={jaEmitida} salvandoCpf={salvandoCpf} onSalvarCpf={onSalvarCpf} />
           )}

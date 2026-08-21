@@ -15,6 +15,7 @@ import {
 } from '@/server/fiscal/sefinNacional';
 import { assinarXmlFiscal } from '@/server/fiscal/assinaturaXmlFiscal';
 import { validarDpsAssinada, validarPedidoEventoAssinado } from '@/server/fiscal/validacaoXmlFiscal';
+import { gerarDanfsePdf } from '@/server/fiscal/danfsePdf';
 
 function serieDps(): string {
   const numero = Number(process.env.NFSE_DPS_SERIE?.trim() || '1');
@@ -203,6 +204,8 @@ export async function consultarEmissaoNfse(context: RequestContext, chargeId: st
     erroMensagem: emissao.erroMensagem,
     xmlNfseDisponivel: Boolean(emissao.nfseXml),
     xmlDpsDisponivel: Boolean(emissao.dpsXml),
+    danfseDisponivel: Boolean(emissao.nfseXml && emissao.chaveAcesso)
+      && (emissao.status === 'issued' || emissao.status === 'cancelled'),
     podeCancelar: emissao.status === 'issued' && Boolean(emissao.chaveAcesso),
     eventos: eventos.map((evento) => ({
       tipoEvento: evento.tipoEvento,
@@ -216,6 +219,25 @@ export async function consultarEmissaoNfse(context: RequestContext, chargeId: st
 }
 
 export type TipoXmlFiscal = 'nfse' | 'dps';
+
+/** Gera o documento auxiliar em PDF diretamente do XML fiscal armazenado. */
+export async function pdfDaEmissaoNfse(
+  context: RequestContext,
+  chargeId: string
+): Promise<{ nomeArquivo: string; pdf: Buffer }> {
+  exigirAdminFiscal(context);
+  exigirPersistenciaFiscal();
+
+  const emissao = await new NfseRepository().porCobranca(context.actor.organizationId, chargeId);
+  if (!emissao?.nfseXml || !emissao.chaveAcesso || !['issued', 'cancelled'].includes(emissao.status)) {
+    throw new ApplicationError('NOT_FOUND', 'O DANFSe ainda não está disponível para esta cobrança.', 404);
+  }
+
+  return {
+    nomeArquivo: `danfse-${emissao.serie}-${emissao.numeroNfse ?? emissao.numeroDps}.pdf`,
+    pdf: await gerarDanfsePdf(emissao.nfseXml, { cancelled: emissao.status === 'cancelled' }),
+  };
+}
 
 /**
  * XML do documento fiscal, para arquivo e para o contador.

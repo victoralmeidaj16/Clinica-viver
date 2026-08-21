@@ -356,6 +356,12 @@ export default function FinanceiroClinicaPage() {
     return `/api/application/financial/clinica/${encodeURIComponent(cobrancaNfseId)}/nfse/xml?tipo=${tipo}`;
   };
 
+  const urlPdfNfse = (download = false) => {
+    if (!cobrancaNfseId) return '#';
+    const base = `/api/application/financial/clinica/${encodeURIComponent(cobrancaNfseId)}/nfse/pdf`;
+    return download ? `${base}?download=1` : base;
+  };
+
   const atendimentos = useMemo(() => {
     const termo = busca.trim().toLocaleLowerCase('pt-BR');
     return (panorama?.atendimentos ?? []).filter((item) => {
@@ -732,6 +738,7 @@ export default function FinanceiroClinicaPage() {
           onSalvarCpf={(cpf) => void salvarCpfDaNfse(cpf)}
           onFechar={() => setNfseAberta(false)}
           urlXml={urlXmlNfse}
+          urlPdf={urlPdfNfse}
         />
       )}
     </div>

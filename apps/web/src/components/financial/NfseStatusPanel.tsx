@@ -1,4 +1,4 @@
-import { Download } from 'lucide-react';
+import { Download, Eye } from 'lucide-react';
 import type { NfseEmissao } from './nfseTypes';
 
 const dataHoraBr = (valor: string) =>
@@ -17,9 +17,11 @@ const rotuloStatus: Record<Exclude<NfseEmissao['status'], 'none'>, string> = {
 export function NfseStatusPanel({
   emissao,
   urlXml,
+  urlPdf,
 }: {
   emissao: NfseEmissao;
   urlXml: (tipo: 'nfse' | 'dps') => string;
+  urlPdf: (download?: boolean) => string;
 }) {
   if (emissao.status === 'none') return null;
 
@@ -63,8 +65,18 @@ export function NfseStatusPanel({
         </ul>
       )}
 
-      {(emissao.xmlNfseDisponivel || emissao.xmlDpsDisponivel) && (
+      {(emissao.danfseDisponivel || emissao.xmlNfseDisponivel || emissao.xmlDpsDisponivel) && (
         <div className="mt-3 flex flex-wrap gap-2 border-t border-line pt-3">
+          {emissao.danfseDisponivel && (
+            <>
+              <a href={urlPdf()} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-xl bg-psi-deep px-3 py-2 text-[11px] font-extrabold text-white shadow-sm hover:bg-psi-vibrant">
+                <Eye className="h-3.5 w-3.5" /> Visualizar NFS-e
+              </a>
+              <a href={urlPdf(true)} className="inline-flex items-center gap-1.5 rounded-xl border border-psi-vibrant/30 bg-psi-soft/40 px-3 py-2 text-[11px] font-extrabold text-psi-deep hover:bg-psi-soft">
+                <Download className="h-3.5 w-3.5" /> Salvar PDF
+              </a>
+            </>
+          )}
           {emissao.xmlNfseDisponivel && (
             <a href={urlXml('nfse')} className="inline-flex items-center gap-1.5 rounded-xl border border-line bg-surface px-3 py-2 text-[11px] font-extrabold text-ink hover:bg-slate-100">
               <Download className="h-3.5 w-3.5" /> XML da NFS-e

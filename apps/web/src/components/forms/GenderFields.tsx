@@ -35,7 +35,9 @@ export function GenderFields({ idPrefix, gender, other, onGenderChange, onOtherC
           <option value="">Selecione o gênero</option>
           <option value="MASCULINO">Masculino</option>
           <option value="FEMININO">Feminino</option>
+          <option value="NAO_BINARIO">Não binário</option>
           <option value="OUTRO">Outro</option>
+          <option value="PREFIRO_NAO_INFORMAR">Prefiro não informar</option>
         </select>
       </div>
 

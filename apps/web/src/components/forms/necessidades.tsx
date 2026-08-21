@@ -10,7 +10,6 @@ export const LISTA_NECESSIDADES = [
   'Depressão',
   'Transtornos de Ansiedade',
   'Traumas',
-  'LGBTQIAPN+',
   'Luto',
   'Autoconhecimento',
   'Violência doméstica e abuso sexual',
@@ -79,6 +78,8 @@ export const OPCOES_AVALIACAO_PSICOLOGICA = [
 
 export function NecessidadesSelector({
   prefix,
+  titulo = 'VOCÊ GOSTARIA DE ESPECIFICAR SUA NECESSIDADE?',
+  subtitulo = 'Usado como filtro. Selecione um ou mais.',
   especificar,
   onEspecificarChange,
   selecionados,
@@ -87,6 +88,8 @@ export function NecessidadesSelector({
   onOutroChange,
 }: {
   prefix: string;
+  titulo?: React.ReactNode;
+  subtitulo?: React.ReactNode;
   especificar: boolean;
   onEspecificarChange: (val: boolean) => void;
   selecionados: readonly string[];
@@ -98,11 +101,13 @@ export function NecessidadesSelector({
     <div className="space-y-3 p-4 bg-slate-50 border border-slate-200 rounded-2xl">
       <div>
         <label className="font-bold text-slate-800 text-xs sm:text-sm block">
-          VOCÊ GOSTARIA DE ESPECIFICAR SUA NECESSIDADE?
+          {titulo}
         </label>
-        <span className="text-[11px] text-slate-500 block mt-0.5">
-          Usado como filtro. Selecione um ou mais.
-        </span>
+        {subtitulo && (
+          <span className="text-[11px] text-slate-500 block mt-0.5">
+            {subtitulo}
+          </span>
+        )}
       </div>
 
       <div className="flex items-center gap-6 text-xs sm:text-sm font-bold">

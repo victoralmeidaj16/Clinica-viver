@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import { Award, GraduationCap, CheckCircle2 } from 'lucide-react';
 
 export interface PsicologoVitrineItem {
   id: string;
@@ -61,11 +60,6 @@ export function VitrineCarrossel({ psicologos }: VitrineCarrosselProps) {
                     {psi.nomeSocial || psi.nome}
                   </h4>
                   <span className="text-xs font-mono font-bold text-psi-vibrant block">{psi.crp}</span>
-                  {psi.turmaViverMais && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-800 bg-purple-100 px-2 py-0.5 rounded-md mt-1">
-                      <GraduationCap className="w-3 h-3" /> Turma {psi.turmaViverMais}
-                    </span>
-                  )}
                 </div>
               </div>
 
@@ -96,18 +90,6 @@ export function VitrineCarrossel({ psicologos }: VitrineCarrosselProps) {
                   ))}
                 </div>
               )}
-            </div>
-
-            <div className="pt-4 border-t border-line flex items-center justify-between text-xs">
-              <span className="text-[11px] text-emerald-600 font-bold flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5" /> Credenciado & Ativo
-              </span>
-              <a
-                href="#modalidades"
-                className="bg-psi-deep hover:bg-psi-darkest text-white text-[11px] font-extrabold px-3.5 py-2 rounded-xl transition-all shadow-sm"
-              >
-                Agendar
-              </a>
             </div>
           </div>
         ))}

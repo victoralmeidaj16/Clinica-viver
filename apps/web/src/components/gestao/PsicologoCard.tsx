@@ -9,6 +9,7 @@ import {
   PauseCircle,
   PlayCircle,
   SlidersHorizontal,
+  Edit3,
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
@@ -318,6 +319,15 @@ export function PsicologoCard({
             </div>
 
             <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-100">
+              <button
+                disabled={trabalhando}
+                onClick={() => onEditar(p)}
+                title="Editar todos os campos cadastrais, localização, formação e critérios de rodízio"
+                className={`${botao} bg-purple-50 border-purple-200 text-purple-900 font-bold hover:bg-purple-100`}
+              >
+                <Edit3 className="w-3 h-3 text-purple-700" /> Editar Cadastro
+              </button>
+
               {p.status === 'EM_ANALISE' ? (
                 <>
                   <button
@@ -374,14 +384,6 @@ export function PsicologoCard({
                   >
                     {naVitrine ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
                     {naVitrine ? 'Ocultar' : 'Exibir'}
-                  </button>
-                  <button
-                    disabled={trabalhando}
-                    onClick={() => onEditar(p)}
-                    title="Turnos, serviços, público e demandas — o que o rodízio cruza"
-                    className={`${botao} bg-white border-slate-200 text-slate-600 hover:bg-slate-50`}
-                  >
-                    <SlidersHorizontal className="w-3 h-3" /> Critérios
                   </button>
                   <button
                     disabled={trabalhando}

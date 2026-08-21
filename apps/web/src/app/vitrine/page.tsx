@@ -945,7 +945,6 @@ export default function ViverMaisLandingPage() {
                       'Idoso',
                       'Casal',
                       'Família',
-                      'Pessoas LGBTQIA+',
                       'Grupo',
                       'Outro',
                     ].map((opcao) => {

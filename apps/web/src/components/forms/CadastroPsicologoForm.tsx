@@ -416,9 +416,11 @@ export function CadastroPsicologoForm({
           )}
         </div>
 
-        {/* VOCÊ GOSTARIA DE ESPECIFICAR SUA NECESSIDADE? */}
+        {/* DEMANDAS PARA ATENDIMENTO */}
         <NecessidadesSelector
           prefix="psicologo"
+          titulo="DEMANDAS PARA ATENDIMENTO"
+          subtitulo={null}
           especificar={formPsicologo.especificarNecessidades}
           onEspecificarChange={(especificar) => setFormPsicologo((prev) => ({ ...prev, especificarNecessidades: especificar }))}
           selecionados={formPsicologo.necessidadesAtendidas}
@@ -440,7 +442,7 @@ export function CadastroPsicologoForm({
             />
           </div>
           <div>
-            <label className="font-bold text-slate-700 block mb-1">Telefone / WhatsApp <span className="text-rose-500">*</span></label>
+            <label className="font-bold text-slate-700 block mb-1">Telefone / WhatsApp Profissional <span className="text-rose-500">*</span></label>
             <input
               type="tel"
               required

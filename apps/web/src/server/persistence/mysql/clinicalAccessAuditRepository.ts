@@ -54,17 +54,20 @@ export class MysqlClinicalAccessAudit
     // vira uma frase de documento.
     try {
       await this.pool.execute(
-        `INSERT IGNORE INTO clinica_acessos_prontuario
-           (id, instituicao_id, prontuario_ref, paciente_ref, usuario_ref, acao,
-            correlacao_id, motivo, quantidade_resultados, ocorrido_em)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT IGNORE INTO clinica_auditoria_acessos
+           (id, instituicao_id, organizacao_ref, ref_core, usuario_ref, acao,
+            prontuario_ref, paciente_ref, correlacao_id, motivo,
+            quantidade_resultados, ocorrido_em)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           rowId('acesso_prontuario', input.id),
           instituicaoId(),
-          input.prontuarioRef ?? null,
-          input.pacienteRef ?? null,
+          input.organizationId,
+          input.id,
           input.actorUserId,
           input.acao,
+          input.prontuarioRef ?? null,
+          input.pacienteRef ?? null,
           input.correlationId,
           input.motivo ?? null,
           input.quantidade ?? null,

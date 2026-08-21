@@ -35,7 +35,6 @@ export const PUBLICO_ALVO: readonly string[] = [
   'Idoso',
   'Casais',
   'Família',
-  'LGBT',
   'Mulheres',
   'Grupo',
   'Outro',

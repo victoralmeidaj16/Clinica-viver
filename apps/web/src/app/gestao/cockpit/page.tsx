@@ -19,6 +19,8 @@ import {
 import { BrazilLocationFields } from '@/components/forms/BrazilLocationFields';
 import { GenderFields } from '@/components/forms/GenderFields';
 import { CadastroPsicologoForm } from '@/components/forms/CadastroPsicologoForm';
+import { ModalEdicao } from '@/components/gestao/ModalEdicao';
+import type { PsicologoItem } from '@/components/gestao/types';
 import { TIPOS_ATENDIMENTO } from '@/components/forms/opcoesPsicologo';
 import { formatBrazilPhone } from '@/lib/brazilPhone';
 import type { GenderValue } from '@/lib/gender';
@@ -86,10 +88,6 @@ const nomeExibicao = (psi: PsicologoCadastro): string => psi.nomeSocial?.trim() 
 
 const LIMITE_PADRAO = 5;
 
-const textoLista = (lista?: string[]): string => (lista ?? []).join(', ');
-const listaTexto = (texto: string): string[] =>
-  texto.split(',').map((item) => item.trim()).filter(Boolean);
-
 /**
  * Um profissional aprovado só entra no rodízio depois que a gestão define a
  * faixa de valor e o turno que ele atende — o formulário de candidatura não
@@ -138,8 +136,6 @@ export default function GestaoCockpitPage() {
   const [carregando, setCarregando] = useState(true);
   const [erroCarga, setErroCarga] = useState<string | null>(null);
   const [cadastroAberto, setCadastroAberto] = useState<PsicologoCadastro | null>(null);
-  const [cadastroEditado, setCadastroEditado] = useState<PsicologoCadastro | null>(null);
-  const [salvandoCadastro, setSalvandoCadastro] = useState(false);
 
   /**
    * Recarrega fila e cadastros das rotas de gestão.
@@ -252,26 +248,10 @@ export default function GestaoCockpitPage() {
 
   const abrirFormularioCadastro = (psi: PsicologoCadastro) => {
     setCadastroAberto(psi);
-    setCadastroEditado({ ...psi });
   };
 
   const fecharFormularioCadastro = () => {
-    if (salvandoCadastro) return;
     setCadastroAberto(null);
-    setCadastroEditado(null);
-  };
-
-  const salvarFormularioCadastro = async () => {
-    if (!cadastroEditado) return;
-    setSalvandoCadastro(true);
-    try {
-      const { id, ...mudancas } = cadastroEditado;
-      await atualizarCadastro(id, mudancas);
-      setCadastroAberto(null);
-      setCadastroEditado(null);
-    } finally {
-      setSalvandoCadastro(false);
-    }
   };
 
   /**
@@ -1053,196 +1033,16 @@ export default function GestaoCockpitPage() {
         </div>
       )}
 
-      {cadastroAberto && cadastroEditado && (
-        <div className="fixed inset-0 z-50 bg-slate-950/50 p-4 overflow-y-auto" role="dialog" aria-modal="true">
-          <div className="max-w-4xl mx-auto my-8 bg-white rounded-3xl shadow-2xl border border-line overflow-hidden">
-            <div className="px-6 py-5 border-b border-line flex items-start justify-between gap-4">
-              <div>
-                <p className="text-[10px] uppercase tracking-wider font-extrabold text-psi-vibrant">Credenciamento da vitrine</p>
-                <h2 className="text-xl font-extrabold text-ink">Formulário preenchido pelo psicólogo</h2>
-                <p className="text-xs text-muted mt-1">Confira ou corrija os dados enviados antes de aprovar o acesso.</p>
-              </div>
-              <button type="button" onClick={fecharFormularioCadastro} className="p-2 rounded-xl text-muted hover:bg-slate-100" aria-label="Fechar formulário">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[68vh] overflow-y-auto">
-              <div className="md:col-span-2 flex items-center gap-4 rounded-2xl border border-psi-soft bg-slate-50/60 p-4">
-                {cadastroEditado.fotoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={cadastroEditado.fotoUrl}
-                    alt="Foto enviada pelo psicólogo"
-                    className="w-20 h-20 rounded-2xl object-cover border border-psi-soft"
-                  />
-                ) : (
-                  <div className="w-20 h-20 rounded-2xl bg-psi-soft text-psi-deep grid place-items-center font-black text-2xl">
-                    {(cadastroEditado.nomeSocial?.trim() || cadastroEditado.nomeCompleto || '?').charAt(0)}
-                  </div>
-                )}
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Foto de perfil</p>
-                  <p className="text-sm font-bold text-ink mt-1">
-                    {cadastroEditado.fotoUrl ? 'Enviada no cadastro' : 'Nenhuma foto enviada'}
-                  </p>
-                  {cadastroEditado.fotoUrl && (
-                    <button
-                      type="button"
-                      onClick={() => setCadastroEditado((atual) => atual ? { ...atual, fotoUrl: '' } : atual)}
-                      className="mt-1 text-xs font-extrabold text-rose-600 hover:underline"
-                    >
-                      Remover foto
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {([
-                ['nomeCompleto', 'Nome completo'],
-                ['nomeSocial', 'Nome social'],
-                ['crp', 'CRP'],
-                ['whatsapp', 'WhatsApp'],
-                ['email', 'E-mail'],
-                ['logradouro', 'Rua / logradouro'],
-                ['bairro', 'Bairro'],
-                ['especialidade', 'Especialidade'],
-                ['modalidadeAtendimento', 'Modalidade de atendimento'],
-                ['turmaViverMais', 'Turma Viver Mais'],
-                ['posGraduacaoViverMais', 'Pós-graduação Viver Mais'],
-                ['segundaPosGraduacao', 'Segunda pós-graduação'],
-              ] as const).map(([campo, rotulo]) => (
-                <label key={campo} className="text-xs font-bold text-ink">
-                  {rotulo}
-                  <input
-                    value={(cadastroEditado[campo] as string | undefined) ?? ''}
-                    onChange={(e) => setCadastroEditado((atual) => atual ? { ...atual, [campo]: e.target.value } : atual)}
-                    className="mt-1 w-full rounded-xl border border-psi-soft bg-white px-3 py-2.5 text-sm font-medium text-ink outline-none focus:ring-2 focus:ring-psi-vibrant/20 focus:border-psi-vibrant"
-                  />
-                </label>
-              ))}
-
-              <div className="md:col-span-2">
-                <GenderFields
-                  idPrefix="psicologo-edicao"
-                  gender={cadastroEditado.genero ?? ''}
-                  other={cadastroEditado.generoOutro ?? ''}
-                  onGenderChange={(genero) => setCadastroEditado((current) => current ? { ...current, genero: genero || undefined } : current)}
-                  onOtherChange={(generoOutro) => setCadastroEditado((current) => current ? { ...current, generoOutro } : current)}
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <BrazilLocationFields
-                  estadoUf={cadastroEditado.estadoUf ?? ''}
-                  cidade={cadastroEditado.cidade ?? ''}
-                  onEstadoChange={(estadoUf) => setCadastroEditado((current) => current ? { ...current, estadoUf, cidade: '' } : current)}
-                  onCidadeChange={(cidade) => setCadastroEditado((current) => current ? { ...current, cidade } : current)}
-                  required={false}
-                />
-              </div>
-
-              <label className="text-xs font-bold text-ink">
-                Limite de pacientes ativos (máximo 5)
-                <input
-                  type="number"
-                  min={1}
-                  max={5}
-                  value={cadastroEditado.limitePacientesAtivos ?? LIMITE_PADRAO}
-                  onChange={(e) => setCadastroEditado((current) => current ? { ...current, limitePacientesAtivos: Number(e.target.value) } : current)}
-                  className="mt-1 w-full rounded-xl border border-psi-soft bg-white px-3 py-2.5 text-sm font-medium text-ink outline-none focus:ring-2 focus:ring-psi-vibrant/20 focus:border-psi-vibrant"
-                />
-              </label>
-
-              <label className="md:col-span-2 text-xs font-bold text-ink">
-                Minibio
-                <textarea
-                  value={cadastroEditado.minibio ?? ''}
-                  onChange={(e) => setCadastroEditado((atual) => atual ? { ...atual, minibio: e.target.value } : atual)}
-                  rows={4}
-                  className="mt-1 w-full rounded-xl border border-psi-soft bg-white px-3 py-2.5 text-sm font-medium text-ink outline-none focus:ring-2 focus:ring-psi-vibrant/20 focus:border-psi-vibrant"
-                />
-              </label>
-
-              <label className="text-xs font-bold text-ink">
-                Tipo de atendimento
-                <select
-                  value={cadastroEditado.atendimentoPreferencia ?? 'AMBOS'}
-                  onChange={(e) => setCadastroEditado((atual) => atual ? { ...atual, atendimentoPreferencia: e.target.value as PsicologoCadastro['atendimentoPreferencia'] } : atual)}
-                  className="mt-1 w-full rounded-xl border border-psi-soft bg-white px-3 py-2.5 text-sm font-medium text-ink outline-none focus:ring-2 focus:ring-psi-vibrant/20 focus:border-psi-vibrant"
-                >
-                  {TIPOS_ATENDIMENTO.map((tipo) => (
-                    <option key={tipo.value} value={tipo.value}>{tipo.label}</option>
-                  ))}
-                </select>
-              </label>
-
-              {([
-                ['turnosDisponiveis', 'Turnos disponíveis'],
-                ['modalidadesAtendidas', 'Modalidades atendidas'],
-                ['servicosHabilitados', 'Serviços habilitados'],
-                ['servicosPrestados', 'Serviços prestados (declarados)'],
-                ['publicoAlvo', 'Público alvo'],
-                ['necessidadesAtendidas', 'Demandas atendidas'],
-              ] as const).map(([campo, rotulo]) => (
-                <label key={campo} className="text-xs font-bold text-ink">
-                  {rotulo} <span className="font-normal text-muted">(separe por vírgulas)</span>
-                  <input
-                    value={textoLista(cadastroEditado[campo] as string[] | undefined)}
-                    onChange={(e) => setCadastroEditado((atual) => atual ? { ...atual, [campo]: listaTexto(e.target.value) } : atual)}
-                    className="mt-1 w-full rounded-xl border border-psi-soft bg-white px-3 py-2.5 text-sm font-medium text-ink outline-none focus:ring-2 focus:ring-psi-vibrant/20 focus:border-psi-vibrant"
-                  />
-                </label>
-              ))}
-
-              {([
-                ['publicoAlvoOutro', 'Outro público declarado'],
-                ['necessidadesOutro', 'Outra demanda declarada'],
-              ] as const).map(([campo, rotulo]) => (
-                <label key={campo} className="text-xs font-bold text-ink">
-                  {rotulo}
-                  <input
-                    value={(cadastroEditado[campo] as string | undefined) ?? ''}
-                    onChange={(e) => setCadastroEditado((atual) => atual ? { ...atual, [campo]: e.target.value } : atual)}
-                    className="mt-1 w-full rounded-xl border border-psi-soft bg-white px-3 py-2.5 text-sm font-medium text-ink outline-none focus:ring-2 focus:ring-psi-vibrant/20 focus:border-psi-vibrant"
-                  />
-                </label>
-              ))}
-
-              <label className="text-xs font-bold text-ink">
-                Status
-                <select
-                  value={cadastroEditado.status}
-                  onChange={(e) => setCadastroEditado((atual) => atual ? { ...atual, status: e.target.value as PsicologoCadastro['status'] } : atual)}
-                  className="mt-1 w-full rounded-xl border border-psi-soft bg-white px-3 py-2.5 text-sm font-medium text-ink outline-none focus:ring-2 focus:ring-psi-vibrant/20 focus:border-psi-vibrant"
-                >
-                  <option value="EM_ANALISE">Em análise</option>
-                  <option value="APROVADO">Aprovado</option>
-                  <option value="RECUSADO">Recusado</option>
-                </select>
-              </label>
-              <label className="flex items-center gap-2 self-end pb-2 text-xs font-bold text-ink">
-                <input
-                  type="checkbox"
-                  checked={cadastroEditado.exibirNaVitrine ?? true}
-                  onChange={(e) => setCadastroEditado((atual) => atual ? { ...atual, exibirNaVitrine: e.target.checked } : atual)}
-                  className="h-4 w-4 accent-psi-vibrant"
-                />
-                Exibir na vitrine e considerar no rodízio
-              </label>
-            </div>
-
-            <div className="px-6 py-4 border-t border-line flex justify-end gap-3">
-              <button type="button" onClick={fecharFormularioCadastro} className="px-4 py-2.5 rounded-xl border border-line bg-white text-slate-700 font-bold text-sm hover:bg-slate-50">
-                Cancelar
-              </button>
-              <button type="button" onClick={() => void salvarFormularioCadastro()} disabled={salvandoCadastro} className="px-4 py-2.5 rounded-xl bg-emerald-600 text-white font-extrabold text-sm hover:bg-emerald-700 disabled:opacity-60 inline-flex items-center gap-2">
-                <Save className="w-4 h-4" />
-                {salvandoCadastro ? 'Salvando…' : 'Salvar alterações'}
-              </button>
-            </div>
-          </div>
-        </div>
+      {cadastroAberto && (
+        <ModalEdicao
+          psicologo={cadastroAberto as PsicologoItem}
+          onSalvar={async (mudancas) => {
+            const alvo = cadastroAberto;
+            setCadastroAberto(null);
+            await atualizarCadastro(alvo.id, mudancas);
+          }}
+          onCancelar={() => setCadastroAberto(null)}
+        />
       )}
     </div>
   );

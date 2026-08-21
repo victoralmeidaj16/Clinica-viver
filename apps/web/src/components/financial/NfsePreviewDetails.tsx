@@ -74,7 +74,7 @@ export function NfsePreviewDetails({ previa, jaEmitida, salvandoCpf, onSalvarCpf
       <section className="rounded-2xl border border-line p-4 text-xs">
         <p className="font-extrabold text-ink">Serviço fiscal</p>
         <p className="mt-1 font-semibold text-ink">Psicologia</p>
-        <p className="mt-1 text-muted">{previa.servico.descricaoPadrao}</p>
+        <p className="mt-1 text-muted">{previa.descricaoServico}</p>
         <div className="mt-3 grid gap-2 text-[11px] sm:grid-cols-2">
           <p><span className="font-bold text-muted">Tributação Nacional:</span> {previa.servico.codigoTributacaoNacional}</p>
           <p><span className="font-bold text-muted">NBS:</span> {previa.servico.codigoNbs}</p>

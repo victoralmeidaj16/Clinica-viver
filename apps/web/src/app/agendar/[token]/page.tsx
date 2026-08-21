@@ -1,7 +1,7 @@
 'use client';
 
 import { use, useEffect, useRef, useState } from 'react';
-import { ArrowRight, CalendarCheck, CalendarDays, Clock, FileText, Loader2, User, Brain } from 'lucide-react';
+import { ArrowRight, Brain, CalendarCheck, CalendarDays, Clock, CreditCard, FileText, Loader2, UserCheck } from 'lucide-react';
 import { PublicBookingCalendar } from '@/components/scheduling/PublicBookingCalendar';
 
 interface Props {
@@ -25,6 +25,7 @@ interface Confirmado {
   inicio: string;
   fim: string;
   modalidade: string;
+  linkPagamento: string;
 }
 
 function rotuloDia(dia: string): string {
@@ -170,6 +171,15 @@ export default function AgendarPage({ params }: Props) {
           <p className="text-xs text-muted">
             {professionalName} já recebeu a confirmação do seu horário.
           </p>
+          <a
+            href={confirmado.linkPagamento}
+            className="btn-accent mx-auto w-full justify-center py-3 text-sm"
+          >
+            <CreditCard className="h-4 w-4" /> Pagamento desta sessão
+          </a>
+          <p className="text-[11px] text-muted">
+            Este link pertence somente ao horário acima e poderá ser usado novamente para consultar a mesma cobrança.
+          </p>
         </section>
       ) : !agenda ? (
         <form
@@ -224,7 +234,15 @@ export default function AgendarPage({ params }: Props) {
         <>
           <section className="card space-y-5">
             <div>
-              <p className="text-xs text-psi-vibrant font-bold">Olá, {agenda.pacienteNome}</p>
+              <div className="mb-4 flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-3">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-600 text-white">
+                  <UserCheck className="h-4 w-4" />
+                </span>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700">Paciente identificado</p>
+                  <p className="text-sm font-black text-emerald-950">{agenda.pacienteNome}</p>
+                </div>
+              </div>
               <h2 className="font-black text-ink flex items-center gap-2 mt-1">
                 <CalendarDays className="w-5 h-5 text-psi-vibrant" /> Escolha o Dia
               </h2>

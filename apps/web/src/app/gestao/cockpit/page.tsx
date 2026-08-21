@@ -19,11 +19,17 @@ import {
 import { BrazilLocationFields } from '@/components/forms/BrazilLocationFields';
 import { GenderFields } from '@/components/forms/GenderFields';
 import { CadastroPsicologoForm } from '@/components/forms/CadastroPsicologoForm';
+import { TurnoPreferenceField } from '@/components/forms/TurnoPreferenceField';
 import { ModalEdicao } from '@/components/gestao/ModalEdicao';
 import type { PsicologoItem } from '@/components/gestao/types';
 import { TIPOS_ATENDIMENTO } from '@/components/forms/opcoesPsicologo';
 import { formatBrazilPhone } from '@/lib/brazilPhone';
 import type { GenderValue } from '@/lib/gender';
+import {
+  normalizarTurnoPreferencia,
+  rotuloTurnoPreferencia,
+  type TurnoPreferencia,
+} from '@/lib/turnos';
 
 /** Linha da fila, como o `GET /api/application/triagem` a devolve. */
 interface LeadFila {
@@ -212,12 +218,10 @@ export default function GestaoCockpitPage() {
       (filtroModalidade === 'PARTICULAR' && modalidade.includes('PARTICULAR')) ||
       (filtroModalidade === 'AVALIACAO' && (item.servico ?? '').toLowerCase().includes('avaliação'));
 
-    const turno = item.turno.toUpperCase();
+    const turno = normalizarTurnoPreferencia(item.turno);
     const matchTurno =
       filtroTurno === 'TODOS' ||
-      (filtroTurno === 'MANHA' && (turno.includes('MATUTINO') || turno.includes('MANH'))) ||
-      (filtroTurno === 'TARDE' && (turno.includes('VESPERTINO') || turno.includes('TARDE'))) ||
-      (filtroTurno === 'NOITE' && (turno.includes('NOTURNO') || turno.includes('NOITE')));
+      turno === filtroTurno;
 
     const busca = filtroBusca.trim().toLowerCase();
     const matchBusca =
@@ -239,7 +243,7 @@ export default function GestaoCockpitPage() {
     genero: '' as GenderValue | '',
     generoOutro: '',
     modalidade: 'SOCIAL',
-    turno: 'VESPERTINO',
+    turno: '' as TurnoPreferencia | '',
   });
 
   const handleAprovarPsicologo = (id: string) =>
@@ -314,7 +318,7 @@ export default function GestaoCockpitPage() {
       }
 
       setNovoLeadModal(false);
-      setManualForm({ nome: '', telefone: '', genero: '', generoOutro: '', modalidade: 'SOCIAL', turno: 'VESPERTINO' });
+      setManualForm({ nome: '', telefone: '', genero: '', generoOutro: '', modalidade: 'SOCIAL', turno: '' });
       await recarregar();
     } finally {
       setEnviandoLead(false);
@@ -433,18 +437,12 @@ export default function GestaoCockpitPage() {
                   </select>
                 </div>
 
-                <div>
-                  <label className="font-bold text-ink block mb-1">Turno</label>
-                  <select
-                    value={manualForm.turno}
-                    onChange={(e) => setManualForm({ ...manualForm, turno: e.target.value })}
-                    className="w-full bg-slate-50 border border-line rounded-xl p-2.5 text-ink focus:outline-none focus:border-psi-vibrant"
-                  >
-                    <option value="MATUTINO">Manhã</option>
-                    <option value="VESPERTINO">Tarde</option>
-                    <option value="NOTURNO">Noite</option>
-                  </select>
-                </div>
+                <TurnoPreferenceField
+                  name="turno-manual"
+                  value={manualForm.turno}
+                  onChange={(turno) => setManualForm((current) => ({ ...current, turno }))}
+                  compact
+                />
               </div>
 
               <button
@@ -677,7 +675,7 @@ export default function GestaoCockpitPage() {
                     <div className="min-w-0">
                       <dt className="text-[10px] font-bold uppercase tracking-wider text-muted">Modalidade / turno</dt>
                       <dd className="font-semibold text-ink">{item.servico || item.modalidade || '—'}</dd>
-                      <dd className="text-[10px] text-muted">{item.turno}</dd>
+                      <dd className="text-[10px] text-muted">{rotuloTurnoPreferencia(item.turno)}</dd>
                     </div>
                     <div className="min-w-0">
                       <dt className="text-[10px] font-bold uppercase tracking-wider text-muted">Psicólogo</dt>
@@ -745,7 +743,7 @@ export default function GestaoCockpitPage() {
                       <td className="px-6 py-4 text-muted">{item.telefone}</td>
                       <td className="px-6 py-4">
                         <div className="font-semibold text-ink">{item.servico || item.modalidade || '—'}</div>
-                        <div className="text-[10px] text-muted">{item.turno}</div>
+                        <div className="text-[10px] text-muted">{rotuloTurnoPreferencia(item.turno)}</div>
                       </td>
                       <td className="px-6 py-4">
                         {item.psicologoNome ? (

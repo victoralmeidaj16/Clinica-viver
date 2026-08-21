@@ -1,5 +1,6 @@
 import { normalizeBrazilPhone } from './brazilPhone';
 import { validateGender, type GenderValue } from './gender';
+import { normalizarTurnoPreferencia, type TurnoPreferencia } from './turnos';
 
 /**
  * Saneamento do formulário público da vitrine.
@@ -93,7 +94,7 @@ export interface DadosTriagem {
   possuiConvenio?: string;
   convenioSelecionado: string;
   origem: string;
-  turno: string;
+  turno: TurnoPreferencia;
   servico?: string;
   servicoKey?: string;
   modalidade?: string;
@@ -152,6 +153,11 @@ export function validarSubmissaoTriagem(corpo: unknown): ResultadoValidacao {
   const genero = validateGender(body.genero, body.generoOutro);
   if (!genero) {
     return recusa('Selecione o gênero e informe a descrição quando escolher Outro.');
+  }
+
+  const turno = normalizarTurnoPreferencia(body.turno);
+  if (!turno) {
+    return recusa('Selecione o período de preferência: manhã, tarde ou noite.');
   }
 
   const email = texto(body.email, 160);
@@ -214,7 +220,7 @@ export function validarSubmissaoTriagem(corpo: unknown): ResultadoValidacao {
       possuiConvenio: texto(body.possuiConvenio, 20),
       convenioSelecionado: texto(body.convenioSelecionado, 120) ?? 'Nenhum',
       origem: texto(body.origem, 80) ?? 'Formulário Vitrine',
-      turno: texto(body.turno, 20) ?? 'VESPERTINO',
+      turno,
       servico: texto(body.servico, 120),
       servicoKey: texto(body.servicoKey, 40),
       modalidade: texto(body.modalidade, 40),

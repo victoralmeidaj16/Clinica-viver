@@ -19,6 +19,7 @@ import { NfseRepository, type StatusEmissaoNfse } from '@/server/fiscal/nfseRepo
 import { isMysqlConfigured } from '@/server/oci/runtime';
 import type { PatientContactCapable } from '@/server/persistence/mysql/identityRepository';
 import { ApplicationError } from './http';
+import { descricaoFiscalDaSessao } from '@/lib/sessionReference';
 
 /**
  * Financeiro da clínica — o outro lado do extrato que o psicólogo vê.
@@ -240,6 +241,7 @@ export interface PreviaNfse {
   /** `pacienteRef` é o que a tela usa para gravar o CPF que estiver faltando. */
   paciente: { ref: string; nome: string; cpf?: string; email?: string };
   competencia: string;
+  descricaoServico: string;
   valorCents: number;
   servico: typeof CONFIGURACAO_FISCAL_VIVER_MAIS;
   camposPendentes: readonly string[];
@@ -278,7 +280,7 @@ export function exigirAdminFiscal(context: RequestContext) {
 async function competenciaFiscalDaCobranca(
   organizationId: string,
   charge: FinancialCharge
-): Promise<string> {
+): Promise<{ competencia: string; inicioAtendimento: string }> {
   const store = getApplicationStore();
   const sessao = await store.sessions.getById(organizationId, charge.sessionId);
   if (sessao) {
@@ -289,9 +291,10 @@ async function competenciaFiscalDaCobranca(
         422
       );
     }
-    const comp = competenciaNfseDoAtendimento(sessao.actualStart ?? sessao.scheduledStart);
+    const inicioAtendimento = sessao.actualStart ?? sessao.scheduledStart;
+    const comp = competenciaNfseDoAtendimento(inicioAtendimento);
     const hoje = competenciaNfseDoAtendimento(new Date().toISOString());
-    return comp > hoje ? hoje : comp;
+    return { competencia: comp > hoje ? hoje : comp, inicioAtendimento };
   }
 
   const agendamentoDireto = await store.appointments.getById(organizationId, charge.sessionId);
@@ -320,9 +323,13 @@ async function competenciaFiscalDaCobranca(
       422
     );
   }
-  const competenciaCalculada = competenciaNfseDoAtendimento(agendamento.startsAt);
+  const inicioAtendimento = agendamento.startsAt;
+  const competenciaCalculada = competenciaNfseDoAtendimento(inicioAtendimento);
   const hoje = competenciaNfseDoAtendimento(new Date().toISOString());
-  return competenciaCalculada > hoje ? hoje : competenciaCalculada;
+  return {
+    competencia: competenciaCalculada > hoje ? hoje : competenciaCalculada,
+    inicioAtendimento,
+  };
 }
 
 /**
@@ -372,7 +379,7 @@ export async function getNfsePreview(
     );
   }
 
-  const competencia = await competenciaFiscalDaCobranca(organizationId, charge);
+  const fatoFiscal = await competenciaFiscalDaCobranca(organizationId, charge);
 
   const paciente = await store.identities.getPatient(organizationId, charge.patientId);
   const state = await getCaptureRepository().read();
@@ -401,7 +408,8 @@ export async function getNfsePreview(
       cpf,
       email: lead?.email ?? cadastro?.email,
     },
-    competencia,
+    competencia: fatoFiscal.competencia,
+    descricaoServico: descricaoFiscalDaSessao(fatoFiscal.inicioAtendimento),
     // A nota documenta o serviço prestado. Taxa do gateway, split 70/30 e
     // data/valor do repasse não reduzem o valor fiscal do atendimento.
     valorCents: baseFiscal.valorCents,

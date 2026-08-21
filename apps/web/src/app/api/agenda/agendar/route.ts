@@ -75,6 +75,7 @@ export async function POST(request: Request) {
         inicio: resultado.inicio,
         fim: resultado.fim,
         modalidade: resultado.modalidade,
+        linkPagamento: resultado.linkPagamento,
         pacienteNome: paciente.nome,
         professionalName: paciente.professionalName,
       },

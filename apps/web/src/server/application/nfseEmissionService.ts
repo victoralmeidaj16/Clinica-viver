@@ -136,7 +136,7 @@ export async function emitirNfse(context: RequestContext, chargeId: string, conf
           regimeApuracaoSimples: '1', regimeEspecialTributacao: '0',
         },
         tomador: { cpfOuCnpj: previa.paciente.cpf!, nome: previa.paciente.nome, email: previa.paciente.email },
-        valorCents: previa.valorCents, descricaoServico: SERVICO_NFSE.descricaoPadrao,
+        valorCents: previa.valorCents, descricaoServico: previa.descricaoServico,
         codigoTributacaoNacional: SERVICO_NFSE.codigoTributacaoNacional, codigoNbs: SERVICO_NFSE.codigoNbs,
         codigoMunicipioPrestacao: PRESTADOR_NFSE.codigoMunicipioIbge,
       });

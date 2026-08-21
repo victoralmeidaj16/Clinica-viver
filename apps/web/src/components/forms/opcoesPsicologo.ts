@@ -1,3 +1,5 @@
+import { TURNOS_ATENDIMENTO, rotuloTurnoPreferencia } from '@/lib/turnos';
+
 /**
  * Vocabulário do cadastro de psicólogo, em um lugar só.
  *
@@ -13,11 +15,7 @@ export interface Opcao {
   label: string;
 }
 
-export const TURNOS_PSICOLOGO: readonly Opcao[] = [
-  { value: 'MANHA', label: 'Manhã' },
-  { value: 'TARDE', label: 'Tarde' },
-  { value: 'NOITE', label: 'Noite' },
-];
+export const TURNOS_PSICOLOGO: readonly Opcao[] = TURNOS_ATENDIMENTO;
 
 export const SERVICOS_PRESTADOS: readonly string[] = [
   'Atendimento Psicológico',
@@ -78,7 +76,7 @@ export const POS_GRADUACOES_VIVER_MAIS: readonly string[] = [
 export const SEGUNDAS_POS_GRADUACOES = POS_GRADUACOES_VIVER_MAIS;
 
 export function rotuloTurno(valor: string): string {
-  return TURNOS_PSICOLOGO.find((turno) => turno.value === valor)?.label ?? valor;
+  return rotuloTurnoPreferencia(valor);
 }
 
 export function rotuloModalidade(valor?: string): string {

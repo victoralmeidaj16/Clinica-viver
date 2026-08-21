@@ -5,6 +5,7 @@ import { getLeiturasRepository } from '@/server/persistence/notificacoesLeituras
 import { cadastroDaSessao, SemAcessoError } from '@/server/application/psychologistSelf';
 import {
   montarLista,
+  notificacoesDeAgendamentos,
   notificacoesDaGestao,
   notificacoesDePagamento,
   notificacoesDoPsicologo,
@@ -13,6 +14,7 @@ import {
 import { getApplicationStore } from '@/server/application/store';
 import { listRecentConfirmedPayments } from '@/server/payments/paymentLinkRepository';
 import { isMysqlConfigured } from '@/server/oci/runtime';
+import { listAppointments } from '@/server/scheduling/agendaRepository';
 
 /** Janela de pagamentos consultada; a retenção do sino já corta em 30 dias. */
 const DIAS_DE_PAGAMENTOS = 30;
@@ -42,6 +44,28 @@ async function pagamentosDoPsicologo(
     );
   } catch (error) {
     console.error('Erro ao ler pagamentos para o sino:', error);
+    return [];
+  }
+}
+
+async function agendamentosDoPsicologo(
+  organizationId: string,
+  userId: string
+): Promise<NotificacaoDerivada[]> {
+  if (!isMysqlConfigured()) return [];
+  try {
+    const membership = await getApplicationStore().identities.findMembershipByUser(
+      organizationId,
+      userId
+    );
+    const professionalId = membership?.professionalProfileId;
+    if (!professionalId) return [];
+    const desde = new Date(Date.now() - DIAS_DE_PAGAMENTOS * 24 * 60 * 60 * 1000);
+    return notificacoesDeAgendamentos(
+      await listAppointments(organizationId, professionalId, desde)
+    );
+  } catch (error) {
+    console.error('Erro ao ler agendamentos para o sino:', error);
     return [];
   }
 }
@@ -83,6 +107,7 @@ export async function GET() {
             if (!cadastro) return [];
             return [
               ...notificacoesDoPsicologo(state, cadastro, agora),
+              ...(await agendamentosDoPsicologo(session.organizationId, session.userId)),
               ...(await pagamentosDoPsicologo(session.organizationId, session.userId)),
             ];
           })();

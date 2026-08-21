@@ -224,8 +224,9 @@ export class MysqlAppointmentRepository implements AppointmentRepository {
       `INSERT INTO clinica_agendamentos
          (id, instituicao_id, ref_core, organizacao_id, paciente_id, profissional_id, inicio, fim,
           timezone, duracao_min, modalidade, recorrencia, status, cancelado_codigo, sessao_clinica_ref,
-          versao, criado_em, atualizado_em)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          token_pagamento_sessao, origem_criacao, versao, criado_em, atualizado_em)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+               LOWER(REPLACE(UUID(), '-', '')), 'profissional', ?, ?, ?)
        ON DUPLICATE KEY UPDATE
          inicio = VALUES(inicio), fim = VALUES(fim), timezone = VALUES(timezone),
          duracao_min = VALUES(duracao_min), modalidade = VALUES(modalidade),
@@ -252,6 +253,23 @@ export class MysqlAppointmentRepository implements AppointmentRepository {
         toSqlTimestamp(appointment.createdAt),
         toSqlTimestamp(appointment.updatedAt),
       ]
+    );
+
+    // O valor fica congelado no nascimento da sessão. Reajustar o perfil
+    // depois não pode alterar uma cobrança já combinada com o paciente.
+    await connection.execute(
+      `UPDATE clinica_agendamentos a
+       JOIN clinica_profissionais p ON p.id = a.profissional_id
+          SET a.valor_centavos = CASE
+            WHEN EXISTS (
+              SELECT 1 FROM clinica_triagens_pacientes t
+               WHERE t.instituicao_id = a.instituicao_id
+                 AND t.paciente_ref = ? AND UPPER(COALESCE(t.modalidade, '')) LIKE '%SOCIAL%'
+            ) THEN p.valor_social_centavos
+            ELSE p.valor_sessao_centavos
+          END
+        WHERE a.instituicao_id = ? AND a.id = ? AND a.valor_centavos IS NULL`,
+      [appointment.patientId, instituicaoId(), id]
     );
   }
 

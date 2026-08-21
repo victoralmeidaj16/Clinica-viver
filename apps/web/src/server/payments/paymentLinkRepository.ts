@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import type { RowDataPacket } from 'mysql2';
 import { getMysqlPool } from '@/server/oci/runtime';
 import { instituicaoId, rowId } from '@/server/persistence/mysql/mappers';
+import { descricaoFiscalDaSessao } from '@/lib/sessionReference';
 
 export type PaymentModality = 'social' | 'particular';
 
@@ -28,6 +29,16 @@ export interface ReservedCheckout {
   amountCents: number;
   professionalName: string;
   providerPaymentId?: string;
+  description?: string;
+  sessionStart?: string;
+}
+
+export interface SessionPaymentProfile {
+  token: string;
+  professionalName: string;
+  sessionStart: string;
+  amountCents: number;
+  modality: PaymentModality;
 }
 
 interface ProfileRow extends RowDataPacket {
@@ -88,6 +99,200 @@ export async function getProfessionalPaymentProfile(
     );
   }
   return rows[0] ? profile(rows[0]) : null;
+}
+
+function modalidadeDaTriagem(value: unknown): PaymentModality {
+  return String(value ?? '').toLocaleUpperCase('pt-BR').includes('SOCIAL')
+    ? 'social'
+    : 'particular';
+}
+
+/** Cabeçalho público do link específico, sem expor a identidade do paciente. */
+export async function getSessionPaymentProfile(
+  token: string
+): Promise<SessionPaymentProfile | null> {
+  const [rows] = await getMysqlPool().query<RowDataPacket[]>(
+    `SELECT a.token_pagamento_sessao, a.inicio, a.valor_centavos,
+            p.nome AS profissional_nome, p.valor_social_centavos, p.valor_sessao_centavos,
+            (SELECT t.modalidade FROM clinica_triagens_pacientes t
+              WHERE t.instituicao_id = a.instituicao_id
+                AND t.organizacao_ref = o.ref_core AND t.paciente_ref = pa.ref_core
+              ORDER BY t.atualizado_em DESC LIMIT 1) AS modalidade_triagem
+       FROM clinica_agendamentos a
+       JOIN clinica_profissionais p ON p.id = a.profissional_id
+       JOIN clinica_organizacoes o ON o.id = a.organizacao_id
+       JOIN clinica_pacientes pa ON pa.id = a.paciente_id
+      WHERE a.instituicao_id = ? AND a.token_pagamento_sessao = ?
+        AND a.status <> 'cancelado'
+      LIMIT 1`,
+    [instituicaoId(), token]
+  );
+  const row = rows[0];
+  if (!row) return null;
+  const modality = modalidadeDaTriagem(row.modalidade_triagem);
+  const fallback = modality === 'social' ? row.valor_social_centavos : row.valor_sessao_centavos;
+  return {
+    token: String(row.token_pagamento_sessao),
+    professionalName: String(row.profissional_nome),
+    sessionStart: new Date(row.inicio).toISOString(),
+    amountCents: Number(row.valor_centavos ?? fallback),
+    modality,
+  };
+}
+
+/**
+ * Reserva a cobrança da sessão exata indicada pelo token.
+ *
+ * Diferente do link permanente, não procura "a última pendência" do paciente:
+ * data, hora, checkout e futura NFS-e permanecem presos ao mesmo agendamento.
+ */
+export async function reserveAppointmentCharge(input: {
+  token: string;
+  cpf: string;
+}): Promise<ReservedCheckout | null> {
+  const connection = await getMysqlPool().getConnection();
+  try {
+    await connection.beginTransaction();
+    const [rows] = await connection.query<RowDataPacket[]>(
+      `SELECT a.ref_core AS agendamento_ref, a.sessao_clinica_ref, a.inicio, a.valor_centavos,
+              o.ref_core AS organizacao_ref, p.ref_core AS profissional_ref,
+              p.nome AS profissional_nome, p.valor_social_centavos, p.valor_sessao_centavos,
+              pa.ref_core AS paciente_ref, COALESCE(pa.nome_social, pa.nome) AS paciente_nome,
+              COALESCE(pa.documento, (SELECT t.cpf FROM clinica_triagens_pacientes t
+                WHERE t.instituicao_id = a.instituicao_id AND t.organizacao_ref = o.ref_core
+                  AND t.paciente_ref = pa.ref_core AND t.cpf IS NOT NULL
+                ORDER BY t.atualizado_em DESC LIMIT 1)) AS paciente_cpf,
+              COALESCE(pa.telefone, (SELECT t.telefone FROM clinica_triagens_pacientes t
+                WHERE t.instituicao_id = a.instituicao_id AND t.organizacao_ref = o.ref_core
+                  AND t.paciente_ref = pa.ref_core
+                ORDER BY t.atualizado_em DESC LIMIT 1)) AS paciente_telefone,
+              COALESCE(pa.email, (SELECT t.email FROM clinica_triagens_pacientes t
+                WHERE t.instituicao_id = a.instituicao_id AND t.organizacao_ref = o.ref_core
+                  AND t.paciente_ref = pa.ref_core AND t.email IS NOT NULL
+                ORDER BY t.atualizado_em DESC LIMIT 1)) AS paciente_email,
+              (SELECT t.modalidade FROM clinica_triagens_pacientes t
+                WHERE t.instituicao_id = a.instituicao_id AND t.organizacao_ref = o.ref_core
+                  AND t.paciente_ref = pa.ref_core
+                ORDER BY t.atualizado_em DESC LIMIT 1) AS modalidade_triagem
+         FROM clinica_agendamentos a
+         JOIN clinica_profissionais p ON p.id = a.profissional_id
+         JOIN clinica_organizacoes o ON o.id = a.organizacao_id
+         JOIN clinica_pacientes pa ON pa.id = a.paciente_id
+        WHERE a.instituicao_id = ? AND a.token_pagamento_sessao = ?
+          AND a.status <> 'cancelado'
+          AND (
+            REPLACE(REPLACE(REPLACE(COALESCE(pa.documento, ''), '.', ''), '-', ''), ' ', '') = ?
+            OR EXISTS (
+              SELECT 1 FROM clinica_triagens_pacientes tc
+               WHERE tc.instituicao_id = a.instituicao_id
+                 AND tc.organizacao_ref = o.ref_core AND tc.paciente_ref = pa.ref_core
+                 AND REPLACE(REPLACE(REPLACE(COALESCE(tc.cpf, ''), '.', ''), '-', ''), ' ', '') = ?
+            )
+          )
+        LIMIT 1 FOR UPDATE`,
+      [instituicaoId(), input.token, input.cpf, input.cpf]
+    );
+    const appointment = rows[0];
+    if (!appointment) {
+      await connection.rollback();
+      return null;
+    }
+
+    const modality = modalidadeDaTriagem(appointment.modalidade_triagem);
+    const fallback = modality === 'social'
+      ? appointment.valor_social_centavos
+      : appointment.valor_sessao_centavos;
+    const amountCents = Number(appointment.valor_centavos ?? fallback);
+    if (!Number.isInteger(amountCents) || amountCents <= 0) {
+      throw new Error('O valor desta sessão não está configurado no perfil profissional.');
+    }
+    const sessionStart = new Date(appointment.inicio).toISOString();
+    const description = descricaoFiscalDaSessao(sessionStart);
+
+    const [chargeRows] = await connection.query<RowDataPacket[]>(
+      `SELECT c.ref_core AS cobranca_ref, x.id AS checkout_ref,
+              x.referencia_externa, x.provedor_pagamento_ref
+         FROM financeiro_cobrancas c
+         LEFT JOIN financeiro_checkouts_asaas x
+           ON x.instituicao_id = c.instituicao_id AND x.cobranca_ref = c.ref_core
+        WHERE c.instituicao_id = ? AND c.organizacao_ref = ?
+          AND c.sessao_ref IN (?, ?)
+        ORDER BY c.criado_em DESC LIMIT 1 FOR UPDATE`,
+      [instituicaoId(), appointment.organizacao_ref, appointment.agendamento_ref,
+        appointment.sessao_clinica_ref ?? appointment.agendamento_ref]
+    );
+
+    let chargeRef = chargeRows[0]?.cobranca_ref
+      ? String(chargeRows[0].cobranca_ref)
+      : undefined;
+    if (!chargeRef) {
+      chargeRef = `charge-session-${randomUUID()}`;
+      const billingSessionRef = String(
+        appointment.sessao_clinica_ref || appointment.agendamento_ref
+      );
+      await connection.execute(
+        `INSERT INTO financeiro_cobrancas
+           (id, instituicao_id, organizacao_ref, ref_core, sessao_ref, paciente_ref,
+            profissional_ref, emitida_em, vence_em, valor_centavos, status,
+            descricao, criado_em, atualizado_em)
+         VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3),
+                 ?, 'pending', ?, CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3))`,
+        [rowId('cobranca', chargeRef), instituicaoId(), appointment.organizacao_ref,
+          chargeRef, billingSessionRef, appointment.paciente_ref,
+          appointment.profissional_ref, amountCents, description]
+      );
+    }
+
+    const checkoutId = chargeRows[0]?.checkout_ref
+      ? String(chargeRows[0].checkout_ref)
+      : randomUUID();
+    const externalReference = chargeRows[0]?.referencia_externa
+      ? String(chargeRows[0].referencia_externa)
+      : `VM-${checkoutId.replaceAll('-', '')}`;
+    if (!chargeRows[0]?.checkout_ref) {
+      await connection.execute(
+        `INSERT INTO financeiro_checkouts_asaas
+           (id, instituicao_id, organizacao_ref, cobranca_ref, modalidade, referencia_externa)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [rowId('checkout', checkoutId), instituicaoId(), appointment.organizacao_ref,
+          chargeRef, modality, externalReference]
+      );
+    }
+    if (appointment.sessao_clinica_ref) {
+      await connection.execute(
+        `UPDATE clinica_sessoes
+            SET cobranca_ref = ?, atualizado_em = CURRENT_TIMESTAMP(3)
+          WHERE instituicao_id = ? AND organizacao_ref = ? AND ref_core = ?
+            AND cobranca_ref IS NULL`,
+        [chargeRef, instituicaoId(), appointment.organizacao_ref,
+          appointment.sessao_clinica_ref]
+      );
+    }
+
+    await connection.commit();
+    return {
+      id: checkoutId,
+      externalReference,
+      chargeId: chargeRef,
+      patientId: String(appointment.paciente_ref),
+      patientName: String(appointment.paciente_nome),
+      patientCpf: String(appointment.paciente_cpf).replace(/\D/g, ''),
+      patientPhone: appointment.paciente_telefone ? String(appointment.paciente_telefone) : undefined,
+      patientEmail: appointment.paciente_email ? String(appointment.paciente_email) : undefined,
+      amountCents,
+      professionalName: String(appointment.profissional_nome),
+      providerPaymentId: chargeRows[0]?.provedor_pagamento_ref
+        ? String(chargeRows[0].provedor_pagamento_ref)
+        : undefined,
+      description,
+      sessionStart,
+    };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 }
 
 export interface PagamentoRecebido {

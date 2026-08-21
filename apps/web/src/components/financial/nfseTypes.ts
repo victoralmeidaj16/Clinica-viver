@@ -2,6 +2,7 @@ export interface NfsePreview {
   chargeId: string;
   paciente: { ref: string; nome: string; cpf?: string; email?: string };
   competencia: string;
+  descricaoServico: string;
   valorCents: number;
   servico: {
     codigoTributacaoNacional: string;

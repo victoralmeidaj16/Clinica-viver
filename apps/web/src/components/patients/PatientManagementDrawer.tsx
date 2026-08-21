@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { CalendarDays, CircleDollarSign, Clock3, UserRoundCog, X } from 'lucide-react';
+import { rotuloTurnoPreferencia } from '@/lib/turnos';
 import PatientDropoutPanel from './PatientDropoutPanel';
 import type { ManagedPatient, ManagedPsychologist } from './managementTypes';
 
@@ -67,7 +68,10 @@ export default function PatientManagementDrawer({ patient, psychologists, onClos
           {/* O que a pessoa pediu na triagem, do jeito que pediu. */}
           <section className="grid grid-cols-1 gap-3 border-t border-psi-soft/60 pt-4 sm:grid-cols-2">
             <Info label="Serviço" value={patient.servicoNome ?? patient.servicoKey} />
-            <Info label="Modalidade / turno" value={[patient.modalidade, patient.turno].filter(Boolean).join(' · ')} />
+            <Info
+              label="Modalidade / turno"
+              value={[patient.modalidade, patient.turno && rotuloTurnoPreferencia(patient.turno)].filter(Boolean).join(' · ')}
+            />
             <Info label="Público" value={patient.paraQuemE} />
             <Info label="Opção de avaliação" value={patient.opcaoAvaliacaoPsicologica} />
             <Info label="Necessidades" value={[...(patient.necessidadesPaciente ?? []), patient.necessidadesOutro].filter(Boolean).join(', ')} />

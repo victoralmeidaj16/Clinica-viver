@@ -13,6 +13,7 @@ import type {
   PersistedSnapshot,
   TriagemPacienteRecord,
 } from './persistence';
+import { normalizarTurnoPreferencia } from '@/lib/turnos';
 
 /**
  * Ponte entre o motor de rodízio (`@thats-life/core`) e o estado persistido.
@@ -61,20 +62,7 @@ export interface ResultadoAlocacao {
  * indicar alguém pelo turno errado é pior do que não indicar.
  */
 export function normalizarTurno(valor: string | undefined): TurnoAtendimento | null {
-  switch (valor?.trim().toUpperCase()) {
-    case 'MATUTINO':
-    case 'MANHA':
-    case 'MANHÃ':
-      return 'MANHA';
-    case 'VESPERTINO':
-    case 'TARDE':
-      return 'TARDE';
-    case 'NOTURNO':
-    case 'NOITE':
-      return 'NOITE';
-    default:
-      return null;
-  }
+  return normalizarTurnoPreferencia(valor);
 }
 
 /**

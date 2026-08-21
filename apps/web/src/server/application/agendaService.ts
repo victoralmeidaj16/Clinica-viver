@@ -5,6 +5,7 @@ import { ApplicationError } from './http';
 import { parseAgendaBlockInput } from '@/server/scheduling/agendaBlockInput';
 import {
   cancelAppointment,
+  completeAppointment,
   createBlock,
   deleteBlock,
   getContatosDaSessao,
@@ -44,10 +45,9 @@ export async function getAgendaOverview(context: RequestContext) {
   const profile = await getProfessionalAgendaProfile(organizationId, professionalId);
   if (!profile) throw new ApplicationError('NOT_FOUND', 'Perfil profissional ativo não encontrado.', 404);
 
-  // Uma hora atrás, não "agora": a sessão que começou há quarenta minutos
-  // ainda está acontecendo e sumir dela da tela no meio do atendimento seria
-  // esconder justamente o que está em curso.
-  const desde = new Date(Date.now() - 60 * 60_000);
+  // Sessões antigas ainda não confirmadas continuam visíveis pelo repositório;
+  // as já encerradas permanecem por 90 dias para conferência e pagamento.
+  const desde = new Date(Date.now() - 90 * 24 * 60 * 60_000);
   const [availability, blocks, appointments] = await Promise.all([
     listAvailability(organizationId, professionalId),
     listBlocks(organizationId, professionalId),
@@ -185,6 +185,34 @@ export async function cancelAgendaAppointment(
   }
   if (sessao) await avisarSessaoCancelada(sessao);
 
-  const desde = new Date(Date.now() - 60 * 60_000);
+  const desde = new Date(Date.now() - 90 * 24 * 60 * 60_000);
+  return { appointments: await listAppointments(organizationId, professionalId, desde) };
+}
+
+export async function confirmAgendaAppointmentCompleted(
+  context: RequestContext,
+  appointmentId: string
+) {
+  const { organizationId, professionalId } = perfilDaSessao(context);
+  const resultado = await completeAppointment(organizationId, professionalId, appointmentId);
+  if (resultado === 'not_found') {
+    throw new ApplicationError('NOT_FOUND', 'Agendamento não encontrado.', 404);
+  }
+  if (resultado === 'too_early') {
+    throw new ApplicationError(
+      'APPOINTMENT_NOT_FINISHED',
+      'A realização só pode ser confirmada depois do horário previsto para o término.',
+      409
+    );
+  }
+  if (resultado === 'invalid_status') {
+    throw new ApplicationError(
+      'INVALID_APPOINTMENT_STATUS',
+      'Somente uma sessão agendada ou confirmada pode ser marcada como realizada.',
+      409
+    );
+  }
+
+  const desde = new Date(Date.now() - 90 * 24 * 60 * 60_000);
   return { appointments: await listAppointments(organizationId, professionalId, desde) };
 }

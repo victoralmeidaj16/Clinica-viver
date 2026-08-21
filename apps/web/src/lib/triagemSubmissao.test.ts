@@ -26,6 +26,18 @@ describe('validação do formulário público de triagem', () => {
     expect(resultado.dados.telefone).toBe('(51) 99999-9999');
     expect(resultado.dados.convenioSelecionado).toBe('Nenhum');
     expect(resultado.dados.origem).toBe('Formulário Vitrine');
+    expect(resultado.dados.turno).toBe('TARDE');
+  });
+
+  it.each(['MANHA', 'TARDE', 'NOITE'] as const)('aceita e preserva o turno canônico %s', (turno) => {
+    const resultado = validarSubmissaoTriagem({ ...valido, turno });
+    expect(resultado.ok).toBe(true);
+    if (resultado.ok) expect(resultado.dados.turno).toBe(turno);
+  });
+
+  it('exige uma preferência válida em vez de assumir um turno', () => {
+    expect(validarSubmissaoTriagem({ ...valido, turno: '' }).ok).toBe(false);
+    expect(validarSubmissaoTriagem({ ...valido, turno: 'MADRUGADA' }).ok).toBe(false);
   });
 
   it('recusa o envio quando o campo-armadilha volta preenchido', () => {

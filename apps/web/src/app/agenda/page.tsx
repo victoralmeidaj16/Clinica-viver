@@ -70,6 +70,14 @@ export default function AgendaPage() {
     setDados((atual) => (atual ? { ...atual, appointments: resposta.appointments } : atual));
   };
 
+  const confirmarRealizacao = async (id: string) => {
+    const resposta = await applicationRequest<{ appointments: AgendamentoResumo[] }>(
+      `/agenda/agendamentos/${encodeURIComponent(id)}`,
+      { method: 'PATCH', body: JSON.stringify({ action: 'complete' }) }
+    );
+    setDados((atual) => (atual ? { ...atual, appointments: resposta.appointments } : atual));
+  };
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
       <div>
@@ -108,7 +116,11 @@ export default function AgendaPage() {
 
           <AvailabilityEditor janelas={dados.availability} onSalvar={salvarGrade} />
           <AgendaBlocks bloqueios={dados.blocks} onAdicionar={adicionarBloqueio} onRemover={removerBloqueio} />
-          <UpcomingSessions agendamentos={dados.appointments} onCancelar={cancelarSessao} />
+          <UpcomingSessions
+            agendamentos={dados.appointments}
+            onCancelar={cancelarSessao}
+            onConfirmarRealizacao={confirmarRealizacao}
+          />
         </>
       )}
     </div>

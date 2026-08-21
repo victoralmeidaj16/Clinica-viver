@@ -4,9 +4,11 @@ import React, { useEffect, useState } from 'react';
 import { VitrineCarrossel, PsicologoVitrineItem } from '@/components/vitrineCarrossel';
 import { GenderFields } from '@/components/forms/GenderFields';
 import { CadastroPsicologoForm } from '@/components/forms/CadastroPsicologoForm';
+import { TurnoPreferenceField } from '@/components/forms/TurnoPreferenceField';
 import { OPCOES_AVALIACAO_PSICOLOGICA, NecessidadesSelector } from '@/components/forms/necessidades';
 import { validateGender, type GenderValue } from '@/lib/gender';
 import { CAMPO_ARMADILHA } from '@/lib/triagemSubmissao';
+import type { TurnoPreferencia } from '@/lib/turnos';
 import {
   Sparkles,
   Heart,
@@ -74,7 +76,7 @@ export default function ViverMaisLandingPage() {
     possuiConvenio: 'NAO',
     convenioSelecionado: '',
     origem: 'Facebook',
-    turno: 'VESPERTINO',
+    turno: '' as TurnoPreferencia | '',
     paraQuemE: '',
     paraQuemEOutro: '',
     especificarNecessidades: false,
@@ -1055,34 +1057,10 @@ export default function ViverMaisLandingPage() {
                 </select>
               </div>
 
-              {/* Períodos de preferência */}
-              <div className="space-y-2">
-                <label className="font-bold text-slate-700 block">Períodos de preferência: <span className="text-rose-500">*</span></label>
-                <div className="flex items-center gap-4">
-                  <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="turno"
-                      value="VESPERTINO"
-                      checked={form.turno === 'VESPERTINO'}
-                      onChange={() => setForm({ ...form, turno: 'VESPERTINO' })}
-                      className="accent-purple-600"
-                    />
-                    Vespertino (tarde)
-                  </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="turno"
-                      value="NOTURNO"
-                      checked={form.turno === 'NOTURNO'}
-                      onChange={() => setForm({ ...form, turno: 'NOTURNO' })}
-                      className="accent-purple-600"
-                    />
-                    Noturno (noite)
-                  </label>
-                </div>
-              </div>
+              <TurnoPreferenceField
+                value={form.turno}
+                onChange={(turno) => setForm((current) => ({ ...current, turno }))}
+              />
 
               <button
                 type="submit"

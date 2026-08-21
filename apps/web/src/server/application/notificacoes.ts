@@ -3,6 +3,8 @@ import 'server-only';
 import type { CadastroPsicologoRecord, TriagemPacienteRecord } from './persistence';
 import type { CaptureState } from '@/server/persistence/captureRepository';
 import type { PagamentoRecebido } from '@/server/payments/paymentLinkRepository';
+import type { AgendamentoResumo } from '@/server/scheduling/agendaRepository';
+import { dataHoraSessao } from '@/lib/sessionReference';
 import {
   classificarSla,
   horasDesdeAlocacao,
@@ -216,6 +218,47 @@ export function notificacoesDePagamento(
     href: '/meu-financeiro',
     pendente: false,
   }));
+}
+
+/** Marcações e confirmações pendentes da agenda do próprio profissional. */
+export function notificacoesDeAgendamentos(
+  agendamentos: readonly AgendamentoResumo[],
+  agora: Date = new Date()
+): NotificacaoDerivada[] {
+  const itens: NotificacaoDerivada[] = [];
+  for (const agendamento of agendamentos) {
+    if (agendamento.status === 'cancelado') continue;
+
+    itens.push({
+      chave: `sessao-agendada:${agendamento.id}:${agendamento.criadoEm}`,
+      tipo: 'sessao-agendada',
+      titulo: agendamento.origem === 'portal'
+        ? 'Nova sessão marcada pelo paciente'
+        : 'Sessão adicionada à sua agenda',
+      descricao: `${agendamento.pacienteNome} — ${dataHoraSessao(agendamento.inicio)}.`,
+      ocorridoEm: agendamento.criadoEm,
+      severidade: 'INFO',
+      href: '/agenda',
+      pendente: false,
+    });
+
+    const aguardaConfirmacao =
+      ['agendado', 'confirmado'].includes(agendamento.status) &&
+      Date.parse(agendamento.fim) <= agora.getTime();
+    if (aguardaConfirmacao) {
+      itens.push({
+        chave: `confirmar-sessao:${agendamento.id}:${agendamento.fim}`,
+        tipo: 'confirmar-sessao',
+        titulo: 'Confirme se a sessão ocorreu',
+        descricao: `${agendamento.pacienteNome} — atendimento previsto para ${dataHoraSessao(agendamento.inicio)}.`,
+        ocorridoEm: agendamento.fim,
+        severidade: 'ATENCAO',
+        href: '/agenda',
+        pendente: true,
+      });
+    }
+  }
+  return itens;
 }
 
 function rotuloForma(forma: string): string {

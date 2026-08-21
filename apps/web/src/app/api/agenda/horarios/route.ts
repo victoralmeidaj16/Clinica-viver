@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { primeiroNome } from '@thats-life/core';
 import { rateLimited, validCpf } from '@/server/http/publicRequest';
 import { identifyPatient, listAvailableSlots } from '@/server/scheduling/agendaRepository';
 
@@ -67,7 +66,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       {
-        pacienteNome: primeiroNome(paciente.nome),
+        pacienteNome: paciente.nome,
         professionalName: paciente.professionalName,
         dias: [...dias.entries()].map(([dia, horarios]) => ({ dia, horarios })),
       },

@@ -12,6 +12,7 @@ import {
   type JanelaDisponibilidade,
   type Slot,
 } from '@thats-life/core';
+import { podeConfirmarRealizacao } from '@/lib/appointmentWorkflow';
 
 /**
  * Agenda: janelas recorrentes, bloqueios e marcação pública.
@@ -38,6 +39,7 @@ export interface PacienteIdentificado {
   professionalId: string;
   professionalRowId: string;
   professionalName: string;
+  sessionAmountCents: number;
 }
 
 export interface BloqueioAgenda {
@@ -55,6 +57,11 @@ export interface AgendamentoResumo {
   modalidade: 'presencial' | 'online' | 'telefone';
   status: string;
   origem: string;
+  criadoEm: string;
+  realizadoEm?: string;
+  linkPagamento: string;
+  pagamentoStatus?: string;
+  podeConfirmarRealizacao: boolean;
 }
 
 interface ProfileRow extends RowDataPacket {
@@ -359,32 +366,148 @@ export async function deleteBlock(
 export async function listAppointments(
   organizationId: string,
   professionalId: string,
-  desde: Date
+  desde: Date,
+  agora: Date = new Date()
 ): Promise<AgendamentoResumo[]> {
   const [rows] = await getMysqlPool().query<RowDataPacket[]>(
     `SELECT a.id, a.inicio, a.fim, a.duracao_min, a.modalidade, a.status,
-            a.origem_criacao, COALESCE(pa.nome_social, pa.nome) AS paciente_nome
+            a.origem_criacao, a.criado_em, a.realizado_em, a.token_pagamento_sessao,
+            COALESCE(pa.nome_social, pa.nome) AS paciente_nome,
+            (SELECT c.status FROM financeiro_cobrancas c
+              WHERE c.instituicao_id = a.instituicao_id
+                AND c.organizacao_ref = o.ref_core
+                AND c.sessao_ref IN (a.ref_core, a.sessao_clinica_ref)
+              ORDER BY c.criado_em DESC LIMIT 1) AS pagamento_status
        FROM clinica_agendamentos a
        JOIN clinica_profissionais p ON p.id = a.profissional_id
        JOIN clinica_organizacoes o ON o.id = p.organizacao_id
        JOIN clinica_pacientes pa ON pa.id = a.paciente_id
       WHERE a.instituicao_id = ? AND o.ref_core = ? AND p.ref_core = ?
-        AND a.inicio >= ?
+        AND (a.inicio >= ? OR a.status IN ('agendado', 'confirmado'))
       ORDER BY a.inicio
       LIMIT 200`,
     [instituicaoId(), organizationId, professionalId, desde]
   );
-  return rows.map((row) => ({
-    id: String(row.id),
-    pacienteNome: String(row.paciente_nome ?? 'Paciente'),
-    inicio: new Date(row.inicio).toISOString(),
-    fim: new Date(
+  return rows.map((row) => {
+    const fim = new Date(
       row.fim ?? new Date(row.inicio).getTime() + Number(row.duracao_min) * 60_000
-    ).toISOString(),
-    modalidade: row.modalidade,
-    status: String(row.status),
-    origem: String(row.origem_criacao),
-  }));
+    );
+    const status = String(row.status);
+    return {
+      id: String(row.id),
+      pacienteNome: String(row.paciente_nome ?? 'Paciente'),
+      inicio: new Date(row.inicio).toISOString(),
+      fim: fim.toISOString(),
+      modalidade: row.modalidade,
+      status,
+      origem: String(row.origem_criacao),
+      criadoEm: new Date(row.criado_em).toISOString(),
+      realizadoEm: row.realizado_em ? new Date(row.realizado_em).toISOString() : undefined,
+      linkPagamento: `/pagar/sessao/${String(row.token_pagamento_sessao)}`,
+      pagamentoStatus: row.pagamento_status ? String(row.pagamento_status) : undefined,
+      podeConfirmarRealizacao: podeConfirmarRealizacao(status, fim, agora),
+    };
+  });
+}
+
+export type ResultadoConfirmacaoRealizacao =
+  | 'completed'
+  | 'too_early'
+  | 'not_found'
+  | 'invalid_status';
+
+/** Confirma o atendimento somente depois do fim previsto e dentro do perfil dono da agenda. */
+export async function completeAppointment(
+  organizationId: string,
+  professionalId: string,
+  appointmentId: string,
+  agora: Date = new Date()
+): Promise<ResultadoConfirmacaoRealizacao> {
+  const connection = await getMysqlPool().getConnection();
+  try {
+    await connection.beginTransaction();
+    const [rows] = await connection.query<RowDataPacket[]>(
+      `SELECT a.ref_core, a.sessao_clinica_ref, a.status, a.inicio, a.modalidade,
+              o.ref_core AS organizacao_ref, pa.ref_core AS paciente_ref,
+              p.ref_core AS profissional_ref,
+              COALESCE(a.fim, DATE_ADD(a.inicio, INTERVAL a.duracao_min MINUTE)) AS fim,
+              (SELECT c.ref_core FROM financeiro_cobrancas c
+                WHERE c.instituicao_id = a.instituicao_id
+                  AND c.organizacao_ref = o.ref_core AND c.sessao_ref = a.ref_core
+                ORDER BY c.criado_em DESC LIMIT 1) AS cobranca_ref
+         FROM clinica_agendamentos a
+         JOIN clinica_profissionais p ON p.id = a.profissional_id
+         JOIN clinica_organizacoes o ON o.id = p.organizacao_id
+         JOIN clinica_pacientes pa ON pa.id = a.paciente_id
+        WHERE a.instituicao_id = ? AND o.ref_core = ? AND p.ref_core = ? AND a.id = ?
+        LIMIT 1 FOR UPDATE`,
+      [instituicaoId(), organizationId, professionalId, appointmentId]
+    );
+    const appointment = rows[0];
+    if (!appointment) {
+      await connection.rollback();
+      return 'not_found';
+    }
+    if (!['agendado', 'confirmado'].includes(String(appointment.status))) {
+      await connection.rollback();
+      return 'invalid_status';
+    }
+    if (new Date(appointment.fim).getTime() > agora.getTime()) {
+      await connection.rollback();
+      return 'too_early';
+    }
+
+    // A confirmação operacional também materializa a sessão clínica usada
+    // pelos indicadores e pela competência fiscal. Não há conteúdo clínico:
+    // é apenas o fato de atendimento, sua janela e seus vínculos.
+    const sessionRef = String(
+      appointment.sessao_clinica_ref || `session-${String(appointment.ref_core)}`
+    );
+    const step = { status: 'skipped', attemptCount: 0, updatedAt: agora.toISOString() };
+    const automation = {
+      transcription: step,
+      clinicalDraft: step,
+      patientHandoff: step,
+      billing: step,
+      receipt: step,
+      notification: step,
+    };
+    const mode = appointment.modalidade === 'online'
+      ? 'video'
+      : appointment.modalidade === 'telefone' ? 'phone' : 'in_person';
+    await connection.execute(
+      `INSERT IGNORE INTO clinica_sessoes
+         (id, instituicao_id, organizacao_ref, ref_core, paciente_ref,
+          profissional_principal_ref, profissionais_atribuidos, status, modalidade,
+          inicio_previsto, fim_previsto, inicio_real, fim_real, consentimentos,
+          automacao_plano, automacao_estado, cobranca_ref, versao, criado_em, atualizado_em)
+       VALUES (?, ?, ?, ?, ?, ?, CAST(? AS JSON), 'completed', ?, ?, ?, ?, ?,
+               CAST('[]' AS JSON), CAST(? AS JSON), CAST(? AS JSON), ?, 1, ?, ?)`,
+      [
+        rowId('sessao_clinica', sessionRef), instituicaoId(), appointment.organizacao_ref,
+        sessionRef, appointment.paciente_ref, appointment.profissional_ref,
+        JSON.stringify([appointment.profissional_ref]), mode, appointment.inicio,
+        appointment.fim, appointment.inicio, appointment.fim,
+        JSON.stringify({ transcription: false, patientHandoff: false, billing: false,
+          receipt: false, notification: false }),
+        JSON.stringify(automation), appointment.cobranca_ref ?? null, agora, agora,
+      ]
+    );
+    await connection.execute(
+      `UPDATE clinica_agendamentos
+          SET status = 'realizado', realizado_em = ?, sessao_clinica_ref = ?,
+              versao = versao + 1, atualizado_em = ?
+        WHERE instituicao_id = ? AND id = ?`,
+      [agora, sessionRef, agora, instituicaoId(), appointmentId]
+    );
+    await connection.commit();
+    return 'completed';
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 }
 
 export async function cancelAppointment(
@@ -473,7 +596,9 @@ export async function identifyPatient(
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT o.ref_core AS organizacao_ref, p.ref_core AS profissional_ref,
             p.id AS profissional_id, p.nome AS profissional_nome,
-            pa.ref_core AS paciente_ref, pa.id AS paciente_id, t.nome_paciente
+            p.valor_social_centavos, p.valor_sessao_centavos,
+            pa.ref_core AS paciente_ref, pa.id AS paciente_id, t.nome_paciente,
+            t.modalidade AS modalidade_triagem
        FROM clinica_profissionais p
        JOIN clinica_organizacoes o ON o.id = p.organizacao_id
        JOIN clinica_triagens_pacientes t
@@ -501,8 +626,13 @@ export async function identifyPatient(
     const [porCadastro] = await pool.query<RowDataPacket[]>(
       `SELECT o.ref_core AS organizacao_ref, p.ref_core AS profissional_ref,
               p.id AS profissional_id, p.nome AS profissional_nome,
+              p.valor_social_centavos, p.valor_sessao_centavos,
               pa.ref_core AS paciente_ref, pa.id AS paciente_id,
-              COALESCE(pa.nome_social, pa.nome) AS nome_paciente
+              COALESCE(pa.nome_social, pa.nome) AS nome_paciente,
+              (SELECT t.modalidade FROM clinica_triagens_pacientes t
+                WHERE t.instituicao_id = p.instituicao_id
+                  AND t.organizacao_ref = o.ref_core AND t.paciente_ref = pa.ref_core
+                ORDER BY t.atualizado_em DESC LIMIT 1) AS modalidade_triagem
          FROM clinica_profissionais p
          JOIN clinica_organizacoes o ON o.id = p.organizacao_id
          JOIN clinica_pacientes pa ON pa.instituicao_id = p.instituicao_id
@@ -519,6 +649,7 @@ export async function identifyPatient(
   }
 
   if (!row) return null;
+  const social = String(row.modalidade_triagem ?? '').toLocaleUpperCase('pt-BR').includes('SOCIAL');
   return {
     patientRef: String(row.paciente_ref),
     patientRowId: String(row.paciente_id),
@@ -527,6 +658,9 @@ export async function identifyPatient(
     professionalId: String(row.profissional_ref),
     professionalRowId: String(row.profissional_id),
     professionalName: String(row.profissional_nome),
+    sessionAmountCents: Number(
+      social ? row.valor_social_centavos : row.valor_sessao_centavos
+    ),
   };
 }
 
@@ -597,7 +731,7 @@ export async function listAvailableSlots(
 }
 
 export type ResultadoAgendamento =
-  | { ok: true; agendamentoId: string; inicio: string; fim: string; modalidade: string }
+  | { ok: true; agendamentoId: string; inicio: string; fim: string; modalidade: string; linkPagamento: string }
   | { ok: false; motivo: 'INDISPONIVEL' | 'DUPLICADO' };
 
 /**
@@ -665,6 +799,7 @@ export async function bookAppointment(
 
     const referencia = `agenda-link-${randomUUID()}`;
     const agendamentoId = rowId('agendamento', referencia);
+    const tokenPagamento = randomUUID().replaceAll('-', '');
     const [orgRows] = await connection.query<RowDataPacket[]>(
       'SELECT id FROM clinica_organizacoes WHERE ref_core = ? LIMIT 1',
       [paciente.organizationId]
@@ -673,8 +808,8 @@ export async function bookAppointment(
       `INSERT INTO clinica_agendamentos
          (id, instituicao_id, ref_core, organizacao_id, paciente_id, profissional_id,
           inicio, fim, timezone, duracao_min, modalidade, status, origem_criacao,
-          origem_ref, versao, criado_em, atualizado_em)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'agendado', 'portal', ?, 1,
+          origem_ref, token_pagamento_sessao, valor_centavos, versao, criado_em, atualizado_em)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'agendado', 'portal', ?, ?, ?, 1,
                CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3))`,
       [
         agendamentoId,
@@ -689,6 +824,8 @@ export async function bookAppointment(
         Math.round((Date.parse(slot.fim) - Date.parse(slot.inicio)) / 60_000),
         slot.modalidade,
         referencia,
+        tokenPagamento,
+        paciente.sessionAmountCents,
       ]
     );
     await connection.commit();
@@ -698,6 +835,7 @@ export async function bookAppointment(
       inicio: slot.inicio,
       fim: slot.fim,
       modalidade: slot.modalidade,
+      linkPagamento: `/pagar/sessao/${tokenPagamento}`,
     };
   } catch (error) {
     await connection.rollback();

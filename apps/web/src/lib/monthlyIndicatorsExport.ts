@@ -27,7 +27,7 @@ export function openMonthlyIndicatorsReport(data: MonthlyIndicators, generatedAt
     ['3. Gênero dos novos leads', distribution(data.leadsDoMes.genero), `Amostra: ${data.leadsDoMes.total} leads`],
     ['4. Faixa etária dos novos leads', distribution(data.leadsDoMes.faixaEtaria), `Amostra: ${data.leadsDoMes.total} leads`],
     ['5. Origem dos novos leads', distribution(data.leadsDoMes.origens), `Amostra: ${data.leadsDoMes.total} leads`],
-    ['6. Sessões da competência', `${data.sessoes.realizadas} realizadas`, `${data.sessoes.canceladas} canceladas · ${data.sessoes.faltas} faltas · ${variation(data.sessoes.variacaoRealizadasPercentual)}`],
+    ['6. Número de sessões / atendimentos', `${data.sessoes.total} sessões registradas`, `${data.sessoes.realizadas} atendimentos realizados · ${data.sessoes.agendadas} agendadas · ${data.sessoes.confirmadas} confirmadas · ${data.sessoes.emAndamento} em andamento · ${data.sessoes.canceladas} canceladas · ${data.sessoes.faltas} faltas · ${variation(data.sessoes.variacaoRealizadasPercentual)}`],
     ['7. Modalidades dos novos leads', distribution(data.leadsDoMes.modalidades), `Amostra: ${data.leadsDoMes.total} leads`],
     ...data.indisponiveis.map((item, index) => [`${index + 8}. ${item.titulo}`, 'Dados ainda não configurados', item.motivo]),
     ['11. Eventos de auditoria', `${data.auditoria.total} eventos`, `${data.auditoria.acessosConcedidos} concedidos · ${data.auditoria.acessosNegados} negados`],

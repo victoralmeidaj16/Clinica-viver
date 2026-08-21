@@ -22,14 +22,21 @@ export async function createAppointmentFlow(context: RequestContext, input: Sche
   const store = getApplicationStore();
   const result = await scheduleAppointmentCommand({ appointments: store.appointments, identities: store.identities }, context.actor, input, { actorUserId: context.actor.userId, occurredAt: input.createdAt, correlationId: context.correlationId, commandId: context.idempotencyKey! });
   const preference = store.preferences.find((item) => item.organizationId === input.organizationId && item.patientId === input.patientId);
-  if (!preference) throw new ApplicationError('PREFERENCE_NOT_FOUND', 'Preferências de comunicação não encontradas.', 409);
-  const scheduledFor = new Date(Date.parse(input.startsAt) - 60 * 60 * 1000).toISOString();
-  // O nome que vai no lembrete é o do cadastro do profissional. Um dicionário
-  // fixo no código acerta enquanto a clínica tem uma psicóloga só.
-  const professional = await store.identities.getProfessional(input.organizationId, input.professionalId);
-  const notification = await enqueueNotification({ id: `notification-${result.appointment.id}`, organizationId: input.organizationId, patientId: input.patientId, recipientReference: `contact-${input.patientId}`, channel: 'whatsapp', template: { category: 'appointment_reminder', professionalName: professional?.displayName ?? 'Profissional', appointmentLabel: new Date(input.startsAt).toLocaleString('pt-BR', { timeZone: input.timezone }) }, preference, consents: store.consents, scheduledFor, idempotencyKey: `${context.idempotencyKey}:reminder`, createdAt: input.createdAt }, store.notifications, store.communicationAudit);
+  let reminder: { id?: string; status: string } = { status: 'skipped' };
+  // O lembrete externo é complementar. Ausência de preferência ou consentimento
+  // não pode transformar um agendamento já persistido em erro para a interface.
+  if (preference) {
+    try {
+      const scheduledFor = new Date(Date.parse(input.startsAt) - 60 * 60 * 1000).toISOString();
+      const professional = await store.identities.getProfessional(input.organizationId, input.professionalId);
+      const notification = await enqueueNotification({ id: `notification-${result.appointment.id}`, organizationId: input.organizationId, patientId: input.patientId, recipientReference: `contact-${input.patientId}`, channel: 'whatsapp', template: { category: 'appointment_reminder', professionalName: professional?.displayName ?? 'Profissional', appointmentLabel: new Date(input.startsAt).toLocaleString('pt-BR', { timeZone: input.timezone }) }, preference, consents: store.consents, scheduledFor, idempotencyKey: `${context.idempotencyKey}:reminder`, createdAt: input.createdAt }, store.notifications, store.communicationAudit);
+      reminder = { id: notification.message.id, status: notification.message.status };
+    } catch (error) {
+      console.error('[agenda] Agendamento criado sem lembrete externo:', error instanceof Error ? error.message : error);
+    }
+  }
   await persistApplicationState();
-  return { appointment: result.appointment, reminder: { id: notification.message.id, status: notification.message.status }, idempotentReplay: result.idempotentReplay };
+  return { appointment: result.appointment, reminder, idempotentReplay: result.idempotentReplay };
 }
 
 export async function changeAppointment(context: RequestContext, id: string, body: Record<string, unknown>) {

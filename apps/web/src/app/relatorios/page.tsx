@@ -130,50 +130,60 @@ export default function MonthlyIndicatorsPage() {
           <section className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
             <MonthlyIndicatorCard number={1} title="Fila atual de leads" icon={Users}
               value={`${report.filaAtual.total} aguardando`}
-              detail={`${report.filaAtual.alocados} alocados · ${report.filaAtual.semProfissional} sem profissional`}>
+              detail={`${report.filaAtual.alocados} alocados · ${report.filaAtual.semProfissional} sem profissional`}
+              info="Fotografia do momento da consulta: reúne leads pendentes de atribuição ou aguardando contato.">
               <p className="mt-3 text-[10px] text-muted">Fotografia atual: {report.filaAtual.pendentesAtribuicao} pendentes de atribuição e {report.filaAtual.aguardandoContato} aguardando contato.</p>
             </MonthlyIndicatorCard>
 
             <MonthlyIndicatorCard number={2} title="SLA de 24 horas" icon={Clock}
               value={report.sla24h.percentual === null ? 'Sem casos avaliáveis' : `${report.sla24h.percentual}% cumprido`}
-              detail={`${report.sla24h.cumpridos} cumpridos · ${report.sla24h.violados} violações`}>
+              detail={`${report.sla24h.cumpridos} cumpridos · ${report.sla24h.violados} violações`}
+              info="Mede o tempo entre a alocação e a confirmação do lead. O percentual considera apenas casos concluídos ou violados.">
               <p className="mt-3 text-[10px] text-muted">{report.sla24h.emAndamento} dentro do prazo · {report.sla24h.semAlocacao} sem alocação · amostra avaliada: {report.sla24h.avaliados}</p>
             </MonthlyIndicatorCard>
 
             <MonthlyIndicatorCard number={3} title="Gênero dos novos leads" icon={PieChart}
-              value={populatedSummary(report.leadsDoMes.genero)} detail={`Amostra: ${report.leadsDoMes.total} leads`}>
+              value={populatedSummary(report.leadsDoMes.genero)} detail={`Amostra: ${report.leadsDoMes.total} leads`}
+              info="Distribuição dos leads criados na competência, incluindo a opção Não informado.">
               <DistributionBars items={report.leadsDoMes.genero} />
             </MonthlyIndicatorCard>
 
             <MonthlyIndicatorCard number={4} title="Faixa etária dos novos leads" icon={Users}
-              value={populatedSummary(report.leadsDoMes.faixaEtaria)} detail={`Amostra: ${report.leadsDoMes.total} leads`}>
+              value={populatedSummary(report.leadsDoMes.faixaEtaria)} detail={`Amostra: ${report.leadsDoMes.total} leads`}
+              info="Idades válidas são agrupadas nas faixas 0–17, 18–28, 29–42 e 43+. Idades ausentes ou inválidas ficam separadas.">
               <DistributionBars items={report.leadsDoMes.faixaEtaria} />
             </MonthlyIndicatorCard>
 
             <MonthlyIndicatorCard number={5} title="Origem dos novos leads" icon={TrendingUp}
-              value={populatedSummary(report.leadsDoMes.origens)} detail={`Amostra: ${report.leadsDoMes.total} leads`}>
+              value={populatedSummary(report.leadsDoMes.origens)} detail={`Amostra: ${report.leadsDoMes.total} leads`}
+              info="Mostra a origem informada pelos leads criados na competência; diferenças apenas de caixa ou espaços são unificadas.">
               <DistributionBars items={report.leadsDoMes.origens} />
             </MonthlyIndicatorCard>
 
-            <MonthlyIndicatorCard number={6} title="Sessões da competência" icon={Calendar}
-              value={`${report.sessoes.realizadas} realizadas`} detail={variationLabel(report.sessoes.variacaoRealizadasPercentual)}>
-              <p className="mt-3 text-[10px] text-muted">{report.sessoes.agendadas} agendadas · {report.sessoes.confirmadas} confirmadas · {report.sessoes.canceladas} canceladas · {report.sessoes.faltas} faltas</p>
+            <MonthlyIndicatorCard number={6} title="Número de sessões / atendimentos" icon={Calendar}
+              value={`${report.sessoes.total} sessões registradas`}
+              detail={`${report.sessoes.realizadas} atendimentos realizados · ${variationLabel(report.sessoes.variacaoRealizadasPercentual)}`}
+              info="Total de sessões registradas na agenda da competência, em qualquer status. Atendimentos realizados são exclusivamente os concluídos.">
+              <p className="mt-3 text-[10px] text-muted">{report.sessoes.agendadas} agendadas · {report.sessoes.confirmadas} confirmadas · {report.sessoes.emAndamento} em andamento · {report.sessoes.canceladas} canceladas · {report.sessoes.faltas} faltas</p>
             </MonthlyIndicatorCard>
 
             <MonthlyIndicatorCard number={7} title="Modalidades dos novos leads" icon={BarChart3}
-              value={populatedSummary(report.leadsDoMes.modalidades)} detail={`Amostra: ${report.leadsDoMes.total} leads`}>
+              value={populatedSummary(report.leadsDoMes.modalidades)} detail={`Amostra: ${report.leadsDoMes.total} leads`}
+              info="Distribuição da modalidade informada pelos leads criados na competência, com valores vazios em Não informado.">
               <DistributionBars items={report.leadsDoMes.modalidades} />
             </MonthlyIndicatorCard>
 
             {report.indisponiveis.map((item, index) => {
               const icons = [DollarSign, TrendingUp, Briefcase];
               return <MonthlyIndicatorCard key={item.indicador} number={index + 8} title={item.titulo}
-                icon={icons[index] ?? FileQuestion} value="Dados ainda não configurados" detail={item.motivo} unavailable />;
+                icon={icons[index] ?? FileQuestion} value="Dados ainda não configurados" detail={item.motivo}
+                info="Este indicador ainda não tem uma fonte de dados oficial conectada ao relatório." unavailable />;
             })}
 
             <MonthlyIndicatorCard number={11} title="Eventos reais de auditoria" icon={ShieldCheck} wide
               value={`${report.auditoria.total} eventos`}
-              detail={`${report.auditoria.acessosConcedidos} concedidos · ${report.auditoria.acessosNegados} negados`}>
+              detail={`${report.auditoria.acessosConcedidos} concedidos · ${report.auditoria.acessosNegados} negados`}
+              info="Eventos registrados na auditoria de acessos da clínica dentro da competência. O histórico anterior à correção pode estar incompleto.">
               <DistributionBars items={report.auditoria.porAcao} />
               <p className="mt-4 rounded-xl bg-amber-50 px-3 py-2 text-[10px] font-medium text-amber-900">
                 O histórico anterior à correção pode estar incompleto. Primeiro evento disponível: {auditStart}.

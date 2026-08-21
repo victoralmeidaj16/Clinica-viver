@@ -597,7 +597,8 @@ export async function identifyPatient(
     `SELECT o.ref_core AS organizacao_ref, p.ref_core AS profissional_ref,
             p.id AS profissional_id, p.nome AS profissional_nome,
             p.valor_social_centavos, p.valor_sessao_centavos,
-            pa.ref_core AS paciente_ref, pa.id AS paciente_id, t.nome_paciente,
+            pa.ref_core AS paciente_ref, pa.id AS paciente_id,
+            COALESCE(NULLIF(TRIM(pa.nome_social), ''), pa.nome) AS nome_paciente,
             t.modalidade AS modalidade_triagem
        FROM clinica_profissionais p
        JOIN clinica_organizacoes o ON o.id = p.organizacao_id
@@ -628,7 +629,7 @@ export async function identifyPatient(
               p.id AS profissional_id, p.nome AS profissional_nome,
               p.valor_social_centavos, p.valor_sessao_centavos,
               pa.ref_core AS paciente_ref, pa.id AS paciente_id,
-              COALESCE(pa.nome_social, pa.nome) AS nome_paciente,
+              COALESCE(NULLIF(TRIM(pa.nome_social), ''), pa.nome) AS nome_paciente,
               (SELECT t.modalidade FROM clinica_triagens_pacientes t
                 WHERE t.instituicao_id = p.instituicao_id
                   AND t.organizacao_ref = o.ref_core AND t.paciente_ref = pa.ref_core

@@ -11,6 +11,7 @@ import {
   X,
   AlertCircle,
   Camera,
+  Upload,
 } from 'lucide-react';
 import { LISTA_NECESSIDADES } from '@/components/forms/necessidades';
 import {
@@ -327,26 +328,51 @@ export function ModalEdicao({
 
               <div>
                 <label className="font-bold text-slate-700 block mb-1 text-xs">
-                  Foto de Perfil (URL)
+                  Foto de Perfil <span className="text-slate-400 font-normal">(opcional)</span>
                 </label>
-                <div className="flex gap-3 items-center">
-                  <input
-                    type="url"
-                    value={fotoUrl}
-                    onChange={(e) => setFotoUrl(e.target.value)}
-                    placeholder="https://exemplo.com/foto.jpg"
-                    className={`${inputClass} flex-1`}
-                  />
-                  {fotoUrl && (
-                    <button
-                      type="button"
-                      onClick={() => setFotoUrl('')}
-                      className="px-3 py-2 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 border border-rose-200"
-                    >
-                      Remover
-                    </button>
-                  )}
-                </div>
+                {fotoUrl ? (
+                  <div className="flex items-center gap-4 p-3 border border-purple-200 bg-purple-50/50 rounded-2xl">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={fotoUrl}
+                      alt="Foto de Perfil"
+                      className="w-16 h-16 rounded-full object-cover border-2 border-purple-500 shadow-sm"
+                    />
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs font-bold text-purple-900">Foto carregada com sucesso</span>
+                      <button
+                        type="button"
+                        onClick={() => setFotoUrl('')}
+                        className="text-xs text-rose-600 hover:text-rose-800 font-extrabold text-left underline"
+                      >
+                        Remover / Trocar foto
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center border-2 border-dashed border-purple-200 hover:border-purple-500 bg-purple-50/30 hover:bg-purple-50/70 p-4 rounded-2xl cursor-pointer transition-all">
+                    <Upload className="w-6 h-6 text-purple-600 mb-1" />
+                    <span className="text-xs font-bold text-purple-900">Clique para enviar uma foto de perfil</span>
+                    <span className="text-[10px] text-slate-500">Envie um arquivo de imagem (PNG, JPG, WEBP)</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = (event) => {
+                            if (event.target?.result) {
+                              setFotoUrl(String(event.target?.result));
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                  </label>
+                )}
               </div>
 
               <GenderFields

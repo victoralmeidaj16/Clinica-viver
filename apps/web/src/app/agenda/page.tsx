@@ -1,13 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { CalendarDays, Loader2 } from 'lucide-react';
+import { CalendarDays, CalendarPlus, Loader2 } from 'lucide-react';
 import { applicationRequest } from '@/lib/applicationApi';
 import { AgendaBlocks, type BloqueioAgenda, type NovoBloqueioAgenda } from '@/components/scheduling/AgendaBlocks';
 import { AgendaShareCard } from '@/components/scheduling/AgendaShareCard';
 import { AvailabilityEditor, type JanelaEditavel } from '@/components/scheduling/AvailabilityEditor';
 import { UpcomingSessions, type AgendamentoResumo } from '@/components/scheduling/UpcomingSessions';
 import { ProfessionalCalendarView } from '@/components/scheduling/ProfessionalCalendarView';
+import { ManualAppointmentDialog } from '@/components/scheduling/ManualAppointmentDialog';
+import type { PatientDirectoryEntry } from '@/server/application/patientDirectory';
 
 interface AgendaOverview {
   professionalName: string;
@@ -19,13 +21,19 @@ interface AgendaOverview {
 
 export default function AgendaPage() {
   const [dados, setDados] = useState<AgendaOverview>();
+  const [pacientes, setPacientes] = useState<readonly PatientDirectoryEntry[]>([]);
+  const [agendamentoManualAberto, setAgendamentoManualAberto] = useState(false);
   const [erro, setErro] = useState<string>();
 
   const carregar = useCallback(
     () =>
-      applicationRequest<AgendaOverview>('/agenda')
-        .then((resultado) => {
-          setDados(resultado);
+      Promise.all([
+        applicationRequest<AgendaOverview>('/agenda'),
+        applicationRequest<PatientDirectoryEntry[]>('/patients'),
+      ])
+        .then(([agenda, listaPacientes]) => {
+          setDados(agenda);
+          setPacientes(listaPacientes);
           setErro(undefined);
         })
         .catch((causa) =>
@@ -80,15 +88,20 @@ export default function AgendaPage() {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
-      <div>
-        <span className="chip-accent text-[11px] mb-1">Agenda &amp; Horários</span>
-        <h1 className="text-2xl font-black text-ink flex items-center gap-2">
-          <CalendarDays className="w-6 h-6 text-psi-vibrant" />
-          Sua agenda de atendimentos
-        </h1>
-        <p className="text-xs text-muted">
-          Seus turnos cadastrados habilitam automaticamente a grade inicial de segunda a sexta. Você ainda pode ajustar horários, bloquear períodos e compartilhar seu link exclusivo.
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <span className="chip-accent text-[11px] mb-1">Agenda &amp; Horários</span>
+          <h1 className="text-2xl font-black text-ink flex items-center gap-2">
+            <CalendarDays className="w-6 h-6 text-psi-vibrant" />
+            Sua agenda de atendimentos
+          </h1>
+          <p className="max-w-3xl text-xs text-muted">
+            Seus turnos cadastrados habilitam automaticamente a grade inicial de segunda a sexta. Você ainda pode ajustar horários, bloquear períodos e compartilhar seu link exclusivo.
+          </p>
+        </div>
+        <button type="button" onClick={() => setAgendamentoManualAberto(true)} disabled={!dados} className="btn-accent shrink-0 px-5 py-3 text-xs disabled:opacity-50">
+          <CalendarPlus className="h-4 w-4" /> Agendar sessão
+        </button>
       </div>
 
       {erro && (
@@ -122,6 +135,14 @@ export default function AgendaPage() {
             onConfirmarRealizacao={confirmarRealizacao}
           />
         </>
+      )}
+
+      {agendamentoManualAberto && (
+        <ManualAppointmentDialog
+          patients={pacientes}
+          onClose={() => setAgendamentoManualAberto(false)}
+          onScheduled={carregar}
+        />
       )}
     </div>
   );

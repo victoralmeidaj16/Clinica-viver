@@ -29,8 +29,7 @@ export function VitrineCarrossel({ psicologos }: VitrineCarrosselProps) {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <span className="chip-accent text-[11px]">Corpo Clínico Credenciado</span>
-          <h3 className="text-2xl sm:text-3xl font-black text-ink mt-1">Conheça Nossos Psicólogos</h3>
+          <h3 className="text-2xl sm:text-3xl font-black text-ink">Conheça Nossos Psicólogos</h3>
           <p className="text-xs text-muted">Profissionais especializados e em supervisão contínua</p>
         </div>
       </div>

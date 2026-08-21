@@ -22,7 +22,6 @@ import {
   Clock,
   ArrowRight,
   Brain,
-  ShieldCheck,
   Check,
   Building2,
   DollarSign,
@@ -406,10 +405,6 @@ export default function ViverMaisLandingPage() {
                 >
                   Ver Modalidades & Agendar <ArrowRight className="w-4 h-4" />
                 </a>
-                <div className="flex items-center gap-2 text-xs text-purple-200 font-semibold">
-                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                  <span>Sigilo CFP & LGPD Garantidos</span>
-                </div>
               </div>
             </div>
             
@@ -579,10 +574,7 @@ export default function ViverMaisLandingPage() {
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/30 to-transparent"></div>
                         <div className="absolute bottom-4 left-6 right-6">
-                          <span className="text-[10px] text-psi-vibrant font-extrabold uppercase tracking-wider bg-psi-darkest/90 backdrop-blur-md px-3 py-1 rounded-full border border-psi-vibrant/30">
-                            Atendimento Especializado
-                          </span>
-                          <h4 className="text-lg font-black text-white mt-1.5 flex items-center gap-2">
+                          <h4 className="text-lg font-black text-white flex items-center gap-2">
                             {service.titulo}
                           </h4>
                         </div>

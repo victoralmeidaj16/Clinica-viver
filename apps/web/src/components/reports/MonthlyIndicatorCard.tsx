@@ -11,6 +11,7 @@ export function MonthlyIndicatorCard({
   children,
   wide = false,
   unavailable = false,
+  info,
 }: {
   number: number;
   title: string;
@@ -20,12 +21,26 @@ export function MonthlyIndicatorCard({
   children?: ReactNode;
   wide?: boolean;
   unavailable?: boolean;
+  info?: string;
 }) {
   return (
     <article className={`rounded-3xl border p-5 shadow-card ${wide ? 'md:col-span-2' : ''} ${unavailable ? 'border-dashed border-amber-200 bg-amber-50/50' : 'border-line bg-surface'}`}>
       <div className="flex items-center justify-between gap-3">
-        <span className="text-[11px] font-bold uppercase tracking-wider text-muted">{number}. {title}</span>
-        <Icon className={`h-4 w-4 ${unavailable ? 'text-amber-600' : 'text-psi-vibrant'}`} />
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-muted">{number}. {title}</span>
+          {info && (
+            <span
+              tabIndex={0}
+              role="img"
+              aria-label={`Informação sobre ${title}: ${info}`}
+              title={info}
+              className="shrink-0 cursor-help text-xs leading-none text-muted/70 outline-none transition-colors hover:text-psi-vibrant focus:text-psi-vibrant"
+            >
+              ⓘ
+            </span>
+          )}
+        </div>
+        <Icon className={`h-4 w-4 shrink-0 ${unavailable ? 'text-amber-600' : 'text-psi-vibrant'}`} />
       </div>
       <h2 className={`mt-3 text-xl font-black ${unavailable ? 'text-amber-900' : 'text-ink'}`}>{value}</h2>
       <p className="mt-1 text-[11px] font-medium text-muted">{detail}</p>

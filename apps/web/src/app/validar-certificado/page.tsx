@@ -114,11 +114,11 @@ export default function ValidarCertificadoHomePage() {
               </Link>
 
               <Link
-                href="/validar-certificado/REV-TEST-0001"
-                className="px-3 py-2 rounded-xl bg-red-50 text-red-900 text-xs font-mono font-bold border border-red-200 hover:bg-red-100 transition-colors flex items-center gap-1.5 shadow-xs"
+                href="/validar-certificado/VVR-TEST-3390"
+                className="px-3 py-2 rounded-xl bg-purple-50 text-purple-900 text-xs font-mono font-bold border border-purple-200 hover:bg-purple-100 transition-colors flex items-center gap-1.5 shadow-xs"
               >
-                <XCircle className="w-3.5 h-3.5 text-red-600 shrink-0" />
-                <span>REV-TEST-0001 (Revogado)</span>
+                <CheckCircle2 className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                <span>VVR-TEST-3390 (Psicofarmacologia 40h)</span>
               </Link>
             </div>
           </div>

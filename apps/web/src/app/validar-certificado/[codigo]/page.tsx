@@ -1,14 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import {
-  AlertTriangle,
   ArrowLeft,
   Award,
-  CheckCircle2,
   Clock,
   GraduationCap,
   Lock,
-  Search,
   ShieldCheck,
   User,
   XCircle,
@@ -95,83 +92,30 @@ export default async function ValidarCertificadoPage({
           </div>
         </div>
 
-        {/* BANNER DE STATUS DE AUTENTICIDADE */}
-        {isValid && (
-          <div className="rounded-3xl border border-emerald-300 bg-emerald-50/90 p-6 shadow-sm flex items-start gap-4 backdrop-blur-xs">
+        {/* BANNER OFICIAL DE AUTENTICIDADE E 2ª VIA */}
+        <div className="rounded-3xl border border-emerald-300 bg-emerald-50/95 p-6 sm:p-7 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 backdrop-blur-xs">
+          <div className="flex items-start gap-4">
             <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-emerald-600 text-white shadow-md">
-              <CheckCircle2 className="w-6 h-6" />
+              <ShieldCheck className="w-7 h-7" />
             </span>
             <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="px-2.5 py-0.5 rounded-full bg-emerald-700 text-white text-[10px] font-bold uppercase tracking-wider">
-                  🟢 Status: Válido & Autêntico
+                  ✓ Certificado Autêntico Registrado
                 </span>
                 <span className="text-xs text-emerald-900 font-mono font-bold">
                   Código: {record.code}
                 </span>
               </div>
-              <h1 className="font-heading text-xl font-extrabold text-emerald-950">
-                Certificado Autêntico e Verificado Oficialmente
+              <h1 className="font-heading text-xl sm:text-2xl font-extrabold text-emerald-950">
+                Autenticidade Verificada · Viver Mais Psicologia
               </h1>
-              <p className="text-xs text-emerald-800 leading-relaxed">
-                Emitido pela Secretaria de Cursos da Viver Mais Psicologia em <strong>{record.issueDate}</strong> com aproveitamento integral.
+              <p className="text-xs text-emerald-800 leading-relaxed max-w-xl">
+                Documento emitido oficialmente para <strong>{record.studentName}</strong>, com registro sob responsabilidade da Secretaria Acadêmica.
               </p>
             </div>
           </div>
-        )}
-
-        {isRevoked && (
-          <div className="rounded-3xl border border-red-300 bg-red-50 p-6 shadow-sm space-y-3">
-            <div className="flex items-start gap-4">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-red-600 text-white shadow-md">
-                <XCircle className="w-6 h-6" />
-              </span>
-              <div>
-                <span className="px-2.5 py-0.5 rounded-full bg-red-700 text-white text-[10px] font-bold uppercase tracking-wider">
-                  🔴 Status: Revogado
-                </span>
-                <h1 className="font-heading text-xl font-extrabold text-red-950 mt-1">
-                  Certificado Revogado Institucionalmente
-                </h1>
-                <p className="text-xs text-red-800 mt-0.5">
-                  Este documento teve sua validade suspensa ou revogada pela Direção Acadêmica.
-                </p>
-              </div>
-            </div>
-
-            {record.revocationReason && (
-              <div className="bg-white/90 p-4 rounded-2xl border border-red-200 text-xs text-red-900 leading-relaxed space-y-1">
-                <p>
-                  <strong>Motivo registrado da revogação:</strong> {record.revocationReason}
-                </p>
-                {record.revokedAt && (
-                  <p className="text-[10px] text-red-700">
-                    Data do registro de revogação: {new Date(record.revokedAt).toLocaleString('pt-BR')}
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {isCancelled && (
-          <div className="rounded-3xl border border-amber-300 bg-amber-50 p-6 shadow-sm flex items-start gap-4">
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-amber-600 text-white shadow-md">
-              <AlertTriangle className="w-6 h-6" />
-            </span>
-            <div>
-              <span className="px-2.5 py-0.5 rounded-full bg-amber-700 text-white text-[10px] font-bold uppercase tracking-wider">
-                🟡 Status: Cancelado
-              </span>
-              <h1 className="font-heading text-xl font-extrabold text-amber-950 mt-1">
-                Certificado Cancelado / Anulado
-              </h1>
-              <p className="text-xs text-amber-800 mt-1">
-                Este registro foi cancelado administrativamente e não possui valor comprobatório.
-              </p>
-            </div>
-          </div>
-        )}
+        </div>
 
         {/* FICHA TÉCNICA DO REGISTRO */}
         <div className="no-print rounded-3xl border border-line bg-white p-6 sm:p-8 shadow-card space-y-6">

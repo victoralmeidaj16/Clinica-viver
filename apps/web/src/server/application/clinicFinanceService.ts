@@ -20,6 +20,7 @@ import { isMysqlConfigured } from '@/server/oci/runtime';
 import type { PatientContactCapable } from '@/server/persistence/mysql/identityRepository';
 import { ApplicationError } from './http';
 import { descricaoFiscalDaSessao } from '@/lib/sessionReference';
+import { normalizarEmailPaciente } from '@/server/fiscal/nfseEmail';
 
 /**
  * Financeiro da clínica — o outro lado do extrato que o psicólogo vê.
@@ -391,9 +392,11 @@ export async function getNfsePreview(
   const contatos = contactSource(store.identities);
   const cadastro = contatos ? (await contatos.listPatientContacts(organizationId))[charge.patientId] : undefined;
   const cpf = lead?.cpf?.replace(/\D/g, '') || cadastro?.documento?.replace(/\D/g, '') || undefined;
+  const email = normalizarEmailPaciente(lead?.email) ?? normalizarEmailPaciente(cadastro?.email);
 
   const camposPendentes: string[] = [];
   if (!cpf) camposPendentes.push('CPF do tomador');
+  if (!email) camposPendentes.push('e-mail válido do paciente');
 
   // O certificado responde se a emissão é possível hoje. Antes isto era um
   // `false` fixo; agora vencer o certificado, ou trocá-lo por um de outro
@@ -406,7 +409,7 @@ export async function getNfsePreview(
       ref: charge.patientId,
       nome: paciente?.displayName ?? lead?.nomePaciente ?? charge.patientId,
       cpf,
-      email: lead?.email ?? cadastro?.email,
+      email,
     },
     competencia: fatoFiscal.competencia,
     descricaoServico: descricaoFiscalDaSessao(fatoFiscal.inicioAtendimento),

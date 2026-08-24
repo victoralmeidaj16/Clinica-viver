@@ -287,11 +287,17 @@ export default function FinanceiroClinicaPage() {
     setEmitindoNfse(true);
     setErroNfse('');
     try {
-      const resultado = await applicationRequest<{ status: 'issued'; numeroNfse?: string; ambiente: string }>(
+      const resultado = await applicationRequest<{
+        status: 'issued'; numeroNfse?: string; ambiente: string;
+        emailStatus?: 'sending' | 'sent' | 'failed'; emailDestinatario?: string;
+      }>(
         `/financial/clinica/${encodeURIComponent(previaNfse.chargeId)}/nfse`,
         { method: 'POST', headers: commandHeaders(), body: JSON.stringify({ confirmar: true }) }
       );
-      setSucessoNfse(`NFS-e${resultado.numeroNfse ? ` nº ${resultado.numeroNfse}` : ''} emitida com sucesso.`);
+      const identificacao = `NFS-e${resultado.numeroNfse ? ` nº ${resultado.numeroNfse}` : ''}`;
+      setSucessoNfse(resultado.emailStatus === 'sent'
+        ? `${identificacao} emitida e enviada para ${resultado.emailDestinatario}.`
+        : `${identificacao} emitida com sucesso. Confira abaixo a situação do envio por e-mail.`);
       const emissao = await applicationRequest<NfseEmissao>(
         `/financial/clinica/${encodeURIComponent(previaNfse.chargeId)}/nfse`
       );

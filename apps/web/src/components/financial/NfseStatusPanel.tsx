@@ -1,4 +1,4 @@
-import { Download, Eye } from 'lucide-react';
+import { Download, Eye, Mail, MailCheck, MailWarning } from 'lucide-react';
 import type { NfseEmissao } from './nfseTypes';
 
 const dataHoraBr = (valor: string) =>
@@ -51,6 +51,25 @@ export function NfseStatusPanel({
       {emissao.status === 'failed' && (emissao.erroMensagem || emissao.erroCodigo) && (
         <p className="mt-1 font-semibold text-rose-700">
           {emissao.erroCodigo ? `${emissao.erroCodigo}: ` : ''}{emissao.erroMensagem}
+        </p>
+      )}
+
+      {emissao.emailStatus === 'sent' && (
+        <p className="mt-2 flex items-center gap-1.5 font-semibold text-emerald-700">
+          <MailCheck className="h-3.5 w-3.5" />
+          Enviada para {emissao.emailDestinatario}
+          {emissao.emailEnviadoEm ? ` em ${dataHoraBr(emissao.emailEnviadoEm)}` : ''}.
+        </p>
+      )}
+      {emissao.emailStatus === 'sending' && (
+        <p className="mt-2 flex items-center gap-1.5 font-semibold text-sky-700">
+          <Mail className="h-3.5 w-3.5" /> Envio da nota por e-mail em andamento.
+        </p>
+      )}
+      {emissao.emailStatus === 'failed' && (
+        <p className="mt-2 flex items-start gap-1.5 font-semibold text-amber-800">
+          <MailWarning className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>Nota emitida, mas o e-mail não foi enviado{emissao.emailErro ? `: ${emissao.emailErro}` : '.'}</span>
         </p>
       )}
 

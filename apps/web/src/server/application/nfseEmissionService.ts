@@ -16,6 +16,7 @@ import {
 import { assinarXmlFiscal } from '@/server/fiscal/assinaturaXmlFiscal';
 import { validarDpsAssinada, validarPedidoEventoAssinado } from '@/server/fiscal/validacaoXmlFiscal';
 import { gerarDanfsePdf } from '@/server/fiscal/danfsePdf';
+import { enviarNfsePorEmail, normalizarEmailPaciente } from '@/server/fiscal/nfseEmail';
 
 function serieDps(): string {
   const numero = Number(process.env.NFSE_DPS_SERIE?.trim() || '1');
@@ -78,7 +79,47 @@ function resultado(emissao: EmissaoNfse) {
     // A chave fica persistida para consulta fiscal, mas não é exibida nem
     // copiada no fluxo administrativo solicitado pela clínica.
     ambiente: emissao.ambiente,
+    emailStatus: emissao.emailStatus,
+    emailDestinatario: emissao.emailDestinatario,
+    emailEnviadoEm: emissao.emailEnviadoEm,
+    emailErro: emissao.emailErro,
   };
+}
+
+/**
+ * A SEFIN e o provedor de e-mail são duas consequências independentes.
+ * A nota permanece `issued` se a entrega falhar, e a falha fica disponível
+ * para nova tentativa sem gerar outra DPS.
+ */
+async function enviarEmailDaNota(
+  repositorio: NfseRepository,
+  organizationId: string,
+  chargeId: string,
+  paciente: { nome: string; email?: string }
+) {
+  const email = normalizarEmailPaciente(paciente.email);
+  let emissao = await repositorio.porCobranca(organizationId, chargeId);
+  if (!emissao) throw new Error('A emissão recém-criada não foi encontrada para envio por e-mail.');
+  if (emissao.emailStatus === 'sent' || !email) return resultado(emissao);
+
+  const iniciou = await repositorio.iniciarEnvioEmail(emissao.id, email);
+  if (!iniciou) {
+    emissao = await repositorio.porCobranca(organizationId, chargeId) ?? emissao;
+    return resultado(emissao);
+  }
+
+  try {
+    const envio = await enviarNfsePorEmail({ emissao, paciente: { nome: paciente.nome, email } });
+    await repositorio.registrarEmailEnviado(emissao.id, envio.providerId);
+  } catch (error) {
+    await repositorio.registrarFalhaEmail(
+      emissao.id,
+      error instanceof Error ? error.message : 'Falha desconhecida no envio da NFS-e por e-mail.'
+    );
+  }
+
+  emissao = await repositorio.porCobranca(organizationId, chargeId) ?? emissao;
+  return resultado(emissao);
 }
 
 /** Uma emissão só começa depois da confirmação explícita no modal administrativo. */
@@ -115,7 +156,11 @@ export async function emitirNfse(context: RequestContext, chargeId: string, conf
     idempotencyKey: context.idempotencyKey, usuarioId: context.actor.userId,
   });
 
-  if (emissao.status === 'issued') return resultado(emissao);
+  if (emissao.status === 'issued') {
+    return enviarEmailDaNota(
+      repositorio, context.actor.organizationId, chargeId, previa.paciente
+    );
+  }
   if (emissao.status === 'cancelled') {
     throw new ApplicationError('INVALID_FISCAL_STATE', 'Esta DPS foi cancelada e não pode ser reenviada.', 409);
   }
@@ -152,13 +197,17 @@ export async function emitirNfse(context: RequestContext, chargeId: string, conf
       const consulta = await consultarChavePorDps(identificadorDps);
       const nota = interpretarNota(consulta);
       await repositorio.registrarNota(emissao.id, { status: consulta.status, corpo: consulta.corpo, ...nota });
-      return { status: 'issued' as const, numeroNfse: nota.numeroNfse, ambiente };
+      return enviarEmailDaNota(
+        repositorio, context.actor.organizationId, chargeId, previa.paciente
+      );
     }
 
     const resposta = await enviarDps(xmlAssinado);
     const nota = interpretarNota(resposta);
     await repositorio.registrarNota(emissao.id, { status: resposta.status, corpo: resposta.corpo, ...nota });
-    return { status: 'issued' as const, numeroNfse: nota.numeroNfse, ambiente };
+    return enviarEmailDaNota(
+      repositorio, context.actor.organizationId, chargeId, previa.paciente
+    );
   } catch (error) {
     const sefin = error instanceof SefinNacionalError ? error : undefined;
     await repositorio.registrarFalha(emissao.id, {
@@ -200,6 +249,11 @@ export async function consultarEmissaoNfse(context: RequestContext, chargeId: st
     valorCents: emissao.valorCents,
     canceladoEm: emissao.canceladoEm,
     cancelamentoMotivo: emissao.cancelamentoMotivo,
+    emailStatus: emissao.emailStatus,
+    emailDestinatario: emissao.emailDestinatario,
+    emailEnviadoEm: emissao.emailEnviadoEm,
+    emailErro: emissao.emailErro,
+    emailTentativas: emissao.emailTentativas,
     erroCodigo: emissao.erroCodigo,
     erroMensagem: emissao.erroMensagem,
     xmlNfseDisponivel: Boolean(emissao.nfseXml),

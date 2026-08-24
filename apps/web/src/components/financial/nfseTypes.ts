@@ -35,6 +35,11 @@ export interface NfseEmissao {
   cancelamentoMotivo?: string;
   erroCodigo?: string;
   erroMensagem?: string;
+  emailStatus?: 'sending' | 'sent' | 'failed';
+  emailDestinatario?: string;
+  emailEnviadoEm?: string;
+  emailErro?: string;
+  emailTentativas?: number;
   xmlNfseDisponivel?: boolean;
   xmlDpsDisponivel?: boolean;
   danfseDisponivel?: boolean;

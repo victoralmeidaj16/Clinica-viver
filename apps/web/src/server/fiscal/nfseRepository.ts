@@ -5,6 +5,7 @@ import { getMysqlPool, isMysqlConfigured } from '@/server/oci/runtime';
 import { instituicaoId, rowId } from '@/server/persistence/mysql/mappers';
 
 export type StatusEmissaoNfse = 'reserved' | 'processing' | 'issued' | 'failed' | 'cancelled';
+export type StatusEnvioEmailNfse = 'sending' | 'sent' | 'failed';
 
 export interface EmissaoNfse {
   id: string;
@@ -29,6 +30,12 @@ export interface EmissaoNfse {
   erroMensagem?: string;
   canceladoEm?: string;
   cancelamentoMotivo?: string;
+  emailDestinatario?: string;
+  emailStatus?: StatusEnvioEmailNfse;
+  emailEnviadoEm?: string;
+  emailProviderId?: string;
+  emailErro?: string;
+  emailTentativas: number;
 }
 
 export type StatusEventoNfse = 'processing' | 'registered' | 'failed';
@@ -70,6 +77,12 @@ interface EmissaoRow extends RowDataPacket {
   erro_mensagem: string | null;
   cancelado_em: string | null;
   cancelamento_motivo: string | null;
+  email_destinatario: string | null;
+  email_status: StatusEnvioEmailNfse | null;
+  email_enviado_em: string | null;
+  email_provider_id: string | null;
+  email_erro: string | null;
+  email_tentativas: number;
 }
 
 interface EventoRow extends RowDataPacket {
@@ -97,6 +110,9 @@ function toEmissao(row: EmissaoRow): EmissaoNfse {
     sefinHttpStatus: row.sefin_http_status ?? undefined, sefinRetorno: row.sefin_retorno ?? undefined,
     erroCodigo: row.erro_codigo ?? undefined, erroMensagem: row.erro_mensagem ?? undefined,
     canceladoEm: row.cancelado_em ?? undefined, cancelamentoMotivo: row.cancelamento_motivo ?? undefined,
+    emailDestinatario: row.email_destinatario ?? undefined, emailStatus: row.email_status ?? undefined,
+    emailEnviadoEm: row.email_enviado_em ?? undefined, emailProviderId: row.email_provider_id ?? undefined,
+    emailErro: row.email_erro ?? undefined, emailTentativas: Number(row.email_tentativas),
   };
 }
 
@@ -112,7 +128,8 @@ function toEvento(row: EventoRow): EventoNfse {
 const SELECT = `SELECT id, cobranca_ref, paciente_ref, cnpj_prestador, serie, numero_dps, dps_id,
   ambiente, valor_centavos, competencia, status, idempotency_key, dps_xml, nfse_xml,
   chave_acesso, numero_nfse, sefin_http_status, sefin_retorno, erro_codigo, erro_mensagem,
-  cancelado_em, cancelamento_motivo
+  cancelado_em, cancelamento_motivo, email_destinatario, email_status, email_enviado_em,
+  email_provider_id, email_erro, email_tentativas
   FROM fiscal_nfse_emissoes`;
 
 const SELECT_EVENTO = `SELECT id, emissao_id, tipo_evento, numero_pedido, pedido_id, chave_acesso,
@@ -195,6 +212,7 @@ export class NfseRepository {
         id, chargeId: input.chargeId, patientId: input.patientId, cnpjPrestador: input.cnpjPrestador,
         serie: input.serie, numeroDps, dpsId: '', ambiente: input.ambiente, valorCents: input.valorCents,
         competencia: input.competencia, status: 'reserved', idempotencyKey: input.idempotencyKey,
+        emailTentativas: 0,
       };
     } catch (error) {
       await connection.rollback();
@@ -234,6 +252,34 @@ export class NfseRepository {
     await this.pool.query(`UPDATE fiscal_nfse_emissoes SET status = 'failed', processando_em = NULL, sefin_http_status = ?, sefin_retorno = ?,
       erro_codigo = ?, erro_mensagem = ? WHERE instituicao_id = ? AND id = ?`, [
       falha.status ?? null, falha.corpo ?? null, falha.codigo ?? null, falha.mensagem.slice(0, 1000), instituicaoId(), emissaoId,
+    ]);
+  }
+
+  /** Obtém a trava do envio e permite retomar uma tentativa abandonada. */
+  async iniciarEnvioEmail(emissaoId: string, destinatario: string): Promise<boolean> {
+    const [resultado] = await this.pool.query<ResultSetHeader>(`UPDATE fiscal_nfse_emissoes
+      SET email_status = 'sending', email_destinatario = ?, email_processando_em = CURRENT_TIMESTAMP(3),
+        email_erro = NULL, email_tentativas = email_tentativas + 1
+      WHERE instituicao_id = ? AND id = ? AND status = 'issued'
+        AND (email_status IS NULL OR email_status = 'failed'
+          OR (email_status = 'sending' AND email_processando_em < DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 2 MINUTE)))`, [
+      destinatario, instituicaoId(), emissaoId,
+    ]);
+    return resultado.affectedRows === 1;
+  }
+
+  async registrarEmailEnviado(emissaoId: string, providerId: string) {
+    await this.pool.query(`UPDATE fiscal_nfse_emissoes SET email_status = 'sent', email_processando_em = NULL,
+      email_enviado_em = CURRENT_TIMESTAMP(3), email_provider_id = ?, email_erro = NULL
+      WHERE instituicao_id = ? AND id = ? AND email_status = 'sending'`, [
+      providerId, instituicaoId(), emissaoId,
+    ]);
+  }
+
+  async registrarFalhaEmail(emissaoId: string, mensagem: string) {
+    await this.pool.query(`UPDATE fiscal_nfse_emissoes SET email_status = 'failed', email_processando_em = NULL,
+      email_erro = ? WHERE instituicao_id = ? AND id = ? AND email_status = 'sending'`, [
+      mensagem.slice(0, 1000), instituicaoId(), emissaoId,
     ]);
   }
 

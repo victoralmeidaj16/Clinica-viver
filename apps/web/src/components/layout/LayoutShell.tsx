@@ -23,8 +23,23 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   // aqui, o `proxy.ts` deixa passar e é este componente que manda para o
   // login, no navegador, depois da página já ter começado a carregar.
   const isConferenciaDeclaracao = pathname === '/validar' || pathname.startsWith('/validar/') || pathname.startsWith('/previa-doc');
+  const isCertificadosPage =
+    pathname === '/validar-certificado' ||
+    pathname.startsWith('/validar-certificado/') ||
+    pathname === '/painel-certificados' ||
+    pathname.startsWith('/painel-certificados/');
+
   const isPublicPage =
-    pathname === '/login' || pathname === '/ativar-conta' || pathname === '/redefinir-senha' || pathname === '/' || isVitrinePage || isConfirmacaoContato || isPaginaPagamento || isPaginaAgendamento || isConferenciaDeclaracao;
+    pathname === '/login' ||
+    pathname === '/ativar-conta' ||
+    pathname === '/redefinir-senha' ||
+    pathname === '/' ||
+    isVitrinePage ||
+    isConfirmacaoContato ||
+    isPaginaPagamento ||
+    isPaginaAgendamento ||
+    isConferenciaDeclaracao ||
+    isCertificadosPage;
 
   useEffect(() => {
     if (isPublicPage) {

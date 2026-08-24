@@ -7,9 +7,16 @@ import { readSessionValue } from '@/server/auth';
 // continua no LayoutShell e, principalmente, nas APIs.
 export function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
-  const persistentApi = ['/api/application/', '/api/auth/', '/api/infra/', '/api/pagamento/', '/api/agenda/', '/api/financeiro/asaas/'].some(
-    (prefix) => pathname.startsWith(prefix)
-  );
+  const persistentApi = [
+    '/api/application/',
+    '/api/auth/',
+    '/api/infra/',
+    '/api/pagamento/',
+    '/api/agenda/',
+    '/api/financeiro/asaas/',
+    '/api/certificados/',
+    '/api/public/certificados/',
+  ].some((prefix) => pathname.startsWith(prefix));
 
   if (process.env.VERCEL && persistentApi) {
     const backendOrigin =
@@ -37,6 +44,10 @@ export function proxy(request: NextRequest) {
     // seria transformar a conferência em obstáculo.
     pathname === '/validar' ||
     pathname.startsWith('/validar/') ||
+    pathname === '/validar-certificado' ||
+    pathname.startsWith('/validar-certificado/') ||
+    pathname === '/painel-certificados' ||
+    pathname.startsWith('/painel-certificados/') ||
     pathname.startsWith('/previa-doc') ||
     pathname.startsWith('/_next') ||
     // Arquivos de `public/` são servidos na raiz e caem neste matcher. Sem

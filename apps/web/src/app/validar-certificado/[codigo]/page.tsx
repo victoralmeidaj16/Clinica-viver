@@ -2,12 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import {
   ArrowLeft,
-  Award,
-  Clock,
-  GraduationCap,
-  Lock,
   ShieldCheck,
-  User,
   XCircle,
 } from 'lucide-react';
 import { certificadosRepo } from '@/server/certificados/certificadosRepository';
@@ -75,8 +70,8 @@ export default async function ValidarCertificadoPage({
   const isCancelled = record.status === 'cancelled';
 
   return (
-    <div className="min-h-screen bg-[#F9F5FC] text-ink py-10 px-4 sm:px-6">
-      <div className="mx-auto max-w-4xl space-y-6">
+    <div className="min-h-screen bg-[#F9F5FC] text-ink py-6 sm:py-8 px-4 sm:px-6">
+      <div className="mx-auto max-w-4xl space-y-4">
         {/* Navegação Topo */}
         <div className="no-print flex items-center justify-between">
           <Link
@@ -87,99 +82,13 @@ export default async function ValidarCertificadoPage({
             <span>Consultar outro certificado</span>
           </Link>
 
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white border border-line text-[11px] font-mono font-bold text-psi-deep shadow-xs">
-            <span>ID: {record.code}</span>
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-[11px] font-mono font-bold text-emerald-900 shadow-xs">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Código Oficial: {record.code}</span>
           </div>
         </div>
 
-        {/* BANNER OFICIAL DE AUTENTICIDADE E 2ª VIA */}
-        <div className="rounded-3xl border border-emerald-300 bg-emerald-50/95 p-6 sm:p-7 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 backdrop-blur-xs">
-          <div className="flex items-start gap-4">
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-emerald-600 text-white shadow-md">
-              <ShieldCheck className="w-7 h-7" />
-            </span>
-            <div className="space-y-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-full bg-emerald-700 text-white text-[10px] font-bold uppercase tracking-wider">
-                  ✓ Certificado Autêntico Registrado
-                </span>
-                <span className="text-xs text-emerald-900 font-mono font-bold">
-                  Código: {record.code}
-                </span>
-              </div>
-              <h1 className="font-heading text-xl sm:text-2xl font-extrabold text-emerald-950">
-                Autenticidade Verificada · Viver Mais Psicologia
-              </h1>
-              <p className="text-xs text-emerald-800 leading-relaxed max-w-xl">
-                Documento emitido oficialmente para <strong>{record.studentName}</strong>, com registro sob responsabilidade da Secretaria Acadêmica.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* FICHA TÉCNICA DO REGISTRO */}
-        <div className="no-print rounded-3xl border border-line bg-white p-6 sm:p-8 shadow-card space-y-6">
-          <div className="flex items-center justify-between border-b border-line pb-4">
-            <div className="flex items-center gap-2.5">
-              <span className="h-9 w-9 rounded-xl bg-psi-deep text-white font-black grid place-items-center text-sm">
-                V+
-              </span>
-              <div>
-                <p className="font-extrabold text-sm text-ink leading-tight">Viver Mais Psicologia</p>
-                <p className="text-[10px] text-muted uppercase font-bold tracking-wider">Ficha Técnica de Registro</p>
-              </div>
-            </div>
-
-            <span className="font-mono text-xs font-bold text-psi-deep bg-psi-soft px-3 py-1.5 rounded-xl border border-psi-vibrant/20">
-              {record.code}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-xs">
-            <div className="space-y-1">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5 text-psi-vibrant" />
-                Aluno Titular
-              </p>
-              <p className="font-heading text-base font-black text-ink">{record.studentName}</p>
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted flex items-center gap-1.5">
-                <GraduationCap className="w-3.5 h-3.5 text-psi-vibrant" />
-                Curso / Formação
-              </p>
-              <p className="font-heading text-sm font-bold text-psi-deep">{record.courseTitle}</p>
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-psi-vibrant" />
-                Carga Horária
-              </p>
-              <p className="font-bold text-ink text-sm">{record.durationHours}</p>
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted flex items-center gap-1.5">
-                <Award className="w-3.5 h-3.5 text-psi-vibrant" />
-                Data de Emissão
-              </p>
-              <p className="font-bold text-ink text-sm">{record.issueDate}</p>
-            </div>
-
-            <div className="sm:col-span-2 p-4 rounded-2xl bg-psi-soft/30 border border-psi-soft space-y-1">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted flex items-center gap-1.5">
-                <Lock className="w-3.5 h-3.5 text-psi-deep" />
-                Assinatura Digital de Origem
-              </p>
-              <p className="font-mono text-xs font-bold text-ink">{record.signerInfo || 'VIVIANE OLIVEIRA DE ALMEIDA JEREMIAS:19440737000153'}</p>
-              <p className="text-[10px] text-muted">URL Oficial: {record.validationUrl || 'www.vivermaispsicologia.com.br'}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* VISUALIZADOR COMPLETO DA FRENTE E VERSO */}
+        {/* VISUALIZADOR DIRETO DO DOCUMENTO (FRENTE E VERSO COM CARIMBO E DOWNLOAD DE 2ª VIA EM PDF) */}
         <CertificateDocumentView record={record} publicValidationUrl={publicUrl} />
       </div>
     </div>

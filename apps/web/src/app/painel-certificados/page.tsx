@@ -9,7 +9,6 @@ import {
   KeyRound,
   Lock,
   LogOut,
-  Palette,
   Plus,
   RefreshCw,
   Search,
@@ -141,7 +140,7 @@ export default function PainelCertificadosPage() {
               Painel de Certificados
             </h1>
             <p className="text-xs text-muted">
-              Digite o PIN de administração para gerenciar, emitir e editar modelos de certificados.
+              Digite o PIN de administração para gerenciar, incluir certificados e posicionar carimbos digitais.
             </p>
           </div>
 
@@ -207,14 +206,6 @@ export default function PainelCertificadosPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href="/painel-certificados/modelos"
-              className="btn-outline py-2.5 px-4 text-xs font-bold"
-            >
-              <Palette className="w-4 h-4 text-psi-vibrant" />
-              <span>Editor de Modelos Visuais</span>
-            </Link>
-
             <button
               onClick={() => setShowUploadModal(true)}
               className="btn-primary py-2.5 px-4 text-xs font-bold"

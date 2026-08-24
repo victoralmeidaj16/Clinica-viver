@@ -239,3 +239,30 @@
 .vitrine details[open] .faq-plus {
   transform: rotate(45deg);
 }
+
+/* ============================================================
+   ESTILOS DE IMPRESSÃO (CERTIFICADOS E DOCUMENTOS)
+   ============================================================ */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .cert-printable {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+  }
+  .cert-page-break {
+    page-break-after: always;
+    break-after: page;
+  }
+}

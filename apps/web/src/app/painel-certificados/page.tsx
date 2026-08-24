@@ -18,6 +18,7 @@ import {
   X,
   XCircle,
 } from 'lucide-react';
+import { CertificateUploaderModal } from '@/components/certificados/CertificateUploaderModal';
 import type { CertificateRecord, CertificateStatus } from '@thats-life/core';
 
 const STORAGE_KEY = 'cert_admin_pin';
@@ -34,25 +35,11 @@ export default function PainelCertificadosPage() {
   const [statusFilter, setStatusFilter] = useState<'all' | CertificateStatus>('all');
 
   // Modais
-  const [showIssueModal, setShowIssueModal] = useState<boolean>(false);
+  const [showUploadModal, setShowUploadModal] = useState<boolean>(false);
   const [showRevokeModal, setShowRevokeModal] = useState<boolean>(false);
   const [selectedCert, setSelectedCert] = useState<CertificateRecord | null>(null);
   const [revocationReason, setRevocationReason] = useState<string>('');
   const [actionLoading, setActionLoading] = useState<boolean>(false);
-
-  // Form de Emissão
-  const [newCert, setNewCert] = useState({
-    studentName: '',
-    studentCpf: '',
-    studentEmail: '',
-    courseTitle: '',
-    durationHours: '360h',
-    issueDate: new Date().toLocaleDateString('pt-BR'),
-    startDate: '',
-    completionDate: '',
-    frontImageUrl: '',
-    backImageUrl: '',
-  });
 
   useEffect(() => {
     const saved = sessionStorage.getItem(STORAGE_KEY);
@@ -110,48 +97,6 @@ export default function PainelCertificadosPage() {
       })
       .catch((err) => console.error('Erro ao carregar certificados:', err))
       .finally(() => setLoading(false));
-  };
-
-  const handleIssue = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newCert.studentName.trim() || !newCert.courseTitle.trim()) {
-      alert('Nome do aluno e curso são obrigatórios.');
-      return;
-    }
-
-    setActionLoading(true);
-    try {
-      const res = await fetch('/api/certificados', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-pin': pin,
-        },
-        body: JSON.stringify(newCert),
-      });
-
-      const d = await res.json();
-      if (!res.ok || !d.ok) throw new Error(d.error || 'Erro ao emitir certificado.');
-
-      setShowIssueModal(false);
-      setNewCert({
-        studentName: '',
-        studentCpf: '',
-        studentEmail: '',
-        courseTitle: '',
-        durationHours: '360h',
-        issueDate: new Date().toLocaleDateString('pt-BR'),
-        startDate: '',
-        completionDate: '',
-        frontImageUrl: '',
-        backImageUrl: '',
-      });
-      fetchCertificados();
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Erro ao emitir');
-    } finally {
-      setActionLoading(false);
-    }
   };
 
   const handleUpdateStatus = async (codigo: string, novoStatus: CertificateStatus, motivo?: string) => {
@@ -271,11 +216,11 @@ export default function PainelCertificadosPage() {
             </Link>
 
             <button
-              onClick={() => setShowIssueModal(true)}
+              onClick={() => setShowUploadModal(true)}
               className="btn-primary py-2.5 px-4 text-xs font-bold"
             >
               <Plus className="w-4 h-4" />
-              <span>Emitir Certificado</span>
+              <span>Incluir Certificado (Upload & Carimbo)</span>
             </button>
 
             <button
@@ -419,144 +364,16 @@ export default function PainelCertificadosPage() {
           </div>
         </div>
 
-        {/* MODAL DE EMISSÃO */}
-        {showIssueModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
-            <div className="w-full max-w-lg rounded-3xl bg-white p-6 sm:p-8 shadow-2xl border border-line space-y-5 my-8">
-              <div className="flex items-center justify-between border-b border-line pb-3">
-                <div className="flex items-center gap-2">
-                  <Award className="w-5 h-5 text-psi-vibrant" />
-                  <h3 className="font-heading text-lg font-black text-ink">Emitir Novo Certificado</h3>
-                </div>
-                <button
-                  onClick={() => setShowIssueModal(false)}
-                  className="p-1 rounded-lg text-muted hover:text-ink"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <form onSubmit={handleIssue} className="space-y-4 text-xs">
-                <div>
-                  <label className="block font-bold uppercase tracking-wider text-muted mb-1">
-                    Nome Completo do Aluno *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    className="input"
-                    placeholder="Ex: Amanda Ferreira dos Santos"
-                    value={newCert.studentName}
-                    onChange={(e) => setNewCert({ ...newCert, studentName: e.target.value })}
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-bold uppercase tracking-wider text-muted mb-1">CPF (Opcional)</label>
-                    <input
-                      type="text"
-                      className="input"
-                      placeholder="000.000.000-00"
-                      value={newCert.studentCpf}
-                      onChange={(e) => setNewCert({ ...newCert, studentCpf: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-bold uppercase tracking-wider text-muted mb-1">E-mail (Opcional)</label>
-                    <input
-                      type="email"
-                      className="input"
-                      placeholder="aluno@email.com"
-                      value={newCert.studentEmail}
-                      onChange={(e) => setNewCert({ ...newCert, studentEmail: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block font-bold uppercase tracking-wider text-muted mb-1">
-                    Título do Curso / Formação *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    className="input"
-                    placeholder="Ex: Formação em Terapia Cognitivo-Comportamental"
-                    value={newCert.courseTitle}
-                    onChange={(e) => setNewCert({ ...newCert, courseTitle: e.target.value })}
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-bold uppercase tracking-wider text-muted mb-1">
-                      Carga Horária *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      className="input"
-                      placeholder="Ex: 360h ou 120h"
-                      value={newCert.durationHours}
-                      onChange={(e) => setNewCert({ ...newCert, durationHours: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-bold uppercase tracking-wider text-muted mb-1">
-                      Data de Emissão *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      className="input"
-                      placeholder="Ex: 24 de agosto de 2026"
-                      value={newCert.issueDate}
-                      onChange={(e) => setNewCert({ ...newCert, issueDate: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-bold uppercase tracking-wider text-muted mb-1">Data Início</label>
-                    <input
-                      type="date"
-                      className="input"
-                      value={newCert.startDate}
-                      onChange={(e) => setNewCert({ ...newCert, startDate: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-bold uppercase tracking-wider text-muted mb-1">Data Conclusão</label>
-                    <input
-                      type="date"
-                      className="input"
-                      value={newCert.completionDate}
-                      onChange={(e) => setNewCert({ ...newCert, completionDate: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-2 pt-3 border-t border-line">
-                  <button
-                    type="button"
-                    onClick={() => setShowIssueModal(false)}
-                    className="btn-outline py-2.5 px-4 text-xs font-bold"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={actionLoading}
-                    className="btn-primary py-2.5 px-5 text-xs font-bold"
-                  >
-                    {actionLoading ? 'Emitindo…' : 'Gerar Certificado Oficial'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
+        {/* MODAL DE UPLOAD & POSICIONAMENTO DO CARIMBO */}
+        {showUploadModal && (
+          <CertificateUploaderModal
+            adminPin={pin}
+            onClose={() => setShowUploadModal(false)}
+            onSuccess={() => {
+              setShowUploadModal(false);
+              fetchCertificados();
+            }}
+          />
         )}
 
         {/* MODAL DE REVOGAÇÃO */}

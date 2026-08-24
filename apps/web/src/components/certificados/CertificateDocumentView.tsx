@@ -80,21 +80,27 @@ export function CertificateDocumentView({ record, publicValidationUrl }: Props) 
             <span className="text-xs font-mono font-bold text-psi-deep">ID: {record.code}</span>
           </div>
 
-          <div
-            className="relative aspect-[1.414/1] w-full rounded-2xl bg-white border-2 border-psi-deep/20 p-8 md:p-12 flex flex-col justify-between overflow-hidden shadow-card"
-            style={{
-              backgroundImage: record.frontImageUrl
-                ? `url(${record.frontImageUrl})`
-                : 'radial-gradient(circle at 50% 50%, #FAF8FC 0%, #FFFFFF 100%)',
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-            }}
-          >
-            {/* Faixa superior estética */}
-            <div className="absolute inset-x-0 top-0 h-2 bg-gradient-to-r from-psi-deep via-psi-vibrant to-psi-soft" />
-
-            {!record.frontImageUrl && (
+          <div className="relative aspect-[1.414/1] w-full rounded-2xl bg-white border-2 border-psi-deep/20 p-8 md:p-12 flex flex-col justify-between overflow-hidden shadow-card">
+            {record.frontImageUrl ? (
+              record.frontImageUrl.includes('application/pdf') || record.frontImageUrl.startsWith('data:application/pdf') ? (
+                <iframe
+                  src={`${record.frontImageUrl}#page=1`}
+                  title="Frente do Certificado em PDF"
+                  className="absolute inset-0 w-full h-full border-0 pointer-events-none"
+                />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={record.frontImageUrl}
+                  alt="Frente do Certificado"
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+              )
+            ) : (
               <>
+                {/* Faixa superior estética */}
+                <div className="absolute inset-x-0 top-0 h-2 bg-gradient-to-r from-psi-deep via-psi-vibrant to-psi-soft" />
+
                 {/* Topo institucional */}
                 <div className="flex items-center justify-between border-b border-psi-soft/60 pb-4">
                   <div className="flex items-center gap-2">
@@ -165,33 +171,43 @@ export function CertificateDocumentView({ record, publicValidationUrl }: Props) 
             <span className="text-xs font-mono font-bold text-psi-deep">ID: {record.code}</span>
           </div>
 
-          <div
-            className="relative aspect-[1.414/1] w-full rounded-2xl bg-white border-2 border-psi-deep/20 p-8 md:p-12 flex flex-col justify-between overflow-hidden shadow-card"
-            style={{
-              backgroundImage: record.backImageUrl ? `url(${record.backImageUrl})` : undefined,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-            }}
-          >
-            <div>
-              <div className="flex items-center justify-between border-b border-line pb-3">
-                <div>
-                  <h3 className="font-bold text-xs md:text-sm text-ink">Registro Acadêmico e Ementa Oficial</h3>
-                  <p className="text-[10px] text-muted mt-0.5">{record.courseTitle}</p>
+          <div className="relative aspect-[1.414/1] w-full rounded-2xl bg-white border-2 border-psi-deep/20 p-8 md:p-12 flex flex-col justify-between overflow-hidden shadow-card">
+            {record.backImageUrl ? (
+              record.backImageUrl.includes('application/pdf') || record.backImageUrl.startsWith('data:application/pdf') ? (
+                <iframe
+                  src={`${record.backImageUrl}#page=2`}
+                  title="Verso do Certificado em PDF"
+                  className="absolute inset-0 w-full h-full border-0 pointer-events-none"
+                />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={record.backImageUrl}
+                  alt="Verso do Certificado"
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+              )
+            ) : (
+              <div>
+                <div className="flex items-center justify-between border-b border-line pb-3">
+                  <div>
+                    <h3 className="font-bold text-xs md:text-sm text-ink">Registro Acadêmico e Ementa Oficial</h3>
+                    <p className="text-[10px] text-muted mt-0.5">{record.courseTitle}</p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] font-mono font-bold text-muted">REGISTRO LIVRO N° 2026/VVR</span>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-[10px] font-mono font-bold text-muted">REGISTRO LIVRO N° 2026/VVR</span>
+
+                <div className="py-6 space-y-3 text-xs text-muted leading-relaxed">
+                  <p>• Curso livre de formação continuada e aprofundamento técnico em Psicologia.</p>
+                  <p>• Aluno com frequência atestada e cumprimento de 100% das atividades pedagógicas programadas.</p>
+                  <p>• Documento assinado eletronicamente sob conformidade com a legislação educacional e arquivado na Secretaria Acadêmica da Viver Mais Psicologia.</p>
                 </div>
               </div>
+            )}
 
-              <div className="py-6 space-y-3 text-xs text-muted leading-relaxed">
-                <p>• Curso livre de formação continuada e aprofundamento técnico em Psicologia.</p>
-                <p>• Aluno com frequência atestada e cumprimento de 100% das atividades pedagógicas programadas.</p>
-                <p>• Documento assinado eletronicamente sob conformidade com a legislação educacional e arquivado na Secretaria Acadêmica da Viver Mais Psicologia.</p>
-              </div>
-            </div>
-
-            {/* CARIMBO DIGITAL NO RODAPÉ DO VERSO */}
+            {/* CARIMBO DIGITAL NO VERSO (COM POSICIONAMENTO DINÂMICO CONFIGURADO) */}
             {record.stampX !== undefined && record.stampY !== undefined ? (
               <div
                 style={{
@@ -202,14 +218,14 @@ export function CertificateDocumentView({ record, publicValidationUrl }: Props) 
                   textAlign: record.stampAlign || 'left',
                   maxWidth: '90%',
                 }}
-                className="rounded-xl p-3 bg-white/90 border border-psi-soft/80 shadow-xs"
+                className="rounded-xl p-3 bg-white/95 border-2 border-psi-vibrant shadow-md backdrop-blur-xs z-10"
               >
                 <p className="font-mono text-ink/90 whitespace-pre-line leading-tight font-medium">
                   {versoText}
                 </p>
               </div>
             ) : (
-              <div className="mt-auto border-t-2 border-dashed border-psi-soft pt-4 flex items-center justify-between gap-4 bg-psi-soft/20 p-4 rounded-xl border border-psi-soft/60">
+              <div className="mt-auto border-t-2 border-dashed border-psi-soft pt-4 flex items-center justify-between gap-4 bg-psi-soft/20 p-4 rounded-xl border border-psi-soft/60 z-10">
                 <div className="space-y-1">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-psi-deep">
                     🔒 Assinatura Digital & Carimbo de Autenticidade

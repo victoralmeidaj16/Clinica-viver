@@ -3,7 +3,7 @@
 import { GenderFields } from '@/components/forms/GenderFields';
 import { TurnoPreferenceField } from '@/components/forms/TurnoPreferenceField';
 import { OPCOES_AVALIACAO_PSICOLOGICA } from '@/components/forms/necessidades';
-import { PATIENT_AUDIENCES, PATIENT_ORIGINS, PATIENT_SERVICES, maskCep, maskCpf, maskPhone, modalitiesForService, type PatientRegistrationForm } from './patientRegistration';
+import { audiencesForService, PATIENT_ORIGINS, PATIENT_SERVICES, maskCep, maskCpf, maskPhone, modalitiesForService, type PatientRegistrationForm } from './patientRegistration';
 
 interface Props {
   form: PatientRegistrationForm;
@@ -19,11 +19,34 @@ export function PatientRegistrationFields({ form, setForm, convenios, temNomeSoc
   const update = <K extends keyof PatientRegistrationForm>(key: K, value: PatientRegistrationForm[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
 
+  const handleServiceChange = (serviceKey: string) => {
+    setForm((current) => {
+      let paraQuemE = current.paraQuemE;
+      if (serviceKey === 'ORIENTACAO_PARENTAL') {
+        paraQuemE = '';
+      } else if (serviceKey === 'PSICOTERAPIA_CASAL') {
+        if (paraQuemE !== 'Casal' && paraQuemE !== 'Outro') {
+          paraQuemE = 'Casal';
+        }
+      } else if (['Casal', 'Família', 'Grupo'].includes(paraQuemE)) {
+        paraQuemE = '';
+      }
+      return {
+        ...current,
+        servicoKey: serviceKey,
+        modalidade: '',
+        opcaoAvaliacaoPsicologica: '',
+        paraQuemE,
+      };
+    });
+  };
+
   return <div className="space-y-4">
     <div className="grid gap-3 sm:grid-cols-2">
-      <div><label className="mb-1 block font-bold text-ink">Serviço *</label><select className={field} required value={form.servicoKey} onChange={(e) => setForm((current) => ({ ...current, servicoKey: e.target.value, modalidade: '', opcaoAvaliacaoPsicologica: '', paraQuemE: e.target.value === 'ORIENTACAO_PARENTAL' ? '' : current.paraQuemE }))}><option value="">Selecione</option>{PATIENT_SERVICES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
+      <div><label className="mb-1 block font-bold text-ink">Serviço *</label><select className={field} required value={form.servicoKey} onChange={(e) => handleServiceChange(e.target.value)}><option value="">Selecione</option>{PATIENT_SERVICES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
       <div><label className="mb-1 block font-bold text-ink">Modalidade *</label><select className={field} required disabled={!form.servicoKey} value={form.modalidade} onChange={(e) => update('modalidade', e.target.value)}><option value="">Selecione</option>{modalitiesForService(form.servicoKey).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
     </div>
+
     <div>
       <label className="mb-1 block font-bold text-ink">Nome completo *</label>
       <input className={field} required value={form.nome} onChange={(e) => update('nome', e.target.value)} placeholder="Nome completo" />
@@ -49,7 +72,8 @@ export function PatientRegistrationFields({ form, setForm, convenios, temNomeSoc
     {form.possuiConvenio === 'SIM' && <div><label className="mb-1 block font-bold text-ink">Selecione o convênio *</label>{convenios.length ? <select className={field} required value={form.convenioSelecionado} onChange={(e) => update('convenioSelecionado', e.target.value)}><option value="">Selecione</option>{convenios.map((item) => <option key={item}>{item}</option>)}</select> : <input className={field} required value={form.convenioSelecionado} onChange={(e) => update('convenioSelecionado', e.target.value)} placeholder="Nome da empresa" />}</div>}
     {form.servicoKey !== 'ORIENTACAO_PARENTAL' && <div>
       <label className="mb-2 block font-bold text-ink">Para quem é o atendimento? <span className="font-normal text-muted">(opcional)</span></label>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{PATIENT_AUDIENCES.map((item) => <button key={item} type="button" onClick={() => update('paraQuemE', form.paraQuemE === item ? '' : item)} className={`rounded-xl border p-2.5 text-left font-semibold transition ${form.paraQuemE === item ? 'border-primary bg-primary/10 text-primary' : 'border-line bg-white text-ink hover:bg-canvas'}`}>{item}</button>)}</div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{audiencesForService(form.servicoKey).map((item) => <button key={item} type="button" onClick={() => update('paraQuemE', form.paraQuemE === item ? '' : item)} className={`rounded-xl border p-2.5 text-left font-semibold transition ${form.paraQuemE === item ? 'border-primary bg-primary/10 text-primary' : 'border-line bg-white text-ink hover:bg-canvas'}`}>{item}</button>)}</div>
+
       {form.paraQuemE === 'Outro' && <input className={`${field} mt-2`} required value={form.paraQuemEOutro} onChange={(e) => update('paraQuemEOutro', e.target.value)} placeholder="Especifique para quem é o atendimento" />}
     </div>}
     <div className="grid gap-3 sm:grid-cols-2">

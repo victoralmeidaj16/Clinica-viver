@@ -86,7 +86,6 @@ export default function ViverMaisLandingPage() {
     generoOutro: '',
   });
 
-  const [protocolo, setProtocolo] = useState('');
   const [enderecoInfo, setEnderecoInfo] = useState({ logradouro: '', bairro: '', cidade: '', uf: '' });
   const [loadingCep, setLoadingCep] = useState(false);
   const [psicologosCredenciados, setPsicologosCredenciados] = useState<PsicologoVitrineItem[]>([]);
@@ -276,8 +275,22 @@ export default function ViverMaisLandingPage() {
   const handleSelectServiceAndPrice = (serviceKey: ServicoKey, modalidadeType: ModalidadeKey) => {
     setSelectedService(serviceKey);
     setSelectedModalidade(modalidadeType);
+    setForm((prev) => {
+      let paraQuemE = prev.paraQuemE;
+      if (serviceKey === 'ORIENTACAO_PARENTAL') {
+        paraQuemE = '';
+      } else if (serviceKey === 'PSICOTERAPIA_CASAL') {
+        if (paraQuemE !== 'Casal' && paraQuemE !== 'Outro') {
+          paraQuemE = 'Casal';
+        }
+      } else if (['Casal', 'Família', 'Grupo'].includes(paraQuemE)) {
+        paraQuemE = '';
+      }
+      return { ...prev, paraQuemE };
+    });
     setStep('FORMULARIO');
   };
+
 
   const handleSubmitPaciente = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -321,7 +334,6 @@ export default function ViverMaisLandingPage() {
       });
       const data = await resp.json();
       if (data.success) {
-        setProtocolo(data.protocolo);
         setStep('SUCESSO');
       } else {
         alert('Erro ao enviar solicitação. Tente novamente.');
@@ -1080,18 +1092,11 @@ export default function ViverMaisLandingPage() {
                       Selecione a opção que mais combina com o que você procura.
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-                    {[
-                      'Criança',
-                      'Adolescente',
-                      'Homem',
-                      'Mulher',
-                      'Idoso',
-                      'Casal',
-                      'Família',
-                      'Grupo',
-                      'Outro',
-                    ].map((opcao) => {
+                  <div className={`grid gap-2 text-xs ${selectedService === 'PSICOTERAPIA_CASAL' ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3'}`}>
+                    {(selectedService === 'PSICOTERAPIA_CASAL'
+                      ? ['Casal', 'Outro']
+                      : ['Criança', 'Adolescente', 'Homem', 'Mulher', 'Idoso', 'Outro']
+                    ).map((opcao) => {
                       const isSelected = form.paraQuemE === opcao;
                       return (
                         <button
@@ -1264,11 +1269,14 @@ export default function ViverMaisLandingPage() {
             <div className="space-y-2">
               <h3 className="text-2xl font-black text-slate-900">Solicitação Recebida!</h3>
               <p className="text-xs text-slate-500 leading-relaxed">
-                Nossos psicoterapeutas entrarão em contato direto no seu **WhatsApp** em até **24 horas** para combinar o melhor dia e horário para a sua sessão.
+                Seu psicólogo entra em contato no WhatsApp em até 24 horas.
               </p>
-            </div>
-            <div className="p-4 bg-purple-50 rounded-2xl border border-purple-100 font-mono text-[11px] text-purple-800">
-              Protocolo da Solicitação: <span className="font-bold text-purple-900">{protocolo}</span>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Se após 24 horas você ainda não tiver recebido o contato do seu psicoterapeuta, por favor, nos avise para que possamos ajudar.
+              </p>
+              <p className="text-[11px] leading-relaxed text-slate-400">
+                (→ Se o prazo de 24h coincidir com finais de semana ou feriados, ele será automaticamente estendido até o próximo dia útil.)
+              </p>
             </div>
             <button
               type="button"

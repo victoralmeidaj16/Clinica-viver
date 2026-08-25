@@ -41,6 +41,14 @@ export function modalitiesForService(serviceKey: string) {
   return PATIENT_MODALITIES.filter(([value]) => value.startsWith('CASAL_') === casal);
 }
 
+export function audiencesForService(serviceKey?: string | null): readonly string[] {
+  if (serviceKey === 'PSICOTERAPIA_CASAL') {
+    return ['Casal', 'Outro'] as const;
+  }
+  return ['Criança', 'Adolescente', 'Homem', 'Mulher', 'Idoso', 'Outro'] as const;
+}
+
+
 export function maskPhone(value: string): string {
   return value.replace(/\D/g, '').replace(/^(\d{2})(\d)/g, '($1) $2').replace(/(\d{5})(\d)/, '$1-$2').slice(0, 15);
 }

@@ -60,6 +60,10 @@ export async function POST(request: Request) {
       backImageUrl: body.backImageUrl,
       stampX: body.stampX,
       stampY: body.stampY,
+      stampFontSize: body.stampFontSize,
+      stampAlign: body.stampAlign || 'center',
+      signerInfo: body.signerInfo,
+      validationUrl: body.validationUrl,
       createdBy: body.createdBy || 'diretoria@viver.com',
     });
 

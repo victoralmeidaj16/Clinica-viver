@@ -173,6 +173,10 @@ export class CertificadosRepository {
     backImageUrl?: string;
     stampX?: number;
     stampY?: number;
+    stampFontSize?: number;
+    stampAlign?: 'left' | 'center' | 'right';
+    signerInfo?: string;
+    validationUrl?: string;
     createdBy?: string;
   }): Promise<CertificateRecord> {
     const code = generateCertificateCode();
@@ -194,8 +198,10 @@ export class CertificadosRepository {
       backImageUrl: dados.backImageUrl,
       stampX: dados.stampX,
       stampY: dados.stampY,
-      signerInfo: 'VIVIANE OLIVEIRA DE ALMEIDA JEREMIAS:19440737000153',
-      validationUrl: 'www.vivermaispsicologia.com.br',
+      stampFontSize: dados.stampFontSize || 11,
+      stampAlign: dados.stampAlign || 'center',
+      signerInfo: dados.signerInfo || 'VIVIANE OLIVEIRA DE ALMEIDA JEREMIAS:19440737000153',
+      validationUrl: dados.validationUrl || 'www.vivermaispsicologia.com.br',
       status: 'valid',
       createdAt,
       createdBy: dados.createdBy ?? 'admin@viver.com',
@@ -205,8 +211,8 @@ export class CertificadosRepository {
       try {
         await this.pool.query<ResultSetHeader>(
           `INSERT INTO clinica_certificados 
-            (id, codigo, aluno_nome, aluno_cpf, aluno_email, curso_titulo, carga_horaria, data_emissao, data_inicio, data_conclusao, status, frente_imagem_url, verso_imagem_url, carimbo_x, carimbo_y, criado_por, criado_em)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'valid', ?, ?, ?, ?, ?, ?)`,
+            (id, codigo, aluno_nome, aluno_cpf, aluno_email, curso_titulo, carga_horaria, data_emissao, data_inicio, data_conclusao, status, frente_imagem_url, verso_imagem_url, carimbo_x, carimbo_y, carimbo_font_size, carimbo_align, criado_por, criado_em)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'valid', ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             record.id,
             record.code,
@@ -222,6 +228,8 @@ export class CertificadosRepository {
             record.backImageUrl ?? null,
             record.stampX ?? null,
             record.stampY ?? null,
+            record.stampFontSize ?? 11,
+            record.stampAlign ?? 'center',
             record.createdBy ?? null,
             createdAt.slice(0, 19).replace('T', ' '),
           ]

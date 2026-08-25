@@ -54,7 +54,7 @@ export function CertificateUploaderModal({ adminPin, onClose, onSuccess }: Props
   const [stampX, setStampX] = useState<number>(5);
   const [stampY, setStampY] = useState<number>(75);
   const [stampFontSize, setStampFontSize] = useState<number>(11);
-  const [stampAlign, setStampAlign] = useState<'left' | 'center' | 'right'>('left');
+  const [stampAlign, setStampAlign] = useState<'left' | 'center' | 'right'>('center');
 
   // Drag & Resize state do carimbo
   const [isDraggingStamp, setIsDraggingStamp] = useState(false);

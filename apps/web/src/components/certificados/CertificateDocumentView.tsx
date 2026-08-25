@@ -215,7 +215,7 @@ export function CertificateDocumentView({ record, publicValidationUrl }: Props) 
                   left: `${record.stampX}%`,
                   top: `${record.stampY}%`,
                   fontSize: `${record.stampFontSize || 11}px`,
-                  textAlign: record.stampAlign || 'left',
+                  textAlign: record.stampAlign || 'center',
                   maxWidth: '90%',
                 }}
                 className="rounded-xl p-3 bg-white/95 border-2 border-psi-vibrant shadow-md backdrop-blur-xs z-10"

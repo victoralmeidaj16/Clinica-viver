@@ -12,7 +12,6 @@ import {
   Search,
   Upload,
 } from 'lucide-react';
-import { CertificateUploaderModal } from '@/components/certificados/CertificateUploaderModal';
 import type { CertificateRecord } from '@thats-life/core';
 
 const STORAGE_KEY = 'cert_admin_pin';
@@ -26,9 +25,6 @@ export default function PainelCertificadosPage() {
   const [certificates, setCertificates] = useState<CertificateRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>('');
-
-  // Modal de Upload
-  const [showUploadModal, setShowUploadModal] = useState<boolean>(false);
 
   useEffect(() => {
     const saved = sessionStorage.getItem(STORAGE_KEY);
@@ -165,13 +161,13 @@ export default function PainelCertificadosPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => setShowUploadModal(true)}
+            <Link
+              href="/painel-certificados/novo"
               className="btn-primary py-2.5 px-4 text-xs font-bold flex items-center gap-2"
             >
               <Upload className="w-4 h-4" />
               <span>Anexar Certificado (Upload & Carimbo)</span>
-            </button>
+            </Link>
 
             <button
               onClick={handleLogout}
@@ -256,18 +252,6 @@ export default function PainelCertificadosPage() {
             </table>
           </div>
         </div>
-
-        {/* MODAL DE UPLOAD & POSICIONAMENTO DO CARIMBO */}
-        {showUploadModal && (
-          <CertificateUploaderModal
-            adminPin={pin}
-            onClose={() => setShowUploadModal(false)}
-            onSuccess={() => {
-              setShowUploadModal(false);
-              fetchCertificados();
-            }}
-          />
-        )}
       </div>
     </div>
   );

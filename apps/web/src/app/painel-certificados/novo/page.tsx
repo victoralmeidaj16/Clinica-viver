@@ -81,10 +81,13 @@ export default function AnexarCertificadoPage() {
   useEffect(() => {
     const saved = sessionStorage.getItem(STORAGE_KEY);
     if (saved) {
-      setPin(saved);
-      setIsAuthenticated(true);
+      void Promise.resolve().then(() => {
+        setPin(saved);
+        setIsAuthenticated(true);
+      });
     }
   }, []);
+
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();

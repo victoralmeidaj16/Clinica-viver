@@ -53,7 +53,14 @@ export interface ManagedPatient {
   agenda: { total: number; realizadas: number; proximaEm?: string };
   financeiro: { cobrancas: number; totalCentavos: number; emAbertoCentavos: number };
   desistencia?: PatientDropout;
+  psicologosCompativeis?: readonly CompatiblePsychologist[];
 }
 
 export interface ManagedPsychologist { id: string; nome: string; }
+export interface CompatiblePsychologist {
+  id: string;
+  nome: string;
+  pacientesAtivos: number;
+  limitePacientes: number;
+}
 export interface ManagedConvenio { id: string; nome: string; empresaPagaSessoes: boolean; }

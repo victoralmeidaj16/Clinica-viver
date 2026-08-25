@@ -16,6 +16,10 @@ import {
   validateApprovalAccess,
 } from '@/server/application/psychologistAccess';
 import { avisarBoasVindasPsicologo } from '@/server/application/viverMaisWhatsApp';
+import {
+  avisarCadastroAprovadoPorEmail,
+  type ResultadoEmailPsicologo,
+} from '@/server/application/psychologistRegistrationEmail';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -62,18 +66,27 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       if (!atualizado) {
         return NextResponse.json({ success: false, error: 'Cadastro não encontrado.' }, { status: 404 });
       }
-      let acesso: { criado: boolean; boasVindas: string } | undefined;
+      let acesso: { criado: boolean; boasVindas: string; email?: string } | undefined;
       if (atualizado.status === 'APROVADO' && (!atualizado.usuarioRef || !atualizado.boasVindasEnviadaEm)) {
         const provisioned = await provisionPsychologistAccess(atualizado);
         let boasVindas = 'conta_existente';
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, '') || 'https://clinicavivermais.cloud';
+        let emailDelivery: ResultadoEmailPsicologo;
         if (provisioned.activationToken) {
-          const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, '') || 'https://clinica-viver-web.vercel.app';
           const activationUrl = `${appUrl}/ativar-conta?token=${encodeURIComponent(provisioned.activationToken)}`;
-          const delivery = await avisarBoasVindasPsicologo(atualizado, activationUrl);
-          boasVindas = delivery.situacao;
-          if (delivery.situacao === 'enviada') await markWelcomeSent(atualizado.id);
+          const [whatsappDelivery, approvalEmail] = await Promise.all([
+            avisarBoasVindasPsicologo(atualizado, activationUrl),
+            avisarCadastroAprovadoPorEmail(atualizado, `${appUrl}/login`, activationUrl),
+          ]);
+          boasVindas = whatsappDelivery.situacao;
+          emailDelivery = approvalEmail;
+        } else {
+          emailDelivery = await avisarCadastroAprovadoPorEmail(atualizado, `${appUrl}/login`);
         }
-        acesso = { criado: true, boasVindas };
+        if (boasVindas === 'enviada' || emailDelivery.situacao === 'enviada') {
+          await markWelcomeSent(atualizado.id);
+        }
+        acesso = { criado: true, boasVindas, email: emailDelivery.situacao };
       }
       return NextResponse.json({ success: true, data: atualizado, acesso });
     }

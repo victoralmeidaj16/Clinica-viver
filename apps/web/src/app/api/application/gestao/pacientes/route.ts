@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { PatientProfile } from '@thats-life/core';
 import { readSession } from '@/server/auth';
 import { getApplicationStore } from '@/server/application/store';
-import { getCaptureRepository } from '@/server/persistence/captureRepository';
+import { captureStateAsSnapshot, getCaptureRepository } from '@/server/persistence/captureRepository';
 import { readSnapshot, type TriagemPacienteRecord } from '@/server/application/persistence';
 import { desistenciaDoPaciente } from '@/lib/desistencias';
 import type { PatientContact, PatientContactCapable } from '@/server/persistence/mysql/identityRepository';
@@ -11,6 +11,7 @@ import { isMysqlConfigured, getMysqlPool } from '@/server/oci/runtime';
 import { instituicaoId } from '@/server/persistence/mysql/mappers';
 import type { RowDataPacket } from 'mysql2/promise';
 import { listarConvenios } from '@/server/persistence/mysql/convenioRepository';
+import { listarPsicologosCompativeis } from '@/server/application/viverMaisRodizio';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -126,6 +127,11 @@ export async function GET() {
         ?? capture.cadastrosPsicologos.find((psi) => psi.id === lead?.psicologoAlocadoId)?.profissionalRef;
       const desistencia = desistenciaDoPaciente(auditoria, { patientId, leadId: lead?.id });
       const agreement = patientId ? agreementsByPatient.get(patientId) : undefined;
+      const compativeis = lead && desistencia && !desistencia.reengajado && patientId
+        ? listarPsicologosCompativeis(captureStateAsSnapshot(capture), lead)
+            .filter((psi) => Boolean(psi.profissionalRef))
+            .filter((psi) => desistencia.permitirTrocaPsicologo || psi.id === lead.psicologoAlocadoId)
+        : [];
 
       return {
         id: patientId ?? id,
@@ -191,6 +197,12 @@ export async function GET() {
           observacoesReengajamento: desistencia.observacoesReengajamento,
           permitirTrocaPsicologo: desistencia.permitirTrocaPsicologo,
         },
+        psicologosCompativeis: compativeis.map((psi) => ({
+          id: psi.id,
+          nome: psi.nomeSocial || psi.nomeCompleto,
+          pacientesAtivos: psi.pacientesAtivosCount ?? 0,
+          limitePacientes: psi.limitePacientesAtivos ?? 5,
+        })),
         financeiro: {
           cobrancas: ownCharges.length,
           totalCentavos: ownCharges.reduce((sum, charge) => sum + charge.amountCents, 0),

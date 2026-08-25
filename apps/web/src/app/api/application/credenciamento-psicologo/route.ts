@@ -19,6 +19,7 @@ import {
   derivarModalidadesAtendidas,
   derivarServicosHabilitados,
 } from '@/server/application/psychologistRegistration';
+import { avisarCadastroRecebidoPorEmail } from '@/server/application/psychologistRegistrationEmail';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -103,6 +104,7 @@ export async function POST(request: Request) {
     const cidade = String(body.cidade ?? '').trim();
     const logradouro = String(body.logradouro ?? '').trim();
     const bairro = String(body.bairro ?? '').trim();
+    const email = String(body.email ?? '').trim().toLocaleLowerCase('pt-BR');
     const genero = validateGender(body.genero, body.generoOutro);
 
     if (!whatsapp) {
@@ -116,6 +118,9 @@ export async function POST(request: Request) {
     }
     if (!genero) {
       return NextResponse.json({ success: false, error: 'Selecione o gênero e informe a descrição quando escolher Outro.' }, { status: 400 });
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+      return NextResponse.json({ success: false, error: 'Informe um e-mail profissional válido.' }, { status: 400 });
     }
     try {
       if (!(await municipioPertenceAoEstado(estadoUf, cidade))) {
@@ -147,7 +152,7 @@ export async function POST(request: Request) {
       nomeSocial: body.nomeSocial || undefined,
       crp: body.crp,
       whatsapp,
-      email: body.email,
+      email,
       fotoUrl: body.fotoUrl || undefined,
       estadoUf,
       cidade,
@@ -193,25 +198,24 @@ export async function POST(request: Request) {
         result: novoPsicologo,
       }));
 
-      return NextResponse.json({ success: true, data: novoPsicologo });
+    } else {
+      const snapshot = readSnapshot() ?? emptySnapshot();
+      await writeSnapshot({
+        ...snapshot,
+        savedAt: new Date().toISOString(),
+        cadastrosPsicologos: [
+          ...(snapshot.cadastrosPsicologos ?? []),
+          novoPsicologo,
+        ],
+      });
     }
 
-    const snapshot = readSnapshot() ?? emptySnapshot();
-
-    const cadastrosAtualizados = [
-      ...(snapshot.cadastrosPsicologos ?? []),
-      novoPsicologo,
-    ];
-
-    await writeSnapshot({
-      ...snapshot,
-      savedAt: new Date().toISOString(),
-      cadastrosPsicologos: cadastrosAtualizados,
-    });
+    const emailDelivery = await avisarCadastroRecebidoPorEmail(novoPsicologo);
 
     return NextResponse.json({
       success: true,
       data: novoPsicologo,
+      email: emailDelivery.situacao,
     });
   } catch (error) {
     console.error('Erro ao salvar cadastro do psicólogo:', error);

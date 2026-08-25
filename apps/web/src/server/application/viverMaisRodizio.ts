@@ -281,6 +281,55 @@ export function alocarLead(
   };
 }
 
+/**
+ * Lista somente quem poderia receber este paciente pelas mesmas regras do
+ * rodízio: aprovação, pausa, capacidade, turno, modalidade, serviço e perfil
+ * da demanda. Rodar o motor com um candidato por vez evita uma segunda versão
+ * das regras para a seleção manual da gestão.
+ */
+export function listarPsicologosCompativeis(
+  snapshot: PersistedSnapshot,
+  leadRecord: TriagemPacienteRecord
+): CadastroPsicologoRecord[] {
+  const atual = recalcularPacientesAtivos(snapshot);
+  const lead = paraLeadTriagem(leadRecord);
+  if (!lead) return [];
+
+  return rosterAtivo(atual).filter((psicologo) =>
+    processarTriagemLead(
+      lead,
+      [paraPsicologoPerfil(psicologo)],
+      leadRecord.servicoKey
+    ).sucesso
+  );
+}
+
+/** Alocação manual validada, usada pela gestão após uma desistência. */
+export function alocarLeadParaPsicologo(
+  snapshot: PersistedSnapshot,
+  leadRecord: TriagemPacienteRecord,
+  psicologoId: string,
+  confirmadoEm = new Date().toISOString()
+): ResultadoAlocacao {
+  const atual = recalcularPacientesAtivos(snapshot);
+  const psicologo = listarPsicologosCompativeis(atual, leadRecord)
+    .find((item) => item.id === psicologoId);
+  if (!psicologo) return { snapshot: atual, lead: leadRecord };
+
+  const atualizado: TriagemPacienteRecord = {
+    ...leadRecord,
+    status: 'CONTATO_CONFIRMADO',
+    psicologoAlocadoId: psicologo.id,
+    psicologoNome: nomeDeExibicao(psicologo),
+    alocadoEm: confirmadoEm,
+    confirmadoEm,
+    slaExpirado: false,
+    psicologosJaTentados: [...new Set([...(leadRecord.psicologosJaTentados ?? []), psicologo.id])],
+  };
+  const next = registrarRecebimento(substituirLead(atual, atualizado), psicologo.id, confirmadoEm);
+  return { snapshot: recalcularPacientesAtivos(next), lead: atualizado, psicologo };
+}
+
 /** Horas decorridas desde a alocação. `null` quando o lead nunca foi alocado. */
 export function horasDesdeAlocacao(alocadoEm: string | undefined, agora = new Date()): number | null {
   if (!alocadoEm) return null;

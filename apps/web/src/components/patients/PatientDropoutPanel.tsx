@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { CheckCircle2, PhoneCall, UserX } from 'lucide-react';
+import { CheckCircle2, UserX } from 'lucide-react';
 import { MOTIVOS_DESISTENCIA, rotuloMotivo, type MotivoDesistencia } from '@/lib/desistencias';
 import type { ManagedPatient } from './managementTypes';
+import PatientReallocationPanel from './PatientReallocationPanel';
 
 /**
  * Auditoria de desistência e reengajamento, dentro do cadastro do paciente.
@@ -55,7 +56,7 @@ export default function PatientDropoutPanel({ patient, onChange }: Props) {
     <section className="rounded-2xl border border-rose-200/70 bg-rose-50/40 p-4 sm:p-5">
       <div className="mb-4 flex items-center gap-2">
         <UserX className="h-4 w-4 text-rose-600" />
-        <h3 className="text-sm font-black text-ink">Desistência & reengajamento</h3>
+        <h3 className="text-sm font-black text-ink">Desistência & nova alocação</h3>
       </div>
 
       {error && <p className="mb-3 rounded-xl border border-rose-200 bg-white p-3 text-xs font-semibold text-rose-700">{error}</p>}
@@ -70,7 +71,7 @@ export default function PatientDropoutPanel({ patient, onChange }: Props) {
           <Campo label="Ação sugerida" valor={dropout.acaoSugestao} />
           {dropout.permitirTrocaPsicologo && (
             <p className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-[11px] font-semibold text-amber-800">
-              O paciente autorizou a oferta de outro profissional no reengajamento.
+              O paciente autorizou a alocação com outro profissional compatível.
             </p>
           )}
 
@@ -78,22 +79,19 @@ export default function PatientDropoutPanel({ patient, onChange }: Props) {
             <p className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold text-emerald-800">
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
               <span>
-                Reengajado
+                Realocado
                 {dropout.observacoesReengajamento && (
                   <span className="mt-0.5 block font-medium text-emerald-700">{dropout.observacoesReengajamento}</span>
                 )}
               </span>
             </p>
           ) : (
-            <button
-              type="button"
-              disabled={saving}
-              onClick={() => void enviar({ action: 'MARCAR_REENGAJADO', id: dropout.id })}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-psi-vibrant py-3 text-xs font-black text-white transition-colors hover:bg-psi-vibrant/90 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <PhoneCall className="h-4 w-4" />
-              {saving ? 'Registrando…' : 'Marcar como reengajado'}
-            </button>
+            <PatientReallocationPanel
+              key={dropout.id}
+              patient={patient}
+              saving={saving}
+              onAllocate={(psicologoId) => void enviar({ action: 'ALOCAR_PACIENTE', id: dropout.id, psicologoId })}
+            />
           )}
         </div>
       ) : (
@@ -141,7 +139,7 @@ export default function PatientDropoutPanel({ patient, onChange }: Props) {
             />
             <span className="text-xs leading-relaxed text-muted">
               <strong className="block text-ink">Autorizar oferta de outro psicólogo</strong>
-              A gestão poderá considerar uma troca de profissional durante o reengajamento.
+              A gestão poderá escolher outro profissional compatível na nova alocação.
             </span>
           </label>
 

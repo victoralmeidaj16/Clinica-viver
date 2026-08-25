@@ -24,6 +24,45 @@ export function todayAtClinic(now: Date = new Date()): string {
   }).format(now);
 }
 
+export interface ClinicalServiceOption {
+  key: string;
+  label: string;
+  durationMinutes: number;
+}
+
+export const CLINICAL_SERVICES: readonly ClinicalServiceOption[] = [
+  {
+    key: 'PSICOTERAPIA',
+    label: 'Atendimento Psicológico (Psicoterapia Individual)',
+    durationMinutes: 50,
+  },
+  {
+    key: 'AVALIACAO',
+    label: 'Avaliação Psicológica e Neuropsicológica',
+    durationMinutes: 50,
+  },
+  {
+    key: 'ORIENTACAO_PARENTAL',
+    label: 'Orientação Parental',
+    durationMinutes: 50,
+  },
+  {
+    key: 'ORIENTACAO_PROFISSIONAL',
+    label: 'Orientação Profissional / Vocacional',
+    durationMinutes: 50,
+  },
+  {
+    key: 'PSICOTERAPIA_CASAL',
+    label: 'Psicoterapia de Casal',
+    durationMinutes: 90,
+  },
+] as const;
+
+export function getServiceDuration(serviceKey: string): number {
+  const service = CLINICAL_SERVICES.find((item) => item.key === serviceKey);
+  return service ? service.durationMinutes : 50;
+}
+
 export function manualAppointmentTimes(input: {
   date: string;
   time: string;
@@ -38,3 +77,4 @@ export function manualAppointmentTimes(input: {
     endsAt: new Date(Date.parse(startsAt) + input.durationMinutes * 60_000).toISOString(),
   };
 }
+

@@ -10,7 +10,11 @@ import {
 } from '@/server/application/persistence';
 import { captureStateAsSnapshot, getCaptureRepository } from '@/server/persistence/captureRepository';
 import { exigirGestao, NaoAutorizadoError } from '@/server/viverMaisGestaoAuth';
-import { recalcularPacientesAtivos } from '@/server/application/viverMaisRodizio';
+import {
+  alocarLeadParaPsicologo,
+  listarPsicologosCompativeis,
+  recalcularPacientesAtivos,
+} from '@/server/application/viverMaisRodizio';
 import { motivoValido } from '@/lib/desistencias';
 
 export const runtime = 'nodejs';
@@ -101,8 +105,7 @@ async function resolverIdentidade(
 /**
  * POST /api/application/desistencias
  *
- * Registra a saída de um paciente da fila ou marca uma saída já registrada como
- * reengajada.
+ * Registra a saída de um paciente ou faz sua nova alocação validada.
  */
 export async function POST(request: Request) {
   try {
@@ -115,16 +118,72 @@ export async function POST(request: Request) {
     const registros = [...(snapshot.auditoriaDesistencias ?? [])];
     const agora = new Date().toISOString();
 
-    if (body.action === 'MARCAR_REENGAJADO') {
+    if (body.action === 'ALOCAR_PACIENTE') {
       const id = String(body.id ?? '').trim();
       const indice = registros.findIndex((item) => item.id === id);
       if (indice === -1) throw new RequisicaoInvalida('Registro de desistência não encontrado.', 404);
+      const registro = registros[indice];
+      if (registro.organizationId && registro.organizationId !== sessao.organizationId) {
+        throw new RequisicaoInvalida('Registro de desistência não encontrado.', 404);
+      }
+      if (registro.reengajado) throw new RequisicaoInvalida('Este paciente já foi alocado novamente.', 409);
+      if (!registro.pacienteId || !registro.leadId) {
+        throw new RequisicaoInvalida('A nova alocação exige um paciente confirmado.', 409);
+      }
 
-      const observacoes = String(body.observacoes ?? '').trim().slice(0, 500);
+      const psicologoId = String(body.psicologoId ?? '').trim();
+      if (!psicologoId) throw new RequisicaoInvalida('Selecione o psicólogo para a nova alocação.');
+
+      const captureRepository = getCaptureRepository();
+      const captura = await captureRepository.read();
+      const lead = captura.triagensPacientes.find((item) => item.id === registro.leadId);
+      if (!lead) throw new RequisicaoInvalida('Triagem vinculada ao paciente não encontrada.', 404);
+      if (!registro.permitirTrocaPsicologo && lead.psicologoAlocadoId && lead.psicologoAlocadoId !== psicologoId) {
+        throw new RequisicaoInvalida('O paciente não autorizou a troca para outro psicólogo.', 409);
+      }
+
+      const compativel = listarPsicologosCompativeis(captureStateAsSnapshot(captura), lead)
+        .find((item) => item.id === psicologoId && item.profissionalRef);
+      if (!compativel?.profissionalRef) {
+        throw new RequisicaoInvalida('O psicólogo não está mais disponível ou não é compatível com esta solicitação.', 409);
+      }
+
+      const store = getApplicationStore();
+      const perfil = await store.identities.getProfessional(sessao.organizationId, compativel.profissionalRef);
+      if (!perfil || perfil.status !== 'active') {
+        throw new RequisicaoInvalida('O perfil clínico do psicólogo está inativo.', 409);
+      }
+      const reatribuido = await store.identities.reassignPatient({
+        organizationId: sessao.organizationId,
+        patientId: registro.pacienteId,
+        professionalId: compativel.profissionalRef,
+        actorUserId: sessao.userId,
+        reason: `Nova alocação após desistência (${registro.motivo}).`,
+        changedAt: agora,
+      });
+      if (!reatribuido) throw new RequisicaoInvalida('Paciente não encontrado.', 404);
+      await store.identities.savePatient({ ...reatribuido, status: 'active', updatedAt: agora });
+
+      await captureRepository.mutate((state) => {
+        const atual = state.triagensPacientes.find((item) => item.id === registro.leadId);
+        if (!atual) throw new RequisicaoInvalida('Triagem vinculada ao paciente não encontrada.', 404);
+        const resultado = alocarLeadParaPsicologo(captureStateAsSnapshot(state), atual, psicologoId, agora);
+        if (!resultado.psicologo) {
+          throw new RequisicaoInvalida('O psicólogo deixou de estar disponível para esta alocação.', 409);
+        }
+        return {
+          next: {
+            triagensPacientes: resultado.snapshot.triagensPacientes ?? [],
+            cadastrosPsicologos: resultado.snapshot.cadastrosPsicologos ?? [],
+          },
+          result: null,
+        };
+      });
+
       registros[indice] = {
-        ...registros[indice],
+        ...registro,
         reengajado: true,
-        observacoesReengajamento: observacoes || 'Reengajamento confirmado pela gestão.',
+        observacoesReengajamento: `Paciente alocado para ${compativel.nomeSocial || compativel.nomeCompleto}.`,
       };
 
       await writeSnapshot({ ...snapshot, auditoriaDesistencias: registros, savedAt: agora });

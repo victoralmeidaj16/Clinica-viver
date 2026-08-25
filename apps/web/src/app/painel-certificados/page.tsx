@@ -26,12 +26,26 @@ export default function PainelCertificadosPage() {
   const [loading, setLoading] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>('');
 
+  const fetchCertificados = (currentPin = pin) => {
+    if (!currentPin) return;
+    setLoading(true);
+    fetch(`/api/certificados?pin=${encodeURIComponent(currentPin)}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.ok && Array.isArray(d.data)) setCertificates(d.data);
+      })
+      .catch((err) => console.error('Erro ao carregar certificados:', err))
+      .finally(() => setLoading(false));
+  };
+
   useEffect(() => {
     const saved = sessionStorage.getItem(STORAGE_KEY);
     if (saved) {
-      setPin(saved);
-      setIsAuthenticated(true);
-      fetchCertificados(saved);
+      void Promise.resolve().then(() => {
+        setPin(saved);
+        setIsAuthenticated(true);
+        fetchCertificados(saved);
+      });
     }
   }, []);
 
@@ -72,17 +86,6 @@ export default function PainelCertificadosPage() {
     setPinInput('');
   };
 
-  const fetchCertificados = (currentPin = pin) => {
-    if (!currentPin) return;
-    setLoading(true);
-    fetch(`/api/certificados?pin=${encodeURIComponent(currentPin)}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.ok && Array.isArray(d.data)) setCertificates(d.data);
-      })
-      .catch((err) => console.error('Erro ao carregar certificados:', err))
-      .finally(() => setLoading(false));
-  };
 
   if (!isAuthenticated) {
     return (

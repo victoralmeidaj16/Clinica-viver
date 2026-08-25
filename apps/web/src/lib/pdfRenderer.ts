@@ -3,15 +3,31 @@
  * Elimina barras pretas, barras de ferramentas e miniaturas nativas de iframes de PDF.
  */
 
+export interface PdfJsDocument {
+  numPages: number;
+  getPage: (pageNumber: number) => Promise<{
+    getViewport: (options: { scale: number }) => { width: number; height: number };
+    render: (params: { canvasContext: CanvasRenderingContext2D; viewport: { width: number; height: number } }) => {
+      promise: Promise<void>;
+    };
+  }>;
+}
+
+export interface PdfJsLib {
+  getDocument: (params: { data: Uint8Array }) => { promise: Promise<PdfJsDocument> };
+  GlobalWorkerOptions: { workerSrc: string };
+}
+
 declare global {
   interface Window {
-    pdfjsLib?: any;
+    pdfjsLib?: PdfJsLib;
   }
 }
 
-let pdfJsPromise: Promise<any> | null = null;
+let pdfJsPromise: Promise<PdfJsLib> | null = null;
 
-export async function loadPdfJs(): Promise<any> {
+export async function loadPdfJs(): Promise<PdfJsLib> {
+
   if (typeof window === 'undefined') {
     throw new Error('PDF.js só pode ser carregado no navegador.');
   }

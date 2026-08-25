@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
+  AlertCircle,
   ArrowLeft,
   Award,
   Check,
@@ -53,10 +54,8 @@ export default function AnexarCertificadoPage() {
   const [isProcessingPdf, setIsProcessingPdf] = useState(false);
   const [aspectRatio, setAspectRatio] = useState<number>(1.414); // 1.414 = A4 Paisagem (Landscape)
 
-  // Drag over states para dropzone
-  const [isDraggingPdf, setIsDraggingPdf] = useState(false);
-  const [isDraggingFront, setIsDraggingFront] = useState(false);
-  const [isDraggingBack, setIsDraggingBack] = useState(false);
+  // Drag over states para dropzone única
+  const [isDragging, setIsDragging] = useState(false);
 
   // Aba ativa de preview: 'verso' para posicionar e redimensionar o carimbo ou 'front' para conferir
   const [activeTab, setActiveTab] = useState<'verso' | 'front'>('verso');
@@ -77,9 +76,7 @@ export default function AnexarCertificadoPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const filePdfRef = useRef<HTMLInputElement>(null);
-  const fileFrontRef = useRef<HTMLInputElement>(null);
-  const fileBackRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const saved = sessionStorage.getItem(STORAGE_KEY);
@@ -106,112 +103,123 @@ export default function AnexarCertificadoPage() {
       .catch((err) => setPinError(err.message || 'Falha ao autenticar.'));
   };
 
-  // --- Handlers de Upload de Arquivos com Extração Nítida de PDF ---
-  const handleUploadPdf = async (file?: File) => {
-    if (!file) return;
-    setIsProcessingPdf(true);
+  // --- Handler ÚNICO de Upload Inteligente de Arquivos (PDF ou Imagens) ---
+  const handleUnifiedUpload = async (fileList?: FileList | File[] | null) => {
+    if (!fileList || fileList.length === 0) return;
+    const files = Array.from(fileList);
     setError(null);
 
+    const pdfFiles = files.filter(
+      (f) => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')
+    );
+    const imageFiles = files.filter((f) => f.type.startsWith('image/'));
+
+    // Validação 1: Não permitir misturar PDF com Imagem
+    if (pdfFiles.length > 0 && imageFiles.length > 0) {
+      setError('Por favor, selecione apenas 1 arquivo PDF OU até 2 imagens (não misture PDF com imagem).');
+      return;
+    }
+
+    // Validação 2: Apenas 1 PDF
+    if (pdfFiles.length > 1) {
+      setError('Por favor, selecione apenas 1 arquivo PDF por certificado.');
+      return;
+    }
+
+    // Validação 3: No máximo 2 imagens
+    if (imageFiles.length > 2) {
+      setError('Por favor, selecione no máximo 2 imagens (1ª Frente e 2ª Verso).');
+      return;
+    }
+
+    setIsProcessingPdf(true);
+
     try {
-      if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+      if (pdfFiles.length === 1) {
+        const file = pdfFiles[0];
         const result = await convertPdfToImages(file);
         setFrontImageUrl(result.frontDataUrl);
         setBackImageUrl(result.backDataUrl || result.frontDataUrl);
         setAspectRatio(result.aspectRatio);
-        setFrontFileName(result.numPages >= 2 ? `${file.name} (Pág 1 de ${result.numPages})` : `${file.name} (Pág 1)`);
-        setBackFileName(result.numPages >= 2 ? `${file.name} (Pág 2 de ${result.numPages})` : `${file.name} (Verso)`);
+        setFrontFileName(
+          result.numPages >= 2
+            ? `${file.name} (Pág 1)`
+            : `${file.name} (Pág 1)`
+        );
+        setBackFileName(
+          result.numPages >= 2
+            ? `${file.name} (Pág ${result.numPages} - Verso)`
+            : `${file.name} (Verso)`
+        );
         setIsPdf(true);
+        // Exibir automaticamente a última página do PDF (Verso) para posicionamento imediato do carimbo
         setActiveTab('verso');
-      } else {
-        // Imagem normal
-        const reader = new FileReader();
-        reader.onload = () => {
-          const dataUrl = String(reader.result);
-          setFrontImageUrl(dataUrl);
-          setBackImageUrl(dataUrl);
-          setFrontFileName(file.name);
-          setBackFileName(file.name);
+      } else if (imageFiles.length >= 1) {
+        const readDataUrl = (f: File): Promise<string> => {
+          return new Promise((resolve, reject) => {
+            const r = new FileReader();
+            r.onload = () => resolve(String(r.result));
+            r.onerror = reject;
+            r.readAsDataURL(f);
+          });
+        };
+
+        if (imageFiles.length === 2) {
+          // 2 Imagens: 1ª Frente, 2ª Verso
+          const [img1, img2] = imageFiles;
+          const [data1, data2] = await Promise.all([readDataUrl(img1), readDataUrl(img2)]);
+          setFrontImageUrl(data1);
+          setBackImageUrl(data2);
+          setFrontFileName(`1ª: ${img1.name} (Frente)`);
+          setBackFileName(`2ª: ${img2.name} (Verso)`);
+          setIsPdf(false);
+          // Exibir automaticamente a 2ª imagem (Verso) para posicionamento do carimbo
+          setActiveTab('verso');
+
+          const img = new Image();
+          img.onload = () => {
+            if (img.naturalWidth && img.naturalHeight) {
+              setAspectRatio(img.naturalWidth / img.naturalHeight);
+            }
+          };
+          img.src = data2;
+        } else {
+          // 1 Imagem
+          const img1 = imageFiles[0];
+          const data1 = await readDataUrl(img1);
+          setFrontImageUrl(data1);
+          setBackImageUrl(data1);
+          setFrontFileName(img1.name);
+          setBackFileName(img1.name);
           setIsPdf(false);
           setActiveTab('verso');
-        };
-        reader.readAsDataURL(file);
+
+          const img = new Image();
+          img.onload = () => {
+            if (img.naturalWidth && img.naturalHeight) {
+              setAspectRatio(img.naturalWidth / img.naturalHeight);
+            }
+          };
+          img.src = data1;
+        }
       }
     } catch (err: unknown) {
-      console.error('Erro ao processar PDF:', err);
-      setError('Falha ao processar o arquivo PDF. Tente novamente ou use imagens PNG/JPG.');
+      console.error('Erro no upload de arquivos:', err);
+      setError('Falha ao processar os arquivos. Tente novamente com imagens PNG/JPG ou PDF.');
     } finally {
       setIsProcessingPdf(false);
     }
   };
 
-  const handleUploadFrontImage = async (file?: File) => {
-    if (!file) return;
-    setIsProcessingPdf(true);
+  const handleClearFiles = () => {
+    setFrontImageUrl(null);
+    setBackImageUrl(null);
+    setFrontFileName('');
+    setBackFileName('');
+    setIsPdf(false);
     setError(null);
-
-    try {
-      if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
-        const result = await convertPdfToImages(file);
-        setFrontImageUrl(result.frontDataUrl);
-        setFrontFileName(`${file.name} (Pág 1)`);
-        setAspectRatio(result.aspectRatio);
-      } else {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const dataUrl = String(reader.result);
-          setFrontImageUrl(dataUrl);
-          setFrontFileName(file.name);
-          // Obter proporção da imagem
-          const img = new Image();
-          img.onload = () => {
-            if (img.naturalWidth && img.naturalHeight) {
-              setAspectRatio(img.naturalWidth / img.naturalHeight);
-            }
-          };
-          img.src = dataUrl;
-        };
-        reader.readAsDataURL(file);
-      }
-    } catch (err) {
-      console.error('Erro ao processar imagem frontal:', err);
-    } finally {
-      setIsProcessingPdf(false);
-    }
-  };
-
-  const handleUploadBackImage = async (file?: File) => {
-    if (!file) return;
-    setIsProcessingPdf(true);
-    setError(null);
-
-    try {
-      if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
-        const result = await convertPdfToImages(file);
-        setBackImageUrl(result.backDataUrl || result.frontDataUrl);
-        setBackFileName(`${file.name} (Verso)`);
-        setAspectRatio(result.aspectRatio);
-        setActiveTab('verso');
-      } else {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const dataUrl = String(reader.result);
-          setBackImageUrl(dataUrl);
-          setBackFileName(file.name);
-          setActiveTab('verso');
-          const img = new Image();
-          img.onload = () => {
-            if (img.naturalWidth && img.naturalHeight) {
-              setAspectRatio(img.naturalWidth / img.naturalHeight);
-            }
-          };
-          img.src = dataUrl;
-        };
-        reader.readAsDataURL(file);
-      }
-    } catch (err) {
-      console.error('Erro ao processar imagem do verso:', err);
-    } finally {
-      setIsProcessingPdf(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -436,221 +444,126 @@ export default function AnexarCertificadoPage() {
 
         {/* LAYOUT EM 2 COLUNAS: CONFIGURAÇÕES NA LATERAL + CANVAS AMPLO */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* COLUNA LATERAL ESQUERDA: CONFIGURAÇÕES & UPLOAD */}
+          {/* COLUNA LATERAL ESQUERDA: CONFIGURAÇÕES & UPLOAD SIMPLIFICADO */}
           <div className="lg:col-span-5 xl:col-span-4 space-y-5">
             <form id="form-anexar" onSubmit={handleSave} className="space-y-5">
-              {/* CARD 1: UPLOADS DE ARQUIVO */}
-              <div className="rounded-3xl border border-line bg-white p-5 shadow-card space-y-4">
-                <div className="flex items-center justify-between border-b border-line pb-3">
+              {/* CARD 1: DROPZONE ÚNICA DE UPLOAD */}
+              <div className="rounded-3xl border border-line bg-white p-5 shadow-card space-y-3">
+                <div className="flex items-center justify-between border-b border-line pb-2.5">
                   <span className="text-xs font-bold uppercase tracking-wider text-psi-deep flex items-center gap-1.5">
                     <Upload className="w-4 h-4 text-psi-vibrant" />
                     1. Upload dos Arquivos
                   </span>
-                  {isProcessingPdf ? (
-                    <span className="text-[11px] font-bold text-psi-deep flex items-center gap-1">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      Extraindo páginas…
-                    </span>
-                  ) : (
-                    <span className="text-[10px] font-semibold text-muted">PNG, JPG ou PDF</span>
-                  )}
+                  <span className="text-[10px] font-semibold text-muted">PDF ou até 2 imagens</span>
                 </div>
 
-                <div className="space-y-3">
-                  {/* Opção A: PDF de 2 Páginas */}
+                {/* ÁREA ÚNICA DE UPLOAD */}
+                {frontImageUrl ? (
+                  /* CARD DE ARQUIVO JÁ CARREGADO */
+                  <div className="p-4 rounded-2xl bg-emerald-50 border-2 border-emerald-300 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-2.5">
+                        <span className="p-2 rounded-xl bg-emerald-600 text-white shadow-xs shrink-0 mt-0.5">
+                          {isPdf ? <FileText className="w-4 h-4" /> : <FileImage className="w-4 h-4" />}
+                        </span>
+                        <div className="space-y-0.5">
+                          <p className="text-xs font-extrabold text-emerald-950 flex items-center gap-1">
+                            <Check className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>{isPdf ? 'PDF Carregado com Sucesso' : 'Arte(s) Carregada(s)'}</span>
+                          </p>
+                          <p className="text-[11px] font-semibold text-emerald-800 truncate max-w-[210px]">
+                            {backFileName || frontFileName}
+                          </p>
+                          {frontFileName && backFileName && frontFileName !== backFileName && (
+                            <p className="text-[10px] text-emerald-700 truncate max-w-[210px]">
+                              Frente: {frontFileName}
+                            </p>
+                          )}
+                          <p className="text-[10px] font-bold text-emerald-900 pt-0.5">
+                            👉 Exibindo verso na tela para posicionar o carimbo
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleClearFiles}
+                        className="p-1.5 rounded-xl bg-white border border-emerald-200 text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors shadow-xs"
+                        title="Remover e enviar outro arquivo"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full py-2 bg-white hover:bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-xl text-[11px] font-bold transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Trocar Arquivo</span>
+                    </button>
+                  </div>
+                ) : (
+                  /* DROPZONE ÚNICA INICIAL */
                   <div
                     onDragOver={(e) => {
                       e.preventDefault();
-                      setIsDraggingPdf(true);
+                      setIsDragging(true);
                     }}
-                    onDragLeave={() => setIsDraggingPdf(false)}
+                    onDragLeave={() => setIsDragging(false)}
                     onDrop={(e) => {
                       e.preventDefault();
-                      setIsDraggingPdf(false);
-                      handleUploadPdf(e.dataTransfer.files?.[0]);
+                      setIsDragging(false);
+                      handleUnifiedUpload(e.dataTransfer.files);
                     }}
-                    className={`p-3.5 rounded-2xl border-2 transition-all space-y-2 ${
-                      isDraggingPdf
-                        ? 'border-psi-deep bg-psi-soft/80'
-                        : frontImageUrl && isPdf
-                        ? 'border-emerald-300 bg-emerald-50/60'
-                        : 'border-dashed border-psi-vibrant/40 bg-[#FAF8FC] hover:border-psi-deep'
+                    className={`p-6 rounded-2xl border-2 border-dashed transition-all text-center space-y-3 cursor-pointer ${
+                      isDragging
+                        ? 'border-psi-deep bg-psi-soft/80 ring-4 ring-psi-vibrant/20 scale-[1.01]'
+                        : 'border-psi-vibrant/40 bg-[#FAF8FC] hover:border-psi-deep hover:bg-psi-soft/30'
                     }`}
+                    onClick={() => fileInputRef.current?.click()}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <FileText className="w-4 h-4 text-psi-vibrant" />
-                        <span className="font-extrabold text-xs text-ink">PDF do Certificado</span>
-                      </div>
-                      <span className="text-[9px] text-muted font-bold">Enquadramento Total</span>
+                    <div className="mx-auto w-12 h-12 rounded-2xl bg-psi-soft text-psi-deep grid place-items-center shadow-xs">
+                      {isProcessingPdf ? (
+                        <Loader2 className="w-6 h-6 animate-spin text-psi-deep" />
+                      ) : (
+                        <UploadCloud className="w-6 h-6" />
+                      )}
                     </div>
 
-                    {frontImageUrl && isPdf ? (
-                      <div className="flex items-center justify-between bg-emerald-100 text-emerald-900 p-2 rounded-xl text-[11px] font-bold">
-                        <span className="truncate max-w-[200px]">✓ {frontFileName}</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setFrontImageUrl(null);
-                            setBackImageUrl(null);
-                            setFrontFileName('');
-                            setBackFileName('');
-                            setIsPdf(false);
-                          }}
-                          className="text-red-600 hover:text-red-800 p-1"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        disabled={isProcessingPdf}
-                        onClick={() => filePdfRef.current?.click()}
-                        className="w-full py-2.5 px-3 bg-psi-soft hover:bg-psi-deep hover:text-white text-psi-deep font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5"
-                      >
-                        {isProcessingPdf ? (
-                          <>
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            <span>Processando PDF…</span>
-                          </>
-                        ) : (
-                          <>
-                            <Upload className="w-3.5 h-3.5" />
-                            <span>Selecionar PDF (Frente e Verso)</span>
-                          </>
-                        )}
-                      </button>
-                    )}
-                    <input
-                      ref={filePdfRef}
-                      type="file"
-                      accept="application/pdf"
-                      hidden
-                      onChange={(e) => handleUploadPdf(e.target.files?.[0])}
-                    />
-                  </div>
-
-                  {/* Opção B: Imagem Frente */}
-                  <div
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      setIsDraggingFront(true);
-                    }}
-                    onDragLeave={() => setIsDraggingFront(false)}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      setIsDraggingFront(false);
-                      handleUploadFrontImage(e.dataTransfer.files?.[0]);
-                    }}
-                    className={`p-3.5 rounded-2xl border-2 transition-all space-y-2 ${
-                      isDraggingFront
-                        ? 'border-emerald-600 bg-emerald-50'
-                        : frontImageUrl && !isPdf
-                        ? 'border-emerald-300 bg-emerald-50/60'
-                        : 'border-dashed border-line bg-[#FAF8FC] hover:border-emerald-600'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <FileImage className="w-4 h-4 text-emerald-600" />
-                        <span className="font-extrabold text-xs text-ink">Página 1: Frente (Imagem / PDF)</span>
-                      </div>
+                    <div className="space-y-1">
+                      <p className="font-extrabold text-xs text-ink">
+                        {isProcessingPdf
+                          ? 'Processando e extraindo páginas…'
+                          : 'Clique ou arraste o arquivo aqui'}
+                      </p>
+                      <p className="text-[11px] text-muted max-w-xs mx-auto leading-relaxed">
+                        Envie <strong>1 PDF</strong> (1 ou 2 páginas) <br />
+                        ou <strong>até 2 imagens</strong> (Frente e Verso)
+                      </p>
                     </div>
 
-                    {frontImageUrl && !isPdf ? (
-                      <div className="flex items-center justify-between bg-emerald-100 text-emerald-900 p-2 rounded-xl text-[11px] font-bold">
-                        <span className="truncate max-w-[200px]">✓ {frontFileName || 'Frente carregada'}</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setFrontImageUrl(null);
-                            setFrontFileName('');
-                          }}
-                          className="text-red-600 hover:text-red-800 p-1"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => fileFrontRef.current?.click()}
-                        className="w-full py-2 px-3 bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-800 font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5"
-                      >
-                        <Upload className="w-3.5 h-3.5" />
-                        <span>Upload Frente</span>
-                      </button>
-                    )}
-                    <input
-                      ref={fileFrontRef}
-                      type="file"
-                      accept="image/*,application/pdf"
-                      hidden
-                      onChange={(e) => handleUploadFrontImage(e.target.files?.[0])}
-                    />
+                    <button
+                      type="button"
+                      disabled={isProcessingPdf}
+                      className="btn-primary py-2 px-4 text-xs font-bold shadow-xs mx-auto flex items-center gap-1.5"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Selecionar Arquivo</span>
+                    </button>
                   </div>
+                )}
 
-                  {/* Opção C: Imagem Verso */}
-                  <div
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      setIsDraggingBack(true);
-                    }}
-                    onDragLeave={() => setIsDraggingBack(false)}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      setIsDraggingBack(false);
-                      handleUploadBackImage(e.dataTransfer.files?.[0]);
-                    }}
-                    className={`p-3.5 rounded-2xl border-2 transition-all space-y-2 ${
-                      isDraggingBack
-                        ? 'border-purple-600 bg-purple-50'
-                        : backImageUrl && !isPdf
-                        ? 'border-purple-300 bg-purple-50/60'
-                        : 'border-dashed border-line bg-[#FAF8FC] hover:border-purple-600'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <FileImage className="w-4 h-4 text-purple-600" />
-                        <span className="font-extrabold text-xs text-ink">Página 2: Verso (Imagem / PDF)</span>
-                      </div>
-                    </div>
-
-                    {backImageUrl && !isPdf ? (
-                      <div className="flex items-center justify-between bg-purple-100 text-purple-900 p-2 rounded-xl text-[11px] font-bold">
-                        <span className="truncate max-w-[200px]">✓ {backFileName || 'Verso carregado'}</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setBackImageUrl(null);
-                            setBackFileName('');
-                          }}
-                          className="text-red-600 hover:text-red-800 p-1"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => fileBackRef.current?.click()}
-                        className="w-full py-2 px-3 bg-purple-50 hover:bg-purple-600 hover:text-white text-purple-800 font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5"
-                      >
-                        <Upload className="w-3.5 h-3.5" />
-                        <span>Upload Verso</span>
-                      </button>
-                    )}
-                    <input
-                      ref={fileBackRef}
-                      type="file"
-                      accept="image/*,application/pdf"
-                      hidden
-                      onChange={(e) => handleUploadBackImage(e.target.files?.[0])}
-                    />
-                  </div>
-                </div>
+                {/* Input Invisível para Upload Único */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept="application/pdf,image/*"
+                  hidden
+                  onChange={(e) => handleUnifiedUpload(e.target.files)}
+                />
               </div>
 
               {/* CARD 2: DADOS DO ALUNO E REGISTRO */}
@@ -810,7 +723,12 @@ export default function AnexarCertificadoPage() {
                 </div>
               </div>
 
-              {error && <p className="text-xs font-bold text-coral text-center">{error}</p>}
+              {error && (
+                <div className="p-3 rounded-2xl bg-red-50 border border-red-200 text-xs font-bold text-red-800 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
 
               <button
                 type="submit"
@@ -838,7 +756,7 @@ export default function AnexarCertificadoPage() {
                         : 'text-muted hover:text-ink'
                     }`}
                   >
-                    📜 Página 2: Verso (Arraste & Redimensione o Carimbo)
+                    📜 Verso Oficial (Arraste o Carimbo)
                   </button>
                   <button
                     type="button"
@@ -849,12 +767,12 @@ export default function AnexarCertificadoPage() {
                         : 'text-muted hover:text-ink'
                     }`}
                   >
-                    📄 Página 1: Frente (Conferência)
+                    📄 Frente (Conferência)
                   </button>
                 </div>
 
                 <span className="text-[11px] text-muted italic">
-                  💡 Arraste o carimbo com o mouse para posicioná-lo no verso.
+                  💡 Arraste o carimbo com o mouse para posicioná-lo sobre a arte.
                 </span>
               </div>
 
@@ -875,7 +793,7 @@ export default function AnexarCertificadoPage() {
                     />
                   ) : (
                     <div className="absolute inset-0 grid place-items-center bg-psi-soft/20 text-xs font-semibold text-muted p-6 text-center">
-                      Nenhuma arte de frente carregada (envie o PDF ou imagem na lateral esquerda)
+                      Nenhuma arte carregada (anexe o PDF ou imagens na lateral esquerda)
                     </div>
                   )
                 ) : (
@@ -890,7 +808,7 @@ export default function AnexarCertificadoPage() {
                       />
                     ) : (
                       <div className="absolute inset-0 grid place-items-center bg-psi-soft/20 text-xs font-semibold text-muted p-6 text-center">
-                        Nenhuma arte de verso carregada (envie o PDF ou imagem na lateral esquerda para posicionar o carimbo)
+                        Nenhuma arte carregada (anexe o PDF ou imagens na lateral esquerda para posicionar o carimbo)
                       </div>
                     )}
 
@@ -973,7 +891,7 @@ export default function AnexarCertificadoPage() {
 
               <div className="p-4 rounded-2xl bg-[#FAF8FC] border border-line text-xs text-muted leading-relaxed flex items-center justify-between">
                 <span>
-                  👆 <strong>Como funciona:</strong> Arraste o carimbo com o mouse para qualquer ponto do verso (para cima, para baixo, para os lados) e use o puxador <strong>⤡</strong> no canto para redimensionar.
+                  👆 <strong>Como funciona:</strong> Arraste o carimbo com o mouse para a posição desejada no verso e use o puxador <strong>⤡</strong> no canto para redimensionar.
                 </span>
                 <span className="font-mono font-bold text-psi-deep shrink-0 ml-2">
                   X: {stampX}% | Y: {stampY}%

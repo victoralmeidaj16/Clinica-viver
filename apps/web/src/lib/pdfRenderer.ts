@@ -81,19 +81,19 @@ export async function convertPdfToImages(file: File): Promise<ExtractedPdfResult
   let backDataUrl: string | undefined = undefined;
 
   if (numPages >= 2) {
-    // Renderizar Página 2 (Verso)
-    const page2 = await pdf.getPage(2);
-    const viewport2 = page2.getViewport({ scale: 2.0 });
+    // Renderizar a última Página como Verso onde o carimbo oficial será posicionado
+    const lastPage = await pdf.getPage(numPages);
+    const viewport2 = lastPage.getViewport({ scale: 2.0 });
     const canvas2 = document.createElement('canvas');
     canvas2.width = viewport2.width;
     canvas2.height = viewport2.height;
     const ctx2 = canvas2.getContext('2d');
     if (ctx2) {
-      await page2.render({ canvasContext: ctx2, viewport: viewport2 }).promise;
+      await lastPage.render({ canvasContext: ctx2, viewport: viewport2 }).promise;
       backDataUrl = canvas2.toDataURL('image/png');
     }
   } else {
-    // Se o PDF tiver só 1 página, usa a mesma como base ou deixa o verso para upload manual
+    // Se o PDF tiver só 1 página, usa a mesma página para posicionar o carimbo
     backDataUrl = frontDataUrl;
   }
 

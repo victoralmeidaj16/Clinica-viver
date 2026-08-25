@@ -2,8 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { Award, CheckCircle2, KeyRound, Search, ShieldCheck, XCircle } from 'lucide-react';
+import { Award, Search, ShieldCheck } from 'lucide-react';
 
 export default function ValidarCertificadoHomePage() {
   const router = useRouter();
@@ -52,7 +51,7 @@ export default function ValidarCertificadoHomePage() {
                   id="codigo"
                   type="text"
                   className="w-full px-4 py-3.5 border border-line rounded-2xl font-mono text-base font-bold text-psi-deep tracking-wider focus:outline-none focus:ring-2 focus:ring-psi-vibrant/30 focus:border-psi-vibrant placeholder:font-normal placeholder:text-muted/60"
-                  placeholder="Ex: yZV8anjS ou P2AnQjl2"
+                  placeholder="Digite o código impresso no certificado"
                   value={codigo}
                   onChange={(e) => {
                     setCodigo(e.target.value);
@@ -88,40 +87,6 @@ export default function ValidarCertificadoHomePage() {
               Consultar Autenticidade do Certificado
             </button>
           </form>
-
-          {/* Códigos de Exemplo para Teste Rápido */}
-          <div className="pt-6 border-t border-line/60 space-y-3">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-muted flex items-center gap-1.5">
-              <KeyRound className="w-3.5 h-3.5 text-psi-vibrant" />
-              Testar Códigos de Demonstração:
-            </p>
-
-            <div className="flex flex-wrap gap-2">
-              <Link
-                href="/validar-certificado/yZV8anjS"
-                className="px-3 py-2 rounded-xl bg-emerald-50 text-emerald-900 text-xs font-mono font-bold border border-emerald-200 hover:bg-emerald-100 transition-colors flex items-center gap-1.5 shadow-xs"
-              >
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <span>yZV8anjS (Pós-Graduação 360h)</span>
-              </Link>
-
-              <Link
-                href="/validar-certificado/VVR-DEMO-2026"
-                className="px-3 py-2 rounded-xl bg-emerald-50 text-emerald-900 text-xs font-mono font-bold border border-emerald-200 hover:bg-emerald-100 transition-colors flex items-center gap-1.5 shadow-xs"
-              >
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <span>VVR-DEMO-2026 (Formação 120h)</span>
-              </Link>
-
-              <Link
-                href="/validar-certificado/VVR-TEST-3390"
-                className="px-3 py-2 rounded-xl bg-purple-50 text-purple-900 text-xs font-mono font-bold border border-purple-200 hover:bg-purple-100 transition-colors flex items-center gap-1.5 shadow-xs"
-              >
-                <CheckCircle2 className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                <span>VVR-TEST-3390 (Psicofarmacologia 40h)</span>
-              </Link>
-            </div>
-          </div>
         </div>
 
         {/* Rodapé de Segurança e Compliance */}

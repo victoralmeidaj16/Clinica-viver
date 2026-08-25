@@ -1,12 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import {
+  type CertificateRecord,
+  DEFAULT_SIGNER_INFO,
+  DEFAULT_VALIDATION_URL,
   formatCertificateVersoText,
   formatLongDate,
   generateCertificateCode,
   getMockCertificate,
   renderCertificateText,
-  initialCertificates,
 } from './certificados';
+
+const certificateFixture: CertificateRecord = {
+  id: 'CERT-TESTE',
+  code: 'CERT-TESTE',
+  studentName: 'Aluno de Teste',
+  courseTitle: 'Formação de Teste',
+  durationHours: '12h',
+  issueDate: '05/03/2026',
+  signerInfo: DEFAULT_SIGNER_INFO,
+  validationUrl: DEFAULT_VALIDATION_URL,
+  status: 'valid',
+  createdAt: '2026-03-05T14:30:00.000Z',
+};
 
 describe('Módulo de Certificados (Core)', () => {
   it('deve gerar código único de 8 caracteres alfanuméricos', () => {
@@ -16,15 +31,10 @@ describe('Módulo de Certificados (Core)', () => {
     expect(/^[a-zA-Z0-9]{8}$/.test(code)).toBe(true);
   });
 
-  it('deve localizar certificado nos dados semente por código exato e case-insensitive', () => {
-    const cert = getMockCertificate('yZV8anjS');
-    expect(cert).not.toBeNull();
-    expect(cert?.studentName).toBe('Marina Silva Santos');
-    expect(cert?.status).toBe('valid');
-
-    const certLower = getMockCertificate('yzv8anjs');
-    expect(certLower).not.toBeNull();
-    expect(certLower?.id).toBe('yZV8anjS');
+  it('não expõe certificados fictícios como dados semente', () => {
+    expect(getMockCertificate('yZV8anjS')).toBeNull();
+    expect(getMockCertificate('VVR-DEMO-2026')).toBeNull();
+    expect(getMockCertificate('VVR-TEST-3390')).toBeNull();
   });
 
   it('deve formatar data por extenso corretamente', () => {
@@ -34,18 +44,18 @@ describe('Módulo de Certificados (Core)', () => {
   });
 
   it('deve substituir variáveis do certificado na renderização', () => {
-    const record = initialCertificates[0];
+    const record = certificateFixture;
     const templateText = 'Certificamos que {{nome_do_aluno}} concluiu {{nome_do_curso}} com {{carga_horaria}}h. Código: {{codigo_de_validacao}}';
     const rendered = renderCertificateText(templateText, record);
 
-    expect(rendered).toContain('Marina Silva Santos');
-    expect(rendered).toContain('Pós-Graduação em Psicoterapia Existencial e Fenomenológica');
-    expect(rendered).toContain('360h');
-    expect(rendered).toContain('yZV8anjS');
+    expect(rendered).toContain('Aluno de Teste');
+    expect(rendered).toContain('Formação de Teste');
+    expect(rendered).toContain('12h');
+    expect(rendered).toContain('CERT-TESTE');
   });
 
   it('deve formatar texto de verso com assinatura digital e carimbo', () => {
-    const record = initialCertificates[0];
+    const record = certificateFixture;
     const verso = formatCertificateVersoText({
       durationHours: record.durationHours,
       issueDate: record.issueDate,
@@ -53,7 +63,7 @@ describe('Módulo de Certificados (Core)', () => {
     });
 
     expect(verso).toContain('Assinado de forma digital por VIVIANE OLIVEIRA DE ALMEIDA JEREMIAS:19440737000153');
-    expect(verso).toContain('yZV8anjS');
+    expect(verso).toContain('CERT-TESTE');
     expect(verso).toContain('www.vivermaispsicologia.com.br');
   });
 });

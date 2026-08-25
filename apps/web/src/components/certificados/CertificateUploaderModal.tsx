@@ -489,7 +489,7 @@ export function CertificateUploaderModal({ adminPin, onClose, onSuccess }: Props
                   type="text"
                   required
                   className="input py-2.5 text-xs"
-                  placeholder="Ex: Marina Silva Santos"
+                  placeholder="Nome completo do aluno"
                   value={studentName}
                   onChange={(e) => setStudentName(e.target.value)}
                 />

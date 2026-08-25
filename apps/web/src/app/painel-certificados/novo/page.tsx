@@ -612,7 +612,7 @@ export default function AnexarCertificadoPage() {
                       type="text"
                       required
                       className="input py-2 text-xs font-semibold"
-                      placeholder="Ex: Marina Silva Santos"
+                      placeholder="Nome completo do aluno"
                       value={studentName}
                       onChange={(e) => setStudentName(e.target.value)}
                     />

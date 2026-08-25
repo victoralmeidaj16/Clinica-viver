@@ -183,56 +183,7 @@ export function renderCertificateText(
   );
 }
 
-export const initialCertificates: CertificateRecord[] = [
-  {
-    id: 'yZV8anjS',
-    code: 'yZV8anjS',
-    studentId: 'u-aluno-1',
-    studentName: 'Marina Silva Santos',
-    courseTitle: 'Pós-Graduação em Psicoterapia Existencial e Fenomenológica',
-    durationHours: '360h',
-    issueDate: '05/03/2026',
-    startDate: '2025-03-01',
-    completionDate: '2026-03-01',
-    signerInfo: DEFAULT_SIGNER_INFO,
-    validationUrl: DEFAULT_VALIDATION_URL,
-    status: 'valid',
-    createdAt: '2026-03-05T14:30:00.000Z',
-    createdBy: 'admin@viver.com',
-  },
-  {
-    id: 'VVR-DEMO-2026',
-    code: 'VVR-DEMO-2026',
-    studentId: 'u-aluno-2',
-    studentName: 'Carlos Eduardo Mendes',
-    courseTitle: 'Formação Clínica em Manejo da Ansiedade e Pânico',
-    durationHours: '120h',
-    issueDate: '15/01/2026',
-    startDate: '2025-10-01',
-    completionDate: '2026-01-10',
-    signerInfo: DEFAULT_SIGNER_INFO,
-    validationUrl: DEFAULT_VALIDATION_URL,
-    status: 'valid',
-    createdAt: '2026-01-15T10:00:00.000Z',
-    createdBy: 'admin@viver.com',
-  },
-  {
-    id: 'VVR-TEST-3390',
-    code: 'VVR-TEST-3390',
-    studentId: 'u-aluno-3',
-    studentName: 'Juliana Rocha',
-    courseTitle: 'Introdução à Psicofarmacologia para Psicólogos',
-    durationHours: '40h',
-    issueDate: '10/02/2026',
-    startDate: '2026-01-05',
-    completionDate: '2026-02-08',
-    signerInfo: DEFAULT_SIGNER_INFO,
-    validationUrl: DEFAULT_VALIDATION_URL,
-    status: 'valid',
-    createdAt: '2026-02-10T09:00:00.000Z',
-    createdBy: 'admin@viver.com',
-  },
-];
+export const initialCertificates: CertificateRecord[] = [];
 
 export function getMockCertificate(code: string): CertificateRecord | null {
   const trimmed = code.trim();

@@ -186,7 +186,7 @@ export default function PainelCertificadosPage() {
             <input
               type="text"
               className="input pl-10 text-xs"
-              placeholder="Buscar por aluno, código (ex: yZV8anjS) ou curso..."
+              placeholder="Buscar por aluno, código ou curso..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />

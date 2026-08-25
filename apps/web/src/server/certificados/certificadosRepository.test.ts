@@ -3,13 +3,11 @@ vi.mock('server-only', () => ({}));
 import { CertificadosRepository } from './certificadosRepository';
 
 describe('CertificadosRepository', () => {
-  it('deve consultar certificado por código nos dados semente', async () => {
+  it('não deve disponibilizar certificados fictícios removidos', async () => {
     const repo = new CertificadosRepository();
-    const cert = await repo.porCodigo('yZV8anjS');
-    expect(cert).not.toBeNull();
-    expect(cert?.studentName).toBe('Marina Silva Santos');
-    expect(cert?.durationHours).toBe('360h');
-    expect(cert?.status).toBe('valid');
+    await expect(repo.porCodigo('yZV8anjS')).resolves.toBeNull();
+    await expect(repo.porCodigo('VVR-DEMO-2026')).resolves.toBeNull();
+    await expect(repo.porCodigo('VVR-TEST-3390')).resolves.toBeNull();
   });
 
   it('deve emitir novo certificado e torná-lo consultável', async () => {

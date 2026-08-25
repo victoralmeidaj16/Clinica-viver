@@ -93,7 +93,7 @@ export function CertificateDocumentView({ record, publicValidationUrl }: Props) 
                 <img
                   src={record.frontImageUrl}
                   alt="Frente do Certificado"
-                  className="absolute inset-0 w-full h-full object-cover"
+                  className="absolute inset-0 w-full h-full object-contain"
                 />
               )
             ) : (
@@ -184,7 +184,7 @@ export function CertificateDocumentView({ record, publicValidationUrl }: Props) 
                 <img
                   src={record.backImageUrl}
                   alt="Verso do Certificado"
-                  className="absolute inset-0 w-full h-full object-cover"
+                  className="absolute inset-0 w-full h-full object-contain"
                 />
               )
             ) : (

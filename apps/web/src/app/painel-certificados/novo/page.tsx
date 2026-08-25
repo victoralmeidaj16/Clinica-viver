@@ -9,6 +9,7 @@ import {
   Check,
   FileImage,
   FileText,
+  Loader2,
   Lock,
   Minus,
   Move,
@@ -23,6 +24,7 @@ import {
   generateCertificateCode,
   type CertificateRecord,
 } from '@thats-life/core';
+import { convertPdfToImages } from '@/lib/pdfRenderer';
 
 const STORAGE_KEY = 'cert_admin_pin';
 
@@ -48,6 +50,8 @@ export default function AnexarCertificadoPage() {
   const [frontFileName, setFrontFileName] = useState<string>('');
   const [backFileName, setBackFileName] = useState<string>('');
   const [isPdf, setIsPdf] = useState(false);
+  const [isProcessingPdf, setIsProcessingPdf] = useState(false);
+  const [aspectRatio, setAspectRatio] = useState<number>(1.414); // 1.414 = A4 Paisagem (Landscape)
 
   // Drag over states para dropzone
   const [isDraggingPdf, setIsDraggingPdf] = useState(false);
@@ -58,7 +62,7 @@ export default function AnexarCertificadoPage() {
   const [activeTab, setActiveTab] = useState<'verso' | 'front'>('verso');
 
   // Posição e estilo do carimbo no Verso
-  const [stampX, setStampX] = useState<number>(5);
+  const [stampX, setStampX] = useState<number>(15);
   const [stampY, setStampY] = useState<number>(75);
   const [stampFontSize, setStampFontSize] = useState<number>(11);
   const [stampAlign, setStampAlign] = useState<'left' | 'center' | 'right'>('center');
@@ -102,43 +106,113 @@ export default function AnexarCertificadoPage() {
       .catch((err) => setPinError(err.message || 'Falha ao autenticar.'));
   };
 
-  // --- Handlers de Upload de Arquivos ---
-  const handleUploadPdf = (file?: File) => {
+  // --- Handlers de Upload de Arquivos com Extração Nítida de PDF ---
+  const handleUploadPdf = async (file?: File) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = String(reader.result);
-      setFrontImageUrl(dataUrl);
-      setBackImageUrl(dataUrl);
-      setFrontFileName(`${file.name} (Pág 1)`);
-      setBackFileName(`${file.name} (Pág 2)`);
-      setIsPdf(true);
-      setActiveTab('verso');
-    };
-    reader.readAsDataURL(file);
+    setIsProcessingPdf(true);
+    setError(null);
+
+    try {
+      if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+        const result = await convertPdfToImages(file);
+        setFrontImageUrl(result.frontDataUrl);
+        setBackImageUrl(result.backDataUrl || result.frontDataUrl);
+        setAspectRatio(result.aspectRatio);
+        setFrontFileName(result.numPages >= 2 ? `${file.name} (Pág 1 de ${result.numPages})` : `${file.name} (Pág 1)`);
+        setBackFileName(result.numPages >= 2 ? `${file.name} (Pág 2 de ${result.numPages})` : `${file.name} (Verso)`);
+        setIsPdf(true);
+        setActiveTab('verso');
+      } else {
+        // Imagem normal
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = String(reader.result);
+          setFrontImageUrl(dataUrl);
+          setBackImageUrl(dataUrl);
+          setFrontFileName(file.name);
+          setBackFileName(file.name);
+          setIsPdf(false);
+          setActiveTab('verso');
+        };
+        reader.readAsDataURL(file);
+      }
+    } catch (err: unknown) {
+      console.error('Erro ao processar PDF:', err);
+      setError('Falha ao processar o arquivo PDF. Tente novamente ou use imagens PNG/JPG.');
+    } finally {
+      setIsProcessingPdf(false);
+    }
   };
 
-  const handleUploadFrontImage = (file?: File) => {
+  const handleUploadFrontImage = async (file?: File) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      setFrontImageUrl(String(reader.result));
-      setFrontFileName(file.name);
-      setIsPdf(file.type === 'application/pdf');
-    };
-    reader.readAsDataURL(file);
+    setIsProcessingPdf(true);
+    setError(null);
+
+    try {
+      if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+        const result = await convertPdfToImages(file);
+        setFrontImageUrl(result.frontDataUrl);
+        setFrontFileName(`${file.name} (Pág 1)`);
+        setAspectRatio(result.aspectRatio);
+      } else {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = String(reader.result);
+          setFrontImageUrl(dataUrl);
+          setFrontFileName(file.name);
+          // Obter proporção da imagem
+          const img = new Image();
+          img.onload = () => {
+            if (img.naturalWidth && img.naturalHeight) {
+              setAspectRatio(img.naturalWidth / img.naturalHeight);
+            }
+          };
+          img.src = dataUrl;
+        };
+        reader.readAsDataURL(file);
+      }
+    } catch (err) {
+      console.error('Erro ao processar imagem frontal:', err);
+    } finally {
+      setIsProcessingPdf(false);
+    }
   };
 
-  const handleUploadBackImage = (file?: File) => {
+  const handleUploadBackImage = async (file?: File) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      setBackImageUrl(String(reader.result));
-      setBackFileName(file.name);
-      setIsPdf(file.type === 'application/pdf');
-      setActiveTab('verso');
-    };
-    reader.readAsDataURL(file);
+    setIsProcessingPdf(true);
+    setError(null);
+
+    try {
+      if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+        const result = await convertPdfToImages(file);
+        setBackImageUrl(result.backDataUrl || result.frontDataUrl);
+        setBackFileName(`${file.name} (Verso)`);
+        setAspectRatio(result.aspectRatio);
+        setActiveTab('verso');
+      } else {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = String(reader.result);
+          setBackImageUrl(dataUrl);
+          setBackFileName(file.name);
+          setActiveTab('verso');
+          const img = new Image();
+          img.onload = () => {
+            if (img.naturalWidth && img.naturalHeight) {
+              setAspectRatio(img.naturalWidth / img.naturalHeight);
+            }
+          };
+          img.src = dataUrl;
+        };
+        reader.readAsDataURL(file);
+      }
+    } catch (err) {
+      console.error('Erro ao processar imagem do verso:', err);
+    } finally {
+      setIsProcessingPdf(false);
+    }
   };
 
   // --- Handlers de Arraste do Carimbo ---
@@ -180,8 +254,8 @@ export default function AnexarCertificadoPage() {
         const deltaXPct = (deltaX / rect.width) * 100;
         const deltaYPct = (deltaY / rect.height) * 100;
 
-        const newX = Math.max(1, Math.min(90, dragStartRef.current.startX + deltaXPct));
-        const newY = Math.max(1, Math.min(90, dragStartRef.current.startY + deltaYPct));
+        const newX = Math.max(1, Math.min(85, dragStartRef.current.startX + deltaXPct));
+        const newY = Math.max(1, Math.min(85, dragStartRef.current.startY + deltaYPct));
 
         setStampX(Math.round(newX * 10) / 10);
         setStampY(Math.round(newY * 10) / 10);
@@ -350,7 +424,7 @@ export default function AnexarCertificadoPage() {
             <button
               type="submit"
               form="form-anexar"
-              disabled={saving}
+              disabled={saving || isProcessingPdf}
               className="btn-primary py-2.5 px-6 text-xs font-bold shadow-md flex items-center gap-2"
             >
               <Save className="w-4 h-4" />
@@ -371,7 +445,14 @@ export default function AnexarCertificadoPage() {
                     <Upload className="w-4 h-4 text-psi-vibrant" />
                     1. Upload dos Arquivos
                   </span>
-                  <span className="text-[10px] font-semibold text-muted">PNG, JPG ou PDF</span>
+                  {isProcessingPdf ? (
+                    <span className="text-[11px] font-bold text-psi-deep flex items-center gap-1">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Extraindo páginas…
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-semibold text-muted">PNG, JPG ou PDF</span>
+                  )}
                 </div>
 
                 <div className="space-y-3">
@@ -398,9 +479,9 @@ export default function AnexarCertificadoPage() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <FileText className="w-4 h-4 text-psi-vibrant" />
-                        <span className="font-extrabold text-xs text-ink">PDF de 2 Páginas</span>
+                        <span className="font-extrabold text-xs text-ink">PDF do Certificado</span>
                       </div>
-                      <span className="text-[9px] text-muted font-bold">Frente & Verso</span>
+                      <span className="text-[9px] text-muted font-bold">Enquadramento Total</span>
                     </div>
 
                     {frontImageUrl && isPdf ? (
@@ -413,6 +494,7 @@ export default function AnexarCertificadoPage() {
                             setBackImageUrl(null);
                             setFrontFileName('');
                             setBackFileName('');
+                            setIsPdf(false);
                           }}
                           className="text-red-600 hover:text-red-800 p-1"
                         >
@@ -422,11 +504,21 @@ export default function AnexarCertificadoPage() {
                     ) : (
                       <button
                         type="button"
+                        disabled={isProcessingPdf}
                         onClick={() => filePdfRef.current?.click()}
-                        className="w-full py-2 px-3 bg-psi-soft hover:bg-psi-deep hover:text-white text-psi-deep font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5"
+                        className="w-full py-2.5 px-3 bg-psi-soft hover:bg-psi-deep hover:text-white text-psi-deep font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5"
                       >
-                        <Upload className="w-3.5 h-3.5" />
-                        <span>Selecionar PDF (2 Págs)</span>
+                        {isProcessingPdf ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Processando PDF…</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-3.5 h-3.5" />
+                            <span>Selecionar PDF (Frente e Verso)</span>
+                          </>
+                        )}
                       </button>
                     )}
                     <input
@@ -461,7 +553,7 @@ export default function AnexarCertificadoPage() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <FileImage className="w-4 h-4 text-emerald-600" />
-                        <span className="font-extrabold text-xs text-ink">Página 1: Frente (Imagem)</span>
+                        <span className="font-extrabold text-xs text-ink">Página 1: Frente (Imagem / PDF)</span>
                       </div>
                     </div>
 
@@ -486,13 +578,13 @@ export default function AnexarCertificadoPage() {
                         className="w-full py-2 px-3 bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-800 font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5"
                       >
                         <Upload className="w-3.5 h-3.5" />
-                        <span>Upload Imagem Frente</span>
+                        <span>Upload Frente</span>
                       </button>
                     )}
                     <input
                       ref={fileFrontRef}
                       type="file"
-                      accept="image/*"
+                      accept="image/*,application/pdf"
                       hidden
                       onChange={(e) => handleUploadFrontImage(e.target.files?.[0])}
                     />
@@ -521,7 +613,7 @@ export default function AnexarCertificadoPage() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <FileImage className="w-4 h-4 text-purple-600" />
-                        <span className="font-extrabold text-xs text-ink">Página 2: Verso (Imagem)</span>
+                        <span className="font-extrabold text-xs text-ink">Página 2: Verso (Imagem / PDF)</span>
                       </div>
                     </div>
 
@@ -546,13 +638,13 @@ export default function AnexarCertificadoPage() {
                         className="w-full py-2 px-3 bg-purple-50 hover:bg-purple-600 hover:text-white text-purple-800 font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5"
                       >
                         <Upload className="w-3.5 h-3.5" />
-                        <span>Upload Imagem Verso</span>
+                        <span>Upload Verso</span>
                       </button>
                     )}
                     <input
                       ref={fileBackRef}
                       type="file"
-                      accept="image/*"
+                      accept="image/*,application/pdf"
                       hidden
                       onChange={(e) => handleUploadBackImage(e.target.files?.[0])}
                     />
@@ -721,7 +813,7 @@ export default function AnexarCertificadoPage() {
 
               <button
                 type="submit"
-                disabled={saving}
+                disabled={saving || isProcessingPdf}
                 className="btn-primary w-full py-3.5 text-xs font-bold shadow-lg shadow-psi-deep/20 flex items-center justify-center gap-2"
               >
                 <Save className="w-4 h-4" />
@@ -765,28 +857,21 @@ export default function AnexarCertificadoPage() {
                 </span>
               </div>
 
-              {/* CANVAS CONTAINER AMPLO */}
+              {/* CANVAS CONTAINER AMPLO COM ENQUADRAMENTO TOTAL */}
               <div
                 ref={canvasRef}
-                className="relative mx-auto w-full aspect-[1.414/1] rounded-2xl bg-[#FAF8FC] border-2 border-psi-deep/30 overflow-hidden shadow-card select-none"
+                style={{ aspectRatio: `${aspectRatio}` }}
+                className="relative mx-auto w-full max-h-[75vh] rounded-2xl bg-white border-2 border-psi-deep/30 overflow-hidden shadow-card select-none flex items-center justify-center"
               >
                 {activeTab === 'front' ? (
                   /* FRENTE */
                   frontImageUrl ? (
-                    isPdf ? (
-                      <iframe
-                        src={`${frontImageUrl}#page=1`}
-                        title="Frente PDF"
-                        className="absolute inset-0 w-full h-full border-0 pointer-events-none"
-                      />
-                    ) : (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={frontImageUrl}
-                        alt="Frente do Certificado"
-                        className="absolute inset-0 w-full h-full object-cover"
-                      />
-                    )
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={frontImageUrl}
+                      alt="Frente do Certificado"
+                      className="w-full h-full object-contain pointer-events-none"
+                    />
                   ) : (
                     <div className="absolute inset-0 grid place-items-center bg-psi-soft/20 text-xs font-semibold text-muted p-6 text-center">
                       Nenhuma arte de frente carregada (envie o PDF ou imagem na lateral esquerda)
@@ -796,27 +881,19 @@ export default function AnexarCertificadoPage() {
                   /* VERSO COM CARIMBO ARRASTÁVEL E REDIMENSIONÁVEL */
                   <>
                     {backImageUrl ? (
-                      isPdf ? (
-                        <iframe
-                          src={`${backImageUrl}#page=2`}
-                          title="Verso PDF"
-                          className="absolute inset-0 w-full h-full border-0 pointer-events-none"
-                        />
-                      ) : (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={backImageUrl}
-                          alt="Verso do Certificado"
-                          className="absolute inset-0 w-full h-full object-cover"
-                        />
-                      )
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={backImageUrl}
+                        alt="Verso do Certificado"
+                        className="w-full h-full object-contain pointer-events-none"
+                      />
                     ) : (
                       <div className="absolute inset-0 grid place-items-center bg-psi-soft/20 text-xs font-semibold text-muted p-6 text-center">
                         Nenhuma arte de verso carregada (envie o PDF ou imagem na lateral esquerda para posicionar o carimbo)
                       </div>
                     )}
 
-                    {/* BLOCO DO CARIMBO DIGITAL: ARRASTE E REDIMENSIONAMENTO DIRETO */}
+                    {/* BLOCO DO CARIMBO DIGITAL: ARRASTE E REDIMENSIONAMENTO DIRETO SOBRE A ARTE */}
                     <div
                       onMouseDown={handleDragStart}
                       onTouchStart={handleDragStart}
@@ -831,14 +908,14 @@ export default function AnexarCertificadoPage() {
                       }}
                       className={`group rounded-xl p-2.5 transition-all ${
                         isDraggingStamp
-                          ? 'bg-white/60 border-2 border-psi-deep shadow-lg ring-2 ring-psi-vibrant/30 scale-[1.01]'
+                          ? 'bg-white/70 border-2 border-psi-deep shadow-lg ring-2 ring-psi-vibrant/30 scale-[1.01]'
                           : isResizingStamp
-                          ? 'bg-white/60 border-2 border-psi-vibrant ring-2 ring-psi-vibrant/40'
+                          ? 'bg-white/70 border-2 border-psi-vibrant ring-2 ring-psi-vibrant/40'
                           : 'bg-transparent border border-dashed border-psi-vibrant/70 hover:bg-white/40 hover:border-psi-deep'
                       }`}
                     >
                       {/* Barra Superior do Bloco do Carimbo (Mover + Controles Rápidos de Tamanho) */}
-                      <div className="flex items-center justify-between gap-2 pb-1 mb-1 border-b border-psi-vibrant/30 bg-white/70 px-1.5 py-0.5 rounded-lg">
+                      <div className="flex items-center justify-between gap-2 pb-1 mb-1 border-b border-psi-vibrant/30 bg-white/80 px-1.5 py-0.5 rounded-lg backdrop-blur-xs">
                         <div className="flex items-center gap-1 text-[9px] font-mono font-bold text-psi-deep">
                           <Move className="w-2.5 h-2.5" />
                           <span>Arraste</span>
@@ -875,7 +952,7 @@ export default function AnexarCertificadoPage() {
                       </div>
 
                       {/* Texto Oficial Formatado */}
-                      <p className="font-mono text-ink/90 whitespace-pre-line leading-tight font-medium">
+                      <p className="font-mono text-ink whitespace-pre-line leading-tight font-medium select-none">
                         {versoText}
                       </p>
 
@@ -895,7 +972,7 @@ export default function AnexarCertificadoPage() {
 
               <div className="p-4 rounded-2xl bg-[#FAF8FC] border border-line text-xs text-muted leading-relaxed flex items-center justify-between">
                 <span>
-                  👆 <strong>Como funciona:</strong> Arraste o carimbo com o mouse para a posição desejada no verso e use o puxador <strong>⤡</strong> no canto do carimbo para redimensionar.
+                  👆 <strong>Como funciona:</strong> Arraste o carimbo com o mouse para qualquer ponto do verso (para cima, para baixo, para os lados) e use o puxador <strong>⤡</strong> no canto para redimensionar.
                 </span>
                 <span className="font-mono font-bold text-psi-deep shrink-0 ml-2">
                   X: {stampX}% | Y: {stampY}%

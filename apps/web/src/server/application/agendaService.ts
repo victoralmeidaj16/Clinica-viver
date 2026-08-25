@@ -17,6 +17,7 @@ import {
   type JanelaEditavel,
 } from '@/server/scheduling/agendaRepository';
 import { avisarSessaoCancelada } from '@/server/scheduling/agendaAvisos';
+import { cancelarCobrancaDaSessao } from '@/server/payments/sessionCharge';
 
 /**
  * A agenda pelo lado de quem atende.
@@ -183,6 +184,7 @@ export async function cancelAgendaAppointment(
   if (!cancelado) {
     throw new ApplicationError('NOT_FOUND', 'Agendamento não encontrado ou já cancelado.', 404);
   }
+  await cancelarCobrancaDaSessao(appointmentId);
   if (sessao) await avisarSessaoCancelada(sessao);
 
   const desde = new Date(Date.now() - 90 * 24 * 60 * 60_000);

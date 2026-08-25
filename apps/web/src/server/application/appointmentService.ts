@@ -2,6 +2,7 @@ import { assertStaffAuthorized, cancelAppointmentCommand, confirmAppointmentComm
 import type { RequestContext } from './context';
 import { ApplicationError } from './http';
 import { getApplicationStore, persistApplicationState } from './store';
+import { cancelarCobrancaDaSessao, garantirCobrancaDaSessao } from '@/server/payments/sessionCharge';
 
 export async function listAppointments(context: RequestContext) {
   assertStaffAuthorized(context.actor, 'schedule.read', { organizationId: context.actor.organizationId });
@@ -36,6 +37,7 @@ export async function createAppointmentFlow(context: RequestContext, input: Sche
     }
   }
   await persistApplicationState();
+  await garantirCobrancaDaSessao(result.appointment.id);
   return { appointment: result.appointment, reminder, idempotentReplay: result.idempotentReplay };
 }
 
@@ -52,6 +54,7 @@ export async function changeAppointment(context: RequestContext, id: string, bod
           : null;
   if (!result) throw new ApplicationError('INVALID_ACTION', 'Ação de agendamento inválida.', 400);
   await persistApplicationState();
+  if (body.action === 'cancel') await cancelarCobrancaDaSessao(id);
   return result;
 }
 

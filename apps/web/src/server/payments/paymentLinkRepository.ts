@@ -3,7 +3,12 @@ import 'server-only';
 import { randomUUID } from 'node:crypto';
 import type { RowDataPacket } from 'mysql2';
 import { getMysqlPool } from '@/server/oci/runtime';
-import { instituicaoId, rowId } from '@/server/persistence/mysql/mappers';
+import {
+  fromSqlTimestamp,
+  instituicaoId,
+  rowId,
+  toSqlTimestamp,
+} from '@/server/persistence/mysql/mappers';
 import { descricaoFiscalDaSessao } from '@/lib/sessionReference';
 
 export type PaymentModality = 'social' | 'particular';
@@ -173,7 +178,8 @@ export async function reserveAppointmentCharge(input: {
     if (!Number.isInteger(amountCents) || amountCents <= 0) {
       throw new Error('O valor desta sessão não está configurado no perfil profissional.');
     }
-    const sessionStart = new Date(appointment.inicio).toISOString();
+    const sessionStart = fromSqlTimestamp(String(appointment.inicio));
+    if (!sessionStart) throw new Error('Início da sessão inválido.');
     const description = descricaoFiscalDaSessao(sessionStart);
 
     const [chargeRows] = await connection.query<RowDataPacket[]>(
@@ -184,6 +190,7 @@ export async function reserveAppointmentCharge(input: {
            ON x.instituicao_id = c.instituicao_id AND x.cobranca_ref = c.ref_core
         WHERE c.instituicao_id = ? AND c.organizacao_ref = ?
           AND c.sessao_ref IN (?, ?)
+          AND c.status <> 'cancelled'
         ORDER BY c.criado_em DESC LIMIT 1 FOR UPDATE`,
       [instituicaoId(), appointment.organizacao_ref, appointment.agendamento_ref,
         appointment.sessao_clinica_ref ?? appointment.agendamento_ref]
@@ -194,19 +201,18 @@ export async function reserveAppointmentCharge(input: {
       : undefined;
     if (!chargeRef) {
       chargeRef = `charge-session-${randomUUID()}`;
-      const billingSessionRef = String(
-        appointment.sessao_clinica_ref || appointment.agendamento_ref
-      );
+      const billingSessionRef = String(appointment.agendamento_ref);
       await connection.execute(
         `INSERT INTO financeiro_cobrancas
            (id, instituicao_id, organizacao_ref, ref_core, sessao_ref, paciente_ref,
             profissional_ref, emitida_em, vence_em, valor_centavos, status,
             descricao, criado_em, atualizado_em)
-         VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3),
-                 ?, 'pending', ?, CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3))`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?,
+                 CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3))`,
         [rowId('cobranca', chargeRef), instituicaoId(), appointment.organizacao_ref,
           chargeRef, billingSessionRef, appointment.paciente_ref,
-          appointment.profissional_ref, amountCents, description]
+          appointment.profissional_ref, toSqlTimestamp(sessionStart),
+          toSqlTimestamp(sessionStart), amountCents, description]
       );
     }
 

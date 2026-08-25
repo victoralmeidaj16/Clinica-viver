@@ -6,6 +6,7 @@ import {
   identifyPatient,
 } from '@/server/scheduling/agendaRepository';
 import { avisarSessaoMarcada } from '@/server/scheduling/agendaAvisos';
+import { garantirCobrancaDaSessao } from '@/server/payments/sessionCharge';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -57,6 +58,11 @@ export async function POST(request: Request) {
         { status: 409 }
       );
     }
+
+    // A cobrança é consequência do agendamento já confirmado. A função contém
+    // qualquer falha e nunca transforma indisponibilidade financeira em erro
+    // para o paciente que acabou de reservar o horário.
+    await garantirCobrancaDaSessao(resultado.agendamentoId);
 
     // O aviso é aguardado, e não solto com `void`, porque esta rota roda em
     // função serverless: resposta enviada é processo elegível para congelar, e

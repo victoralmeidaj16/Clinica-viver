@@ -319,6 +319,7 @@ export default function AnexarCertificadoPage() {
           'x-admin-pin': pin,
         },
         body: JSON.stringify({
+          code: code.trim(),
           studentName: studentName.trim(),
           courseTitle: courseTitle.trim(),
           durationHours: durationHours.trim(),

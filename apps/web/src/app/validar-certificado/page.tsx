@@ -51,8 +51,8 @@ export default function ValidarCertificadoHomePage() {
                 <input
                   id="codigo"
                   type="text"
-                  className="w-full px-4 py-3.5 border border-line rounded-2xl font-mono text-base font-bold text-psi-deep tracking-wider focus:outline-none focus:ring-2 focus:ring-psi-vibrant/30 focus:border-psi-vibrant uppercase placeholder:font-normal placeholder:normal-case placeholder:text-muted/60"
-                  placeholder="Ex: yZV8anjS ou VVR-DEMO-2026"
+                  className="w-full px-4 py-3.5 border border-line rounded-2xl font-mono text-base font-bold text-psi-deep tracking-wider focus:outline-none focus:ring-2 focus:ring-psi-vibrant/30 focus:border-psi-vibrant placeholder:font-normal placeholder:text-muted/60"
+                  placeholder="Ex: yZV8anjS ou P2AnQjl2"
                   value={codigo}
                   onChange={(e) => {
                     setCodigo(e.target.value);

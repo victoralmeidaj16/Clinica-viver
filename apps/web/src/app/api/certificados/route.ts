@@ -48,6 +48,7 @@ export async function POST(request: Request) {
     }
 
     const novo = await certificadosRepo.emitir({
+      code: body.code,
       studentName: body.studentName,
       studentCpf: body.studentCpf,
       studentEmail: body.studentEmail,

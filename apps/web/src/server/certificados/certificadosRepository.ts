@@ -160,7 +160,49 @@ export class CertificadosRepository {
     });
   }
 
+  private async ensureTable(): Promise<void> {
+    if (!this.pool) return;
+    try {
+      await this.pool.query(`
+        CREATE TABLE IF NOT EXISTS clinica_certificados (
+          id VARCHAR(64) NOT NULL,
+          codigo VARCHAR(32) NOT NULL,
+          aluno_id VARCHAR(64) NULL,
+          aluno_nome VARCHAR(255) NOT NULL,
+          aluno_cpf VARCHAR(32) NULL,
+          aluno_email VARCHAR(255) NULL,
+          curso_id VARCHAR(128) NULL,
+          curso_titulo VARCHAR(255) NOT NULL,
+          carga_horaria VARCHAR(32) NOT NULL,
+          data_emissao VARCHAR(64) NOT NULL,
+          data_inicio DATE NULL,
+          data_conclusao DATE NULL,
+          assinante_info VARCHAR(255) NOT NULL DEFAULT 'VIVIANE OLIVEIRA DE ALMEIDA JEREMIAS:19440737000153',
+          url_validacao VARCHAR(255) NOT NULL DEFAULT 'www.vivermaispsicologia.com.br',
+          status ENUM('valid', 'revoked', 'cancelled') NOT NULL DEFAULT 'valid',
+          motivo_revogacao TEXT NULL,
+          revogado_em TIMESTAMP(3) NULL,
+          revogado_por VARCHAR(128) NULL,
+          frente_imagem_url LONGTEXT NULL,
+          verso_imagem_url LONGTEXT NULL,
+          carimbo_x DECIMAL(5,2) NULL,
+          carimbo_y DECIMAL(5,2) NULL,
+          carimbo_font_size DECIMAL(4,1) NULL,
+          carimbo_align VARCHAR(16) NULL DEFAULT 'center',
+          criado_por VARCHAR(128) NULL,
+          criado_em TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+          atualizado_em TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+          PRIMARY KEY (id),
+          UNIQUE KEY clinica_certificados_codigo_uq (codigo)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+      `);
+    } catch (err) {
+      console.warn('Falha ao verificar/criar tabela clinica_certificados:', err);
+    }
+  }
+
   async emitir(dados: {
+    code?: string;
     studentName: string;
     studentCpf?: string;
     studentEmail?: string;
@@ -179,7 +221,9 @@ export class CertificadosRepository {
     validationUrl?: string;
     createdBy?: string;
   }): Promise<CertificateRecord> {
-    const code = generateCertificateCode();
+    await this.ensureTable();
+
+    const code = (dados.code && dados.code.trim()) || generateCertificateCode();
     const id = code;
     const createdAt = new Date().toISOString();
 
@@ -212,7 +256,18 @@ export class CertificadosRepository {
         await this.pool.query<ResultSetHeader>(
           `INSERT INTO clinica_certificados 
             (id, codigo, aluno_nome, aluno_cpf, aluno_email, curso_titulo, carga_horaria, data_emissao, data_inicio, data_conclusao, status, frente_imagem_url, verso_imagem_url, carimbo_x, carimbo_y, carimbo_font_size, carimbo_align, criado_por, criado_em)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'valid', ?, ?, ?, ?, ?, ?, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'valid', ?, ?, ?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE
+             aluno_nome = VALUES(aluno_nome),
+             curso_titulo = VALUES(curso_titulo),
+             carga_horaria = VALUES(carga_horaria),
+             data_emissao = VALUES(data_emissao),
+             frente_imagem_url = VALUES(frente_imagem_url),
+             verso_imagem_url = VALUES(verso_imagem_url),
+             carimbo_x = VALUES(carimbo_x),
+             carimbo_y = VALUES(carimbo_y),
+             carimbo_font_size = VALUES(carimbo_font_size),
+             carimbo_align = VALUES(carimbo_align)`,
           [
             record.id,
             record.code,

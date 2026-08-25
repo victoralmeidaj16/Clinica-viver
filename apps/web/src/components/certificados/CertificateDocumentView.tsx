@@ -218,9 +218,9 @@ export function CertificateDocumentView({ record, publicValidationUrl }: Props) 
                   textAlign: record.stampAlign || 'center',
                   maxWidth: '90%',
                 }}
-                className="rounded-xl p-3 bg-white/95 border-2 border-psi-vibrant shadow-md backdrop-blur-xs z-10"
+                className="bg-transparent border-0 shadow-none p-0 z-10 select-text"
               >
-                <p className="font-mono text-ink/90 whitespace-pre-line leading-tight font-medium">
+                <p className="font-mono text-ink whitespace-pre-line leading-tight font-medium">
                   {versoText}
                 </p>
               </div>

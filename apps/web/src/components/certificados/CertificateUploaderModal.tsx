@@ -685,17 +685,17 @@ export function CertificateUploaderModal({ adminPin, onClose, onSuccess }: Props
                         maxWidth: '92%',
                         cursor: isDraggingStamp ? 'grabbing' : 'grab',
                       }}
-                      className={`group rounded-2xl p-3 bg-white/95 border-2 transition-shadow backdrop-blur-xs ${
+                      className={`group rounded-xl p-2.5 transition-all ${
                         isDraggingStamp
-                          ? 'border-psi-deep shadow-2xl ring-4 ring-psi-vibrant/30 scale-[1.01]'
+                          ? 'bg-white/60 border-2 border-psi-deep shadow-lg ring-2 ring-psi-vibrant/30 scale-[1.01]'
                           : isResizingStamp
-                          ? 'border-psi-vibrant ring-4 ring-psi-vibrant/40'
-                          : 'border-dashed border-psi-vibrant shadow-md hover:border-psi-deep'
+                          ? 'bg-white/60 border-2 border-psi-vibrant ring-2 ring-psi-vibrant/40'
+                          : 'bg-transparent border border-dashed border-psi-vibrant/70 hover:bg-white/40 hover:border-psi-deep'
                       }`}
                     >
                       {/* Barra Superior do Bloco do Carimbo (Mover + Controles Rápidos de Tamanho) */}
-                      <div className="flex items-center justify-between gap-2 pb-1.5 mb-1.5 border-b border-line/60">
-                        <div className="flex items-center gap-1 text-[9px] font-mono font-bold text-psi-deep bg-psi-soft px-1.5 py-0.5 rounded">
+                      <div className="flex items-center justify-between gap-2 pb-1 mb-1 border-b border-psi-vibrant/30 bg-white/70 px-1.5 py-0.5 rounded-lg">
+                        <div className="flex items-center gap-1 text-[9px] font-mono font-bold text-psi-deep">
                           <Move className="w-2.5 h-2.5" />
                           <span>Arraste</span>
                         </div>

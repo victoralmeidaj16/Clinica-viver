@@ -16,6 +16,14 @@
     {
       "source": "/api/infra/:path*",
       "destination": "https://app.clinicavivermais.cloud/api/infra/:path*"
+    },
+    {
+      "source": "/api/certificados/:path*",
+      "destination": "https://app.clinicavivermais.cloud/api/certificados/:path*"
+    },
+    {
+      "source": "/api/public/certificados/:path*",
+      "destination": "https://app.clinicavivermais.cloud/api/public/certificados/:path*"
     }
   ]
 }

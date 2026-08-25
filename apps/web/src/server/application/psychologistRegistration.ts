@@ -41,17 +41,12 @@ export const CAMPOS_DA_GESTAO = new Set([
 ]);
 
 /**
- * O que o psicólogo altera no próprio perfil.
- *
- * Fora daqui, por motivos distintos: `nomeCompleto` e `crp` são o que a gestão
- * confere no credenciamento, e deixá-los editáveis tornaria a conferência sem
- * efeito; `email` é a chave que liga a sessão ao cadastro, e trocá-lo pelo
- * próprio dono é a maneira mais direta de perder o acesso; `status`,
- * `exibirNaVitrine` e `limitePacientesAtivos` são decisões da clínica sobre
- * quem recebe paciente, não do profissional sobre si.
+ * O que o psicólogo altera no próprio perfil. Nome, CRP e e-mail fazem parte
+ * dos próprios dados profissionais; status, vitrine e capacidade continuam
+ * sendo decisões da clínica.
  */
 export const CAMPOS_DO_PROPRIO_PSICOLOGO = new Set([
-  'nomeSocial', 'whatsapp', 'fotoUrl', 'minibio', 'especialidade',
+  'nomeCompleto', 'crp', 'email', 'nomeSocial', 'whatsapp', 'fotoUrl', 'minibio', 'especialidade',
   'estadoUf', 'cidade', 'logradouro', 'bairro', 'genero', 'generoOutro',
   'modalidadeAtendimento', 'atendimentoPreferencia', 'turnosDisponiveis',
   'servicosPrestados', 'publicoAlvo', 'publicoAlvoOutro',
@@ -136,6 +131,26 @@ export async function validarCorpo(
     const whatsapp = normalizeBrazilPhone(corpo.whatsapp);
     if (!whatsapp) throw new CorpoInvalidoError('Informe um telefone brasileiro válido com DDD.');
     corpo.whatsapp = whatsapp;
+  }
+
+  if (corpo.nomeCompleto !== undefined) {
+    const nome = texto(corpo.nomeCompleto);
+    if (!nome || nome.length < 2) throw new CorpoInvalidoError('Informe seu nome completo.');
+    corpo.nomeCompleto = nome.slice(0, 255);
+  }
+
+  if (corpo.crp !== undefined) {
+    const crp = texto(corpo.crp);
+    if (!crp) throw new CorpoInvalidoError('Informe seu registro CRP.');
+    corpo.crp = crp.slice(0, 40);
+  }
+
+  if (corpo.email !== undefined) {
+    const email = texto(corpo.email)?.toLocaleLowerCase('pt-BR');
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+      throw new CorpoInvalidoError('Informe um e-mail profissional válido.');
+    }
+    corpo.email = email.slice(0, 255);
   }
 
   if (corpo.genero !== undefined || corpo.generoOutro !== undefined) {

@@ -60,7 +60,9 @@
       "Bash(which pdftoppm *)",
       "Read(//opt/homebrew/bin/**)",
       "Bash(pdfinfo /tmp/declaracao.pdf)",
-      "Bash(pdftoppm -png -r 60 /tmp/declaracao.pdf /tmp/pg)"
+      "Bash(pdftoppm -png -r 60 /tmp/declaracao.pdf /tmp/pg)",
+      "Bash(git stash *)",
+      "Bash(MYSQL_ADMIN_URL=mysql://root:dev-root-local@127.0.0.1:3307/viver_mais_clinica node infra/mysql/migrate.mjs --dry-run)"
     ]
   }
 }

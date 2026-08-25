@@ -1,230 +1,85 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import type { ProfessionalProfile } from '@thats-life/core';
+import { useEffect, useState } from 'react';
+import { Save, UserPlus, X } from 'lucide-react';
 import { applicationRequest, commandHeaders } from '@/lib/applicationApi';
-import { UserPlus, X, Save } from 'lucide-react';
+import { validateGender } from '@/lib/gender';
+import { PatientRegistrationFields } from './PatientRegistrationFields';
+import { EMPTY_PATIENT_REGISTRATION, serviceName, type PatientRegistrationForm } from './patientRegistration';
 
-interface NewPatientModalProps {
+interface Props {
   isOpen: boolean;
   onClose: () => void;
-  /** Chamado após o cadastro persistir, para a lista recarregar da API. */
   onPatientCreated: () => void | Promise<void>;
 }
 
-export default function NewPatientModal({ isOpen, onClose, onPatientCreated }: NewPatientModalProps) {
-  const [nome, setNome] = useState('');
-  const [nomeSocial, setNomeSocial] = useState('');
+export default function NewPatientModal({ isOpen, onClose, onPatientCreated }: Props) {
+  const [form, setForm] = useState<PatientRegistrationForm>(EMPTY_PATIENT_REGISTRATION);
   const [temNomeSocial, setTemNomeSocial] = useState(false);
-  const [email, setEmail] = useState('');
-  const [telefone, setTelefone] = useState('');
-  const [numeroResidencia, setNumeroResidencia] = useState('');
-  const [dataNascimento, setDataNascimento] = useState('');
-  const [professionals, setProfessionals] = useState<readonly ProfessionalProfile[]>([]);
-  const [professionalId, setProfessionalId] = useState('');
+  const [convenios, setConvenios] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Todo paciente nasce atribuído a um profissional: é essa atribuição que
-  // decide, depois, quem pode abrir o prontuário dele.
   useEffect(() => {
     if (!isOpen) return;
-    let mounted = true;
-    applicationRequest<ProfessionalProfile[]>('/professionals')
-      .then((items) => {
-        if (!mounted) return;
-        setProfessionals(items);
-        setProfessionalId((current) => current || items[0]?.id || '');
-      })
-      .catch(() => undefined);
-    return () => {
-      mounted = false;
-    };
+    fetch('/api/convenios/publicos', { cache: 'no-store' })
+      .then((response) => response.json())
+      .then((body: { convenios?: Array<{ nome?: string }> }) =>
+        setConvenios((body.convenios ?? []).map((item) => item.nome?.trim() ?? '').filter(Boolean)))
+      .catch(() => setConvenios([]));
   }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!nome || !telefone || saving) return;
+  const close = () => { if (!saving) onClose(); };
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (saving) return;
+    if (form.whatsapp !== form.whatsappConfirmacao) return setError('Os números de telefone não coincidem.');
+    if (!validateGender(form.genero, form.generoOutro)) return setError('Selecione o gênero e detalhe a opção “Outro”, se necessário.');
+    if (!form.turno) return setError('Selecione o período de preferência.');
 
     setSaving(true);
     setError(null);
     try {
       await applicationRequest('/patients', {
-        method: 'POST',
-        headers: commandHeaders(),
+        method: 'POST', headers: commandHeaders(),
         body: JSON.stringify({
-          displayName: temNomeSocial && nomeSocial ? nomeSocial : nome,
-          legalName: nome,
-          socialName: temNomeSocial ? nomeSocial : undefined,
-          phone: telefone,
-          email: email || undefined,
-          birthDate: dataNascimento || undefined,
-          professionalId: professionalId || undefined,
+          ...form,
+          nomeSocial: temNomeSocial ? form.nomeSocial : undefined,
+          paraQuemE: form.paraQuemE === 'Outro' ? `Outro: ${form.paraQuemEOutro.trim()}` : form.paraQuemE,
+          displayName: temNomeSocial && form.nomeSocial.trim() ? form.nomeSocial : form.nome,
+          legalName: form.nome,
+          socialName: temNomeSocial ? form.nomeSocial : undefined,
+          phone: form.whatsapp,
+          birthDate: form.dataNascimento || undefined,
+          professionalId: undefined,
+          servico: serviceName(form.servicoKey),
+          especificarNecessidades: false,
+          necessidadesPaciente: [],
         }),
       });
       await onPatientCreated();
-      setNome('');
-      setNomeSocial('');
+      setForm(EMPTY_PATIENT_REGISTRATION);
       setTemNomeSocial(false);
-      setEmail('');
-      setTelefone('');
-      setNumeroResidencia('');
-      setDataNascimento('');
       onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Não foi possível cadastrar o paciente.');
-    } finally {
-      setSaving(false);
-    }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Não foi possível cadastrar o paciente.');
+    } finally { setSaving(false); }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/60 p-0 backdrop-blur-sm animate-fadeIn sm:items-center sm:p-4">
-      <div className="relative max-h-[94dvh] w-full max-w-md space-y-5 overflow-y-auto rounded-t-3xl border border-line bg-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:space-y-6 sm:rounded-2xl sm:p-6">
-        <button type="button" aria-label="Fechar" onClick={onClose} className="absolute right-3 top-3 flex min-h-11 min-w-11 items-center justify-center rounded-xl text-muted hover:bg-canvas hover:text-ink sm:right-4 sm:top-4">
-          <X className="w-5 h-5" />
-        </button>
-
-        <div className="flex items-center gap-3 border-b border-line pb-4">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-            <UserPlus className="w-5 h-5" />
-          </div>
-          <div>
-            <h3 className="text-base font-extrabold text-ink">Cadastrar Novo Paciente</h3>
-            <p className="text-xs text-muted">Preencha as informações do novo atendimento</p>
-          </div>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4 text-xs">
-          <div>
-            <label className="font-bold text-ink mb-1 block">Nome Completo *</label>
-            <input
-              type="text"
-              required
-              value={nome}
-              onChange={(e) => setNome(e.target.value)}
-              placeholder="Ex: Gabriel Alves..."
-              className="input"
-            />
-            <div className="mt-2">
-              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-ink select-none">
-                <input
-                  type="checkbox"
-                  checked={temNomeSocial}
-                  onChange={(e) => {
-                    const checked = e.target.checked;
-                    setTemNomeSocial(checked);
-                    if (!checked) setNomeSocial('');
-                  }}
-                  className="w-4 h-4 rounded border-line text-primary focus:ring-primary accent-primary cursor-pointer"
-                />
-                <span>Possui Nome Social?</span>
-              </label>
-            </div>
-          </div>
-
-          {temNomeSocial && (
-            <div className="animate-in fade-in duration-200">
-              <label className="font-bold text-ink mb-1 block">
-                Nome Social <span className="text-muted font-normal">(como prefere ser chamado)</span>
-              </label>
-              <input
-                type="text"
-                value={nomeSocial}
-                onChange={(e) => setNomeSocial(e.target.value)}
-                placeholder="Digite o nome social..."
-                className="input"
-              />
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label className="font-bold text-ink mb-1 block">Telefone (WhatsApp) *</label>
-              <input
-                type="text"
-                required
-                value={telefone}
-                onChange={(e) => setTelefone(e.target.value)}
-                placeholder="(11) 99999-8888"
-                className="input"
-              />
-            </div>
-            <div>
-              <label className="font-bold text-ink mb-1 block">Data de Nascimento</label>
-              <input
-                type="date"
-                value={dataNascimento}
-                onChange={(e) => setDataNascimento(e.target.value)}
-                className="input"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label className="font-bold text-ink mb-1 block">E-mail</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="paciente@email.com"
-                className="input"
-              />
-            </div>
-            <div>
-              <label className="font-bold text-ink mb-1 block">Nº Residência</label>
-              <input
-                type="text"
-                value={numeroResidencia}
-                onChange={(e) => setNumeroResidencia(e.target.value)}
-                placeholder="Ex: 123"
-                className="input"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="font-bold text-ink mb-1 block">Profissional Responsável *</label>
-            <select
-              required
-              value={professionalId}
-              onChange={(e) => setProfessionalId(e.target.value)}
-              className="input"
-            >
-              {professionals.length === 0 && <option value="">Nenhum profissional cadastrado</option>}
-              {professionals.map((professional) => (
-                <option key={professional.id} value={professional.id}>
-                  {professional.displayName} — {professional.councilType} {professional.councilRegistration}
-                </option>
-              ))}
-            </select>
-            {professionals.length === 0 && (
-              <p className="text-[11px] text-muted mt-1">
-                Cadastre um profissional antes de registrar pacientes.
-              </p>
-            )}
-          </div>
-
-          {error && (
-            <p className="text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-2.5">
-              {error}
-            </p>
-          )}
-
-          <div className="grid grid-cols-1 gap-2 pt-2 sm:flex sm:items-center sm:justify-end sm:gap-3">
-            <button type="button" onClick={onClose} className="btn-ghost min-h-11 justify-center text-xs" disabled={saving}>
-              Cancelar
-            </button>
-            <button type="submit" className="btn-primary min-h-11 justify-center py-2.5 text-xs" disabled={saving}>
-              <Save className="w-4 h-4" />
-              <span>{saving ? 'Salvando…' : 'Salvar Paciente'}</span>
-            </button>
-          </div>
-        </form>
+  return <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/60 backdrop-blur-sm sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="new-patient-title">
+    <div className="relative max-h-[94dvh] w-full max-w-2xl overflow-y-auto rounded-t-3xl border border-line bg-surface p-4 shadow-2xl sm:rounded-3xl sm:p-6">
+      <button type="button" aria-label="Fechar" onClick={close} className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-xl text-muted hover:bg-canvas hover:text-ink"><X className="h-5 w-5" /></button>
+      <div className="mb-5 flex items-center gap-3 border-b border-line pb-4 pr-12">
+        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary"><UserPlus className="h-5 w-5" /></div>
+        <div><h2 id="new-patient-title" className="text-base font-extrabold text-ink">Cadastrar novo paciente</h2><p className="text-xs text-muted">O paciente será vinculado automaticamente ao seu perfil.</p></div>
       </div>
+      <form onSubmit={submit} className="space-y-5 text-xs">
+        <PatientRegistrationFields form={form} setForm={setForm} convenios={convenios} temNomeSocial={temNomeSocial} onTemNomeSocialChange={(checked) => { setTemNomeSocial(checked); if (!checked) setForm((current) => ({ ...current, nomeSocial: '' })); }} />
+        {error && <p className="rounded-xl border border-rose-200 bg-rose-50 p-3 font-semibold text-rose-700">{error}</p>}
+        <div className="flex flex-col-reverse gap-2 border-t border-line pt-4 sm:flex-row sm:justify-end"><button type="button" onClick={close} className="btn-ghost min-h-11 justify-center" disabled={saving}>Cancelar</button><button type="submit" className="btn-primary min-h-11 justify-center" disabled={saving}><Save className="h-4 w-4" />{saving ? 'Salvando…' : 'Salvar paciente'}</button></div>
+      </form>
     </div>
-  );
+  </div>;
 }

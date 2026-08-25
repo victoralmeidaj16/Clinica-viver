@@ -19,6 +19,7 @@ export async function GET() {
         crp: item.crp,
         estadoUf: item.estadoUf,
         cidade: item.cidade,
+        fotoUrl: item.fotoUrl,
         turmaViverMais: item.turmaViverMais,
         posGraduacaoViverMais: item.posGraduacaoViverMais,
         especialidades: item.especialidade ? [item.especialidade] : [],

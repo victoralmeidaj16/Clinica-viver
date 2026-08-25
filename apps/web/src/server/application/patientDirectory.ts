@@ -6,6 +6,7 @@ import { getApplicationStore, persistApplicationState } from './store';
 import { captureStateAsSnapshot, getCaptureRepository } from '@/server/persistence/captureRepository';
 import { recalcularPacientesAtivos } from './viverMaisRodizio';
 import { motivoValido } from '@/lib/desistencias';
+import { validarSubmissaoTriagem } from '@/lib/triagemSubmissao';
 import {
   emptySnapshot,
   readSnapshot,
@@ -229,7 +230,7 @@ export async function createPatient(
 ): Promise<PatientProfile> {
   assertStaffAuthorized(context.actor, 'patients.write', { organizationId: context.actor.organizationId });
 
-  const displayName = String(body.displayName ?? '').trim();
+  const displayName = String(body.displayName ?? body.nome ?? '').trim();
   if (!displayName) throw new ApplicationError('INVALID_INPUT', 'O nome do paciente é obrigatório.', 400);
 
   const professionalId = String(body.professionalId ?? context.actor.professionalProfileId ?? '').trim();
@@ -238,6 +239,11 @@ export async function createPatient(
   }
   if (context.actor.roles.includes('professional') && context.actor.professionalProfileId !== professionalId) {
     throw new ApplicationError('FORBIDDEN', 'Um psicólogo só pode cadastrar pacientes para o próprio perfil.', 403);
+  }
+
+  const fullRegistration = body.whatsapp ? validarSubmissaoTriagem(body) : undefined;
+  if (fullRegistration && !fullRegistration.ok) {
+    throw new ApplicationError('INVALID_INPUT', fullRegistration.erro, fullRegistration.status);
   }
 
   const store = getApplicationStore();
@@ -265,8 +271,66 @@ export async function createPatient(
   const contacts = contactSource(store.identities);
   if (contacts) {
     await contacts.savePatientContact(patient.id, {
-      phone: body.phone ? String(body.phone) : undefined,
+      phone: body.phone ? String(body.phone) : body.whatsapp ? String(body.whatsapp) : undefined,
       email: body.email ? String(body.email) : undefined,
+      legalName: body.legalName ? String(body.legalName) : body.nome ? String(body.nome) : undefined,
+      socialName: body.socialName ? String(body.socialName) : body.nomeSocial ? String(body.nomeSocial) : undefined,
+      documento: body.cpf ? String(body.cpf).replace(/\D/g, '') : undefined,
+    });
+  }
+
+  // O cadastro interno usa a mesma fonte complementar da vitrine. Ele já nasce
+  // confirmado e ligado ao psicólogo da sessão, portanto não entra no rodízio
+  // nem dispara aviso de "novo lead" para outro profissional.
+  if (fullRegistration?.ok) {
+    const data = fullRegistration.dados;
+    const professional = await store.identities.getProfessional(context.actor.organizationId, professionalId);
+    const now = new Date().toISOString();
+    const leadId = `triagem-manual-${patient.id}`;
+    await getCaptureRepository().mutate((state) => {
+      if (state.triagensPacientes.some((lead) => lead.id === leadId || lead.pacienteRef === patient.id)) {
+        return { next: state, result: null };
+      }
+      return {
+        next: {
+          ...state,
+          triagensPacientes: [...state.triagensPacientes, {
+            id: leadId,
+            protocolo: `VM-MANUAL-${patient.id.slice(-8).toUpperCase()}`,
+            nomePaciente: String(body.legalName ?? body.nome ?? displayName),
+            telefone: data.telefone,
+            dataNascimento: data.dataNascimento,
+            email: data.email,
+            cpf: data.cpf,
+            cep: data.cep,
+            numeroResidencia: data.numeroResidencia,
+            possuiConvenio: data.possuiConvenio,
+            convenioSelecionado: data.convenioSelecionado,
+            origem: data.origem,
+            turno: data.turno,
+            servico: data.servico,
+            servicoKey: data.servicoKey,
+            modalidade: data.modalidade,
+            paraQuemE: data.paraQuemE,
+            opcaoAvaliacaoPsicologica: data.opcaoAvaliacaoPsicologica,
+            genero: data.genero,
+            generoOutro: data.generoOutro,
+            especificarNecessidades: false,
+            necessidadesPaciente: [],
+            status: 'CONTATO_CONFIRMADO' as const,
+            psicologoAlocadoId: professionalId,
+            psicologoNome: professional?.displayName,
+            pacienteRef: patient.id,
+            alocadoEm: now,
+            confirmadoEm: now,
+            slaExpirado: false,
+            transbordos: 0,
+            psicologosJaTentados: [professionalId],
+            criadoEm: now,
+          }],
+        },
+        result: null,
+      };
     });
   }
 

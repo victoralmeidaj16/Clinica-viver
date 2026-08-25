@@ -20,6 +20,7 @@ import {
   MessageCircle,
 } from 'lucide-react';
 import { applicationRequest } from '@/lib/applicationApi';
+import NewPatientModal from '@/components/patients/NewPatientModal';
 
 interface PatientOption {
   id: string;
@@ -82,13 +83,6 @@ export default function CockpitPage() {
     origem: 'Site Viver Mais (Formulário)',
     alocadoEm: LEAD_ALOCADO_EM,
     confirmado: false,
-  });
-
-  // Cadastro Manual de Paciente
-  const [manualPaciente, setManualPaciente] = useState({
-    nome: '',
-    telefone: '',
-    cpf: '',
   });
 
   useEffect(() => {
@@ -206,13 +200,6 @@ export default function CockpitPage() {
       : `https://wa.me/?text=${encodeURIComponent(mensagem)}`;
 
     window.open(urlWpp, '_blank');
-  };
-
-  const handleSalvarPacienteManual = (e: React.FormEvent) => {
-    e.preventDefault();
-    alert(`Paciente ${manualPaciente.nome} adicionado com sucesso!`);
-    setModalNovoPaciente(false);
-    setManualPaciente({ nome: '', telefone: '', cpf: '' });
   };
 
   return (
@@ -535,69 +522,14 @@ export default function CockpitPage() {
         )}
       </div>
 
-      {/* MODAL ADICIONAR PACIENTE MANUAL */}
-      {modalNovoPaciente && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-surface rounded-3xl p-6 border border-line shadow-2xl max-w-md w-full space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-black text-ink">Novo Paciente (Manual)</h2>
-              <button
-                type="button"
-                onClick={() => setModalNovoPaciente(false)}
-                className="text-muted hover:text-ink text-xs font-bold"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleSalvarPacienteManual} className="space-y-4 text-xs">
-              <div>
-                <label className="font-bold text-ink block mb-1">Nome Completo do Paciente *</label>
-                <input
-                  type="text"
-                  required
-                  value={manualPaciente.nome}
-                  onChange={(e) => setManualPaciente({ ...manualPaciente, nome: e.target.value })}
-                  placeholder="Ex: Ana Clara Lima"
-                  className="w-full bg-slate-50 border border-line rounded-xl p-2.5 text-ink focus:outline-none focus:border-psi-vibrant"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-ink block mb-1">WhatsApp</label>
-                  <input
-                    type="text"
-                    required
-                    value={manualPaciente.telefone}
-                    onChange={(e) => setManualPaciente({ ...manualPaciente, telefone: e.target.value })}
-                    placeholder="(51) 99999-9999"
-                    className="w-full bg-slate-50 border border-line rounded-xl p-2.5 text-ink focus:outline-none focus:border-psi-vibrant"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-ink block mb-1">CPF (para Prontuário/NF)</label>
-                  <input
-                    type="text"
-                    required
-                    value={manualPaciente.cpf}
-                    onChange={(e) => setManualPaciente({ ...manualPaciente, cpf: e.target.value })}
-                    placeholder="000.000.000-00"
-                    className="w-full bg-slate-50 border border-line rounded-xl p-2.5 text-ink focus:outline-none focus:border-psi-vibrant"
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full bg-psi-vibrant text-white font-extrabold py-3 rounded-2xl shadow-md hover:bg-psi-vibrant/90 transition-all"
-              >
-                VINCULAR PACIENTE AO MEU PERFIL
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
+      <NewPatientModal
+        isOpen={modalNovoPaciente}
+        onClose={() => setModalNovoPaciente(false)}
+        onPatientCreated={async () => {
+          const items = await applicationRequest<PatientOption[]>('/patients');
+          setPatients(Array.isArray(items) ? items : []);
+        }}
+      />
     </div>
   );
 }

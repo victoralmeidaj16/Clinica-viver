@@ -8,16 +8,22 @@ import {
   notificacoesDeAgendamentos,
   notificacoesDaGestao,
   notificacoesDePagamento,
+  notificacoesDePerfilAlterado,
   notificacoesDoPsicologo,
   type NotificacaoDerivada,
 } from '@/server/application/notificacoes';
 import { getApplicationStore } from '@/server/application/store';
 import { listRecentConfirmedPayments } from '@/server/payments/paymentLinkRepository';
+import { getPerfilAlteracoesRepository } from '@/server/persistence/perfilAlteracoes';
 import { isMysqlConfigured } from '@/server/oci/runtime';
 import { listAppointments } from '@/server/scheduling/agendaRepository';
 
-/** Janela de pagamentos consultada; a retenção do sino já corta em 30 dias. */
-const DIAS_DE_PAGAMENTOS = 30;
+/** Janela de eventos consultada; a retenção do sino já corta em 30 dias. */
+const DIAS_DE_HISTORICO = 30;
+
+function inicioDaJanela(): Date {
+  return new Date(Date.now() - DIAS_DE_HISTORICO * 24 * 60 * 60 * 1000);
+}
 
 /**
  * Pagamentos dos pacientes de quem está logado.
@@ -38,7 +44,7 @@ async function pagamentosDoPsicologo(
     );
     const professionalId = membership?.professionalProfileId;
     if (!professionalId) return [];
-    const desde = new Date(Date.now() - DIAS_DE_PAGAMENTOS * 24 * 60 * 60 * 1000);
+    const desde = inicioDaJanela();
     return notificacoesDePagamento(
       await listRecentConfirmedPayments(organizationId, professionalId, desde)
     );
@@ -60,12 +66,30 @@ async function agendamentosDoPsicologo(
     );
     const professionalId = membership?.professionalProfileId;
     if (!professionalId) return [];
-    const desde = new Date(Date.now() - DIAS_DE_PAGAMENTOS * 24 * 60 * 60 * 1000);
+    const desde = inicioDaJanela();
     return notificacoesDeAgendamentos(
       await listAppointments(organizationId, professionalId, desde)
     );
   } catch (error) {
     console.error('Erro ao ler agendamentos para o sino:', error);
+    return [];
+  }
+}
+
+/**
+ * Alterações de perfil dos psicólogos, para o sino da gestão.
+ *
+ * Falha em silêncio pelo mesmo motivo dos pagamentos: saber que alguém trocou a
+ * minibio não pode custar o aviso de que um paciente está há dois dias sem
+ * primeiro contato.
+ */
+async function alteracoesDePerfil(): Promise<NotificacaoDerivada[]> {
+  try {
+    return notificacoesDePerfilAlterado(
+      await getPerfilAlteracoesRepository().recentes(inicioDaJanela())
+    );
+  } catch (error) {
+    console.error('Erro ao ler alterações de perfil para o sino:', error);
     return [];
   }
 }
@@ -101,7 +125,7 @@ export async function GET() {
 
     const derivadas =
       session.role === 'admin'
-        ? notificacoesDaGestao(state, agora)
+        ? [...notificacoesDaGestao(state, agora), ...(await alteracoesDePerfil())]
         : await (async () => {
             const cadastro = await cadastroDaSessao(session);
             if (!cadastro) return [];

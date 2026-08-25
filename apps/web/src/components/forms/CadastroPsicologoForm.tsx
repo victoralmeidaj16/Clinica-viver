@@ -15,6 +15,7 @@ import {
   TURMAS_VIVER_MAIS,
   TURNOS_PSICOLOGO,
 } from '@/components/forms/opcoesPsicologo';
+import { processImageUpload } from '@/lib/imageUpload';
 import { maskBrazilPhoneInput, normalizeBrazilPhone } from '@/lib/brazilPhone';
 import { validateGender, type GenderValue } from '@/lib/gender';
 
@@ -238,16 +239,16 @@ export function CadastroPsicologoForm({
                 type="file"
                 accept="image/*"
                 className="hidden"
-                onChange={(e) => {
+                onChange={async (e) => {
                   const file = e.target.files?.[0];
                   if (file) {
-                    const reader = new FileReader();
-                    reader.onload = (event) => {
-                      if (event.target?.result) {
-                        setFormPsicologo((prev) => ({ ...prev, fotoUrl: String(event.target?.result) }));
-                      }
-                    };
-                    reader.readAsDataURL(file);
+                    try {
+                      const compressedDataUrl = await processImageUpload(file);
+                      setFormPsicologo((prev) => ({ ...prev, fotoUrl: compressedDataUrl }));
+                    } catch (err) {
+                      console.error('Erro ao processar imagem:', err);
+                      alert('Não foi possível processar a imagem selecionada. Tente outro formato.');
+                    }
                   }
                 }}
               />

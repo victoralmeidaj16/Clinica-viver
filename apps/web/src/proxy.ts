@@ -26,8 +26,9 @@ export function proxy(request: NextRequest) {
     return NextResponse.rewrite(destination);
   }
 
-  // `/pagar/` e `/agendar/` são os links permanentes que o paciente recebe no
-  // WhatsApp: ele não tem sessão, e é esse o ponto. Sem estar aqui, a VPS
+  // `/agendar/` é o link de marcação do psicólogo e `/pagar/sessao/` é a
+  // cobrança de um agendamento específico: quem abre os dois é o paciente, que
+  // não tem sessão na plataforma, e é esse o ponto. Sem estar aqui, a VPS
   // redireciona para o login quem abre o link — a Vercel não mostrava o
   // problema porque devolve `next()` antes desta checagem.
   const publicPage =

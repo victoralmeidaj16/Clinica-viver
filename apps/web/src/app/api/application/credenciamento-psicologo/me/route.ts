@@ -8,6 +8,46 @@ import {
   CorpoInvalidoError,
   validarCorpo,
 } from '@/server/application/psychologistRegistration';
+import { diferencasDoCadastro } from '@/lib/perfilPsicologoDiff';
+import { getPerfilAlteracoesRepository } from '@/server/persistence/perfilAlteracoes';
+import { nomeDeExibicao } from '@/server/application/viverMaisRodizio';
+import type { CadastroPsicologoRecord } from '@/server/application/persistence';
+import { getApplicationStore } from '@/server/application/store';
+
+/**
+ * Avisa a coordenação do que o profissional acabou de mudar.
+ *
+ * Roda **depois** da gravação e nunca derruba o PATCH: a edição é um direito do
+ * profissional, e uma falha ao registrar o aviso não pode desfazer — nem
+ * parecer que desfez — uma alteração que já está no banco. O pior caso é a
+ * gestão não ver este aviso específico, e isso vai para o log.
+ */
+async function avisarGestao(
+  antes: CadastroPsicologoRecord,
+  depois: CadastroPsicologoRecord,
+  usuarioRef: string
+): Promise<void> {
+  try {
+    const mudancas = diferencasDoCadastro(
+      antes as unknown as Record<string, unknown>,
+      depois as unknown as Record<string, unknown>,
+      CAMPOS_DO_PROPRIO_PSICOLOGO
+    );
+    // Salvar sem mexer em nada é comum — o formulário reenvia o cadastro
+    // inteiro. Gravar isso encheria o sino de "alterou: nada".
+    if (mudancas.length === 0) return;
+
+    await getPerfilAlteracoesRepository().registrar({
+      cadastroRef: depois.id,
+      psicologoNome: nomeDeExibicao(depois),
+      alteradoEm: new Date().toISOString(),
+      mudancas,
+      usuarioRef,
+    });
+  } catch (error) {
+    console.error('Erro ao registrar alteração de perfil para a gestão:', error);
+  }
+}
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -45,8 +85,8 @@ export async function GET() {
  * A allowlist é `CAMPOS_DO_PROPRIO_PSICOLOGO`: o que descreve a prática dele —
  * turnos, serviços, público, minibio, foto — muda sem intermediário, porque
  * quem sabe disso é ele e a alternativa é a gestão virar cartório de recado. O
- * que a clínica confere ou decide (CRP, e-mail, status, vitrine, limite de
- * pacientes) não está na lista e é descartado em silêncio se vier no corpo.
+ * Nome, CRP e e-mail também pertencem ao profissional e são sincronizados com
+ * sua identidade de acesso. Status, vitrine e capacidade seguem protegidos.
  */
 export async function PATCH(request: Request) {
   try {
@@ -71,6 +111,32 @@ export async function PATCH(request: Request) {
 
     const atualizado = aplicarMudancas(cadastro, corpo, CAMPOS_DO_PROPRIO_PSICOLOGO);
 
+    // O credenciamento alimenta a vitrine; identidade e perfil profissional
+    // alimentam login, agenda e prontuário. Os três precisam refletir a mesma
+    // edição para não criar versões divergentes do nome, CRP ou e-mail.
+    const store = getApplicationStore();
+    const now = new Date().toISOString();
+    const user = await store.identities.getUser(session.userId);
+    if (user) {
+      await store.identities.saveUser({
+        ...user,
+        displayName: atualizado.nomeSocial?.trim() || atualizado.nomeCompleto,
+        normalizedEmail: atualizado.email?.trim().toLocaleLowerCase('pt-BR'),
+        updatedAt: now,
+      });
+    }
+    if (atualizado.profissionalRef) {
+      const professional = await store.identities.getProfessional(session.organizationId, atualizado.profissionalRef);
+      if (professional) {
+        await store.identities.saveProfessional({
+          ...professional,
+          displayName: atualizado.nomeSocial?.trim() || atualizado.nomeCompleto,
+          councilRegistration: atualizado.crp,
+          updatedAt: now,
+        });
+      }
+    }
+
     await getCaptureRepository().mutate((state) => ({
       next: {
         ...state,
@@ -80,6 +146,8 @@ export async function PATCH(request: Request) {
       },
       result: null,
     }));
+
+    await avisarGestao(cadastro, atualizado, session.userId);
 
     return NextResponse.json({ success: true, data: atualizado });
   } catch (error) {

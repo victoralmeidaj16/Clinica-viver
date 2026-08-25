@@ -27,6 +27,7 @@ import {
   rotuloTurno,
 } from '@/components/forms/opcoesPsicologo';
 import { BrazilLocationFields } from '@/components/forms/BrazilLocationFields';
+import { processImageUpload } from '@/lib/imageUpload';
 
 interface Cadastro {
   id: string;
@@ -75,15 +76,15 @@ const statusInfo = {
 
 /** Campos que só a gestão altera, com o motivo pelo qual estão travados. */
 const TRAVADOS: Array<[string, (c: Cadastro) => string | undefined, string]> = [
-  ['Nome completo', (c) => c.nomeCompleto, 'Conferido no credenciamento'],
-  ['CRP', (c) => c.crp, 'Conferido no credenciamento'],
-  ['E-mail', (c) => c.email, 'É a chave de acesso da sua conta'],
   ['Turma Viver Mais', (c) => c.turmaViverMais, 'Registro acadêmico'],
   ['Pós-graduação', (c) => c.posGraduacaoViverMais, 'Registro acadêmico'],
   ['Segunda pós-graduação', (c) => c.segundaPosGraduacao, 'Registro acadêmico'],
 ];
 
 type Rascunho = {
+  nomeCompleto: string;
+  crp: string;
+  email: string;
   nomeSocial: string;
   fotoUrl: string;
   whatsapp: string;
@@ -106,6 +107,9 @@ type Rascunho = {
 
 function rascunhoDe(c: Cadastro): Rascunho {
   return {
+    nomeCompleto: c.nomeCompleto,
+    crp: c.crp,
+    email: c.email ?? '',
     nomeSocial: c.nomeSocial ?? '',
     fotoUrl: c.fotoUrl ?? '',
     whatsapp: formatBrazilPhone(c.whatsapp) || c.whatsapp,
@@ -182,6 +186,19 @@ export default function MeuCadastroPage() {
   const salvar = async (evento: React.FormEvent) => {
     evento.preventDefault();
     if (!rascunho) return;
+
+    if (rascunho.nomeCompleto.trim().length < 2) {
+      setAviso('Informe seu nome completo.');
+      return;
+    }
+    if (!rascunho.crp.trim()) {
+      setAviso('Informe seu registro CRP.');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(rascunho.email.trim())) {
+      setAviso('Informe um e-mail profissional válido.');
+      return;
+    }
 
     if (!normalizeBrazilPhone(rascunho.whatsapp)) {
       setAviso('Informe um telefone brasileiro válido com DDD.');
@@ -308,16 +325,16 @@ export default function MeuCadastroPage() {
                     type="file"
                     accept="image/*"
                     className="hidden"
-                    onChange={(evento) => {
+                    onChange={async (evento) => {
                       const arquivo = evento.target.files?.[0];
                       if (!arquivo) return;
-                      const leitor = new FileReader();
-                      leitor.onload = (carregado) => {
-                        if (carregado.target?.result) {
-                          setRascunho((atual) => (atual ? { ...atual, fotoUrl: String(carregado.target?.result) } : atual));
-                        }
-                      };
-                      leitor.readAsDataURL(arquivo);
+                      try {
+                        const compressed = await processImageUpload(arquivo);
+                        setRascunho((atual) => (atual ? { ...atual, fotoUrl: compressed } : atual));
+                      } catch (err) {
+                        console.error('Erro ao processar imagem:', err);
+                        alert('Não foi possível carregar esta imagem.');
+                      }
                     }}
                   />
                 </label>
@@ -332,6 +349,19 @@ export default function MeuCadastroPage() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <div>
+              <label className="text-[10px] uppercase tracking-wider font-extrabold text-muted block mb-1.5">Nome completo</label>
+              <input required autoComplete="name" value={rascunho.nomeCompleto} onChange={(e) => setRascunho({ ...rascunho, nomeCompleto: e.target.value })} className={campoClasse} />
+            </div>
+            <div>
+              <label className="text-[10px] uppercase tracking-wider font-extrabold text-muted block mb-1.5">CRP</label>
+              <input required value={rascunho.crp} onChange={(e) => setRascunho({ ...rascunho, crp: e.target.value })} placeholder="Ex: CRP 07/12345" className={campoClasse} />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="text-[10px] uppercase tracking-wider font-extrabold text-muted block mb-1.5">E-mail profissional</label>
+              <input required type="email" autoComplete="email" value={rascunho.email} onChange={(e) => setRascunho({ ...rascunho, email: e.target.value })} className={campoClasse} />
+              <p className="mt-1 text-[10px] text-muted">Ao salvar, este passa a ser também o e-mail usado no próximo login.</p>
+            </div>
             <div>
               <label className="text-[10px] uppercase tracking-wider font-extrabold text-muted block mb-1.5">Nome social</label>
               <input value={rascunho.nomeSocial} onChange={(e) => setRascunho({ ...rascunho, nomeSocial: e.target.value })} className={campoClasse} />
@@ -488,6 +518,9 @@ export default function MeuCadastroPage() {
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5 mt-5">
+                <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Nome completo</p><p className="text-sm font-bold text-ink mt-1">{cadastro.nomeCompleto}</p></div>
+                <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">CRP</p><p className="text-sm font-bold text-ink mt-1">{cadastro.crp}</p></div>
+                <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">E-mail profissional</p><p className="text-sm font-bold text-ink mt-1 break-all">{cadastro.email || 'Não informado'}</p></div>
                 <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Nome social</p><p className="text-sm font-bold text-ink mt-1">{cadastro.nomeSocial || 'Não informado'}</p></div>
                 <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">WhatsApp</p><p className="text-sm font-bold text-ink mt-1">{formatBrazilPhone(cadastro.whatsapp)}</p></div>
                 <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Estado</p><p className="text-sm font-bold text-ink mt-1">{cadastro.estadoUf || '—'}</p></div>

@@ -24,6 +24,7 @@ import {
   MODALIDADES_ATENDIMENTO,
   comValoresRegistrados,
 } from '@/components/forms/opcoesPsicologo';
+import { processImageUpload } from '@/lib/imageUpload';
 import { GenderFields } from '@/components/forms/GenderFields';
 import { BrazilLocationFields } from '@/components/forms/BrazilLocationFields';
 import { maskBrazilPhoneInput, normalizeBrazilPhone } from '@/lib/brazilPhone';
@@ -358,16 +359,16 @@ export function ModalEdicao({
                       type="file"
                       accept="image/*"
                       className="hidden"
-                      onChange={(e) => {
+                      onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if (file) {
-                          const reader = new FileReader();
-                          reader.onload = (event) => {
-                            if (event.target?.result) {
-                              setFotoUrl(String(event.target?.result));
-                            }
-                          };
-                          reader.readAsDataURL(file);
+                          try {
+                            const compressed = await processImageUpload(file);
+                            setFotoUrl(compressed);
+                          } catch (err) {
+                            console.error('Erro ao processar imagem:', err);
+                            alert('Não foi possível carregar esta imagem.');
+                          }
                         }
                       }}
                     />

@@ -4,6 +4,8 @@ import type { CadastroPsicologoRecord, TriagemPacienteRecord } from './persisten
 import type { CaptureState } from '@/server/persistence/captureRepository';
 import type { PagamentoRecebido } from '@/server/payments/paymentLinkRepository';
 import type { AgendamentoResumo } from '@/server/scheduling/agendaRepository';
+import type { AlteracaoPerfil } from '@/server/persistence/perfilAlteracoes';
+import { descreverMudancas } from '@/lib/perfilPsicologoDiff';
 import { dataHoraSessao } from '@/lib/sessionReference';
 import {
   classificarSla,
@@ -479,6 +481,39 @@ export function notificacoesDaGestao(
   }
 
   return itens;
+}
+
+/**
+ * "Fulano mudou o próprio perfil, e mudou isto."
+ *
+ * Único aviso do sino que nasce de um fato gravado, e não de um estado
+ * recalculado — porque é o único que descreve uma **diferença**. Depois que o
+ * cadastro foi sobrescrito, o valor anterior não existe mais em lugar nenhum:
+ * "manhã, tarde → manhã, tarde, noite" é impossível de derivar do banco. O
+ * porquê está por extenso em `031_perfil_alteracoes.sql`.
+ *
+ * A chave carrega o instante da edição, então **cada** alteração volta a
+ * aparecer como não lida, em vez de ser silenciada pela leitura da anterior —
+ * que é o comportamento pedido pela coordenação.
+ */
+export function notificacoesDePerfilAlterado(
+  alteracoes: readonly AlteracaoPerfil[]
+): NotificacaoDerivada[] {
+  return alteracoes
+    .filter((alteracao) => alteracao.mudancas.length > 0)
+    .map((alteracao) => ({
+      chave: `perfil-alterado:${alteracao.cadastroRef}:${alteracao.alteradoEm}`,
+      tipo: 'perfil-alterado',
+      titulo: `${alteracao.psicologoNome} alterou o próprio perfil`,
+      descricao: descreverMudancas(alteracao.mudancas),
+      ocorridoEm: alteracao.alteradoEm,
+      severidade: 'INFO',
+      href: '/gestao/psicologos',
+      // A gestão é informada, não convocada: o profissional já mudou o que era
+      // dele por direito. Marcar como pendente manteria no sino, para sempre,
+      // um aviso que ninguém tem o que resolver.
+      pendente: false,
+    }));
 }
 
 // ---------------------------------------------------------------------------

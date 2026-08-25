@@ -101,6 +101,9 @@ interface ReatribuicaoRow extends RowDataPacket {
 export interface PatientContact {
   phone?: string;
   email?: string;
+  /** Nome civil e nome social são aceitos no cadastro completo, sem ampliar o agregado clínico. */
+  legalName?: string;
+  socialName?: string;
   /**
    * CPF do cadastro. Mora na mesma coluna que a recepção sempre usou
    * (`clinica_pacientes.documento`) e é o tomador da NFS-e quando o paciente
@@ -513,11 +516,23 @@ export class MysqlIdentityRepository implements IdentityRepository, PatientConta
   }
 
   async savePatientContact(patientId: string, contact: PatientContact): Promise<void> {
-    // `documento` fica de fora de propósito: quem grava contato não tem o CPF
-    // em mãos, e um `?? null` aqui apagaria o dado fiscal a cada telefone novo.
+    // Campos ausentes preservam nome e documento já existentes. Telefone e
+    // e-mail mantêm a semântica anterior de substituição completa.
     await this.pool.execute(
-      'UPDATE clinica_pacientes SET telefone = ?, email = ? WHERE instituicao_id = ? AND ref_core = ?',
-      [contact.phone ?? null, contact.email ?? null, instituicaoId(), patientId]
+      `UPDATE clinica_pacientes
+          SET telefone = ?, email = ?,
+              nome = COALESCE(?, nome), nome_social = ?,
+              documento = COALESCE(?, documento)
+        WHERE instituicao_id = ? AND ref_core = ?`,
+      [
+        contact.phone ?? null,
+        contact.email ?? null,
+        contact.legalName ?? null,
+        contact.socialName?.trim() || null,
+        contact.documento ?? null,
+        instituicaoId(),
+        patientId,
+      ]
     );
   }
 

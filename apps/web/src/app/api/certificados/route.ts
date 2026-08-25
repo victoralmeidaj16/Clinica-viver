@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { CertificateStatus } from '@thats-life/core';
 import { certificadosRepo } from '@/server/certificados/certificadosRepository';
+import { proxyToPersistentBackend } from '@/server/http/persistentBackendProxy';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -15,6 +16,9 @@ function isAuthorized(request: Request): boolean {
 }
 
 export async function GET(request: Request) {
+  const proxied = await proxyToPersistentBackend(request);
+  if (proxied) return proxied;
+
   if (!isAuthorized(request)) {
     return NextResponse.json({ ok: false, error: 'Acesso não autorizado' }, { status: 401 });
   }
@@ -34,6 +38,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const proxied = await proxyToPersistentBackend(request);
+  if (proxied) return proxied;
+
   if (!isAuthorized(request)) {
     return NextResponse.json({ ok: false, error: 'Acesso não autorizado' }, { status: 401 });
   }

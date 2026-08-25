@@ -1,13 +1,17 @@
 import { NextResponse } from 'next/server';
 import { certificadosRepo } from '@/server/certificados/certificadosRepository';
+import { proxyToPersistentBackend } from '@/server/http/persistentBackendProxy';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ codigo: string }> }
 ) {
+  const proxied = await proxyToPersistentBackend(request);
+  if (proxied) return proxied;
+
   try {
     const { codigo } = await params;
     const cert = await certificadosRepo.porCodigo(codigo);

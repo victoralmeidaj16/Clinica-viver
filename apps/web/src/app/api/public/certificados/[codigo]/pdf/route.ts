@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import PDFDocument from 'pdfkit';
 import { certificadosRepo } from '@/server/certificados/certificadosRepository';
 import { formatCertificateVersoText } from '@thats-life/core';
+import { proxyToPersistentBackend } from '@/server/http/persistentBackendProxy';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -22,6 +23,9 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ codigo: string }> }
 ) {
+  const proxied = await proxyToPersistentBackend(request);
+  if (proxied) return proxied;
+
   try {
     const { codigo } = await params;
     const codeParam = decodeURIComponent(codigo).trim();

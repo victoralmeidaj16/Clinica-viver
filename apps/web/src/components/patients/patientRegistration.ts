@@ -45,6 +45,9 @@ export function audiencesForService(serviceKey?: string | null): readonly string
   if (serviceKey === 'PSICOTERAPIA_CASAL') {
     return ['Casal', 'Outro'] as const;
   }
+  if (serviceKey === 'AVALIACAO') {
+    return ['Criança', 'Adolescente', 'Homem', 'Mulher', 'Idoso'] as const;
+  }
   return ['Criança', 'Adolescente', 'Homem', 'Mulher', 'Idoso', 'Outro'] as const;
 }
 

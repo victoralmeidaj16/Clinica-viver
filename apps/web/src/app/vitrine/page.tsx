@@ -283,6 +283,10 @@ export default function ViverMaisLandingPage() {
         if (paraQuemE !== 'Casal' && paraQuemE !== 'Outro') {
           paraQuemE = 'Casal';
         }
+      } else if (serviceKey === 'AVALIACAO') {
+        if (!['Criança', 'Adolescente', 'Homem', 'Mulher', 'Idoso'].includes(paraQuemE)) {
+          paraQuemE = '';
+        }
       } else if (['Casal', 'Família', 'Grupo'].includes(paraQuemE)) {
         paraQuemE = '';
       }
@@ -1095,7 +1099,9 @@ export default function ViverMaisLandingPage() {
                   <div className={`grid gap-2 text-xs ${selectedService === 'PSICOTERAPIA_CASAL' ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3'}`}>
                     {(selectedService === 'PSICOTERAPIA_CASAL'
                       ? ['Casal', 'Outro']
-                      : ['Criança', 'Adolescente', 'Homem', 'Mulher', 'Idoso', 'Outro']
+                      : selectedService === 'AVALIACAO'
+                        ? ['Criança', 'Adolescente', 'Homem', 'Mulher', 'Idoso']
+                        : ['Criança', 'Adolescente', 'Homem', 'Mulher', 'Idoso', 'Outro']
                     ).map((opcao) => {
                       const isSelected = form.paraQuemE === opcao;
                       return (

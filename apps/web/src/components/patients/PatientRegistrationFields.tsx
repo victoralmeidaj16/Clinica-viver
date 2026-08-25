@@ -28,7 +28,7 @@ export function PatientRegistrationFields({ form, setForm, convenios, temNomeSoc
         if (paraQuemE !== 'Casal' && paraQuemE !== 'Outro') {
           paraQuemE = 'Casal';
         }
-      } else if (['Casal', 'Família', 'Grupo'].includes(paraQuemE)) {
+      } else if (!audiencesForService(serviceKey).includes(paraQuemE)) {
         paraQuemE = '';
       }
       return {

@@ -241,14 +241,20 @@
 }
 
 /* ============================================================
-   ESTILOS DE IMPRESSÃO (CERTIFICADOS E DOCUMENTOS)
+   ESTILOS DE IMPRESSÃO (CERTIFICADOS E DOCUMENTOS 100% LIMPOS)
    ============================================================ */
 @media print {
-  body {
+  @page {
+    margin: 0 !important;
+    size: auto !important;
+  }
+  html, body {
     background: #ffffff !important;
     color: #000000 !important;
     padding: 0 !important;
     margin: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
   }
   .no-print {
     display: none !important;
@@ -259,10 +265,26 @@
     margin: 0 !important;
     padding: 0 !important;
     box-shadow: none !important;
-    page-break-inside: avoid;
+  }
+  .cert-page {
+    width: 100vw !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    page-break-inside: avoid !important;
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+  .cert-page:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
   }
   .cert-page-break {
-    page-break-after: always;
-    break-after: page;
+    page-break-after: always !important;
+    break-after: page !important;
   }
 }

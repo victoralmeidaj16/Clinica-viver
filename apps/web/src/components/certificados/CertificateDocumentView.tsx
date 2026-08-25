@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Award, Check, Copy, FileText, Printer, Share2 } from 'lucide-react';
+import Link from 'next/link';
+import { Award, Check, Copy, Download, FileText, Printer } from 'lucide-react';
 import {
   CertificateRecord,
   formatCertificateVersoText,
@@ -31,8 +32,10 @@ export function CertificateDocumentView({ record, publicValidationUrl }: Props) 
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const pdfDownloadUrl = `/api/public/certificados/${encodeURIComponent(record.code)}/pdf`;
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Barra de Ações (Oculta na impressão) */}
       <div className="no-print flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-white border border-line shadow-sm">
         <div className="flex items-center gap-2 text-xs text-muted">
@@ -60,16 +63,28 @@ export function CertificateDocumentView({ record, publicValidationUrl }: Props) 
 
           <button
             onClick={() => window.print()}
+            className="btn-outline py-2.5 px-4 text-xs font-bold flex items-center gap-1.5"
+            title="Imprimir certificado"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            <span>Imprimir</span>
+          </button>
+
+          <a
+            href={pdfDownloadUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            download={`Certificado-ViverMais-${record.code}.pdf`}
             className="btn-primary py-2.5 px-5 text-xs font-bold flex items-center gap-2 shadow-sm"
           >
-            <Printer className="w-4 h-4" />
+            <Download className="w-4 h-4" />
             <span>Baixar 2ª Via Oficial em PDF</span>
-          </button>
+          </a>
         </div>
       </div>
 
-      {/* DOCUMENTO IMPRIMÍVEL */}
-      <div className="cert-printable space-y-8">
+      {/* DOCUMENTO IMPRIMÍVEL (SEM FRAMES EXCEDENTES) */}
+      <div className="cert-printable space-y-6">
         {/* PÁGINA 1: FRENTE DO CERTIFICADO */}
         <div className="space-y-2 cert-page-break">
           <div className="no-print flex items-center justify-between px-1">
@@ -80,24 +95,16 @@ export function CertificateDocumentView({ record, publicValidationUrl }: Props) 
             <span className="text-xs font-mono font-bold text-psi-deep">ID: {record.code}</span>
           </div>
 
-          <div className="relative aspect-[1.414/1] w-full rounded-2xl bg-white border-2 border-psi-deep/20 p-8 md:p-12 flex flex-col justify-between overflow-hidden shadow-card">
+          <div className="cert-page relative aspect-[1.414/1] w-full bg-white rounded-2xl md:rounded-3xl border border-line overflow-hidden shadow-card flex items-center justify-center">
             {record.frontImageUrl ? (
-              record.frontImageUrl.includes('application/pdf') || record.frontImageUrl.startsWith('data:application/pdf') ? (
-                <iframe
-                  src={`${record.frontImageUrl}#page=1`}
-                  title="Frente do Certificado em PDF"
-                  className="absolute inset-0 w-full h-full border-0 pointer-events-none"
-                />
-              ) : (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={record.frontImageUrl}
-                  alt="Frente do Certificado"
-                  className="absolute inset-0 w-full h-full object-contain"
-                />
-              )
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={record.frontImageUrl}
+                alt="Frente do Certificado"
+                className="w-full h-full object-contain"
+              />
             ) : (
-              <>
+              <div className="p-8 md:p-12 w-full h-full flex flex-col justify-between">
                 {/* Faixa superior estética */}
                 <div className="absolute inset-x-0 top-0 h-2 bg-gradient-to-r from-psi-deep via-psi-vibrant to-psi-soft" />
 
@@ -156,7 +163,7 @@ export function CertificateDocumentView({ record, publicValidationUrl }: Props) 
                     </div>
                   </div>
                 </div>
-              </>
+              </div>
             )}
           </div>
         </div>
@@ -171,24 +178,16 @@ export function CertificateDocumentView({ record, publicValidationUrl }: Props) 
             <span className="text-xs font-mono font-bold text-psi-deep">ID: {record.code}</span>
           </div>
 
-          <div className="relative aspect-[1.414/1] w-full rounded-2xl bg-white border-2 border-psi-deep/20 p-8 md:p-12 flex flex-col justify-between overflow-hidden shadow-card">
+          <div className="cert-page relative aspect-[1.414/1] w-full bg-white rounded-2xl md:rounded-3xl border border-line overflow-hidden shadow-card flex items-center justify-center">
             {record.backImageUrl ? (
-              record.backImageUrl.includes('application/pdf') || record.backImageUrl.startsWith('data:application/pdf') ? (
-                <iframe
-                  src={`${record.backImageUrl}#page=2`}
-                  title="Verso do Certificado em PDF"
-                  className="absolute inset-0 w-full h-full border-0 pointer-events-none"
-                />
-              ) : (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={record.backImageUrl}
-                  alt="Verso do Certificado"
-                  className="absolute inset-0 w-full h-full object-contain"
-                />
-              )
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={record.backImageUrl}
+                alt="Verso do Certificado"
+                className="w-full h-full object-contain"
+              />
             ) : (
-              <div>
+              <div className="p-8 md:p-12 w-full h-full flex flex-col justify-between">
                 <div className="flex items-center justify-between border-b border-line pb-3">
                   <div>
                     <h3 className="font-bold text-xs md:text-sm text-ink">Registro Acadêmico e Ementa Oficial</h3>
@@ -207,7 +206,7 @@ export function CertificateDocumentView({ record, publicValidationUrl }: Props) 
               </div>
             )}
 
-            {/* CARIMBO DIGITAL NO VERSO (COM POSICIONAMENTO DINÂMICO CONFIGURADO) */}
+            {/* CARIMBO DIGITAL NO VERSO (COM POSICIONAMENTO DINÂMICO E TRANSPARÊNCIA 100%) */}
             {record.stampX !== undefined && record.stampY !== undefined ? (
               <div
                 style={{
@@ -224,21 +223,7 @@ export function CertificateDocumentView({ record, publicValidationUrl }: Props) 
                   {versoText}
                 </p>
               </div>
-            ) : (
-              <div className="mt-auto border-t-2 border-dashed border-psi-soft pt-4 flex items-center justify-between gap-4 bg-psi-soft/20 p-4 rounded-xl border border-psi-soft/60 z-10">
-                <div className="space-y-1">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-psi-deep">
-                    🔒 Assinatura Digital & Carimbo de Autenticidade
-                  </p>
-                  <p className="text-[11px] font-mono text-ink/90 whitespace-pre-line leading-relaxed font-medium">
-                    {versoText}
-                  </p>
-                </div>
-                <div className="p-1 rounded-lg bg-white border border-line shrink-0">
-                  <QrCodeConferencia valor={publicValidationUrl} tamanho={56} />
-                </div>
-              </div>
-            )}
+            ) : null}
           </div>
         </div>
       </div>

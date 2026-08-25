@@ -110,6 +110,7 @@ export class CertificadosRepository {
 
     if (this.pool) {
       try {
+        await this.ensureTable();
         const [rows] = await this.pool.query<CertificadoRow[]>(
           `SELECT * FROM clinica_certificados WHERE LOWER(codigo) = LOWER(?) OR LOWER(id) = LOWER(?) LIMIT 1`,
           [trimmed, trimmed]
@@ -126,6 +127,7 @@ export class CertificadosRepository {
   async listar(filtro?: { busca?: string; status?: CertificateStatus }): Promise<CertificateRecord[]> {
     if (this.pool) {
       try {
+        await this.ensureTable();
         let sql = `SELECT * FROM clinica_certificados WHERE 1=1`;
         const params: unknown[] = [];
 
@@ -160,8 +162,10 @@ export class CertificadosRepository {
     });
   }
 
+  private tableInitialized = false;
+
   private async ensureTable(): Promise<void> {
-    if (!this.pool) return;
+    if (!this.pool || this.tableInitialized) return;
     try {
       await this.pool.query(`
         CREATE TABLE IF NOT EXISTS clinica_certificados (
@@ -196,6 +200,25 @@ export class CertificadosRepository {
           UNIQUE KEY clinica_certificados_codigo_uq (codigo)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
       `);
+
+      // Garantir colunas se tabela foi criada antes sem elas
+      const alterCols = [
+        'ALTER TABLE clinica_certificados MODIFY COLUMN frente_imagem_url LONGTEXT NULL',
+        'ALTER TABLE clinica_certificados MODIFY COLUMN verso_imagem_url LONGTEXT NULL',
+        'ALTER TABLE clinica_certificados ADD COLUMN carimbo_x DECIMAL(5,2) NULL',
+        'ALTER TABLE clinica_certificados ADD COLUMN carimbo_y DECIMAL(5,2) NULL',
+        'ALTER TABLE clinica_certificados ADD COLUMN carimbo_font_size DECIMAL(4,1) NULL',
+        'ALTER TABLE clinica_certificados ADD COLUMN carimbo_align VARCHAR(16) NULL DEFAULT "center"',
+      ];
+      for (const alterSql of alterCols) {
+        try {
+          await this.pool.query(alterSql);
+        } catch {
+          // Ignorar se coluna ja existe
+        }
+      }
+
+      this.tableInitialized = true;
     } catch (err) {
       console.warn('Falha ao verificar/criar tabela clinica_certificados:', err);
     }
@@ -221,8 +244,6 @@ export class CertificadosRepository {
     validationUrl?: string;
     createdBy?: string;
   }): Promise<CertificateRecord> {
-    await this.ensureTable();
-
     const code = (dados.code && dados.code.trim()) || generateCertificateCode();
     const id = code;
     const createdAt = new Date().toISOString();
@@ -252,6 +273,7 @@ export class CertificadosRepository {
     };
 
     if (this.pool) {
+      await this.ensureTable();
       try {
         await this.pool.query<ResultSetHeader>(
           `INSERT INTO clinica_certificados 
@@ -290,7 +312,8 @@ export class CertificadosRepository {
           ]
         );
       } catch (err) {
-        console.warn('Erro ao inserir certificado no MySQL, gravado em memória:', err);
+        console.error('ERRO CRÍTICO ao inserir certificado no MySQL:', err);
+        throw new Error(`Falha ao gravar certificado no banco de dados MySQL: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
 

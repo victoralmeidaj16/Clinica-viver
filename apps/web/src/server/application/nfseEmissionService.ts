@@ -18,7 +18,7 @@ import { validarDpsAssinada, validarPedidoEventoAssinado } from '@/server/fiscal
 import { gerarDanfsePdf } from '@/server/fiscal/danfsePdf';
 import { enviarNfsePorEmail, normalizarEmailPaciente } from '@/server/fiscal/nfseEmail';
 
-function serieDps(): string {
+export function serieDps(): string {
   const numero = Number(process.env.NFSE_DPS_SERIE?.trim() || '1');
   if (!Number.isInteger(numero) || numero < 1 || numero > 49_999) {
     throw new ApplicationError('INVALID_FISCAL_CONFIG', 'NFSE_DPS_SERIE deve estar entre 1 e 49999.', 500);
@@ -26,7 +26,7 @@ function serieDps(): string {
   return String(numero).padStart(5, '0');
 }
 
-function dataHoraDps(agora = new Date()): string {
+export function dataHoraDps(agora = new Date()): string {
   const partes = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
@@ -44,7 +44,7 @@ function objeto(valor: unknown): Record<string, unknown> {
   return valor && typeof valor === 'object' && !Array.isArray(valor) ? valor as Record<string, unknown> : {};
 }
 
-function interpretarNota(resposta: RespostaSefin): { chaveAcesso?: string; numeroNfse?: string; nfseXml?: string } {
+export function interpretarNota(resposta: RespostaSefin): { chaveAcesso?: string; numeroNfse?: string; nfseXml?: string } {
   const conteudo = objeto(resposta.json);
   const chave = typeof conteudo.chaveAcesso === 'string'
     ? conteudo.chaveAcesso
@@ -61,7 +61,7 @@ function interpretarNota(resposta: RespostaSefin): { chaveAcesso?: string; numer
   };
 }
 
-function codigoDaFalha(corpo: string): string | undefined {
+export function codigoDaFalha(corpo: string): string | undefined {
   try {
     const payload = objeto(JSON.parse(corpo));
     const erro = objeto(payload.erro);

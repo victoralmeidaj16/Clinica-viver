@@ -10,7 +10,8 @@ export type StatusEnvioEmailNfse = 'sending' | 'sent' | 'failed';
 export interface EmissaoNfse {
   id: string;
   chargeId: string;
-  patientId: string;
+  patientId?: string;
+  convenioId?: string;
   cnpjPrestador: string;
   serie: string;
   numeroDps: string;
@@ -57,7 +58,8 @@ export interface EventoNfse {
 interface EmissaoRow extends RowDataPacket {
   id: string;
   cobranca_ref: string;
-  paciente_ref: string;
+  paciente_ref: string | null;
+  convenio_ref: string | null;
   cnpj_prestador: string;
   serie: string;
   numero_dps: string;
@@ -101,7 +103,8 @@ interface EventoRow extends RowDataPacket {
 
 function toEmissao(row: EmissaoRow): EmissaoNfse {
   return {
-    id: row.id, chargeId: row.cobranca_ref, patientId: row.paciente_ref,
+    id: row.id, chargeId: row.cobranca_ref, patientId: row.paciente_ref ?? undefined,
+    convenioId: row.convenio_ref ?? undefined,
     cnpjPrestador: row.cnpj_prestador, serie: row.serie, numeroDps: row.numero_dps,
     dpsId: row.dps_id, ambiente: row.ambiente, valorCents: Number(row.valor_centavos),
     competencia: row.competencia.slice(0, 10), status: row.status, idempotencyKey: row.idempotency_key,
@@ -125,7 +128,7 @@ function toEvento(row: EventoRow): EventoNfse {
   };
 }
 
-const SELECT = `SELECT id, cobranca_ref, paciente_ref, cnpj_prestador, serie, numero_dps, dps_id,
+const SELECT = `SELECT id, cobranca_ref, paciente_ref, convenio_ref, cnpj_prestador, serie, numero_dps, dps_id,
   ambiente, valor_centavos, competencia, status, idempotency_key, dps_xml, nfse_xml,
   chave_acesso, numero_nfse, sefin_http_status, sefin_retorno, erro_codigo, erro_mensagem,
   cancelado_em, cancelamento_motivo, email_destinatario, email_status, email_enviado_em,
@@ -165,9 +168,13 @@ export class NfseRepository {
     return rows[0] ? toEmissao(rows[0]) : null;
   }
 
+  async porFatura(organizationId: string, faturaId: string): Promise<EmissaoNfse | null> {
+    return this.porCobranca(organizationId, faturaId);
+  }
+
   /** Reserva uma única DPS por cobrança. A transação impede dois cliques concorrentes. */
   async reservar(input: {
-    organizationId: string; chargeId: string; patientId: string; cnpjPrestador: string;
+    organizationId: string; chargeId: string; patientId?: string; convenioId?: string; cnpjPrestador: string;
     serie: string; ambiente: EmissaoNfse['ambiente']; valorCents: number; competencia: string;
     idempotencyKey: string; usuarioId: string;
   }): Promise<EmissaoNfse> {
@@ -201,15 +208,17 @@ export class NfseRepository {
       const id = rowId('fiscal-nfse-emissao', refCore);
       const dpsPendente = `PENDING-${id}`;
       await connection.query(`INSERT INTO fiscal_nfse_emissoes
-        (id, instituicao_id, organizacao_ref, cobranca_ref, paciente_ref, cnpj_prestador, serie,
+        (id, instituicao_id, organizacao_ref, cobranca_ref, paciente_ref, convenio_ref, cnpj_prestador, serie,
          numero_dps, dps_id, ambiente, valor_centavos, competencia, status, idempotency_key, emitido_por_usuario_ref)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'reserved', ?, ?)`, [
-        id, instituicaoId(), input.organizationId, input.chargeId, input.patientId, input.cnpjPrestador,
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'reserved', ?, ?)`, [
+        id, instituicaoId(), input.organizationId, input.chargeId, input.patientId ?? null,
+        input.convenioId ?? null, input.cnpjPrestador,
         input.serie, numeroDps, dpsPendente, input.ambiente, input.valorCents, input.competencia, input.idempotencyKey, input.usuarioId,
       ]);
       await connection.commit();
       return {
-        id, chargeId: input.chargeId, patientId: input.patientId, cnpjPrestador: input.cnpjPrestador,
+        id, chargeId: input.chargeId, patientId: input.patientId, convenioId: input.convenioId,
+        cnpjPrestador: input.cnpjPrestador,
         serie: input.serie, numeroDps, dpsId: '', ambiente: input.ambiente, valorCents: input.valorCents,
         competencia: input.competencia, status: 'reserved', idempotencyKey: input.idempotencyKey,
         emailTentativas: 0,

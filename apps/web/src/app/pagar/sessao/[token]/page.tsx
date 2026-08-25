@@ -12,6 +12,8 @@ interface Profile {
   sessionStart: string;
   amountCents: number;
   modality: 'social' | 'particular';
+  fundedByCompany: boolean;
+  companyName?: string;
 }
 
 interface Payment {
@@ -68,6 +70,29 @@ export default function SessionPaymentPage({ params }: { params: Promise<{ token
   }
   if (!profile) {
     return <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-sm font-semibold text-rose-800">{error || 'Link inválido.'}</div>;
+  }
+
+  if (profile.fundedByCompany) {
+    return (
+      <div className="space-y-5">
+        <section className="card-contrast overflow-hidden rounded-3xl p-6 text-white">
+          <p className="text-[10px] font-black uppercase tracking-[.22em] text-psi-vibrant">Sessão sem cobrança individual</p>
+          <h1 className="mt-2 text-xl font-black">{profile.professionalName}</h1>
+          <p className="mt-3 flex items-center gap-2 text-sm font-bold text-psi-soft">
+            <CalendarClock className="h-4 w-4" /> {dataHoraSessao(profile.sessionStart)}
+          </p>
+        </section>
+        <section className="card space-y-3 text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+            <Check className="h-6 w-6" />
+          </div>
+          <h2 className="text-lg font-black text-ink">Não há nada a pagar</h2>
+          <p className="text-sm text-muted">
+            Esta sessão é custeada por {profile.companyName ?? 'sua empresa'}. A clínica fará o faturamento diretamente com ela.
+          </p>
+        </section>
+      </div>
+    );
   }
 
   return (

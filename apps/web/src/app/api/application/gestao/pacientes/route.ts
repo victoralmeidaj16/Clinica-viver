@@ -7,6 +7,10 @@ import { readSnapshot, type TriagemPacienteRecord } from '@/server/application/p
 import { desistenciaDoPaciente } from '@/lib/desistencias';
 import type { PatientContact, PatientContactCapable } from '@/server/persistence/mysql/identityRepository';
 import { exigirGestao, NaoAutorizadoError } from '@/server/viverMaisGestaoAuth';
+import { isMysqlConfigured, getMysqlPool } from '@/server/oci/runtime';
+import { instituicaoId } from '@/server/persistence/mysql/mappers';
+import type { RowDataPacket } from 'mysql2/promise';
+import { listarConvenios } from '@/server/persistence/mysql/convenioRepository';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -49,6 +53,22 @@ export async function GET() {
         ? contacts.listPatientContacts(organizationId)
         : Promise.resolve<Record<string, PatientContact>>({}),
     ]);
+    const [convenios, patientAgreementRows] = isMysqlConfigured()
+      ? await Promise.all([
+          listarConvenios(organizationId),
+          getMysqlPool().query<RowDataPacket[]>(
+            `SELECT p.ref_core, p.convenio_ref, p.custeado_pela_empresa,
+                    c.nome AS convenio_nome, c.empresa_paga_sessoes
+               FROM clinica_pacientes p
+               JOIN clinica_organizacoes o ON o.id = p.organizacao_id
+               LEFT JOIN clinica_convenios c ON c.instituicao_id = p.instituicao_id
+                AND c.organizacao_ref = o.ref_core AND c.ref_core = p.convenio_ref
+              WHERE p.instituicao_id = ? AND o.ref_core = ?`,
+            [instituicaoId(), organizationId]
+          ).then(([rows]) => rows),
+        ])
+      : [[], [] as RowDataPacket[]];
+    const agreementsByPatient = new Map(patientAgreementRows.map((row) => [String(row.ref_core), row]));
 
     const patientsById = new Map(patients.map((patient) => [patient.id, patient]));
     const leadsByPatient = new Map(
@@ -105,6 +125,7 @@ export async function GET() {
       const professionalId = patient?.primaryProfessionalId
         ?? capture.cadastrosPsicologos.find((psi) => psi.id === lead?.psicologoAlocadoId)?.profissionalRef;
       const desistencia = desistenciaDoPaciente(auditoria, { patientId, leadId: lead?.id });
+      const agreement = patientId ? agreementsByPatient.get(patientId) : undefined;
 
       return {
         id: patientId ?? id,
@@ -126,6 +147,13 @@ export async function GET() {
         // empresarial de quem chega pela vitrine.
         possuiConvenio: lead?.possuiConvenio,
         convenioSelecionado: lead?.convenioSelecionado,
+        convenioId: agreement?.convenio_ref ? String(agreement.convenio_ref) : undefined,
+        convenioNome: agreement?.convenio_nome ? String(agreement.convenio_nome) : undefined,
+        custeioConfigurado: agreement?.custeado_pela_empresa === null || agreement?.custeado_pela_empresa === undefined
+          ? undefined : Boolean(agreement.custeado_pela_empresa),
+        custeadoPelaEmpresa: agreement?.convenio_ref
+          ? Boolean(agreement.custeado_pela_empresa ?? agreement.empresa_paga_sessoes ?? 1)
+          : false,
         paraQuemE: lead?.paraQuemE,
         turno: lead?.turno,
         necessidadesPaciente: lead?.necessidadesPaciente,
@@ -178,7 +206,9 @@ export async function GET() {
       .map((psi) => ({ id: psi.profissionalRef!, nome: psi.nomeSocial || psi.nomeCompleto }));
 
     return NextResponse.json(
-      { success: true, data, psicologos },
+      { success: true, data, psicologos, convenios: convenios.map((item) => ({
+        id: item.id, nome: item.nome, empresaPagaSessoes: item.empresaPagaSessoes,
+      })) },
       { headers: { 'Cache-Control': 'no-store' } }
     );
   } catch (error) {

@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, ArrowDownWideNarrow, Clock3, HeartHandshake, Search, ShieldCheck, UserRoundX, UsersRound, UserX } from 'lucide-react';
 import PatientManagementDrawer from '@/components/patients/PatientManagementDrawer';
 import type { ManagedPatient, ManagedPsychologist, PatientManagementStatus } from '@/components/patients/managementTypes';
+import type { ManagedConvenio } from '@/components/patients/managementTypes';
+import { commandHeaders } from '@/lib/applicationApi';
 
 type FilterStatus = 'TODOS' | PatientManagementStatus;
 type SortKey = 'ESPERA' | 'ENTRADA' | 'NOME';
@@ -37,6 +39,7 @@ const statusClass: Record<PatientManagementStatus, string> = {
 export default function GestaoPacientesPage() {
   const [patients, setPatients] = useState<ManagedPatient[]>([]);
   const [psychologists, setPsychologists] = useState<ManagedPsychologist[]>([]);
+  const [convenios, setConvenios] = useState<ManagedConvenio[]>([]);
   const [selected, setSelected] = useState<ManagedPatient | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -59,6 +62,7 @@ export default function GestaoPacientesPage() {
       if (!response.ok) throw new Error(body.error ?? 'Falha ao carregar pacientes.');
       setPatients(Array.isArray(body.data) ? body.data : []);
       setPsychologists(Array.isArray(body.psicologos) ? body.psicologos : []);
+      setConvenios(Array.isArray(body.convenios) ? body.convenios : []);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Falha ao carregar pacientes.');
     } finally { setLoading(false); }
@@ -126,6 +130,16 @@ export default function GestaoPacientesPage() {
     if (!response.ok) throw new Error(body.error?.message ?? 'Falha ao reatribuir paciente.');
     await load();
     setSelected(null);
+  };
+
+  const changeConvenio = async (patientId: string, convenioId: string | null, custeadoPelaEmpresa: boolean | null) => {
+    const response = await fetch(`/api/application/gestao/pacientes/${encodeURIComponent(patientId)}/convenio`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json', ...commandHeaders() },
+      body: JSON.stringify({ convenioId, custeadoPelaEmpresa }),
+    });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error?.message ?? 'Falha ao atualizar convênio.');
+    await load();
   };
 
   return (
@@ -349,9 +363,11 @@ export default function GestaoPacientesPage() {
         key={selected?.id ?? 'closed'}
         patient={selectedPatient}
         psychologists={psychologists}
+        convenios={convenios}
         onClose={() => setSelected(null)}
         onReassign={reassign}
         onDropoutChange={load}
+        onConvenioChange={changeConvenio}
       />
     </div>
   );

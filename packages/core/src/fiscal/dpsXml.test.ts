@@ -63,6 +63,25 @@ describe('gerarDpsPsicologia', () => {
     expect(() => gerarDpsPsicologia({ ...base, tomador: { ...base.tomador, cpfOuCnpj: '111.111.111-11' } })).toThrow(/CPF ou CNPJ/);
   });
 
+  it('emite o tomador empresarial com CNPJ, razão social e e-mail de faturamento', () => {
+    const dps = gerarDpsPsicologia({
+      ...base,
+      tomador: {
+        cpfOuCnpj: '19.440.737/0001-53',
+        nome: 'Empresa Conveniada Ltda.',
+        email: 'faturamento@empresa.example',
+      },
+      descricaoServico: 'Atendimentos psicoterápicos - 2026-08 - 3 sessões',
+      valorCents: 22_500,
+    });
+
+    expect(dps.xml).toMatch(/<toma>[\s\S]*<CNPJ>19440737000153<\/CNPJ>/);
+    expect(dps.xml).toContain('<xNome>Empresa Conveniada Ltda.</xNome>');
+    expect(dps.xml).toContain('<email>faturamento@empresa.example</email>');
+    expect(dps.xml).toContain('<vServ>225.00</vServ>');
+    expect(dps.xml).not.toMatch(/<toma>[\s\S]*<CPF>/);
+  });
+
   it('rejeita série do emissor web para aplicativo próprio', () => {
     expect(() => gerarDpsPsicologia({ ...base, serie: 70_000 })).toThrow(/série própria/);
   });

@@ -34,6 +34,10 @@ export interface ManagedPatient {
   possuiConvenio?: string;
   /** `'Nenhum'` quando a pessoa chegou sem convênio — é o default da triagem. */
   convenioSelecionado?: string;
+  convenioId?: string;
+  convenioNome?: string;
+  custeioConfigurado?: boolean;
+  custeadoPelaEmpresa?: boolean;
   paraQuemE?: string;
   turno?: string;
   necessidadesPaciente?: readonly string[];
@@ -52,3 +56,4 @@ export interface ManagedPatient {
 }
 
 export interface ManagedPsychologist { id: string; nome: string; }
+export interface ManagedConvenio { id: string; nome: string; empresaPagaSessoes: boolean; }

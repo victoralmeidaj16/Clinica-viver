@@ -17,6 +17,8 @@ export interface AgendamentoResumo {
   realizadoEm?: string;
   linkPagamento: string;
   pagamentoStatus?: string;
+  custeadoPelaEmpresa: boolean;
+  convenioNome?: string;
   podeConfirmarRealizacao: boolean;
 }
 
@@ -149,13 +151,19 @@ export function UpcomingSessions({ agendamentos, onCancelar, onConfirmarRealizac
                       Confirmar que ocorreu
                     </button>
                   )}
-                  <a href={item.linkPagamento} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 rounded-xl border border-psi-vibrant/25 bg-white px-3 py-2 text-[11px] font-extrabold text-psi-deep hover:bg-psi-soft/50">
-                    <CreditCard className="h-3.5 w-3.5" /> Pagamento da sessão
-                  </a>
-                  <button type="button" onClick={() => void copiarPagamento(item)} className="flex items-center gap-1.5 rounded-xl border border-line bg-white px-3 py-2 text-[11px] font-bold text-muted hover:text-ink">
-                    <Copy className="h-3.5 w-3.5" /> {copiadoId === item.id ? 'Link copiado' : 'Copiar link'}
-                  </button>
-                  {item.pagamentoStatus && (
+                  {item.custeadoPelaEmpresa ? (
+                    <span className="flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-extrabold text-emerald-800">
+                      <CreditCard className="h-3.5 w-3.5" /> Custeado por {item.convenioNome ?? 'empresa'} - sem cobrança
+                    </span>
+                  ) : <>
+                    <a href={item.linkPagamento} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 rounded-xl border border-psi-vibrant/25 bg-white px-3 py-2 text-[11px] font-extrabold text-psi-deep hover:bg-psi-soft/50">
+                      <CreditCard className="h-3.5 w-3.5" /> Pagamento da sessão
+                    </a>
+                    <button type="button" onClick={() => void copiarPagamento(item)} className="flex items-center gap-1.5 rounded-xl border border-line bg-white px-3 py-2 text-[11px] font-bold text-muted hover:text-ink">
+                      <Copy className="h-3.5 w-3.5" /> {copiadoId === item.id ? 'Link copiado' : 'Copiar link'}
+                    </button>
+                  </>}
+                  {!item.custeadoPelaEmpresa && item.pagamentoStatus && (
                     <span className="self-center text-[10px] font-bold uppercase tracking-wider text-muted">
                       Pagamento: {item.pagamentoStatus === 'paid' ? 'pago' : 'pendente'}
                     </span>

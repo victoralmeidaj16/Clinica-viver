@@ -17,7 +17,7 @@ export interface AsaasPaymentInput {
   value: number; // Ex: 75.00
   dueDate: string; // YYYY-MM-DD
   description: string;
-  billingType?: 'PIX' | 'CREDIT_CARD' | 'UNDEFINED';
+  billingType?: 'PIX' | 'CREDIT_CARD' | 'BOLETO' | 'UNDEFINED';
   externalReference?: string;
 }
 
@@ -313,4 +313,14 @@ export async function getAsaasPayment(id: string): Promise<AsaasPaymentResult> {
   const response = await asaasFetch(`/payments/${encodeURIComponent(id)}`);
   if (!response.ok) throw new Error('Falha ao consultar a cobrança no Asaas.');
   return withPixQrCode(await response.json());
+}
+
+/** Recupera a linha digitável somente depois de o boleto existir no Asaas. */
+export async function getAsaasBoletoIdentificationField(id: string): Promise<string> {
+  const response = await asaasFetch(`/payments/${encodeURIComponent(id)}/identificationField`);
+  if (!response.ok) throw new Error('Falha ao consultar a linha digitável do boleto no Asaas.');
+  const body = await response.json() as Record<string, unknown>;
+  const field = String(body.identificationField ?? '').trim();
+  if (!field) throw new Error('O Asaas não retornou a linha digitável do boleto.');
+  return field;
 }

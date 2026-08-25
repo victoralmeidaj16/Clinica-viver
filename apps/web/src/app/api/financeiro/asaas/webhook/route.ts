@@ -1,6 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { reconcileAsaasPayment } from '@/server/payments/paymentLinkRepository';
+import { reconcileConvenioInvoicePayment } from '@/server/persistence/mysql/convenioRepository';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -38,7 +39,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Valor inválido.' }, { status: 400 });
     }
     const eventId = String(payload.id || `${eventType}:${paymentId}`);
-    const result = await reconcileAsaasPayment({
+    let result = await reconcileAsaasPayment({
       eventId,
       eventType,
       paymentId,
@@ -46,6 +47,12 @@ export async function POST(request: Request) {
       receivedAt: String(payment?.paymentDate || payment?.confirmedDate || new Date().toISOString()),
       billingType: String(payment?.billingType || 'UNDEFINED'),
     });
+    if (result === 'unknown') {
+      result = await reconcileConvenioInvoicePayment({
+        eventId, eventType, paymentId, amountCents,
+        receivedAt: String(payment?.paymentDate || payment?.confirmedDate || new Date().toISOString()),
+      });
+    }
     if (result === 'unknown') {
       // 200 evita reentregas infinitas de cobranças que não nasceram nesta aplicação.
       return NextResponse.json({ received: true, ignored: true });

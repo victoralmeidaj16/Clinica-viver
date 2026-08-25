@@ -58,6 +58,8 @@ interface Atendimento {
   receitaClinicaCents: number;
   nfseStatus: NfseRowStatus;
   nfseNumero?: string;
+  convenioNome?: string;
+  custeadoPelaEmpresa: boolean;
 }
 
 interface ConsolidadoPsicologo {
@@ -85,6 +87,7 @@ interface Panorama {
     inadimplencia: number;
     creditoPsicologosCents: number;
     receitaClinicaCents: number;
+    provisionadoConvenioCents: number;
   };
   atendimentos: Atendimento[];
   porPsicologo: ConsolidadoPsicologo[];
@@ -373,8 +376,8 @@ export default function FinanceiroClinicaPage() {
     return (panorama?.atendimentos ?? []).filter((item) => {
       const combina =
         !termo ||
-        [item.pacienteNome, item.psicologoNome, item.chargeId, item.sessionId].some((valor) =>
-          valor.toLocaleLowerCase('pt-BR').includes(termo)
+        [item.pacienteNome, item.psicologoNome, item.convenioNome, item.chargeId, item.sessionId].some((valor) =>
+          valor?.toLocaleLowerCase('pt-BR').includes(termo)
         );
       return combina && (status === 'TODOS' || item.status === status);
     });
@@ -490,7 +493,7 @@ export default function FinanceiroClinicaPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3 gap-5 lg:col-span-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4 gap-5 lg:col-span-2">
           <article className="bg-surface rounded-3xl border border-line shadow-card p-5">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-black uppercase tracking-wider text-muted">
@@ -502,6 +505,17 @@ export default function FinanceiroClinicaPage() {
             <p className="mt-1 text-[11px] text-muted">
               {resumo?.atendimentos ?? 0} atendimentos · {resumo?.liquidados ?? 0} liquidados
             </p>
+          </article>
+
+          <article className="rounded-3xl border border-emerald-200 bg-emerald-50/70 p-5 shadow-card">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-black uppercase tracking-wider text-emerald-800">
+                Provisionado de convênios
+              </span>
+              <Building2 className="w-4 h-4 text-emerald-700" />
+            </div>
+            <p className="mt-4 text-2xl font-black text-emerald-900">{dinheiro(resumo?.provisionadoConvenioCents ?? 0)}</p>
+            <p className="mt-1 text-[11px] text-emerald-800/75">A faturar ou aguardando baixa do boleto</p>
           </article>
 
           <article className="bg-surface rounded-3xl border border-line shadow-card p-5">
@@ -643,6 +657,7 @@ export default function FinanceiroClinicaPage() {
             <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-line">
               <tr>
                 <th className="px-6 py-4">Paciente</th>
+                <th className="px-6 py-4">Convênio</th>
                 <th className="px-6 py-4">Psicólogo</th>
                 <th className="px-6 py-4">Vencimento</th>
                 <th className="px-6 py-4">Valor</th>
@@ -667,6 +682,13 @@ export default function FinanceiroClinicaPage() {
                     <p className="font-extrabold text-ink">{item.pacienteNome}</p>
                     <p className="text-[10px] text-muted font-mono">{item.sessionId}</p>
                   </td>
+                  <td className="px-6 py-4">
+                    {item.custeadoPelaEmpresa ? (
+                      <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-extrabold text-emerald-800">
+                        {item.convenioNome ?? 'Custeado pela empresa'}
+                      </span>
+                    ) : <span className="text-muted">-</span>}
+                  </td>
                   <td className="px-6 py-4 font-semibold text-ink">{item.psicologoNome}</td>
                   <td className="px-6 py-4 text-muted">{dataBr(item.vencimentoEm)}</td>
                   <td className="px-6 py-4 font-bold text-ink">{dinheiro(item.valorLiquidoCents)}</td>
@@ -687,7 +709,9 @@ export default function FinanceiroClinicaPage() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    {acaoNfse.clickable ? (
+                    {item.custeadoPelaEmpresa ? (
+                      <span className="text-[10px] font-semibold text-muted">NFS-e na fatura PJ</span>
+                    ) : acaoNfse.clickable ? (
                       <button
                         type="button"
                         onClick={() => void abrirPreviaNfse(item.chargeId)}

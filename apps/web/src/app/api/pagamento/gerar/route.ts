@@ -8,6 +8,7 @@ import {
 import { rateLimited, validCpf } from '@/server/http/publicRequest';
 import {
   bindProviderPayment,
+  isCompanyFundedReservation,
   reservePendingCharge,
   type PaymentModality,
 } from '@/server/payments/paymentLinkRepository';
@@ -45,6 +46,13 @@ export async function POST(request: Request) {
       return NextResponse.json({
         error: 'Não encontramos um atendimento concluído e pendente de pagamento para este CPF e psicólogo. Confira os dados ou fale com a clínica.',
       }, { status: 404 });
+    }
+    if (isCompanyFundedReservation(checkout)) {
+      return NextResponse.json({
+        fundedByCompany: true,
+        companyName: checkout.companyName,
+        message: 'As sessões deste paciente são custeadas pela empresa.',
+      }, { headers: { 'Cache-Control': 'private, no-store' } });
     }
 
     let payment = checkout.providerPaymentId

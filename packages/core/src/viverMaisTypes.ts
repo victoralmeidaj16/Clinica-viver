@@ -140,16 +140,17 @@ export interface LinkCobrancaAsaas {
 
 export interface ConvenioEmpresarial {
   id: string;
-  nomeEmpresa: string; // Ex: "Canguru Soluções"
-  cnpj: string;
-  pacoteSessoes: number; // Ex: 6 sessões
-  valorPorSessao: number;
+  nome: string;
+  razaoSocial?: string;
+  cnpj?: string;
+  emailFaturamento?: string;
+  empresaPagaSessoes: boolean;
+  pacoteSessoes?: number;
+  diaVencimento?: number;
+  ativo: boolean;
   totalPacientesVinculados: number;
-  dataEmissaoNotaFiscal?: string;
-  numeroNotaFiscal?: string;
-  dataVencimentoBoleto?: string;
-  dataPagamentoBoleto?: string;
-  statusPagamento: 'AGUARDANDO_NF' | 'NF_EMITIDA' | 'BOLETO_GERADO' | 'PAGO';
+  sessoesProvisionadas: number;
+  valorProvisionadoCentavos: number;
 }
 
 export interface AuditoriaDesistencia {

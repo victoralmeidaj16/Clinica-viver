@@ -67,7 +67,7 @@ export async function convertPdfToImages(file: File): Promise<ExtractedPdfResult
 
   // Renderizar Página 1 (Frente)
   const page1 = await pdf.getPage(1);
-  const viewport1 = page1.getViewport({ scale: 2.0 }); // 2x para alta definição
+  const viewport1 = page1.getViewport({ scale: 1.5 });
 
   const canvas1 = document.createElement('canvas');
   canvas1.width = viewport1.width;
@@ -76,21 +76,21 @@ export async function convertPdfToImages(file: File): Promise<ExtractedPdfResult
 
   if (!ctx1) throw new Error('Não foi possível criar contexto 2D para renderizar PDF.');
   await page1.render({ canvasContext: ctx1, viewport: viewport1 }).promise;
-  const frontDataUrl = canvas1.toDataURL('image/png');
+  const frontDataUrl = canvas1.toDataURL('image/jpeg', 0.85);
 
   let backDataUrl: string | undefined = undefined;
 
   if (numPages >= 2) {
     // Renderizar a última Página como Verso onde o carimbo oficial será posicionado
     const lastPage = await pdf.getPage(numPages);
-    const viewport2 = lastPage.getViewport({ scale: 2.0 });
+    const viewport2 = lastPage.getViewport({ scale: 1.5 });
     const canvas2 = document.createElement('canvas');
     canvas2.width = viewport2.width;
     canvas2.height = viewport2.height;
     const ctx2 = canvas2.getContext('2d');
     if (ctx2) {
       await lastPage.render({ canvasContext: ctx2, viewport: viewport2 }).promise;
-      backDataUrl = canvas2.toDataURL('image/png');
+      backDataUrl = canvas2.toDataURL('image/jpeg', 0.85);
     }
   } else {
     // Se o PDF tiver só 1 página, usa a mesma página para posicionar o carimbo

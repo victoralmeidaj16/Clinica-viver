@@ -39,6 +39,19 @@ export interface SessionPaymentProfile {
   sessionStart: string;
   amountCents: number;
   modality: PaymentModality;
+  fundedByCompany: boolean;
+  companyName?: string;
+}
+
+export interface CompanyFundedReservation {
+  fundedByCompany: true;
+  companyName?: string;
+}
+
+export type ChargeReservation = ReservedCheckout | CompanyFundedReservation;
+
+export function isCompanyFundedReservation(value: ChargeReservation): value is CompanyFundedReservation {
+  return 'fundedByCompany' in value && value.fundedByCompany === true;
 }
 
 interface ProfileRow extends RowDataPacket {
@@ -114,6 +127,10 @@ export async function getSessionPaymentProfile(
   const [rows] = await getMysqlPool().query<RowDataPacket[]>(
     `SELECT a.token_pagamento_sessao, a.inicio, a.valor_centavos,
             p.nome AS profissional_nome, p.valor_social_centavos, p.valor_sessao_centavos,
+            conv.nome AS convenio_nome,
+            CASE WHEN pa.convenio_ref IS NULL THEN 0
+                 ELSE COALESCE(pa.custeado_pela_empresa, conv.empresa_paga_sessoes, 1) END
+              AS custeado_pela_empresa,
             (SELECT t.modalidade FROM clinica_triagens_pacientes t
               WHERE t.instituicao_id = a.instituicao_id
                 AND t.organizacao_ref = o.ref_core AND t.paciente_ref = pa.ref_core
@@ -122,6 +139,9 @@ export async function getSessionPaymentProfile(
        JOIN clinica_profissionais p ON p.id = a.profissional_id
        JOIN clinica_organizacoes o ON o.id = a.organizacao_id
        JOIN clinica_pacientes pa ON pa.id = a.paciente_id
+       LEFT JOIN clinica_convenios conv
+         ON conv.instituicao_id = pa.instituicao_id AND conv.organizacao_ref = o.ref_core
+        AND conv.ref_core = pa.convenio_ref
       WHERE a.instituicao_id = ? AND a.token_pagamento_sessao = ?
         AND a.status <> 'cancelado'
       LIMIT 1`,
@@ -137,6 +157,8 @@ export async function getSessionPaymentProfile(
     sessionStart: new Date(row.inicio).toISOString(),
     amountCents: Number(row.valor_centavos ?? fallback),
     modality,
+    fundedByCompany: Boolean(row.custeado_pela_empresa),
+    companyName: row.convenio_nome ? String(row.convenio_nome) : undefined,
   };
 }
 
@@ -149,7 +171,7 @@ export async function getSessionPaymentProfile(
 export async function reserveAppointmentCharge(input: {
   token: string;
   cpf: string;
-}): Promise<ReservedCheckout | null> {
+}): Promise<ChargeReservation | null> {
   const connection = await getMysqlPool().getConnection();
   try {
     await connection.beginTransaction();
@@ -158,6 +180,10 @@ export async function reserveAppointmentCharge(input: {
               o.ref_core AS organizacao_ref, p.ref_core AS profissional_ref,
               p.nome AS profissional_nome, p.valor_social_centavos, p.valor_sessao_centavos,
               pa.ref_core AS paciente_ref, COALESCE(pa.nome_social, pa.nome) AS paciente_nome,
+              conv.nome AS convenio_nome,
+              CASE WHEN pa.convenio_ref IS NULL THEN 0
+                   ELSE COALESCE(pa.custeado_pela_empresa, conv.empresa_paga_sessoes, 1) END
+                AS custeado_pela_empresa,
               COALESCE(pa.documento, (SELECT t.cpf FROM clinica_triagens_pacientes t
                 WHERE t.instituicao_id = a.instituicao_id AND t.organizacao_ref = o.ref_core
                   AND t.paciente_ref = pa.ref_core AND t.cpf IS NOT NULL
@@ -178,6 +204,9 @@ export async function reserveAppointmentCharge(input: {
          JOIN clinica_profissionais p ON p.id = a.profissional_id
          JOIN clinica_organizacoes o ON o.id = a.organizacao_id
          JOIN clinica_pacientes pa ON pa.id = a.paciente_id
+         LEFT JOIN clinica_convenios conv
+           ON conv.instituicao_id = pa.instituicao_id AND conv.organizacao_ref = o.ref_core
+          AND conv.ref_core = pa.convenio_ref
         WHERE a.instituicao_id = ? AND a.token_pagamento_sessao = ?
           AND a.status <> 'cancelado'
           AND (
@@ -196,6 +225,13 @@ export async function reserveAppointmentCharge(input: {
     if (!appointment) {
       await connection.rollback();
       return null;
+    }
+    if (Boolean(appointment.custeado_pela_empresa)) {
+      await connection.commit();
+      return {
+        fundedByCompany: true,
+        companyName: appointment.convenio_nome ? String(appointment.convenio_nome) : undefined,
+      };
     }
 
     const modality = modalidadeDaTriagem(appointment.modalidade_triagem);
@@ -344,7 +380,7 @@ export async function reservePendingCharge(input: {
   token: string;
   modality: PaymentModality;
   cpf: string;
-}): Promise<ReservedCheckout | null> {
+}): Promise<ChargeReservation | null> {
   const connection = await getMysqlPool().getConnection();
   try {
     await connection.beginTransaction();
@@ -354,7 +390,11 @@ export async function reservePendingCharge(input: {
     const [patientRows] = await connection.query<RowDataPacket[]>(
       `SELECT o.ref_core AS organizacao_ref, p.ref_core AS profissional_ref,
               p.nome AS profissional_nome, ${amountColumn} AS valor_centavos,
-              pa.ref_core AS paciente_ref, t.nome_paciente, t.cpf, t.telefone, t.email
+              pa.ref_core AS paciente_ref, t.nome_paciente, t.cpf, t.telefone, t.email,
+              conv.nome AS convenio_nome,
+              CASE WHEN pa.convenio_ref IS NULL THEN 0
+                   ELSE COALESCE(pa.custeado_pela_empresa, conv.empresa_paga_sessoes, 1) END
+                AS custeado_pela_empresa
          FROM clinica_profissionais p
          JOIN clinica_organizacoes o ON o.id = p.organizacao_id
          JOIN clinica_triagens_pacientes t
@@ -362,6 +402,9 @@ export async function reservePendingCharge(input: {
           AND t.paciente_ref IS NOT NULL
          JOIN clinica_pacientes pa
            ON pa.instituicao_id = t.instituicao_id AND pa.ref_core = t.paciente_ref
+         LEFT JOIN clinica_convenios conv
+           ON conv.instituicao_id = pa.instituicao_id AND conv.organizacao_ref = o.ref_core
+          AND conv.ref_core = pa.convenio_ref
         WHERE p.instituicao_id = ? AND p.token_link_pagamento = ? AND p.ativo = 1
           AND REPLACE(REPLACE(REPLACE(t.cpf, '.', ''), '-', ''), ' ', '') = ?
           AND (pa.profissional_id = p.id OR EXISTS (
@@ -376,6 +419,13 @@ export async function reservePendingCharge(input: {
     if (!patient) {
       await connection.rollback();
       return null;
+    }
+    if (Boolean(patient.custeado_pela_empresa)) {
+      await connection.commit();
+      return {
+        fundedByCompany: true,
+        companyName: patient.convenio_nome ? String(patient.convenio_nome) : undefined,
+      };
     }
 
     const [chargeRows] = await connection.query<RowDataPacket[]>(

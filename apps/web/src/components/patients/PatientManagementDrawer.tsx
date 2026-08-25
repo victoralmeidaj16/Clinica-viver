@@ -1,29 +1,35 @@
 'use client';
 
 import { useState } from 'react';
-import { CalendarDays, CircleDollarSign, Clock3, UserRoundCog, X } from 'lucide-react';
+import { Building2, CalendarDays, CircleDollarSign, Clock3, UserRoundCog, X } from 'lucide-react';
 import { rotuloTurnoPreferencia } from '@/lib/turnos';
 import PatientDropoutPanel from './PatientDropoutPanel';
-import type { ManagedPatient, ManagedPsychologist } from './managementTypes';
+import type { ManagedConvenio, ManagedPatient, ManagedPsychologist } from './managementTypes';
 
 interface Props {
   patient: ManagedPatient | null;
   psychologists: readonly ManagedPsychologist[];
+  convenios: readonly ManagedConvenio[];
   onClose: () => void;
   onReassign: (patientId: string, professionalId: string, reason: string) => Promise<void>;
   /** Recarrega a fila depois de registrar a saída ou o reengajamento. */
   onDropoutChange: () => Promise<void>;
+  onConvenioChange: (patientId: string, convenioId: string | null, custeadoPelaEmpresa: boolean | null) => Promise<void>;
 }
 
 const money = (cents: number) => new Intl.NumberFormat('pt-BR', {
   style: 'currency', currency: 'BRL',
 }).format(cents / 100);
 
-export default function PatientManagementDrawer({ patient, psychologists, onClose, onReassign, onDropoutChange }: Props) {
+export default function PatientManagementDrawer({ patient, psychologists, convenios, onClose, onReassign, onDropoutChange, onConvenioChange }: Props) {
   const [professionalId, setProfessionalId] = useState(patient?.psicologoId ?? '');
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [convenioId, setConvenioId] = useState(patient?.convenioId ?? '');
+  const [custeio, setCusteio] = useState<'herdar' | 'sim' | 'nao'>(patient?.custeioConfigurado === undefined ? 'herdar' : patient.custeioConfigurado ? 'sim' : 'nao');
+  const [savingConvenio, setSavingConvenio] = useState(false);
+  const selectedConvenio = convenios.find((item) => item.id === convenioId);
 
   if (!patient) return null;
 
@@ -34,6 +40,15 @@ export default function PatientManagementDrawer({ patient, psychologists, onClos
     try { await onReassign(patient.patientId, professionalId, reason.trim()); }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Falha ao reatribuir paciente.'); }
     finally { setSaving(false); }
+  };
+
+  const saveConvenio = async () => {
+    if (!patient.patientId) return;
+    setSavingConvenio(true); setError('');
+    try {
+      await onConvenioChange(patient.patientId, convenioId || null, convenioId ? (custeio === 'herdar' ? null : custeio === 'sim') : null);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Falha ao atualizar o convênio.'); }
+    finally { setSavingConvenio(false); }
   };
 
   return (
@@ -62,7 +77,35 @@ export default function PatientManagementDrawer({ patient, psychologists, onClos
             <Info label="CPF" value={patient.cpf} />
             <Info label="Idade" value={patient.idade} />
             <Info label="CEP / número" value={[patient.cep, patient.numeroResidencia].filter(Boolean).join(' · ')} />
-            <Info label="Convênio" value={patient.convenioSelecionado} />
+            <Info label="Convênio informado" value={patient.convenioSelecionado} />
+          </section>
+
+          <section className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 sm:p-5">
+            <div className="mb-4 flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-emerald-700" />
+              <h3 className="text-sm font-black text-ink">Vínculo com convênio</h3>
+            </div>
+            {!patient.patientId ? <p className="text-xs text-muted">O vínculo fica disponível depois que a triagem vira paciente.</p> : (
+              <div className="space-y-3">
+                <select value={convenioId} onChange={(event) => { setConvenioId(event.target.value); setCusteio('herdar'); }} className="w-full rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-xs font-medium text-ink">
+                  <option value="">Sem convênio</option>
+                  {convenios.map((item) => <option key={item.id} value={item.id}>{item.nome}</option>)}
+                </select>
+                {convenioId && (
+                  <label className="block text-xs font-bold text-ink">
+                    Quem paga as sessões
+                    <select value={custeio} onChange={(event) => setCusteio(event.target.value as typeof custeio)} className="mt-1 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-xs font-medium text-ink">
+                      <option value="herdar">Herdar: {selectedConvenio?.empresaPagaSessoes ? 'empresa paga' : 'paciente paga'}</option>
+                      <option value="sim">Empresa paga (exceção)</option>
+                      <option value="nao">Paciente paga (exceção)</option>
+                    </select>
+                  </label>
+                )}
+                <button type="button" onClick={() => void saveConvenio()} disabled={savingConvenio} className="w-full rounded-xl bg-emerald-700 px-4 py-3 text-xs font-black text-white disabled:opacity-50">
+                  {savingConvenio ? 'Salvando…' : 'Salvar vínculo'}
+                </button>
+              </div>
+            )}
           </section>
 
           {/* O que a pessoa pediu na triagem, do jeito que pediu. */}

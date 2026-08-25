@@ -90,6 +90,9 @@ export default function ViverMaisLandingPage() {
   const [enderecoInfo, setEnderecoInfo] = useState({ logradouro: '', bairro: '', cidade: '', uf: '' });
   const [loadingCep, setLoadingCep] = useState(false);
   const [psicologosCredenciados, setPsicologosCredenciados] = useState<PsicologoVitrineItem[]>([]);
+  const [conveniosDisponiveis, setConveniosDisponiveis] = useState<string[]>([]);
+  const [conveniosLoading, setConveniosLoading] = useState(true);
+  const [conveniosError, setConveniosError] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -110,6 +113,17 @@ export default function ViverMaisLandingPage() {
         if (body.success && Array.isArray(body.data)) setPsicologosCredenciados(body.data);
       })
       .catch(() => undefined);
+    fetch('/api/convenios/publicos', { cache: 'no-store' })
+      .then((response) => response.json())
+      .then((body: { convenios?: Array<{ nome?: string }> }) => {
+        const names = Array.isArray(body.convenios)
+          ? body.convenios.map((item) => String(item.nome ?? '').trim()).filter(Boolean)
+          : [];
+        setConveniosDisponiveis(names);
+        setConveniosError(names.length === 0);
+      })
+      .catch(() => setConveniosError(true))
+      .finally(() => setConveniosLoading(false));
   }, []);
 
   // Máscara CPF: 000.000.000-00
@@ -166,43 +180,6 @@ export default function ViverMaisLandingPage() {
       }
     }
   };
-
-  // Lista de convênios das imagens do usuário
-  const conveniosDisponiveis = [
-    'Alvet Hospital Veterinário',
-    'AMPE Tubarão',
-    'Bebidas Nuernberg',
-    'Canguru Embalagens',
-    'Cerealista Vista Alegre',
-    'CFC Placar',
-    'Colégio Éthicos/ Escola Catavento',
-    'Colorminas',
-    'Concordia Logistica Portuária',
-    'Copaza Descartáveis',
-    'Cristalcopo (empresa paga as sessões)',
-    'Damyller',
-    'Engeplus',
-    'ESUCRI',
-    'EUpsico',
-    'Fundicar',
-    'Grupo Ramage',
-    'Hospital Florianópolis',
-    'Imbralit',
-    'Jean Querino sobrancelha e Beleza',
-    'KFG',
-    'Loja Tchê',
-    'Maré Alta',
-    'MJP/MMC Metalúrgica',
-    'Pagé',
-    'Sempre Real',
-    'STAR PROTECAO VEICULAR',
-    'UNICER',
-    'UNIFEBE',
-    'UNISUL (Curso de psicologia)',
-    'UNINASSAU (Curso de psicologia)',
-    'Viver Mais Psicologia - Alunos',
-    'Weg'
-  ];
 
   // Tabela de preços e serviços da vitrine
   const precos: Record<ServicoKey, ServicoVitrine> = {
@@ -904,17 +881,29 @@ export default function ViverMaisLandingPage() {
               {form.possuiConvenio === 'SIM' && (
                 <div className="animate-in fade-in duration-200">
                   <label className="font-bold text-slate-700 block mb-1">Selecione seu convênio <span className="text-rose-500">*</span></label>
-                  <select
-                    required
-                    value={form.convenioSelecionado}
-                    onChange={(e) => setForm({ ...form, convenioSelecionado: e.target.value })}
-                    className="w-full border border-slate-300 bg-white rounded-xl p-3 focus:outline-none focus:border-purple-600"
-                  >
-                    <option value="">Selecione seu convênio</option>
-                    {conveniosDisponiveis.map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
+                  {conveniosError ? (
+                    <>
+                      <input
+                        required
+                        value={form.convenioSelecionado}
+                        onChange={(e) => setForm({ ...form, convenioSelecionado: e.target.value })}
+                        placeholder="Digite o nome da empresa"
+                        className="w-full border border-slate-300 bg-white rounded-xl p-3 focus:outline-none focus:border-purple-600"
+                      />
+                      <p className="mt-1 text-xs text-amber-700">A lista não carregou, mas você pode informar a empresa normalmente.</p>
+                    </>
+                  ) : (
+                    <select
+                      required={!conveniosLoading}
+                      disabled={conveniosLoading}
+                      value={form.convenioSelecionado}
+                      onChange={(e) => setForm({ ...form, convenioSelecionado: e.target.value })}
+                      className="w-full border border-slate-300 bg-white rounded-xl p-3 focus:outline-none focus:border-purple-600 disabled:opacity-60"
+                    >
+                      <option value="">{conveniosLoading ? 'Carregando convênios…' : 'Selecione seu convênio'}</option>
+                      {conveniosDisponiveis.map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  )}
                 </div>
               )}
 

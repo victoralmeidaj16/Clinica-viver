@@ -17,6 +17,9 @@ import { PRESTADOR_NFSE, SERVICO_NFSE } from '@/server/fiscal/prestador';
 import { ambienteNfse, type AmbienteNfse } from '@/server/fiscal/sefinNacional';
 import { NfseRepository, type StatusEmissaoNfse } from '@/server/fiscal/nfseRepository';
 import { isMysqlConfigured } from '@/server/oci/runtime';
+import { getMysqlPool } from '@/server/oci/runtime';
+import { instituicaoId } from '@/server/persistence/mysql/mappers';
+import type { RowDataPacket } from 'mysql2/promise';
 import type { PatientContactCapable } from '@/server/persistence/mysql/identityRepository';
 import { ApplicationError } from './http';
 import { descricaoFiscalDaSessao } from '@/lib/sessionReference';
@@ -51,6 +54,8 @@ export interface AtendimentoFinanceiroClinica {
   receitaClinicaCents: number;
   nfseStatus: StatusEmissaoNfse | 'none';
   nfseNumero?: string;
+  convenioNome?: string;
+  custeadoPelaEmpresa: boolean;
 }
 
 export interface ConsolidadoPsicologo {
@@ -75,6 +80,7 @@ export interface ResumoFinanceiroClinica {
   inadimplencia: number;
   creditoPsicologosCents: number;
   receitaClinicaCents: number;
+  provisionadoConvenioCents: number;
 }
 
 export interface PanoramaFinanceiroClinica {
@@ -116,6 +122,24 @@ async function resolverNomes(organizationId: string) {
   };
 }
 
+async function metadadosConvenios(organizationId: string, chargeIds: readonly string[]) {
+  if (!isMysqlConfigured() || chargeIds.length === 0) return new Map<string, { nome?: string; custeado: boolean }>();
+  const [rows] = await getMysqlPool().query<RowDataPacket[]>(
+    `SELECT fc.ref_core, conv.nome,
+            CASE WHEN p.convenio_ref IS NULL THEN 0
+                 ELSE COALESCE(p.custeado_pela_empresa, conv.empresa_paga_sessoes, 1) END AS custeado
+       FROM financeiro_cobrancas fc
+       JOIN clinica_pacientes p ON p.instituicao_id = fc.instituicao_id AND p.ref_core = fc.paciente_ref
+       LEFT JOIN clinica_convenios conv ON conv.instituicao_id = fc.instituicao_id
+        AND conv.organizacao_ref = fc.organizacao_ref AND conv.ref_core = p.convenio_ref
+      WHERE fc.instituicao_id = ? AND fc.organizacao_ref = ? AND fc.ref_core IN (?)`,
+    [instituicaoId(), organizationId, [...chargeIds]]
+  );
+  return new Map(rows.map((row) => [String(row.ref_core), {
+    nome: row.nome ? String(row.nome) : undefined, custeado: Boolean(row.custeado),
+  }]));
+}
+
 export async function getClinicFinanceOverview(
   context: RequestContext,
   filter: FinancialFilter = {}
@@ -136,13 +160,12 @@ export async function getClinicFinanceOverview(
     new Date().toISOString()
   );
 
-  const nomes = await resolverNomes(organizationId);
-  const emissoes = isMysqlConfigured()
-    ? await new NfseRepository().porCobrancas(
-        organizationId,
-        bundle.receivables.map((item) => item.chargeId)
-      )
-    : new Map();
+  const chargeIds = bundle.receivables.map((item) => item.chargeId);
+  const [nomes, emissoes, convenios] = await Promise.all([
+    resolverNomes(organizationId),
+    isMysqlConfigured() ? new NfseRepository().porCobrancas(organizationId, chargeIds) : Promise.resolve(new Map()),
+    metadadosConvenios(organizationId, chargeIds),
+  ]);
 
   const atendimentos = bundle.receivables.map((receivable): AtendimentoFinanceiroClinica => {
     const recebidoCents = recebidoLiquido(receivable);
@@ -166,6 +189,8 @@ export async function getClinicFinanceOverview(
       receitaClinicaCents,
       nfseStatus: emissoes.get(receivable.chargeId)?.status ?? 'none',
       nfseNumero: emissoes.get(receivable.chargeId)?.numeroNfse,
+      convenioNome: convenios.get(receivable.chargeId)?.nome,
+      custeadoPelaEmpresa: convenios.get(receivable.chargeId)?.custeado ?? false,
     };
   });
 
@@ -220,6 +245,7 @@ export async function getClinicFinanceOverview(
       // extrato em alguns centavos — o suficiente para a conferência não bater.
       creditoPsicologosCents: creditoPsicologoCents,
       receitaClinicaCents,
+      provisionadoConvenioCents: somar((item) => item.custeadoPelaEmpresa ? item.emAbertoCents : 0),
     },
     atendimentos,
     porPsicologo,
@@ -473,6 +499,7 @@ export async function exportClinicFinanceCsv(
     linha(['Recebido', reais(resumo.recebidoCents)]),
     linha(['Crédito dos psicólogos (70%)', reais(resumo.creditoPsicologosCents)]),
     linha(['Receita da clínica (30%)', reais(resumo.receitaClinicaCents)]),
+    linha(['Provisionado de convênios', reais(resumo.provisionadoConvenioCents)]),
     linha(['Em aberto', reais(resumo.emAbertoCents)]),
     linha(['Vencido', reais(resumo.vencidoCents)]),
     linha(['Inadimplência', `${(resumo.inadimplencia * 100).toFixed(2).replace('.', ',')}%`]),
@@ -482,6 +509,7 @@ export async function exportClinicFinanceCsv(
       'Cobrança',
       'Sessão',
       'Paciente',
+      'Convênio',
       'Psicólogo',
       'Vencimento',
       'Status',
@@ -496,6 +524,7 @@ export async function exportClinicFinanceCsv(
         item.chargeId,
         item.sessionId,
         item.pacienteNome,
+        item.convenioNome ?? '',
         item.psicologoNome,
         dataBr(item.vencimentoEm),
         rotuloStatus[item.status],

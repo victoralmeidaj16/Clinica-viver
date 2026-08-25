@@ -155,19 +155,47 @@ export default function AnexarCertificadoPage() {
         // Exibir automaticamente a última página do PDF (Verso) para posicionamento imediato do carimbo
         setActiveTab('verso');
       } else if (imageFiles.length >= 1) {
-        const readDataUrl = (f: File): Promise<string> => {
+        const readOptimizedDataUrl = (file: File): Promise<string> => {
           return new Promise((resolve, reject) => {
-            const r = new FileReader();
-            r.onload = () => resolve(String(r.result));
-            r.onerror = reject;
-            r.readAsDataURL(f);
+            const reader = new FileReader();
+            reader.onload = () => {
+              const img = new Image();
+              img.onload = () => {
+                const MAX_DIM = 1600;
+                let width = img.naturalWidth || img.width;
+                let height = img.naturalHeight || img.height;
+                if (width > MAX_DIM || height > MAX_DIM) {
+                  if (width > height) {
+                    height = Math.round((height * MAX_DIM) / width);
+                    width = MAX_DIM;
+                  } else {
+                    width = Math.round((width * MAX_DIM) / height);
+                    height = MAX_DIM;
+                  }
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                  ctx.drawImage(img, 0, 0, width, height);
+                  resolve(canvas.toDataURL('image/jpeg', 0.85));
+                } else {
+                  resolve(String(reader.result));
+                }
+              };
+              img.onerror = () => resolve(String(reader.result));
+              img.src = String(reader.result);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
           });
         };
 
         if (imageFiles.length === 2) {
           // 2 Imagens: 1ª Frente, 2ª Verso
           const [img1, img2] = imageFiles;
-          const [data1, data2] = await Promise.all([readDataUrl(img1), readDataUrl(img2)]);
+          const [data1, data2] = await Promise.all([readOptimizedDataUrl(img1), readOptimizedDataUrl(img2)]);
           setFrontImageUrl(data1);
           setBackImageUrl(data2);
           setFrontFileName(`1ª: ${img1.name} (Frente)`);
@@ -186,7 +214,7 @@ export default function AnexarCertificadoPage() {
         } else {
           // 1 Imagem
           const img1 = imageFiles[0];
-          const data1 = await readDataUrl(img1);
+          const data1 = await readOptimizedDataUrl(img1);
           setFrontImageUrl(data1);
           setBackImageUrl(data1);
           setFrontFileName(img1.name);

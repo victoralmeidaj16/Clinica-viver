@@ -8,6 +8,7 @@ import {
 import { rateLimited, validCpf } from '@/server/http/publicRequest';
 import {
   bindProviderPayment,
+  isCompanyFundedReservation,
   reserveAppointmentCharge,
 } from '@/server/payments/paymentLinkRepository';
 
@@ -44,6 +45,13 @@ export async function POST(request: Request) {
         { error: 'O CPF não corresponde ao paciente desta sessão. Confira os dados.' },
         { status: 404 }
       );
+    }
+    if (isCompanyFundedReservation(checkout)) {
+      return NextResponse.json({
+        fundedByCompany: true,
+        companyName: checkout.companyName,
+        message: 'Esta sessão é custeada pela sua empresa - não há nada a pagar.',
+      }, { headers: { 'Cache-Control': 'private, no-store' } });
     }
 
     let payment = checkout.providerPaymentId
@@ -90,4 +98,3 @@ export async function POST(request: Request) {
     );
   }
 }
-

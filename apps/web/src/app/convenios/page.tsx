@@ -1,359 +1,99 @@
 'use client';
 
-import React, { useState } from 'react';
-import {
-  Briefcase,
-  Building2,
-  FileText,
-  Calendar,
-  DollarSign,
-  Plus,
-  CheckCircle2,
-  Clock,
-  ExternalLink,
-} from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Building2, CircleDollarSign, Loader2, Plus, ShieldCheck, UsersRound } from 'lucide-react';
+import { applicationRequest, commandHeaders } from '@/lib/applicationApi';
+import { ConvenioList } from '@/components/convenios/ConvenioList';
+import { ConvenioDetailDrawer } from '@/components/convenios/ConvenioDetailDrawer';
+import { ConvenioFormModal } from '@/components/convenios/ConvenioFormModal';
+import type { ConvenioDetailView, ConvenioPayload, ConvenioView } from '@/components/convenios/types';
+
+interface Overview {
+  convenios: ConvenioView[];
+  resumo: { total: number; ativos: number; custeados: number; pacientes: number; provisionadoCents: number };
+}
+
+const money = (cents: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
 
 export default function ConveniosPage() {
-  const [modalNovoProjeto, setModalNovoProjeto] = useState(false);
-  const [formNovoProjeto, setFormNovoProjeto] = useState({
-    empresa: '',
-    cnpj: '',
-    pacoteSessoes: 4,
-    valorPorSessao: 130,
-  });
+  const [overview, setOverview] = useState<Overview>();
+  const [selectedId, setSelectedId] = useState<string>();
+  const [detail, setDetail] = useState<ConvenioDetailView>();
+  const [search, setSearch] = useState('');
+  const [fundedOnly, setFundedOnly] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<ConvenioView>();
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [error, setError] = useState('');
 
-  const [projetos, setProjetos] = useState([
-    {
-      id: 'PROJ-ALVET-2026',
-      empresa: 'Alvet Hospital Veterinário',
-      cnpj: '12.345.678/0001-90',
-      pacoteSessoes: 6,
-      pacientesAtendidos: 8,
-      totalSessoesEfetuadas: 48,
-      valorPorSessao: 130.00,
-      faturamentoTotal: 6240.00,
-      dataEmissaoNF: '01/08/2026',
-      numeroNF: 'NF-e 004812',
-      vencimentoBoleto: '15/08/2026',
-      status: 'NF_EMITIDA',
-    },
-    {
-      id: 'PROJ-TECH-2026',
-      empresa: 'TechInovação Soluções em TI',
-      cnpj: '98.765.432/0001-11',
-      pacoteSessoes: 4,
-      pacientesAtendidos: 5,
-      totalSessoesEfetuadas: 20,
-      valorPorSessao: 150.00,
-      faturamentoTotal: 3000.00,
-      dataEmissaoNF: '25/07/2026',
-      numeroNF: 'NF-e 004750',
-      vencimentoBoleto: '05/08/2026',
-      status: 'PAGO',
-    },
-  ]);
+  const load = useCallback(async () => {
+    try { setOverview(await applicationRequest<Overview>('/convenios')); setError(''); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Não foi possível carregar os convênios.'); }
+  }, []);
 
-  const handleExportarFaturaConvenioPDF = (projeto: typeof projetos[0]) => {
-    const htmlFatura = `
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <title>Fatura Corporativa PJ — ${projeto.empresa}</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap');
-    body { font-family: 'Inter', sans-serif; padding: 40px; background: #fff; color: #1e293b; }
-    .header { border-bottom: 3px solid #4338ca; padding-bottom: 20px; margin-bottom: 30px; flex-direction: row; justify-content: space-between; display: flex; }
-    .title { font-size: 22px; font-weight: 900; color: #4338ca; }
-    .meta { font-size: 11px; text-align: right; color: #64748b; }
-    .box { background: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 16px; margin-bottom: 24px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
-    th { background: #4338ca; color: white; padding: 10px; text-align: left; font-size: 10px; text-transform: uppercase; }
-    td { padding: 12px 10px; border-bottom: 1px solid #e2e8f0; }
-    .total-row { font-size: 16px; font-weight: 900; color: #059669; text-align: right; margin-top: 20px; }
-    .footer { margin-top: 50px; font-size: 10px; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 15px; }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <div>
-      <div class="title">Viver Mais Psicologia</div>
-      <div style="font-size: 12px; color: #64748b;">Relatório Consolidado de Atendimentos Corporativos (PJ)</div>
-    </div>
-    <div class="meta">
-      <div><strong>Data de Emissão:</strong> ${projeto.dataEmissaoNF}</div>
-      <div><strong>Nota Fiscal:</strong> ${projeto.numeroNF}</div>
-    </div>
-  </div>
+  const loadDetail = useCallback(async (id: string, period?: { inicio: string; fim: string }) => {
+    setLoadingDetail(true);
+    try {
+      const query = period ? `?inicio=${period.inicio}&fim=${period.fim}` : '';
+      setDetail(await applicationRequest<ConvenioDetailView>(`/convenios/${encodeURIComponent(id)}${query}`));
+      await load();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Não foi possível carregar o convênio.'); }
+    finally { setLoadingDetail(false); }
+  }, [load]);
 
-  <div class="box">
-    <div style="font-size: 14px; font-weight: 800;">Dados da Empresa Parceira</div>
-    <div style="font-size: 12px; color: #475569; margin-top: 4px;"><strong>Razão Social:</strong> ${projeto.empresa}</div>
-    <div style="font-size: 12px; color: #475569;"><strong>CNPJ:</strong> ${projeto.cnpj}</div>
-  </div>
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
 
-  <div style="font-size: 14px; font-weight: 800; margin-bottom: 8px;">Detalhamento das Sessões Beneficiárias</div>
-  <table>
-    <thead>
-      <tr>
-        <th>Descrição do Serviço</th>
-        <th>Pacote por Colaborador</th>
-        <th>Sessões Efetuadas</th>
-        <th>Valor Unitário</th>
-        <th style="text-align: right;">Total Faturado</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td><strong>Psicoterapia Individual para Colaboradores</strong></td>
-        <td>${projeto.pacoteSessoes} Sessões/Mês</td>
-        <td>${projeto.totalSessoesEfetuadas} sessões (${projeto.pacientesAtendidos} colaboradores)</td>
-        <td>R$ ${projeto.valorPorSessao.toFixed(2)}</td>
-        <td style="text-align: right; font-weight: 800;">R$ ${projeto.faturamentoTotal.toFixed(2)}</td>
-      </tr>
-    </tbody>
-  </table>
+  const visible = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase('pt-BR');
+    return (overview?.convenios ?? []).filter((item) =>
+      (!query || [item.nome, item.razaoSocial, item.cnpj].some((value) => value?.toLocaleLowerCase('pt-BR').includes(query)))
+      && (!fundedOnly || item.empresaPagaSessoes || item.pacientesCusteados > 0)
+    );
+  }, [fundedOnly, overview?.convenios, search]);
 
-  <div class="total-row">Valor Total Consolidado a Pagar: R$ ${projeto.faturamentoTotal.toFixed(2)}</div>
-
-  <div class="footer">
-    Documento emitido para fins de faturamento e comprovação fiscal — Viver Mais Psicologia (CNPJ 19.440.737/0001-53)
-  </div>
-
-  <script>window.onload = function() { setTimeout(function() { window.print(); }, 400); };</script>
-</body>
-</html>
-    `;
-    const win = window.open('', '_blank');
-    if (win) {
-      win.document.write(htmlFatura);
-      win.document.close();
-    }
-  };
-
-  const handleCadastrarNovoProjeto = (e: React.FormEvent) => {
-    e.preventDefault();
-    const novo = {
-      id: `PROJ-${Date.now()}`,
-      empresa: formNovoProjeto.empresa,
-      cnpj: formNovoProjeto.cnpj,
-      pacoteSessoes: formNovoProjeto.pacoteSessoes,
-      pacientesAtendidos: 0,
-      totalSessoesEfetuadas: 0,
-      valorPorSessao: formNovoProjeto.valorPorSessao,
-      faturamentoTotal: 0,
-      dataEmissaoNF: 'Hoje',
-      numeroNF: `NF-e 00${Math.floor(1000 + Math.random() * 9000)}`,
-      vencimentoBoleto: 'A definir',
-      status: 'NF_EMITIDA',
-    };
-    setProjetos([novo, ...projetos]);
-    setModalNovoProjeto(false);
-    setFormNovoProjeto({ empresa: '', cnpj: '', pacoteSessoes: 4, valorPorSessao: 130 });
-    alert(`Projeto corporativo para ${novo.empresa} cadastrado com sucesso!`);
+  const select = (id: string) => { setSelectedId(id); setDetail(undefined); void loadDetail(id); };
+  const close = () => { setSelectedId(undefined); setDetail(undefined); };
+  const save = async (payload: ConvenioPayload) => {
+    const path = editing ? `/convenios/${encodeURIComponent(editing.id)}` : '/convenios';
+    await applicationRequest(path, { method: editing ? 'PATCH' : 'POST', headers: commandHeaders(), body: JSON.stringify(payload) });
+    await load();
+    if (editing) await loadDetail(editing.id);
   };
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto pb-12">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <span className="chip-accent text-[11px] mb-1">Restrito à Giuliana & Financeiro</span>
-          <h1 className="text-2xl font-black text-ink flex items-center gap-2">
-            <Briefcase className="w-6 h-6 text-psi-vibrant" />
-            Convênios Empresariais & Projetos PJ
-          </h1>
-          <p className="text-xs text-muted">
-            Gestão de faturamento corporativo consolidado, emissão de Notas Fiscais e controle de boletos PJ.
-          </p>
+    <div className="mx-auto max-w-[1450px] space-y-5 pb-12">
+      <header className="relative overflow-hidden rounded-[30px] bg-psi-darkest p-6 text-white shadow-contrast sm:p-8">
+        <div className="absolute -right-20 -top-28 h-80 w-80 rounded-full border-[54px] border-psi-vibrant/10" />
+        <div className="absolute bottom-0 left-0 h-1 w-2/3 bg-gradient-to-r from-psi-vibrant via-emerald-400 to-transparent" />
+        <div className="relative flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
+          <div><p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[.24em] text-psi-vibrant"><ShieldCheck className="h-4 w-4" /> Faturamento empresarial rastreável</p><h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">Convênios & empresas</h1><p className="mt-2 max-w-2xl text-sm leading-relaxed text-psi-soft/75">Vínculo de pacientes, provisão por atendimento, boleto consolidado e NFS-e PJ no mesmo livro-caixa.</p></div>
+          <button type="button" onClick={() => { setEditing(undefined); setFormOpen(true); }} className="btn-accent shrink-0 px-5 py-3 text-xs"><Plus className="h-4 w-4" /> Novo convênio</button>
         </div>
+      </header>
 
-        <button
-          type="button"
-          onClick={() => setModalNovoProjeto(true)}
-          className="bg-psi-vibrant hover:bg-psi-vibrant/90 text-white font-extrabold text-xs px-5 py-3 rounded-2xl shadow-lg shadow-psi-vibrant/30 transition-all flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          Novo Projeto Corporativo
-        </button>
-      </div>
-
-      {/* Modal de Novo Projeto PJ */}
-      {modalNovoProjeto && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-surface rounded-3xl p-6 border border-line shadow-2xl max-w-md w-full space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-black text-ink">Novo Projeto Corporativo PJ</h2>
-              <button
-                type="button"
-                onClick={() => setModalNovoProjeto(false)}
-                className="text-muted hover:text-ink text-xs font-bold"
-              >
-                Fechar
-              </button>
-            </div>
-
-            <form onSubmit={handleCadastrarNovoProjeto} className="space-y-4 text-xs">
-              <div>
-                <label className="font-bold text-ink block mb-1">Razão Social da Empresa</label>
-                <input
-                  type="text"
-                  required
-                  value={formNovoProjeto.empresa}
-                  onChange={(e) => setFormNovoProjeto({ ...formNovoProjeto, empresa: e.target.value })}
-                  placeholder="Ex: Weg Equipamentos Elétricos"
-                  className="w-full bg-slate-50 border border-line rounded-xl p-2.5 text-ink focus:outline-none focus:border-psi-vibrant"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-ink block mb-1">CNPJ</label>
-                <input
-                  type="text"
-                  required
-                  value={formNovoProjeto.cnpj}
-                  onChange={(e) => setFormNovoProjeto({ ...formNovoProjeto, cnpj: e.target.value })}
-                  placeholder="00.000.000/0001-00"
-                  className="w-full bg-slate-50 border border-line rounded-xl p-2.5 text-ink focus:outline-none focus:border-psi-vibrant"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-ink block mb-1">Pacote (Sessões/Mês)</label>
-                  <input
-                    type="number"
-                    required
-                    value={formNovoProjeto.pacoteSessoes}
-                    onChange={(e) => setFormNovoProjeto({ ...formNovoProjeto, pacoteSessoes: Number(e.target.value) })}
-                    className="w-full bg-slate-50 border border-line rounded-xl p-2.5 text-ink focus:outline-none focus:border-psi-vibrant"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-ink block mb-1">Valor / Sessão (R$)</label>
-                  <input
-                    type="number"
-                    required
-                    value={formNovoProjeto.valorPorSessao}
-                    onChange={(e) => setFormNovoProjeto({ ...formNovoProjeto, valorPorSessao: Number(e.target.value) })}
-                    className="w-full bg-slate-50 border border-line rounded-xl p-2.5 text-ink focus:outline-none focus:border-psi-vibrant"
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full bg-psi-vibrant text-white font-extrabold py-3 rounded-2xl shadow-md hover:bg-psi-vibrant/90 transition-all"
-              >
-                CADASTRAR CONVÊNIO PJ
-              </button>
-            </form>
-          </div>
+      {error && <p className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-800">{error}</p>}
+      {!overview ? <div className="flex justify-center py-24"><Loader2 className="h-7 w-7 animate-spin text-psi-vibrant" /></div> : <>
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <Kpi icon={Building2} label="Empresas ativas" value={String(overview.resumo.ativos)} detail={`${overview.resumo.total} cadastradas`} />
+          <Kpi icon={UsersRound} label="Pacientes vinculados" value={String(overview.resumo.pacientes)} detail="vínculo real no cadastro" />
+          <Kpi icon={ShieldCheck} label="Custeio empresarial" value={String(overview.resumo.custeados)} detail="empresas pagadoras" />
+          <Kpi icon={CircleDollarSign} label="Provisionado" value={money(overview.resumo.provisionadoCents)} detail="sessões a faturar" accent />
+        </section>
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <ConvenioList items={visible} selectedId={selectedId} search={search} fundedOnly={fundedOnly} onSearch={setSearch} onFundedOnly={setFundedOnly} onSelect={select} />
+          <aside className="hidden rounded-[26px] border border-psi-soft/70 bg-[linear-gradient(145deg,#fdfbfe,#f4eef7)] p-6 lg:block"><p className="text-[10px] font-black uppercase tracking-[.2em] text-psi-deep">Fluxo de um clique</p><ol className="mt-6 space-y-5">{['Confirme que o atendimento ocorreu', 'Feche a fatura da competência', 'Gere o boleto para a empresa', 'Baixa automática realiza o crédito 70%', 'Emita a NFS-e PJ da fatura quitada'].map((step, index) => <li key={step} className="grid grid-cols-[32px_1fr] items-start gap-3"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-psi-darkest text-xs font-black text-white">{index + 1}</span><p className="pt-1 text-sm font-bold leading-snug text-ink">{step}</p></li>)}</ol></aside>
         </div>
-      )}
+      </>}
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-        <div className="bg-surface p-5 rounded-3xl border border-line shadow-card flex items-center justify-between">
-          <div>
-            <span className="text-xs font-bold text-muted">Projetos PJ Ativos</span>
-            <h3 className="text-2xl font-black text-ink mt-1">{projetos.length} Empresas</h3>
-          </div>
-          <div className="p-3 bg-psi-vibrant/10 text-psi-vibrant rounded-2xl">
-            <Building2 className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="bg-surface p-5 rounded-3xl border border-line shadow-card flex items-center justify-between">
-          <div>
-            <span className="text-xs font-bold text-muted">Pacientes Conveniados</span>
-            <h3 className="text-2xl font-black text-emerald-600 mt-1">13 Pacientes</h3>
-          </div>
-          <div className="p-3 bg-emerald-100 text-emerald-700 rounded-2xl">
-            <FileText className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="bg-surface p-5 rounded-3xl border border-line shadow-card flex items-center justify-between">
-          <div>
-            <span className="text-xs font-bold text-muted">Faturamento PJ no Mês</span>
-            <h3 className="text-2xl font-black text-indigo-600 mt-1">R$ 9.240,00</h3>
-          </div>
-          <div className="p-3 bg-indigo-100 text-indigo-700 rounded-2xl">
-            <DollarSign className="w-5 h-5" />
-          </div>
-        </div>
-      </div>
-
-      {/* Tabela de Projetos PJ */}
-      <div className="bg-surface rounded-3xl border border-line shadow-card overflow-hidden">
-        <div className="p-6 border-b border-line flex items-center justify-between">
-          <div>
-            <h3 className="font-extrabold text-base text-ink">Empresas Parceiras & Faturamento Consolidado</h3>
-            <p className="text-xs text-muted">Controle de emissão de NF, boletos e exportação de fatura gerencial em PDF</p>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-line">
-              <tr>
-                <th className="px-6 py-4">Empresa / CNPJ</th>
-                <th className="px-6 py-4">Pacote</th>
-                <th className="px-6 py-4">Sessões Realizadas</th>
-                <th className="px-6 py-4">Faturamento</th>
-                <th className="px-6 py-4">Nota Fiscal</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4 text-right">Ação</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {projetos.map((item) => (
-                <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="font-extrabold text-ink">{item.empresa}</div>
-                    <div className="text-[10px] text-muted font-mono">{item.cnpj}</div>
-                  </td>
-                  <td className="px-6 py-4 font-bold text-ink">{item.pacoteSessoes} Sessões / Paciente</td>
-                  <td className="px-6 py-4 font-bold text-psi-vibrant">
-                    {item.totalSessoesEfetuadas} sessões ({item.pacientesAtendidos} pacientes)
-                  </td>
-                  <td className="px-6 py-4 font-black text-ink">
-                    R$ {item.faturamentoTotal.toFixed(2).replace('.', ',')}
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="font-bold text-ink">{item.numeroNF}</div>
-                    <div className="text-[10px] text-muted">Emitida em {item.dataEmissaoNF}</div>
-                  </td>
-                  <td className="px-6 py-4">
-                    {item.status === 'PAGO' ? (
-                      <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full inline-flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3" />
-                        PAGO
-                      </span>
-                    ) : (
-                      <span className="bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full inline-flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        NF EMITIDA (Boleto Venc. {item.vencimentoBoleto})
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <button
-                      type="button"
-                      onClick={() => handleExportarFaturaConvenioPDF(item)}
-                      className="bg-surface hover:bg-slate-100 border border-line text-ink font-bold text-[11px] px-3 py-1.5 rounded-xl transition-all inline-flex items-center gap-1"
-                    >
-                      <FileText className="w-3.5 h-3.5 text-psi-vibrant" />
-                      Gerar Fatura PDF
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {selectedId && <ConvenioDetailDrawer detail={detail} loading={loadingDetail} onClose={close} onEdit={() => { if (detail) { setEditing(detail.convenio); setFormOpen(true); } }} onRefresh={(period) => loadDetail(selectedId, period)} />}
+      {formOpen && <ConvenioFormModal convenio={editing} onClose={() => setFormOpen(false)} onSave={save} />}
     </div>
   );
+}
+
+function Kpi({ icon: Icon, label, value, detail, accent }: { icon: typeof Building2; label: string; value: string; detail: string; accent?: boolean }) {
+  return <article className={`rounded-2xl border p-5 shadow-card ${accent ? 'border-emerald-200 bg-emerald-50' : 'border-psi-soft/70 bg-surface'}`}><div className="flex items-center justify-between"><p className="text-[10px] font-black uppercase tracking-wider text-muted">{label}</p><Icon className={`h-4 w-4 ${accent ? 'text-emerald-700' : 'text-psi-vibrant'}`} /></div><p className="mt-3 text-2xl font-black text-ink">{value}</p><p className="mt-1 text-[10px] font-semibold text-muted">{detail}</p></article>;
 }

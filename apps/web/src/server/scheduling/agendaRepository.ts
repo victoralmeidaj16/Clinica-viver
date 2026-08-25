@@ -13,6 +13,7 @@ import {
   type Slot,
 } from '@thats-life/core';
 import { podeConfirmarRealizacao } from '@/lib/appointmentWorkflow';
+import { descricaoFiscalDaSessao } from '@/lib/sessionReference';
 
 /**
  * Agenda: janelas recorrentes, bloqueios e marcação pública.
@@ -61,6 +62,8 @@ export interface AgendamentoResumo {
   realizadoEm?: string;
   linkPagamento: string;
   pagamentoStatus?: string;
+  custeadoPelaEmpresa: boolean;
+  convenioNome?: string;
   podeConfirmarRealizacao: boolean;
 }
 
@@ -373,6 +376,10 @@ export async function listAppointments(
     `SELECT a.id, a.inicio, a.fim, a.duracao_min, a.modalidade, a.status,
             a.origem_criacao, a.criado_em, a.realizado_em, a.token_pagamento_sessao,
             COALESCE(pa.nome_social, pa.nome) AS paciente_nome,
+            conv.nome AS convenio_nome,
+            CASE WHEN pa.convenio_ref IS NULL THEN 0
+                 ELSE COALESCE(pa.custeado_pela_empresa, conv.empresa_paga_sessoes, 1) END
+              AS custeado_pela_empresa,
             (SELECT c.status FROM financeiro_cobrancas c
               WHERE c.instituicao_id = a.instituicao_id
                 AND c.organizacao_ref = o.ref_core
@@ -382,6 +389,9 @@ export async function listAppointments(
        JOIN clinica_profissionais p ON p.id = a.profissional_id
        JOIN clinica_organizacoes o ON o.id = p.organizacao_id
        JOIN clinica_pacientes pa ON pa.id = a.paciente_id
+       LEFT JOIN clinica_convenios conv
+         ON conv.instituicao_id = pa.instituicao_id AND conv.organizacao_ref = o.ref_core
+        AND conv.ref_core = pa.convenio_ref
       WHERE a.instituicao_id = ? AND o.ref_core = ? AND p.ref_core = ?
         AND (a.inicio >= ? OR a.status IN ('agendado', 'confirmado'))
       ORDER BY a.inicio
@@ -405,6 +415,8 @@ export async function listAppointments(
       realizadoEm: row.realizado_em ? new Date(row.realizado_em).toISOString() : undefined,
       linkPagamento: `/pagar/sessao/${String(row.token_pagamento_sessao)}`,
       pagamentoStatus: row.pagamento_status ? String(row.pagamento_status) : undefined,
+      custeadoPelaEmpresa: Boolean(row.custeado_pela_empresa),
+      convenioNome: row.convenio_nome ? String(row.convenio_nome) : undefined,
       podeConfirmarRealizacao: podeConfirmarRealizacao(status, fim, agora),
     };
   });
@@ -428,8 +440,13 @@ export async function completeAppointment(
     await connection.beginTransaction();
     const [rows] = await connection.query<RowDataPacket[]>(
       `SELECT a.ref_core, a.sessao_clinica_ref, a.status, a.inicio, a.modalidade,
+              a.valor_centavos, p.valor_sessao_centavos,
               o.ref_core AS organizacao_ref, pa.ref_core AS paciente_ref,
               p.ref_core AS profissional_ref,
+              conv.nome AS convenio_nome,
+              CASE WHEN pa.convenio_ref IS NULL THEN 0
+                   ELSE COALESCE(pa.custeado_pela_empresa, conv.empresa_paga_sessoes, 1) END
+                AS custeado_pela_empresa,
               COALESCE(a.fim, DATE_ADD(a.inicio, INTERVAL a.duracao_min MINUTE)) AS fim,
               (SELECT c.ref_core FROM financeiro_cobrancas c
                 WHERE c.instituicao_id = a.instituicao_id
@@ -439,6 +456,9 @@ export async function completeAppointment(
          JOIN clinica_profissionais p ON p.id = a.profissional_id
          JOIN clinica_organizacoes o ON o.id = p.organizacao_id
          JOIN clinica_pacientes pa ON pa.id = a.paciente_id
+         LEFT JOIN clinica_convenios conv
+           ON conv.instituicao_id = pa.instituicao_id AND conv.organizacao_ref = o.ref_core
+          AND conv.ref_core = pa.convenio_ref
         WHERE a.instituicao_id = ? AND o.ref_core = ? AND p.ref_core = ? AND a.id = ?
         LIMIT 1 FOR UPDATE`,
       [instituicaoId(), organizationId, professionalId, appointmentId]
@@ -500,6 +520,29 @@ export async function completeAppointment(
         WHERE instituicao_id = ? AND id = ?`,
       [agora, sessionRef, agora, instituicaoId(), appointmentId]
     );
+    if (Boolean(appointment.custeado_pela_empresa) && !appointment.cobranca_ref) {
+      const amountCents = Number(appointment.valor_centavos ?? appointment.valor_sessao_centavos);
+      if (!Number.isSafeInteger(amountCents) || amountCents <= 0) {
+        throw new Error('O valor da sessão custeada não está configurado no perfil profissional.');
+      }
+      const chargeRef = `charge-company-session-${randomUUID()}`;
+      await connection.execute(
+        `INSERT INTO financeiro_cobrancas
+          (id, instituicao_id, organizacao_ref, ref_core, sessao_ref, paciente_ref,
+           profissional_ref, emitida_em, vence_em, valor_centavos, status,
+           descricao, fatura_convenio_ref, criado_em, atualizado_em)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, NULL, ?, ?)`,
+        [rowId('cobranca', chargeRef), instituicaoId(), appointment.organizacao_ref,
+          chargeRef, sessionRef, appointment.paciente_ref, appointment.profissional_ref,
+          agora, agora, amountCents, descricaoFiscalDaSessao(new Date(appointment.inicio).toISOString()),
+          agora, agora]
+      );
+      await connection.execute(
+        `UPDATE clinica_sessoes SET cobranca_ref = ?, atualizado_em = ?
+          WHERE instituicao_id = ? AND organizacao_ref = ? AND ref_core = ? AND cobranca_ref IS NULL`,
+        [chargeRef, agora, instituicaoId(), appointment.organizacao_ref, sessionRef]
+      );
+    }
     await connection.commit();
     return 'completed';
   } catch (error) {

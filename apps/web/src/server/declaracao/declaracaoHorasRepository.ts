@@ -8,11 +8,14 @@ import { fromSqlTimestamp, instituicaoId, toSqlTimestamp } from '@/server/persis
 /**
  * Persistência das declarações de horas.
  *
- * A declaração emitida é registro permanente: ela circula fora da clínica, e a
- * conferência precisa encontrá-la meses depois. Nada aqui apaga linha — uma
- * declaração que não vale mais é **revogada**, e a página de conferência passa
- * a dizer isso em vez de responder "não existe", que é o que faria a
- * coordenação suspeitar da pessoa em vez do documento.
+ * A declaração emitida é registro permanente: o papel circula fora da clínica,
+ * e a gestão precisa poder reconstituir meses depois o que foi atestado. Nada
+ * aqui apaga linha — uma declaração que não vale mais é **revogada**, e a
+ * revogação fica ao lado da emissão em vez de sumir com ela.
+ *
+ * O `codigo` continua sendo gerado e é a chave única de cada emissão, mas hoje
+ * ele não sai daqui: o relatório de estágio deixou de trazer código de
+ * conferência, e a conferência pública ficou com os certificados.
  */
 
 export interface DeclaracaoHoras {
@@ -110,7 +113,7 @@ const SELECT = `SELECT id, codigo, psicologo_cadastro_ref, profissional_ref, psi
 export function exigirPersistenciaDeclaracao() {
   if (!isMysqlConfigured()) {
     throw new Error(
-      'A emissão de declarações exige o MySQL configurado: o código de conferência precisa sobreviver ao processo.'
+      'A emissão de declarações exige o MySQL configurado: o registro da emissão precisa sobreviver ao processo.'
     );
   }
 }
@@ -191,15 +194,6 @@ export class DeclaracaoHorasRepository {
     }
 
     throw new Error('Não foi possível gerar um código de conferência inédito para a declaração.');
-  }
-
-  /** A consulta da conferência pública. Sem organização: quem confere não tem sessão. */
-  async porCodigo(codigo: string): Promise<DeclaracaoHoras | null> {
-    const [rows] = await this.pool.query<DeclaracaoRow[]>(
-      `${SELECT} WHERE instituicao_id = ? AND codigo = ?`,
-      [instituicaoId(), codigo]
-    );
-    return rows[0] ? toDeclaracao(rows[0]) : null;
   }
 
   /** Histórico do psicólogo, da mais recente para a mais antiga. */

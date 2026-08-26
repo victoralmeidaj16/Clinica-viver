@@ -9,8 +9,6 @@ export default function Preview() {
     <div className="bg-slate-100 p-8 print:p-0 print:bg-white">
       <DocumentoDeclaracao
         declaracao={{
-          codigo: 'VM-K7P2-9XRT',
-          urlConferencia: 'https://clinicavivermais.cloud/validar/VM-K7P2-9XRT',
           psicologoNome: '[NOME DO ALUNO]',
           psicologoCrp: '[xx/xxxxx]',
           tratamento: 'Pós-Graduanda',

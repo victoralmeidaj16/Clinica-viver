@@ -5,7 +5,6 @@ import {
   calcularHashDeclaracao,
   STATUS_QUE_CONTAM_HORA,
   type ApuracaoDeHoras,
-  type ConteudoDeclaracao,
 } from '@thats-life/core';
 import type { CadastroPsicologoRecord } from '@/server/application/persistence';
 import { getCaptureRepository } from '@/server/persistence/captureRepository';
@@ -45,19 +44,14 @@ export const SIGNATARIOS_DECLARACAO = {
 } as const;
 
 /**
- * Endereço impresso na declaração, montado no servidor.
+ * Aqui ficava `enderecoDeConferencia`, que montava a URL impressa no QR do
+ * papel. O relatório de estágio deixou de trazer código e QR — quem confere um
+ * relatório confere as assinaturas da coordenação e da supervisão —, e a
+ * validação pública por código passou a ser exclusividade dos certificados.
  *
- * A tela poderia usar `window.location.origin`, mas o resultado dependeria de
- * por qual domínio a coordenação abriu o sistema — e o QR iria para o papel
- * apontando para `app.clinicavivermais.cloud`, que é o backend, e não o
- * endereço que a clínica divulga. O documento circula por anos; o endereço
- * nele precisa ser o canônico.
+ * O código de verificação continua sendo gerado e gravado na emissão: ele é a
+ * chave do registro interno, não mais algo que circula no documento.
  */
-export function enderecoDeConferencia(codigo: string): string {
-  const base =
-    process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, '') || 'https://clinicavivermais.cloud';
-  return `${base}/validar/${codigo}`;
-}
 
 async function exigirCadastro(psicologoCadastroId: string): Promise<CadastroPsicologoRecord> {
   const { cadastrosPsicologos } = await getCaptureRepository().read();
@@ -237,77 +231,17 @@ export async function emitirDeclaracao(
   return { ...declaracao, tratamento: tratamentoAcademico(cadastro) };
 }
 
-export type SituacaoConferencia = 'valida' | 'revogada' | 'adulterada';
-
-export interface ResultadoConferencia {
-  situacao: SituacaoConferencia;
-  codigo: string;
-  psicologoNome: string;
-  psicologoCrp: string;
-  curso: string;
-  periodoInicio: string;
-  periodoFim: string;
-  totalSessoes: number;
-  totalHoras: number;
-  emitidoEm: string;
-  revogadaEm?: string;
-  revogacaoMotivo?: string;
-}
-
-/**
- * Conferência pública de uma declaração.
+/*
+ * Aqui ficava `conferirDeclaracao`, com `ResultadoConferencia` e
+ * `SituacaoConferencia`: a conferência pública que recalculava o hash da linha
+ * e respondia `valida`, `revogada` ou `adulterada` para quem digitasse o
+ * código impresso. Saiu junto com o código do papel — sem nada impresso para
+ * conferir, ela não tinha mais quem a chamasse.
  *
- * O hash é recalculado a partir da própria linha e comparado com o gravado na
- * emissão. Uma alteração direta no banco — o total de horas, o nome, o
- * período — não bate mais, e a resposta passa a `adulterada`. É o que dá
- * sentido ao código impresso: sem esta comparação, a página apenas repetiria o
- * que o banco diz hoje, seja lá quem o tenha escrito.
- *
- * O que volta é só o que a declaração já afirma no papel. Não sai daqui id de
- * sessão, id de paciente nem quem emitiu: quem confere precisa saber se o
- * documento é verdadeiro, não quem a pessoa atendeu.
+ * O hash continua sendo gravado na emissão. É ele que permitiria detectar uma
+ * alteração feita direto no banco, se um dia a clínica quiser a conferência de
+ * volta; o que se apagou foi a porta de entrada, não a prova.
  */
-export async function conferirDeclaracao(codigo: string): Promise<ResultadoConferencia | null> {
-  exigirPersistenciaDeclaracao();
-
-  const declaracao = await new DeclaracaoHorasRepository().porCodigo(codigo);
-  if (!declaracao) return null;
-
-  const conteudo: ConteudoDeclaracao = {
-    codigo: declaracao.codigo,
-    psicologoNome: declaracao.psicologoNome,
-    psicologoCrp: declaracao.psicologoCrp,
-    curso: declaracao.curso,
-    periodoInicio: declaracao.periodoInicio,
-    periodoFim: declaracao.periodoFim,
-    totalSessoes: declaracao.totalSessoes,
-    totalHoras: declaracao.totalHoras,
-    emitidoEm: declaracao.emitidoEm,
-    sessaoIds: declaracao.sessaoIds,
-  };
-
-  const integra = (await calcularHashDeclaracao(conteudo)) === declaracao.conteudoHash;
-  const situacao: SituacaoConferencia = !integra
-    ? 'adulterada'
-    : declaracao.revogadaEm
-      ? 'revogada'
-      : 'valida';
-
-  return {
-    situacao,
-    codigo: declaracao.codigo,
-    psicologoNome: declaracao.psicologoNome,
-    psicologoCrp: declaracao.psicologoCrp,
-    curso: declaracao.curso,
-    periodoInicio: declaracao.periodoInicio,
-    periodoFim: declaracao.periodoFim,
-    totalSessoes: declaracao.totalSessoes,
-    totalHoras: declaracao.totalHoras,
-    emitidoEm: declaracao.emitidoEm,
-    revogadaEm: declaracao.revogadaEm,
-    revogacaoMotivo: declaracao.revogacaoMotivo,
-  };
-}
 
 export interface PsicologoElegivel {
   id: string;

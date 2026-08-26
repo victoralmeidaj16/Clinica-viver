@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { AlertTriangle, Award, Loader2, Printer, ShieldCheck } from 'lucide-react';
-import { QrCodeConferencia } from '@/components/declaracao/QrCodeConferencia';
 import { DocumentoDeclaracao } from '@/components/declaracao/DocumentoDeclaracao';
 import './declaracao.css';
 
@@ -16,8 +15,13 @@ import './declaracao.css';
  * aparência de um emitido corretamente.
  *
  * Agora nada é digitado. O psicólogo é escolhido do cadastro, o resto vem do
- * servidor, e o papel só existe **depois** da emissão: sem código de
- * conferência impresso, não há o que imprimir.
+ * servidor, e o papel só existe **depois** da emissão registrada.
+ *
+ * O documento não carrega mais código de conferência nem QR: o relatório de
+ * estágio vale pelas assinaturas da coordenação e da supervisão, e a validação
+ * pública por código ficou restrita aos certificados do painel de certificados.
+ * A emissão continua gravada — o que se perdeu foi a conferência de fora, não o
+ * registro de dentro.
  */
 
 interface PsicologoElegivel {
@@ -43,8 +47,6 @@ interface Previa {
 }
 
 interface Emitida extends Previa {
-  codigo: string;
-  urlConferencia: string;
   emitidoEm: string;
 }
 
@@ -159,10 +161,12 @@ export default function DeclaracaoHorasPage() {
               <Award className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-slate-900">Declaração de Horas de Atendimento</h1>
+              <h1 className="text-xl font-bold text-slate-900">
+                Relatório de Estágio — Horas de Atendimento
+              </h1>
               <p className="text-xs text-slate-500">
-                O total vem das sessões registradas. Cada declaração emitida recebe um código de conferência
-                pública.
+                O total vem das sessões registradas. Cada emissão fica registrada para a clínica, com quem
+                emitiu e o que foi declarado.
               </p>
             </div>
           </div>
@@ -242,25 +246,23 @@ export default function DeclaracaoHorasPage() {
           )}
 
           {emitida && (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 flex flex-wrap gap-4 items-center justify-between">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-emerald-800">
-                  Declaração emitida
-                </p>
-                <p className="font-mono text-lg font-black tracking-widest text-emerald-900 mt-1">
-                  {emitida.codigo}
-                </p>
-                <p className="text-[11px] text-emerald-800 mt-1">{emitida.urlConferencia}</p>
-              </div>
-              <QrCodeConferencia valor={emitida.urlConferencia} tamanho={80} />
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-emerald-800">
+                Relatório emitido
+              </p>
+              <p className="text-[11px] text-emerald-800 mt-1">
+                {emitida.totalHoras} horas registradas para {emitida.psicologoNome}. Use o botão acima
+                para imprimir ou salvar em PDF.
+              </p>
             </div>
           )}
         </div>
       </div>
 
 
-      {/* O documento A4 só existe depois de emitido: sem código de
-          conferência impresso, não há o que imprimir. */}
+      {/* O documento A4 só existe depois de emitido. O papel não traz mais
+          código de conferência, mas a emissão continua sendo gravada: é ela
+          que amarra o total impresso às sessões que o produziram. */}
       {emitida && <DocumentoDeclaracao declaracao={emitida} />}
     </div>
   );

@@ -40,11 +40,10 @@ export function proxy(request: NextRequest) {
     pathname.startsWith('/pagar/') ||
     pathname.startsWith('/agendar/') ||
     pathname.startsWith('/confirmar-contato/') ||
-    // `/validar` é o endereço impresso na declaração de horas: quem o abre é a
-    // coordenação do curso, que não tem conta na clínica. Mandá-la ao login
-    // seria transformar a conferência em obstáculo.
-    pathname === '/validar' ||
-    pathname.startsWith('/validar/') ||
+    // `/validar-certificado` é o endereço impresso no certificado: quem o abre
+    // é quem recebeu o documento, sem conta na clínica. Mandá-lo ao login seria
+    // transformar a conferência em obstáculo. (O `/validar` das declarações de
+    // horas saiu junto com o código de conferência do relatório de estágio.)
     pathname === '/validar-certificado' ||
     pathname.startsWith('/validar-certificado/') ||
     pathname === '/painel-certificados' ||

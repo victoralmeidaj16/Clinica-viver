@@ -4,7 +4,6 @@ import { exigirGestao, NaoAutorizadoError } from '@/server/viverMaisGestaoAuth';
 import { ApplicationError, failure, readJson, success } from '@/server/application/http';
 import {
   emitirDeclaracao,
-  enderecoDeConferencia,
   listarPsicologosParaDeclaracao,
   previaDeclaracao,
 } from '@/server/application/declaracaoHorasService';
@@ -66,12 +65,11 @@ export async function POST(request: Request) {
 
     const declaracao = await emitirDeclaracao(sessao.organizationId, sessao.userId, psicologoId);
 
-    // O hash e os ids das sessões ficam no servidor: a tela imprime a
-    // declaração, e nada no papel precisa deles.
+    // O código, o hash e os ids das sessões ficam no servidor: são o registro
+    // da emissão, e nada no papel precisa deles desde que o relatório de
+    // estágio deixou de trazer código de conferência.
     return success(
       {
-        codigo: declaracao.codigo,
-        urlConferencia: enderecoDeConferencia(declaracao.codigo),
         psicologoNome: declaracao.psicologoNome,
         psicologoCrp: declaracao.psicologoCrp,
         tratamento: declaracao.tratamento,

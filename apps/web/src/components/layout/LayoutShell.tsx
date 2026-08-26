@@ -18,11 +18,10 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   const isConfirmacaoContato = pathname.startsWith('/confirmar-contato/');
   const isPaginaPagamento = pathname.startsWith('/pagar/');
   const isPaginaAgendamento = pathname.startsWith('/agendar/');
-  // A conferência da declaração de horas é aberta a quem não tem conta — é a
-  // coordenação do curso que digita o código impresso no documento. Sem estar
+  // A prévia do layout do relatório de estágio não exige conta: sem estar
   // aqui, o `proxy.ts` deixa passar e é este componente que manda para o
   // login, no navegador, depois da página já ter começado a carregar.
-  const isConferenciaDeclaracao = pathname === '/validar' || pathname.startsWith('/validar/') || pathname.startsWith('/previa-doc');
+  const isPreviaDocumento = pathname.startsWith('/previa-doc');
   const isCertificadosPage =
     pathname === '/validar-certificado' ||
     pathname.startsWith('/validar-certificado/') ||
@@ -38,7 +37,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
     isConfirmacaoContato ||
     isPaginaPagamento ||
     isPaginaAgendamento ||
-    isConferenciaDeclaracao ||
+    isPreviaDocumento ||
     isCertificadosPage;
 
   useEffect(() => {

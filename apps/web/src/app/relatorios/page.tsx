@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import {
-  AlertCircle, BarChart3, Briefcase, Calendar, Clock, DollarSign,
+  AlertCircle, Award, BarChart3, Briefcase, Calendar, Clock, DollarSign,
   Download, FileQuestion, PieChart, ShieldCheck, TrendingUp, Users,
 } from 'lucide-react';
 import { DistributionBars, MonthlyIndicatorCard } from '@/components/reports/MonthlyIndicatorCard';
@@ -96,6 +96,20 @@ export default function MonthlyIndicatorsPage() {
               className="mt-1 block rounded-xl border border-line bg-surface px-3 py-2 text-xs font-bold text-ink outline-none focus:border-psi-vibrant"
             />
           </label>
+          {/*
+            Atalho para o relatório de estágio. Ele mora aqui, e não no menu
+            lateral, porque é o mesmo gesto de "prestar contas do mês" que traz
+            a gestão a esta tela — e porque foi daqui que ele sumiu, levado sem
+            querer pela reescrita da página de indicadores.
+          */}
+          <a
+            href="/relatorios/declaracao"
+            className="flex items-center gap-2 rounded-xl border border-psi-vibrant/30 bg-surface px-4 py-2.5 text-xs font-bold text-psi-deep shadow-sm transition-all hover:bg-slate-50"
+          >
+            <Award className="h-4 w-4 text-psi-vibrant" />
+            Relatório de estágio
+          </a>
+
           <button
             type="button"
             disabled={!report || !generatedAt || loading}

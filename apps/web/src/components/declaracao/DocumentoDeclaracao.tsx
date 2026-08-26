@@ -1,7 +1,5 @@
 import Image from 'next/image';
 import { Globe, Phone } from 'lucide-react';
-import { QrCodeConferencia } from './QrCodeConferencia';
-
 /**
  * A declaração de horas como documento — a folha A4 que vai para a impressora.
  *
@@ -17,8 +15,6 @@ import { QrCodeConferencia } from './QrCodeConferencia';
  */
 
 export interface DeclaracaoImpressa {
-  codigo: string;
-  urlConferencia: string;
   psicologoNome: string;
   psicologoCrp: string;
   /** "Pós-Graduanda" ou "Pós-Graduando": concordância vinda do cadastro. */
@@ -182,19 +178,14 @@ export function DocumentoDeclaracao({ declaracao }: { declaracao: DeclaracaoImpr
           </div>
         </div>
 
-        {/* Bloco de conferência: é o que separa este papel de uma cópia editada. */}
-        <div className="flex items-center gap-4 px-4 py-3 mb-6 border border-purple-200 rounded-lg bg-purple-50/60">
-          <QrCodeConferencia valor={declaracao.urlConferencia} tamanho={78} className="shrink-0" />
-          <div className="text-[10px] text-purple-950 leading-relaxed font-sans">
-            <p className="font-bold">Confira a autenticidade desta declaração</p>
-            <p>
-              Acesse <strong>{declaracao.urlConferencia}</strong> ou informe o código
-            </p>
-            <p className="font-mono font-black text-[13px] tracking-widest text-purple-900 mt-0.5">
-              {declaracao.codigo}
-            </p>
-          </div>
-        </div>
+        {/*
+          Aqui ficava o bloco de conferência — QR e código impressos. Ele saiu
+          por decisão da clínica: o relatório de estágio vale pelas assinaturas
+          da coordenação e da supervisão, como o modelo em papel sempre valeu, e
+          a conferência por código fica restrita aos certificados, que circulam
+          sozinhos e sem assinatura de quem os emitiu.
+        */}
+        <div className="mb-6" />
       </div>
 
       {/*

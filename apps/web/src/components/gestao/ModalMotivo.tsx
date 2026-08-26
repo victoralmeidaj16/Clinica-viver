@@ -8,26 +8,24 @@ export function ModalMotivo({
   onConfirmar,
   onCancelar,
 }: {
-  alvo: { psicologo: PsicologoItem; acao: 'VITRINE' | 'RODIZIO' };
+  alvo: PsicologoItem;
   onConfirmar: (motivo: string) => void;
   onCancelar: () => void;
 }) {
   const [escolha, setEscolha] = useState(MOTIVOS[0]);
   const [outro, setOutro] = useState('');
   const motivo = escolha === 'Outro' ? outro.trim() : escolha;
-  const nome = alvo.psicologo.nomeSocial?.trim() || alvo.psicologo.nomeCompleto;
+  const nome = alvo.nomeSocial?.trim() || alvo.nomeCompleto;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-5 border border-slate-200 shadow-2xl">
         <div>
           <h2 className="text-lg font-black text-slate-900">
-            {alvo.acao === 'VITRINE' ? 'Tirar do site público' : 'Pausar encaminhamentos'}
+            Pausar psicólogo
           </h2>
           <p className="text-xs text-slate-500 mt-1">
-            {alvo.acao === 'VITRINE'
-              ? `${nome} deixa de aparecer na vitrine, mas continua recebendo pacientes novos.`
-              : `${nome} para de receber pacientes novos, mas segue visível para quem já atende.`}
+            {nome} deixará de receber novos pacientes e também sairá da vitrine pública.
           </p>
         </div>
 

@@ -24,7 +24,6 @@ const FILTROS: Array<[FiltroStatus, string]> = [
   ['EM_ANALISE', 'Em análise'],
   ['APROVADO', 'No rodízio'],
   ['PAUSADO', 'Pausados'],
-  ['FORA_DA_VITRINE', 'Fora da vitrine'],
   ['RECUSADO', 'Recusados'],
 ];
 
@@ -39,9 +38,7 @@ export default function GestaoPsicologosPage() {
   const [copiedLink, setCopiedLink] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [ocupado, setOcupado] = useState<string | null>(null);
-  const [motivoAlvo, setMotivoAlvo] = useState<
-    { psicologo: PsicologoItem; acao: 'VITRINE' | 'RODIZIO' } | null
-  >(null);
+  const [motivoAlvo, setMotivoAlvo] = useState<PsicologoItem | null>(null);
   const [editando, setEditando] = useState<PsicologoItem | null>(null);
   const [limiteAlvo, setLimiteAlvo] = useState<PsicologoItem | 'TODOS' | null>(null);
 
@@ -108,26 +105,23 @@ export default function GestaoPsicologosPage() {
     return atualizar(p.id, { status: 'RECUSADO' });
   };
 
-  const alternarVitrine = (p: PsicologoItem) => {
-    if (p.exibirNaVitrine === false) return atualizar(p.id, { exibirNaVitrine: true });
-    setMotivoAlvo({ psicologo: p, acao: 'VITRINE' });
-  };
-
   const alternarRodizio = (p: PsicologoItem) => {
-    if (p.pausadoNoRodizio) return atualizar(p.id, { pausadoNoRodizio: false });
-    setMotivoAlvo({ psicologo: p, acao: 'RODIZIO' });
+    if (p.pausadoNoRodizio) {
+      return atualizar(p.id, { pausadoNoRodizio: false, exibirNaVitrine: true });
+    }
+    setMotivoAlvo(p);
   };
 
   const confirmarMotivo = async (motivo: string) => {
     if (!motivoAlvo) return;
-    const { psicologo, acao } = motivoAlvo;
+    const psicologo = motivoAlvo;
     setMotivoAlvo(null);
-    await atualizar(
-      psicologo.id,
-      acao === 'VITRINE'
-        ? { exibirNaVitrine: false, motivoDesativacao: motivo }
-        : { pausadoNoRodizio: true, motivoPausaRodizio: motivo }
-    );
+    await atualizar(psicologo.id, {
+      pausadoNoRodizio: true,
+      exibirNaVitrine: false,
+      motivoPausaRodizio: motivo,
+      motivoDesativacao: motivo,
+    });
   };
 
   const salvarLimite = async (limite: number) => {
@@ -215,13 +209,11 @@ export default function GestaoPsicologosPage() {
       statusFilter === 'TODOS' ||
       (statusFilter === 'SOLICITACOES'
         ? p.solicitacaoAlteracaoGestao?.status === 'PENDENTE'
-        : statusFilter === 'FORA_DA_VITRINE'
-          ? p.status === 'APROVADO' && p.exibirNaVitrine === false
-          : statusFilter === 'PAUSADO'
-            ? p.status === 'APROVADO' && Boolean(p.pausadoNoRodizio)
-            : statusFilter === 'APROVADO'
-              ? p.status === 'APROVADO' && !p.pausadoNoRodizio
-              : p.status === statusFilter);
+        : statusFilter === 'PAUSADO'
+          ? p.status === 'APROVADO' && Boolean(p.pausadoNoRodizio)
+          : statusFilter === 'APROVADO'
+            ? p.status === 'APROVADO' && !p.pausadoNoRodizio
+            : p.status === statusFilter);
 
     return matchesSearch && matchesStatus;
   });
@@ -234,7 +226,6 @@ export default function GestaoPsicologosPage() {
   const noRodizio = aprovados.filter((p) => !p.pausadoNoRodizio);
   const pendentes = psicologos.filter((p) => p.status === 'EM_ANALISE').length;
   const pausados = aprovados.length - noRodizio.length;
-  const foraDaVitrine = aprovados.filter((p) => p.exibirNaVitrine === false).length;
   const vagasLivres = noRodizio.reduce(
     (acc, p) => acc + Math.max(0, (p.limitePacientesAtivos ?? LIMITE_PACIENTES_PADRAO) - (p.pacientesAtivosCount ?? 0)),
     0
@@ -366,9 +357,7 @@ export default function GestaoPsicologosPage() {
               Sem encaminhamento
             </span>
           </div>
-          <p className="text-[10px] text-slate-400 pt-0.5">
-            {foraDaVitrine} fora da vitrine
-          </p>
+          <p className="text-[10px] text-slate-400 pt-0.5">Fora do rodízio e da vitrine</p>
         </div>
       </div>
 
@@ -428,7 +417,6 @@ export default function GestaoPsicologosPage() {
               onAprovar={(item) => void aprovar(item)}
               onRecusar={(item) => void recusar(item)}
               onAlternarRodizio={alternarRodizio}
-              onAlternarVitrine={alternarVitrine}
               onEditar={(item) => setEditando(item)}
               onAjustarLimite={(item) => setLimiteAlvo(item)}
               onPriorizar={(item) => void priorizarNaFila(item)}

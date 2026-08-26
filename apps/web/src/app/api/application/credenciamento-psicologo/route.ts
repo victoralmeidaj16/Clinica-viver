@@ -24,6 +24,19 @@ import { avisarCadastroRecebidoPorEmail } from '@/server/application/psychologis
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+function comEstadoOperacionalUnificado(cadastro: CadastroPsicologoRecord): CadastroPsicologoRecord {
+  // Cadastros antigos podiam estar ocultos sem pausa. Na gestão, eles passam a
+  // aparecer como pausados para que o único botão disponível consiga retomá-los.
+  const pausadoNoRodizio = Boolean(
+    cadastro.pausadoNoRodizio || cadastro.exibirNaVitrine === false
+  );
+  return {
+    ...cadastro,
+    pausadoNoRodizio,
+    exibirNaVitrine: !pausadoNoRodizio,
+  };
+}
+
 /**
  * Acrescenta a cada cadastro se a pessoa já definiu senha.
  *
@@ -45,7 +58,7 @@ async function comEstadoDeAcesso(
     .filter((ref): ref is string => Boolean(ref));
 
   if (!isMysqlConfigured() || referencias.length === 0) {
-    return cadastros.map((psi) => ({ ...psi }));
+    return cadastros.map(comEstadoOperacionalUnificado);
   }
 
   try {
@@ -61,14 +74,14 @@ async function comEstadoDeAcesso(
       linhas.filter((linha) => linha.senha_definida_em).map((linha) => linha.ref_core)
     );
     return cadastros.map((psi) => ({
-      ...psi,
+      ...comEstadoOperacionalUnificado(psi),
       contaAtivada: psi.usuarioRef ? ativados.has(psi.usuarioRef) : false,
     }));
   } catch (error) {
     // O semáforo é informativo: listar a equipe é mais importante do que saber
     // quem já entrou.
     console.error('Não foi possível apurar contas ativadas:', error);
-    return cadastros.map((psi) => ({ ...psi }));
+    return cadastros.map(comEstadoOperacionalUnificado);
   }
 }
 

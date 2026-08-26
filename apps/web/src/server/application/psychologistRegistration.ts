@@ -227,15 +227,16 @@ export function aplicarMudancas(
 ): CadastroPsicologoRecord {
   const pode = (campo: string) => permitidos.has(campo) && corpo[campo] !== undefined;
 
-  const exibirNaVitrine =
-    pode('exibirNaVitrine') && typeof corpo.exibirNaVitrine === 'boolean'
-      ? corpo.exibirNaVitrine
-      : existente.exibirNaVitrine;
-
+  // Pausa e vitrine são um único estado operacional: fora do rodízio também
+  // significa fora do site público. Aceitar o campo antigo de vitrine mantém
+  // compatibilidade com clientes já publicados, mas ele é convertido em pausa.
   const pausadoNoRodizio =
     pode('pausadoNoRodizio') && typeof corpo.pausadoNoRodizio === 'boolean'
       ? corpo.pausadoNoRodizio
-      : existente.pausadoNoRodizio;
+      : pode('exibirNaVitrine') && typeof corpo.exibirNaVitrine === 'boolean'
+        ? !corpo.exibirNaVitrine
+        : Boolean(existente.pausadoNoRodizio || existente.exibirNaVitrine === false);
+  const exibirNaVitrine = !pausadoNoRodizio;
 
   const estadoUf = pode('estadoUf')
     ? String(corpo.estadoUf).trim().toUpperCase() || undefined
@@ -357,7 +358,7 @@ export function aplicarMudancas(
       ? (corpo.segundaPosGraduacao as string) || undefined
       : existente.segundaPosGraduacao,
     solicitacaoAlteracaoGestao: pode('solicitacaoAlteracaoGestao')
-      ? (corpo.solicitacaoAlteracaoGestao as any) ?? undefined
+      ? (corpo.solicitacaoAlteracaoGestao as CadastroPsicologoRecord['solicitacaoAlteracaoGestao']) ?? undefined
       : existente.solicitacaoAlteracaoGestao,
   };
 }

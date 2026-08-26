@@ -3,8 +3,6 @@ import {
   CheckCircle2,
   XCircle,
   Clock3,
-  EyeOff,
-  Eye,
   RotateCcw,
   PauseCircle,
   PlayCircle,
@@ -28,7 +26,6 @@ interface PsicologoCardProps {
   onAprovar: (p: PsicologoItem) => void;
   onRecusar: (p: PsicologoItem) => void;
   onAlternarRodizio: (p: PsicologoItem) => void;
-  onAlternarVitrine: (p: PsicologoItem) => void;
   onEditar: (p: PsicologoItem) => void;
   onAjustarLimite: (p: PsicologoItem) => void;
   onPriorizar: (p: PsicologoItem) => void;
@@ -47,7 +44,6 @@ export function PsicologoCard({
   onAprovar,
   onRecusar,
   onAlternarRodizio,
-  onAlternarVitrine,
   onEditar,
   onAjustarLimite,
   onPriorizar,
@@ -59,7 +55,6 @@ export function PsicologoCard({
   const limite = p.limitePacientesAtivos ?? 5;
   const ativos = p.pacientesAtivosCount ?? 0;
   const perc = limite > 0 ? Math.min(100, Math.round((ativos / limite) * 100)) : 0;
-  const naVitrine = p.exibirNaVitrine !== false;
   const pausado = Boolean(p.pausadoNoRodizio);
   const semTurno = !p.turnosDisponiveis?.length;
   const trabalhando = ocupado === p.id;
@@ -115,27 +110,17 @@ export function PsicologoCard({
                   <XCircle className="w-3 h-3" /> Recusado
                 </span>
               ) : (
-                <div className="flex items-center gap-1">
-                  <span
-                    className={`text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 ${
-                      pausado
-                        ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                        : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                    }`}
-                    title={pausado ? 'Não recebe encaminhamento' : 'Recebe encaminhamento'}
-                  >
-                    {pausado ? <PauseCircle className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
-                    {pausado ? 'Pausado' : 'No rodízio'}
-                  </span>
-                  {!naVitrine && (
-                    <span
-                      className="text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 bg-slate-100 text-slate-600 border border-slate-200"
-                      title="Não aparece no site público"
-                    >
-                      <EyeOff className="w-3 h-3" /> Oculto
-                    </span>
-                  )}
-                </div>
+                <span
+                  className={`text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                    pausado
+                      ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                      : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  }`}
+                  title={pausado ? 'Sem encaminhamentos e fora da vitrine' : 'No rodízio e na vitrine'}
+                >
+                  {pausado ? <PauseCircle className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
+                  {pausado ? 'Pausado' : 'No rodízio'}
+                </span>
               )}
             </div>
 
@@ -229,7 +214,7 @@ export function PsicologoCard({
               <button
                 disabled={trabalhando}
                 onClick={() => onAlternarRodizio(p)}
-                title={pausado ? 'Volta a receber pacientes novos' : 'Para de receber pacientes novos'}
+                title={pausado ? 'Volta ao rodízio e à vitrine' : 'Sai do rodízio e da vitrine'}
                 className={`${botao} ${
                   pausado
                     ? 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
@@ -238,15 +223,6 @@ export function PsicologoCard({
               >
                 {pausado ? <PlayCircle className="w-3.5 h-3.5" /> : <PauseCircle className="w-3.5 h-3.5" />}
                 {pausado ? 'Retomar' : 'Pausar'}
-              </button>
-              <button
-                disabled={trabalhando}
-                onClick={() => onAlternarVitrine(p)}
-                title={naVitrine ? 'Some do site público' : 'Volta a aparecer no site público'}
-                className={`${botao} bg-white border-slate-200 text-slate-600 hover:bg-slate-50`}
-              >
-                {naVitrine ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                {naVitrine ? 'Ocultar' : 'Exibir'}
               </button>
               {!pausado && (
                 <button
@@ -277,13 +253,7 @@ export function PsicologoCard({
         <div className="pt-4 border-t border-slate-200/80 space-y-4 animate-in fade-in slide-in-from-top-1 duration-150">
           {pausado && (
             <p className="text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2">
-              Não recebe encaminhamento: {p.motivoPausaRodizio ?? 'sem motivo registrado'}
-            </p>
-          )}
-
-          {!naVitrine && (
-            <p className="text-[11px] font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
-              Fora do site público: {p.motivoDesativacao ?? 'sem motivo registrado'}
+              Sem novos encaminhamentos e fora da vitrine: {p.motivoPausaRodizio ?? 'sem motivo registrado'}
             </p>
           )}
 

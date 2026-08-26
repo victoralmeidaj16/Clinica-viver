@@ -61,6 +61,5 @@ export type FiltroStatus =
   | 'EM_ANALISE'
   | 'SOLICITACOES'
   | 'APROVADO'
-  | 'FORA_DA_VITRINE'
   | 'PAUSADO'
   | 'RECUSADO';

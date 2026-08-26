@@ -8,12 +8,15 @@ import {
   Filter,
   CheckCircle2,
   Copy,
+  UsersRound,
 } from 'lucide-react';
 import { CadastroPsicologoForm } from '@/components/forms/CadastroPsicologoForm';
 import { PsicologoItem, FiltroStatus } from '@/components/gestao/types';
 import { PsicologoCard } from '@/components/gestao/PsicologoCard';
 import { ModalMotivo } from '@/components/gestao/ModalMotivo';
 import { ModalEdicao } from '@/components/gestao/ModalEdicao';
+import { ModalLimitePacientes } from '@/components/gestao/ModalLimitePacientes';
+import { LIMITE_PACIENTES_PADRAO } from '@/lib/psychologistCapacity';
 
 const FILTROS: Array<[FiltroStatus, string]> = [
   ['TODOS', 'Todos'],
@@ -40,6 +43,7 @@ export default function GestaoPsicologosPage() {
     { psicologo: PsicologoItem; acao: 'VITRINE' | 'RODIZIO' } | null
   >(null);
   const [editando, setEditando] = useState<PsicologoItem | null>(null);
+  const [limiteAlvo, setLimiteAlvo] = useState<PsicologoItem | 'TODOS' | null>(null);
 
   const handleCopyFormLink = () => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -84,11 +88,13 @@ export default function GestaoPsicologosPage() {
             ? `${body.error}\n\nCampos pendentes: ${body.campos.join(', ')}`
             : body.error ?? 'Não foi possível salvar.'
         );
-        return;
+        return false;
       }
       await loadPsicologos();
+      return true;
     } catch {
       alert('Falha de conexão ao salvar.');
+      return false;
     } finally {
       setOcupado(null);
     }
@@ -124,22 +130,36 @@ export default function GestaoPsicologosPage() {
     );
   };
 
-  const ajustarLimite = (p: PsicologoItem) => {
-    const atual = p.limitePacientesAtivos ?? 5;
-    const resposta = prompt(`Limite de pacientes ativos de ${nomeExibido(p)} (1 a 5):`, String(atual));
-    if (!resposta) return;
-    const limite = Number(resposta);
-    if (!Number.isInteger(limite) || limite < 1 || limite > 5) {
-      alert('O limite deve ser um número inteiro entre 1 e 5.');
-      return;
+  const salvarLimite = async (limite: number) => {
+    if (!limiteAlvo) return false;
+
+    if (limiteAlvo !== 'TODOS') {
+      const salvo = await atualizar(limiteAlvo.id, { limitePacientesAtivos: limite });
+      if (salvo) setLimiteAlvo(null);
+      return salvo;
     }
-    if (limite < (p.pacientesAtivosCount ?? 0)) {
-      alert(
-        `${nomeExibido(p)} tem ${p.pacientesAtivosCount} pacientes ativos. ` +
-          'Reduzir o limite abaixo disso não remove ninguém — apenas impede novos encaminhamentos.'
-      );
+
+    setOcupado('TODOS');
+    try {
+      const resp = await fetch('/api/application/credenciamento-psicologo/limite-pacientes', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ limitePacientesAtivos: limite }),
+      });
+      const body = (await resp.json()) as { success: boolean; error?: string };
+      if (!resp.ok || !body.success) {
+        alert(body.error ?? 'Não foi possível atualizar a capacidade da equipe.');
+        return false;
+      }
+      await loadPsicologos();
+      setLimiteAlvo(null);
+      return true;
+    } catch {
+      alert('Falha de conexão ao atualizar a capacidade da equipe.');
+      return false;
+    } finally {
+      setOcupado(null);
     }
-    return atualizar(p.id, { limitePacientesAtivos: limite });
   };
 
   const priorizarNaFila = (p: PsicologoItem) => {
@@ -216,7 +236,7 @@ export default function GestaoPsicologosPage() {
   const pausados = aprovados.length - noRodizio.length;
   const foraDaVitrine = aprovados.filter((p) => p.exibirNaVitrine === false).length;
   const vagasLivres = noRodizio.reduce(
-    (acc, p) => acc + Math.max(0, (p.limitePacientesAtivos ?? 5) - (p.pacientesAtivosCount ?? 0)),
+    (acc, p) => acc + Math.max(0, (p.limitePacientesAtivos ?? LIMITE_PACIENTES_PADRAO) - (p.pacientesAtivosCount ?? 0)),
     0
   );
 
@@ -235,6 +255,16 @@ export default function GestaoPsicologosPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3 shrink-0">
+          <button
+            type="button"
+            onClick={() => setLimiteAlvo('TODOS')}
+            disabled={psicologos.length === 0 || ocupado === 'TODOS'}
+            className="flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-extrabold text-amber-950 transition-all hover:bg-amber-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <UsersRound className="h-4 w-4 text-amber-700" />
+            <span>Limite para todos</span>
+          </button>
+
           <button
             onClick={handleCopyFormLink}
             className={`font-extrabold text-xs px-5 py-3 rounded-2xl transition-all shadow-md flex items-center gap-2 active:scale-95 ${
@@ -400,7 +430,7 @@ export default function GestaoPsicologosPage() {
               onAlternarRodizio={alternarRodizio}
               onAlternarVitrine={alternarVitrine}
               onEditar={(item) => setEditando(item)}
-              onAjustarLimite={(item) => void ajustarLimite(item)}
+              onAjustarLimite={(item) => setLimiteAlvo(item)}
               onPriorizar={(item) => void priorizarNaFila(item)}
               onAprovarSolicitacaoGestao={aprovarSolicitacaoGestao}
               onRecusarSolicitacaoGestao={recusarSolicitacaoGestao}
@@ -426,6 +456,15 @@ export default function GestaoPsicologosPage() {
             void atualizar(alvo.id, mudancas);
           }}
           onCancelar={() => setEditando(null)}
+        />
+      )}
+
+      {limiteAlvo && (
+        <ModalLimitePacientes
+          psicologos={limiteAlvo === 'TODOS' ? psicologos : [limiteAlvo]}
+          alvo={limiteAlvo === 'TODOS' ? undefined : limiteAlvo}
+          onSalvar={salvarLimite}
+          onCancelar={() => setLimiteAlvo(null)}
         />
       )}
 

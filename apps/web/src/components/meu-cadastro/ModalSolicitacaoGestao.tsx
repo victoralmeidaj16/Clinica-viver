@@ -2,6 +2,12 @@
 
 import React, { useState } from 'react';
 import {
+  LIMITE_PACIENTES_MAXIMO,
+  LIMITE_PACIENTES_MINIMO,
+  limitePacientesValido,
+  mensagemLimitePacientesInvalido,
+} from '@/lib/psychologistCapacity';
+import {
   Lock,
   X,
   Send,
@@ -87,6 +93,11 @@ export function ModalSolicitacaoGestao({
 
     if (servicosPrestados.length === 0) {
       setErro('Selecione ao menos um serviço que você presta na clínica.');
+      return;
+    }
+
+    if (!limitePacientesValido(limitePacientesAtivos)) {
+      setErro(mensagemLimitePacientesInvalido());
       return;
     }
 
@@ -254,14 +265,14 @@ export function ModalSolicitacaoGestao({
             <div className="flex items-center gap-4">
               <input
                 type="number"
-                min={1}
-                max={5}
+                min={LIMITE_PACIENTES_MINIMO}
+                max={LIMITE_PACIENTES_MAXIMO}
                 value={limitePacientesAtivos}
                 onChange={(e) => setLimitePacientesAtivos(Number(e.target.value))}
                 className="w-24 px-3.5 py-2.5 border border-line rounded-xl text-sm font-bold text-center bg-surface focus:outline-none focus:border-psi-vibrant"
               />
               <span className="text-xs text-muted">
-                Limite máximo de pacientes simultâneos atendidos pela clínica (máx: 5).
+                A gestão revisará a capacidade solicitada antes de aplicá-la.
               </span>
             </div>
           </div>

@@ -83,7 +83,7 @@ export interface PsicologoPerfil {
   turmaViverMais?: string; // Ex: '23A', '23B', '24A', '25B'
   posGraduacaoViverMais?: string;
   outrasPosGraduacoes?: string[];
-  limitePacientesAtivos: number; // Padrão e teto operacional: 5
+  limitePacientesAtivos: number; // Capacidade operacional definida pela gestão
   pacientesAtivosCount: number;
   exibirNaVitrine: boolean; // Aparece no site público
   motivoDesativacao?: string; // Ex: 'Férias', 'Limite de Pacientes', 'Pausa Solicitada'

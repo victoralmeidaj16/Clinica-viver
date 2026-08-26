@@ -30,6 +30,12 @@ import { BrazilLocationFields } from '@/components/forms/BrazilLocationFields';
 import { maskBrazilPhoneInput, normalizeBrazilPhone } from '@/lib/brazilPhone';
 import type { GenderValue } from '@/lib/gender';
 import type { PsicologoItem } from './types';
+import {
+  LIMITE_PACIENTES_MAXIMO,
+  LIMITE_PACIENTES_MINIMO,
+  limitePacientesValido,
+  mensagemLimitePacientesInvalido,
+} from '@/lib/psychologistCapacity';
 
 type AbaEdicao = 'dados' | 'endereco' | 'formacao' | 'criterios';
 
@@ -135,9 +141,9 @@ export function ModalEdicao({
     }
 
     const limiteNum = Number(limitePacientesAtivos);
-    if (!Number.isInteger(limiteNum) || limiteNum < 1 || limiteNum > 5) {
+    if (!limitePacientesValido(limiteNum)) {
       setAbaAtiva('formacao');
-      setAviso('O limite de pacientes ativos deve ser um número entre 1 e 5.');
+      setAviso(mensagemLimitePacientesInvalido());
       return;
     }
 
@@ -522,12 +528,12 @@ export function ModalEdicao({
 
               <div>
                 <label className="font-bold text-slate-700 block mb-1 text-xs">
-                  Limite de Pacientes Ativos (1 a 5)
+                  Limite de Pacientes Ativos ({LIMITE_PACIENTES_MINIMO} a {LIMITE_PACIENTES_MAXIMO})
                 </label>
                 <input
                   type="number"
-                  min={1}
-                  max={5}
+                  min={LIMITE_PACIENTES_MINIMO}
+                  max={LIMITE_PACIENTES_MAXIMO}
                   value={limitePacientesAtivos}
                   onChange={(e) => setLimitePacientesAtivos(Number(e.target.value))}
                   className={inputClass}

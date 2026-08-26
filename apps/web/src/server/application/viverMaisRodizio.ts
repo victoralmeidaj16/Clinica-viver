@@ -14,6 +14,11 @@ import type {
   TriagemPacienteRecord,
 } from './persistence';
 import { normalizarTurnoPreferencia } from '@/lib/turnos';
+import {
+  LIMITE_PACIENTES_MAXIMO,
+  LIMITE_PACIENTES_MINIMO,
+  LIMITE_PACIENTES_PADRAO,
+} from '@/lib/psychologistCapacity';
 
 /**
  * Ponte entre o motor de rodízio (`@thats-life/core`) e o estado persistido.
@@ -35,9 +40,6 @@ export const SLA_CONTATO_HORAS = 24;
 
 /** A partir daqui a linha fica amarela no cockpit: ainda dá tempo, mas aperta. */
 const SLA_ATENCAO_HORAS = 12;
-
-/** Teto padrão de pacientes por profissional, quando a gestão não define outro. */
-const LIMITE_PACIENTES_PADRAO = 5;
 
 export type SlaStatus = 'VERDE' | 'AMARELO' | 'VERMELHO';
 
@@ -223,7 +225,10 @@ export function recalcularPacientesAtivos(snapshot: PersistedSnapshot): Persiste
     ...snapshot,
     cadastrosPsicologos: (snapshot.cadastrosPsicologos ?? []).map((psi) => ({
       ...psi,
-      limitePacientesAtivos: Math.min(5, Math.max(1, psi.limitePacientesAtivos ?? LIMITE_PACIENTES_PADRAO)),
+      limitePacientesAtivos: Math.min(
+        LIMITE_PACIENTES_MAXIMO,
+        Math.max(LIMITE_PACIENTES_MINIMO, psi.limitePacientesAtivos ?? LIMITE_PACIENTES_PADRAO)
+      ),
       pacientesAtivosCount: contagem.get(psi.id) ?? 0,
     })),
   };

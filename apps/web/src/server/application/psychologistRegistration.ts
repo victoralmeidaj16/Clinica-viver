@@ -5,6 +5,7 @@ import { normalizeBrazilPhone } from '@/lib/brazilPhone';
 import { isBrazilUf } from '@/lib/brazilLocations';
 import { municipioPertenceAoEstado } from './ibgeLocations';
 import { validateGender } from '@/lib/gender';
+import { limitePacientesValido, mensagemLimitePacientesInvalido } from '@/lib/psychologistCapacity';
 
 /**
  * Regras de edição do cadastro de psicólogo, num lugar só.
@@ -117,7 +118,7 @@ export async function validarCorpo(
   // Só o que vai ser aplicado é validado.
   //
   // Antes a validação corria sobre o corpo inteiro, então o psicólogo que
-  // reenviasse o próprio cadastro recebia "o limite deve ser entre 1 e 5" por
+  // reenviasse o próprio cadastro recebia um erro sobre o limite por
   // um campo que a allowlist ia descartar de qualquer forma — erro sobre uma
   // decisão que não era dele. O descarte continua silencioso, como documentado.
   for (const campo of Object.keys(corpo)) {
@@ -198,11 +199,9 @@ export async function validarCorpo(
 
   if (
     corpo.limitePacientesAtivos !== undefined &&
-    (!Number.isInteger(corpo.limitePacientesAtivos) ||
-      Number(corpo.limitePacientesAtivos) < 1 ||
-      Number(corpo.limitePacientesAtivos) > 5)
+    !limitePacientesValido(corpo.limitePacientesAtivos)
   ) {
-    throw new CorpoInvalidoError('O limite deve ser um número inteiro entre 1 e 5.');
+    throw new CorpoInvalidoError(mensagemLimitePacientesInvalido());
   }
 
   if (corpo.turnosDisponiveis !== undefined) {

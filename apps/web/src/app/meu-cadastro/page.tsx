@@ -28,6 +28,8 @@ import {
 } from '@/components/forms/opcoesPsicologo';
 import { BrazilLocationFields } from '@/components/forms/BrazilLocationFields';
 import { processImageUpload } from '@/lib/imageUpload';
+import { CardDefinidoPelaGestao } from '@/components/meu-cadastro/CardDefinidoPelaGestao';
+import type { SolicitacaoGestaoFormValues } from '@/components/meu-cadastro/ModalSolicitacaoGestao';
 
 interface Cadastro {
   id: string;
@@ -65,6 +67,18 @@ interface Cadastro {
   turmaViverMais?: string;
   posGraduacaoViverMais?: string;
   segundaPosGraduacao?: string;
+  solicitacaoAlteracaoGestao?: {
+    turmaViverMais?: string;
+    posGraduacaoViverMais?: string;
+    segundaPosGraduacao?: string;
+    servicosPrestados?: string[];
+    limitePacientesAtivos?: number;
+    justificativa?: string;
+    solicitadoEm: string;
+    status: 'PENDENTE' | 'APROVADO' | 'RECUSADO';
+    respondidoEm?: string;
+    motivoRecusa?: string;
+  };
   criadoEm?: string;
 }
 
@@ -234,6 +248,42 @@ export default function MeuCadastroPage() {
     } finally {
       setSalvando(false);
     }
+  };
+
+  const salvarSolicitacaoGestao = async (valores: SolicitacaoGestaoFormValues) => {
+    const payload = {
+      solicitacaoAlteracaoGestao: {
+        ...valores,
+        solicitadoEm: new Date().toISOString(),
+        status: 'PENDENTE' as const,
+      },
+    };
+    const response = await fetch('/api/application/credenciamento-psicologo/me', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const body = (await response.json()) as { success: boolean; data?: Cadastro; error?: string };
+    if (!response.ok || !body.success) {
+      throw new Error(body.error ?? 'Não foi possível enviar a solicitação.');
+    }
+    setCadastro(body.data ?? null);
+  };
+
+  const cancelarSolicitacaoGestao = async () => {
+    const payload = {
+      solicitacaoAlteracaoGestao: null,
+    };
+    const response = await fetch('/api/application/credenciamento-psicologo/me', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const body = (await response.json()) as { success: boolean; data?: Cadastro; error?: string };
+    if (!response.ok || !body.success) {
+      throw new Error(body.error ?? 'Não foi possível cancelar.');
+    }
+    setCadastro(body.data ?? null);
   };
 
   if (carregando) {
@@ -549,28 +599,11 @@ export default function MeuCadastroPage() {
               </div>
             </section>
 
-            <section className="bg-surface rounded-3xl border border-line shadow-card p-6">
-              <div className="flex items-center gap-3 border-b border-line pb-4">
-                <Lock className="w-5 h-5 text-muted" />
-                <h2 className="font-black text-ink">Definido pela gestão</h2>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5 mt-5">
-                {TRAVADOS.map(([label, valor, motivo]) => (
-                  <div key={label}>
-                    <p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">{label}</p>
-                    <p className="text-sm font-bold text-ink mt-1">{valor(cadastro) || '—'}</p>
-                    <p className="text-[10px] text-muted mt-0.5">{motivo}</p>
-                  </div>
-                ))}
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Pacientes ativos</p>
-                  <p className="text-sm font-bold text-ink mt-1">
-                    {cadastro.pacientesAtivosCount ?? 0} de {cadastro.limitePacientesAtivos ?? 5}
-                  </p>
-                  <p className="text-[10px] text-muted mt-0.5">Capacidade definida pela clínica</p>
-                </div>
-              </div>
-            </section>
+            <CardDefinidoPelaGestao
+              cadastro={cadastro}
+              onSalvarSolicitacao={salvarSolicitacaoGestao}
+              onCancelarSolicitacao={cancelarSolicitacaoGestao}
+            />
           </div>
 
           <aside className="bg-psi-darkest rounded-3xl p-6 text-white shadow-contrast h-fit">

@@ -17,6 +17,7 @@ import { ModalEdicao } from '@/components/gestao/ModalEdicao';
 
 const FILTROS: Array<[FiltroStatus, string]> = [
   ['TODOS', 'Todos'],
+  ['SOLICITACOES', 'Solicitações'],
   ['EM_ANALISE', 'Em análise'],
   ['APROVADO', 'No rodízio'],
   ['PAUSADO', 'Pausados'],
@@ -146,6 +147,42 @@ export default function GestaoPsicologosPage() {
     return atualizar(p.id, { ultimoLeadRecebidoEm: null });
   };
 
+  const aprovarSolicitacaoGestao = async (p: PsicologoItem) => {
+    const sol = p.solicitacaoAlteracaoGestao;
+    if (!sol) return;
+    const mudancas: Record<string, unknown> = {
+      solicitacaoAlteracaoGestao: {
+        ...sol,
+        status: 'APROVADO',
+        respondidoEm: new Date().toISOString(),
+      },
+    };
+    if (sol.turmaViverMais !== undefined) mudancas.turmaViverMais = sol.turmaViverMais;
+    if (sol.posGraduacaoViverMais !== undefined) mudancas.posGraduacaoViverMais = sol.posGraduacaoViverMais;
+    if (sol.segundaPosGraduacao !== undefined) mudancas.segundaPosGraduacao = sol.segundaPosGraduacao;
+    if (sol.servicosPrestados !== undefined) mudancas.servicosPrestados = sol.servicosPrestados;
+    if (sol.limitePacientesAtivos !== undefined) mudancas.limitePacientesAtivos = sol.limitePacientesAtivos;
+
+    await atualizar(p.id, mudancas);
+  };
+
+  const recusarSolicitacaoGestao = async (p: PsicologoItem) => {
+    const sol = p.solicitacaoAlteracaoGestao;
+    if (!sol) return;
+    const motivo = prompt(`Motivo da recusa da solicitação de ${nomeExibido(p)} (opcional):`);
+    if (motivo === null) return;
+
+    const mudancas: Record<string, unknown> = {
+      solicitacaoAlteracaoGestao: {
+        ...sol,
+        status: 'RECUSADO',
+        respondidoEm: new Date().toISOString(),
+        motivoRecusa: motivo.trim() || undefined,
+      },
+    };
+    await atualizar(p.id, mudancas);
+  };
+
   const filtered = psicologos.filter((p) => {
     const termo = search.toLowerCase();
     const matchesSearch =
@@ -156,16 +193,22 @@ export default function GestaoPsicologosPage() {
 
     const matchesStatus =
       statusFilter === 'TODOS' ||
-      (statusFilter === 'FORA_DA_VITRINE'
-        ? p.status === 'APROVADO' && p.exibirNaVitrine === false
-        : statusFilter === 'PAUSADO'
-          ? p.status === 'APROVADO' && Boolean(p.pausadoNoRodizio)
-          : statusFilter === 'APROVADO'
-            ? p.status === 'APROVADO' && !p.pausadoNoRodizio
-            : p.status === statusFilter);
+      (statusFilter === 'SOLICITACOES'
+        ? p.solicitacaoAlteracaoGestao?.status === 'PENDENTE'
+        : statusFilter === 'FORA_DA_VITRINE'
+          ? p.status === 'APROVADO' && p.exibirNaVitrine === false
+          : statusFilter === 'PAUSADO'
+            ? p.status === 'APROVADO' && Boolean(p.pausadoNoRodizio)
+            : statusFilter === 'APROVADO'
+              ? p.status === 'APROVADO' && !p.pausadoNoRodizio
+              : p.status === statusFilter);
 
     return matchesSearch && matchesStatus;
   });
+
+  const solicitacoesPendentes = psicologos.filter(
+    (p) => p.solicitacaoAlteracaoGestao?.status === 'PENDENTE'
+  ).length;
 
   const aprovados = psicologos.filter((p) => p.status === 'APROVADO');
   const noRodizio = aprovados.filter((p) => !p.pausadoNoRodizio);
@@ -216,6 +259,31 @@ export default function GestaoPsicologosPage() {
 
       {erro && (
         <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-xs font-bold text-rose-800">{erro}</div>
+      )}
+
+      {solicitacoesPendentes > 0 && (
+        <div className="rounded-2xl border-2 border-purple-300 bg-purple-50 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-purple-600 text-white rounded-xl shrink-0">
+              <UserCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-xs font-black text-purple-950">
+                {solicitacoesPendentes} psicólogo{solicitacoesPendentes > 1 ? 's têm' : ' tem'} solicitação de alteração pendente em &ldquo;Definido pela Gestão&rdquo;
+              </p>
+              <p className="text-[11px] text-purple-800">
+                Revise os novos serviços ou dados acadêmicos solicitados e aprove com 1 clique.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setStatusFilter('SOLICITACOES')}
+            className="text-xs font-black text-purple-900 bg-white border border-purple-300 px-3.5 py-2 rounded-xl hover:bg-purple-100/50 shadow-xs shrink-0 self-start sm:self-auto"
+          >
+            Filtrar Solicitações ({solicitacoesPendentes})
+          </button>
+        </div>
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -334,6 +402,8 @@ export default function GestaoPsicologosPage() {
               onEditar={(item) => setEditando(item)}
               onAjustarLimite={(item) => void ajustarLimite(item)}
               onPriorizar={(item) => void priorizarNaFila(item)}
+              onAprovarSolicitacaoGestao={aprovarSolicitacaoGestao}
+              onRecusarSolicitacaoGestao={recusarSolicitacaoGestao}
             />
           ))}
         </div>

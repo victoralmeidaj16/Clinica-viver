@@ -13,12 +13,14 @@ import {
   ChevronUp,
   MapPin,
   Phone,
+  Bell,
 } from 'lucide-react';
 import { rotuloModalidade, rotuloTipoAtendimento, rotuloTurno } from '@/components/forms/opcoesPsicologo';
 import { formatBrazilPhone } from '@/lib/brazilPhone';
 import { formatGender } from '@/lib/gender';
 import { PsicologoItem } from './types';
 import { SemaforoCredenciamento } from './SemaforoCredenciamento';
+import { BannerSolicitacaoAlteracaoGestao } from './BannerSolicitacaoAlteracaoGestao';
 
 interface PsicologoCardProps {
   p: PsicologoItem;
@@ -30,6 +32,8 @@ interface PsicologoCardProps {
   onEditar: (p: PsicologoItem) => void;
   onAjustarLimite: (p: PsicologoItem) => void;
   onPriorizar: (p: PsicologoItem) => void;
+  onAprovarSolicitacaoGestao?: (p: PsicologoItem) => void | Promise<void>;
+  onRecusarSolicitacaoGestao?: (p: PsicologoItem) => void | Promise<void>;
 }
 
 const nomeExibido = (p: PsicologoItem) => p.nomeSocial?.trim() || p.nomeCompleto;
@@ -47,6 +51,8 @@ export function PsicologoCard({
   onEditar,
   onAjustarLimite,
   onPriorizar,
+  onAprovarSolicitacaoGestao,
+  onRecusarSolicitacaoGestao,
 }: PsicologoCardProps) {
   const [expanded, setExpanded] = useState(false);
 
@@ -57,9 +63,20 @@ export function PsicologoCard({
   const pausado = Boolean(p.pausadoNoRodizio);
   const semTurno = !p.turnosDisponiveis?.length;
   const trabalhando = ocupado === p.id;
+  const temSolicitacaoPendente = p.solicitacaoAlteracaoGestao?.status === 'PENDENTE';
 
   return (
     <div className="p-4 sm:p-5 hover:bg-slate-50/80 transition-colors space-y-3">
+      {/* Banner de Solicitação de Alteração da Gestão (se houver) */}
+      {temSolicitacaoPendente && (
+        <BannerSolicitacaoAlteracaoGestao
+          psicologo={p}
+          trabalhando={trabalhando}
+          onAprovar={onAprovarSolicitacaoGestao ?? (() => {})}
+          onRecusar={onRecusarSolicitacaoGestao ?? (() => {})}
+          onEditar={onEditar}
+        />
+      )}
       {/* Linha Principal da Lista */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         {/* Coluna 1: Foto, Nome, CRP, Turma e Status */}
@@ -82,6 +99,12 @@ export function PsicologoCard({
               <span className="text-[10px] font-black text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">
                 Turma {p.turmaViverMais || '—'}
               </span>
+
+              {temSolicitacaoPendente && (
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 bg-purple-100 text-purple-900 border border-purple-300 animate-pulse">
+                  <Bell className="w-3 h-3 text-purple-700" /> Alteração solicitada
+                </span>
+              )}
 
               {p.status === 'EM_ANALISE' ? (
                 <span className="text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200">

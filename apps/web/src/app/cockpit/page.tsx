@@ -7,7 +7,6 @@ import {
   Zap,
   Clock,
   Check,
-  UserCheck,
   Phone,
   Calendar,
   Copy,
@@ -332,26 +331,7 @@ export default function CockpitPage() {
       </div>
 
       {/* GRID DE CARDS PRINCIPAIS DO MEU PAINEL */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        {/* CARD 2: POSIÇÃO NA FILA DE RODÍZIO DA CLÍNICA */}
-        <div className="bg-surface rounded-3xl p-5 border border-line shadow-card flex flex-col justify-between space-y-4">
-          <div className="space-y-1">
-            <span className="text-[10px] font-black uppercase tracking-wider text-psi-vibrant">
-              Rodízio de Encaminhamentos
-            </span>
-            <h3 className="font-extrabold text-base text-ink flex items-center gap-2">
-              <UserCheck className="w-5 h-5 text-psi-vibrant" /> Posição na Fila
-            </h3>
-          </div>
-
-          <div className="p-4 bg-psi-vibrant/5 rounded-2xl border border-psi-vibrant/20 text-center space-y-1 my-auto">
-            <span className="text-3xl font-black text-psi-vibrant">#2</span>
-            <span className="text-xs font-bold text-slate-700 block">de 8 Psicólogos Credenciados</span>
-            <p className="text-[11px] text-muted pt-1">
-              O próximo lead entrante via formulário será encaminhado para você em breve.
-            </p>
-          </div>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
 
         {/* CARD 3: ACESSO RÁPIDO AO PRONTUÁRIO DO PACIENTE */}
         <div className="bg-surface rounded-3xl p-5 border border-line shadow-card flex flex-col justify-between space-y-4">

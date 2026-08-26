@@ -36,6 +36,18 @@ export interface PsicologoItem {
   turmaViverMais?: string;
   posGraduacaoViverMais?: string;
   segundaPosGraduacao?: string;
+  solicitacaoAlteracaoGestao?: {
+    turmaViverMais?: string;
+    posGraduacaoViverMais?: string;
+    segundaPosGraduacao?: string;
+    servicosPrestados?: string[];
+    limitePacientesAtivos?: number;
+    justificativa?: string;
+    solicitadoEm: string;
+    status: 'PENDENTE' | 'APROVADO' | 'RECUSADO';
+    respondidoEm?: string;
+    motivoRecusa?: string;
+  };
   /** Marcos do credenciamento. `contaAtivada` vem da junção com clinica_usuarios. */
   boasVindasEnviadaEm?: string;
   acessoCriadoEm?: string;
@@ -47,6 +59,7 @@ export interface PsicologoItem {
 export type FiltroStatus =
   | 'TODOS'
   | 'EM_ANALISE'
+  | 'SOLICITACOES'
   | 'APROVADO'
   | 'FORA_DA_VITRINE'
   | 'PAUSADO'

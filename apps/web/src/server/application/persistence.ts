@@ -129,6 +129,19 @@ export type StatusCadastroPsicologo = 'EM_ANALISE' | 'APROVADO' | 'RECUSADO';
  * simplesmente não casa com nenhum lead, que é o comportamento correto para um
  * cadastro incompleto.
  */
+export interface SolicitacaoAlteracaoGestao {
+  turmaViverMais?: string;
+  posGraduacaoViverMais?: string;
+  segundaPosGraduacao?: string;
+  servicosPrestados?: readonly string[];
+  limitePacientesAtivos?: number;
+  justificativa?: string;
+  solicitadoEm: string;
+  status: 'PENDENTE' | 'APROVADO' | 'RECUSADO';
+  respondidoEm?: string;
+  motivoRecusa?: string;
+}
+
 export interface CadastroPsicologoRecord {
   id: string;
   nomeCompleto: string;
@@ -187,6 +200,7 @@ export interface CadastroPsicologoRecord {
   turmaViverMais?: string;
   posGraduacaoViverMais?: string;
   segundaPosGraduacao?: string;
+  solicitacaoAlteracaoGestao?: SolicitacaoAlteracaoGestao;
 }
 
 export interface LancamentoLedgerAluno {

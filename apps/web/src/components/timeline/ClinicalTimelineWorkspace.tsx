@@ -63,7 +63,6 @@ function ClinicalTimelineContent() {
   // Estado para Cadastro Manual de Prontuário
   const [mostrarFormNovo, setMostrarFormNovo] = useState(false);
   const [novoTitulo, setNovoTitulo] = useState('');
-  const [novaCategoria, setNovaCategoria] = useState<'evolucao' | 'anamnese' | 'plano' | 'intervencao'>('evolucao');
   const [novosSubjetivo, setNovosSubjetivo] = useState('');
   const [novosObjetivo, setNovosObjetivo] = useState('');
   const [novosAvaliacao, setNovosAvaliacao] = useState('');
@@ -199,7 +198,7 @@ function ClinicalTimelineContent() {
         sourceType: 'clinical_record_revision',
         sourceId: `atendimento-${Date.now()}`,
       },
-      tags: ['prontuario-manual', novaCategoria],
+      tags: ['prontuario-manual'],
     };
 
     try {
@@ -403,34 +402,16 @@ function ClinicalTimelineContent() {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-bold text-ink block mb-1">Título do Atendimento / Prontuário</label>
-              <input
-                type="text"
-                required
-                value={novoTitulo}
-                onChange={(e) => setNovoTitulo(e.target.value)}
-                placeholder="Ex: Sessão Semanal TCC, Anamnese Inicial..."
-                className="input py-2.5 text-xs w-full"
-              />
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-ink block mb-1">Categoria do Registro</label>
-              <select
-                value={novaCategoria}
-                onChange={(e) =>
-                  setNovaCategoria(e.target.value as 'evolucao' | 'anamnese' | 'plano' | 'intervencao')
-                }
-                className="input py-2.5 text-xs w-full font-bold"
-              >
-                <option value="evolucao">Evolução Clínica</option>
-                <option value="anamnese">Anamnese / Avaliação Inicial</option>
-                <option value="plano">Plano Terapêutico</option>
-                <option value="intervencao">Intervenção / Técnica Aplicada</option>
-              </select>
-            </div>
+          <div>
+            <label className="text-xs font-bold text-ink block mb-1">Título do Atendimento / Prontuário</label>
+            <input
+              type="text"
+              required
+              value={novoTitulo}
+              onChange={(e) => setNovoTitulo(e.target.value)}
+              placeholder="Ex: Sessão Semanal TCC, Anamnese Inicial..."
+              className="input py-2.5 text-xs w-full"
+            />
           </div>
 
           {/* Estrutura SOAP Manual */}

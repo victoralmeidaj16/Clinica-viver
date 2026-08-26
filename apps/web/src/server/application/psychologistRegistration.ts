@@ -37,7 +37,7 @@ export const CAMPOS_DA_GESTAO = new Set([
   'limitePacientesAtivos', 'exibirNaVitrine', 'motivoDesativacao',
   'pausadoNoRodizio', 'motivoPausaRodizio',
   'turmaViverMais', 'posGraduacaoViverMais', 'segundaPosGraduacao',
-  'ultimoLeadRecebidoEm',
+  'ultimoLeadRecebidoEm', 'solicitacaoAlteracaoGestao',
 ]);
 
 /**
@@ -52,6 +52,7 @@ export const CAMPOS_DO_PROPRIO_PSICOLOGO = new Set([
   'servicosPrestados', 'publicoAlvo', 'publicoAlvoOutro',
   'especificarNecessidades', 'necessidadesAtendidas', 'necessidadesOutro',
   'turmaViverMais', 'posGraduacaoViverMais', 'segundaPosGraduacao',
+  'solicitacaoAlteracaoGestao',
 ]);
 
 /**
@@ -356,5 +357,8 @@ export function aplicarMudancas(
     segundaPosGraduacao: pode('segundaPosGraduacao')
       ? (corpo.segundaPosGraduacao as string) || undefined
       : existente.segundaPosGraduacao,
+    solicitacaoAlteracaoGestao: pode('solicitacaoAlteracaoGestao')
+      ? (corpo.solicitacaoAlteracaoGestao as any) ?? undefined
+      : existente.solicitacaoAlteracaoGestao,
   };
 }

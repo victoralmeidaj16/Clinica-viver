@@ -108,6 +108,7 @@ interface PsicologoRow extends RowDataPacket {
   turma_viver_mais: string | null;
   pos_graduacao_viver_mais: string | null;
   segunda_pos_graduacao_viver_mais: string | null;
+  solicitacao_alteracao_gestao?: unknown;
   criado_em: string;
 }
 
@@ -135,6 +136,11 @@ function asStringArray(value: unknown): string[] {
 
 function asJson(value: readonly string[] | undefined): string {
   return JSON.stringify(value ?? []);
+}
+
+function asNullableJson(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  return JSON.stringify(value);
 }
 
 function toLead(row: TriagemRow): TriagemPacienteRecord {
@@ -220,6 +226,16 @@ function toPsychologist(row: PsicologoRow): CadastroPsicologoRecord {
     turmaViverMais: row.turma_viver_mais ?? undefined,
     posGraduacaoViverMais: row.pos_graduacao_viver_mais ?? undefined,
     segundaPosGraduacao: row.segunda_pos_graduacao_viver_mais ?? undefined,
+    solicitacaoAlteracaoGestao: (() => {
+      if (!row.solicitacao_alteracao_gestao) return undefined;
+      try {
+        return typeof row.solicitacao_alteracao_gestao === 'string'
+          ? JSON.parse(row.solicitacao_alteracao_gestao)
+          : (row.solicitacao_alteracao_gestao as any);
+      } catch {
+        return undefined;
+      }
+    })(),
   };
 }
 
@@ -368,8 +384,9 @@ export class MysqlCaptureRepository {
             limite_pacientes_ativos, pacientes_ativos_count,
             exibir_na_vitrine, pausado_no_rodizio, motivo_pausa_rodizio,
             motivo_desativacao, ultimo_lead_recebido_em,
-            turma_viver_mais, pos_graduacao_viver_mais, segunda_pos_graduacao_viver_mais, criado_em)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            turma_viver_mais, pos_graduacao_viver_mais, segunda_pos_graduacao_viver_mais,
+            solicitacao_alteracao_gestao, criado_em)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
            nome_completo = VALUES(nome_completo), nome_social = VALUES(nome_social),
            crp = VALUES(crp), whatsapp = VALUES(whatsapp), email = VALUES(email),
@@ -400,7 +417,8 @@ export class MysqlCaptureRepository {
            ultimo_lead_recebido_em = VALUES(ultimo_lead_recebido_em),
            turma_viver_mais = VALUES(turma_viver_mais),
            pos_graduacao_viver_mais = VALUES(pos_graduacao_viver_mais),
-           segunda_pos_graduacao_viver_mais = VALUES(segunda_pos_graduacao_viver_mais)`,
+           segunda_pos_graduacao_viver_mais = VALUES(segunda_pos_graduacao_viver_mais),
+           solicitacao_alteracao_gestao = VALUES(solicitacao_alteracao_gestao)`,
         [
           rowId('cadastro_psicologo', psych.id),
           instituicaoId(),
@@ -447,6 +465,7 @@ export class MysqlCaptureRepository {
           psych.turmaViverMais ?? null,
           psych.posGraduacaoViverMais ?? null,
           psych.segundaPosGraduacao ?? null,
+          asNullableJson(psych.solicitacaoAlteracaoGestao),
           toSqlTimestamp(psych.criadoEm),
         ]
       );

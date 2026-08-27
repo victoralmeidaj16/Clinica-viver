@@ -231,7 +231,7 @@ function toPsychologist(row: PsicologoRow): CadastroPsicologoRecord {
       try {
         return typeof row.solicitacao_alteracao_gestao === 'string'
           ? JSON.parse(row.solicitacao_alteracao_gestao)
-          : (row.solicitacao_alteracao_gestao as any);
+          : (row.solicitacao_alteracao_gestao as CadastroPsicologoRecord['solicitacaoAlteracaoGestao']);
       } catch {
         return undefined;
       }

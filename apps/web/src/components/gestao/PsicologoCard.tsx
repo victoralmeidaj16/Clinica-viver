@@ -9,7 +9,6 @@ import {
   Edit3,
   ChevronDown,
   ChevronUp,
-  MapPin,
   Phone,
   Bell,
 } from 'lucide-react';
@@ -61,7 +60,7 @@ export function PsicologoCard({
   const temSolicitacaoPendente = p.solicitacaoAlteracaoGestao?.status === 'PENDENTE';
 
   return (
-    <div className="p-4 sm:p-5 hover:bg-slate-50/80 transition-colors space-y-3">
+    <div className="p-3 sm:p-3.5 hover:bg-slate-50/80 transition-colors space-y-2.5">
       {/* Banner de Solicitação de Alteração da Gestão (se houver) */}
       {temSolicitacaoPendente && (
         <BannerSolicitacaoAlteracaoGestao
@@ -73,18 +72,18 @@ export function PsicologoCard({
         />
       )}
       {/* Linha Principal da Lista */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        {/* Coluna 1: Foto, Nome, CRP, Turma e Status */}
-        <div className="flex items-center gap-3.5 min-w-0 lg:w-1/3">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        {/* Coluna 1: Foto, Nome, Turma e Status */}
+        <div className="flex items-center gap-3 min-w-0 lg:w-1/3">
           {p.fotoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={p.fotoUrl}
               alt={`Foto de ${nomeExibido(p)}`}
-              className="w-12 h-12 rounded-2xl object-cover border-2 border-purple-200 shrink-0 shadow-xs"
+              className="w-10 h-10 rounded-xl object-cover border-2 border-purple-200 shrink-0 shadow-xs"
             />
           ) : (
-            <div className="w-12 h-12 rounded-2xl bg-purple-100 text-purple-800 font-black text-lg flex items-center justify-center border-2 border-purple-200 shrink-0 shadow-xs">
+            <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-800 font-black text-base flex items-center justify-center border-2 border-purple-200 shrink-0 shadow-xs">
               {nomeExibido(p).charAt(0)}
             </div>
           )}
@@ -124,20 +123,14 @@ export function PsicologoCard({
               )}
             </div>
 
-            <h3 className="font-extrabold text-slate-900 text-base leading-snug truncate mt-1">
+            {/*
+              CRP e cidade saíram daqui para os detalhes: numa lista que a
+              gestão percorre para achar quem pausar ou priorizar, eles não são
+              o que se procura, e custavam uma linha em cada card.
+            */}
+            <h3 className="font-extrabold text-slate-900 text-sm leading-snug truncate mt-0.5">
               {nomeExibido(p)}
             </h3>
-            <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-              <span>CRP {p.crp}</span>
-              {p.cidade && p.estadoUf && (
-                <>
-                  <span>•</span>
-                  <span className="flex items-center gap-0.5 text-slate-600">
-                    <MapPin className="w-3 h-3 text-slate-400" /> {p.cidade}/{p.estadoUf}
-                  </span>
-                </>
-              )}
-            </div>
           </div>
         </div>
 
@@ -267,6 +260,10 @@ export function PsicologoCard({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-slate-600 bg-slate-50 p-4 rounded-2xl border border-slate-100">
             <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-slate-500">CRP:</span>
+                <span className="font-semibold text-slate-800">{p.crp || '—'}</span>
+              </div>
               <div className="flex items-center justify-between">
                 <span className="font-bold text-slate-500">Localidade:</span>
                 <span className="font-semibold text-slate-800">

@@ -16,7 +16,6 @@ import { PsicologoCard } from '@/components/gestao/PsicologoCard';
 import { ModalMotivo } from '@/components/gestao/ModalMotivo';
 import { ModalEdicao } from '@/components/gestao/ModalEdicao';
 import { ModalLimitePacientes } from '@/components/gestao/ModalLimitePacientes';
-import { LIMITE_PACIENTES_PADRAO } from '@/lib/psychologistCapacity';
 
 const FILTROS: Array<[FiltroStatus, string]> = [
   ['TODOS', 'Todos'],
@@ -226,10 +225,6 @@ export default function GestaoPsicologosPage() {
   const noRodizio = aprovados.filter((p) => !p.pausadoNoRodizio);
   const pendentes = psicologos.filter((p) => p.status === 'EM_ANALISE').length;
   const pausados = aprovados.length - noRodizio.length;
-  const vagasLivres = noRodizio.reduce(
-    (acc, p) => acc + Math.max(0, (p.limitePacientesAtivos ?? LIMITE_PACIENTES_PADRAO) - (p.pacientesAtivosCount ?? 0)),
-    0
-  );
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -307,7 +302,7 @@ export default function GestaoPsicologosPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
           <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">No rodízio</span>
           <div className="flex items-baseline justify-between">
@@ -332,18 +327,6 @@ export default function GestaoPsicologosPage() {
                 Ver
               </button>
             )}
-          </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
-          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Vagas livres</span>
-          <div className="flex items-baseline justify-between">
-            <span className={`text-3xl font-black ${vagasLivres === 0 ? 'text-rose-600' : 'text-purple-900'}`}>
-              {vagasLivres}
-            </span>
-            <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
-              {vagasLivres === 0 ? 'Sem capacidade' : 'Podem receber'}
-            </span>
           </div>
         </div>
 

@@ -62,6 +62,7 @@ export interface AgendamentoResumo {
   realizadoEm?: string;
   linkPagamento: string;
   pagamentoStatus?: string;
+  vencimentoCobrancaEm?: string;
   custeadoPelaEmpresa: boolean;
   convenioNome?: string;
   podeConfirmarRealizacao: boolean;
@@ -385,6 +386,11 @@ export async function listAppointments(
                 AND c.organizacao_ref = o.ref_core
                 AND c.sessao_ref IN (a.ref_core, a.sessao_clinica_ref)
               ORDER BY c.criado_em DESC LIMIT 1) AS pagamento_status
+            ,(SELECT c.vence_em FROM financeiro_cobrancas c
+              WHERE c.instituicao_id = a.instituicao_id
+                AND c.organizacao_ref = o.ref_core
+                AND c.sessao_ref IN (a.ref_core, a.sessao_clinica_ref)
+              ORDER BY c.criado_em DESC LIMIT 1) AS vencimento_cobranca_em
        FROM clinica_agendamentos a
        JOIN clinica_profissionais p ON p.id = a.profissional_id
        JOIN clinica_organizacoes o ON o.id = p.organizacao_id
@@ -415,6 +421,7 @@ export async function listAppointments(
       realizadoEm: row.realizado_em ? new Date(row.realizado_em).toISOString() : undefined,
       linkPagamento: `/pagar/sessao/${String(row.token_pagamento_sessao)}`,
       pagamentoStatus: row.pagamento_status ? String(row.pagamento_status) : undefined,
+      vencimentoCobrancaEm: row.vencimento_cobranca_em ? new Date(row.vencimento_cobranca_em).toISOString() : undefined,
       custeadoPelaEmpresa: Boolean(row.custeado_pela_empresa),
       convenioNome: row.convenio_nome ? String(row.convenio_nome) : undefined,
       podeConfirmarRealizacao: podeConfirmarRealizacao(status, fim, agora),

@@ -9,8 +9,10 @@ import { rateLimited, validCpf } from '@/server/http/publicRequest';
 import {
   bindProviderPayment,
   isCompanyFundedReservation,
+  isExpiredReservation,
   reserveAppointmentCharge,
 } from '@/server/payments/paymentLinkRepository';
+import { asaasDueDate } from '@/lib/chargeDue';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -53,6 +55,13 @@ export async function POST(request: Request) {
         message: 'Esta sessão é custeada pela sua empresa - não há nada a pagar.',
       }, { headers: { 'Cache-Control': 'private, no-store' } });
     }
+    if (isExpiredReservation(checkout)) {
+      return NextResponse.json({
+        error: 'O prazo para pagamento desta sessão terminou.',
+        expired: true,
+        dueAt: checkout.dueAt,
+      }, { status: 410, headers: { 'Cache-Control': 'private, no-store' } });
+    }
 
     let payment = checkout.providerPaymentId
       ? await getAsaasPayment(checkout.providerPaymentId)
@@ -65,9 +74,7 @@ export async function POST(request: Request) {
         mobilePhone: checkout.patientPhone,
         email: checkout.patientEmail,
       });
-      const dueDate = new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'America/Sao_Paulo',
-      }).format(new Date());
+      const dueDate = asaasDueDate(checkout.dueAt);
       payment = await createAsaasPayment({
         customerId,
         value: checkout.amountCents / 100,

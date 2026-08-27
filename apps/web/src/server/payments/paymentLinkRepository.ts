@@ -27,6 +27,7 @@ export interface ReservedCheckout {
   providerPaymentId?: string;
   description?: string;
   sessionStart?: string;
+  dueAt: string;
 }
 
 export interface SessionPaymentProfile {
@@ -37,6 +38,7 @@ export interface SessionPaymentProfile {
   modality: PaymentModality;
   fundedByCompany: boolean;
   companyName?: string;
+  dueAt: string;
 }
 
 export interface CompanyFundedReservation {
@@ -44,10 +46,16 @@ export interface CompanyFundedReservation {
   companyName?: string;
 }
 
-export type ChargeReservation = ReservedCheckout | CompanyFundedReservation;
+export interface ExpiredReservation { expired: true; dueAt: string; }
+
+export type ChargeReservation = ReservedCheckout | CompanyFundedReservation | ExpiredReservation;
 
 export function isCompanyFundedReservation(value: ChargeReservation): value is CompanyFundedReservation {
   return 'fundedByCompany' in value && value.fundedByCompany === true;
+}
+
+export function isExpiredReservation(value: ChargeReservation): value is ExpiredReservation {
+  return 'expired' in value && value.expired === true;
 }
 
 function modalidadeDaTriagem(value: unknown): PaymentModality {
@@ -67,6 +75,10 @@ export async function getSessionPaymentProfile(
             CASE WHEN pa.convenio_ref IS NULL THEN 0
                  ELSE COALESCE(pa.custeado_pela_empresa, conv.empresa_paga_sessoes, 1) END
               AS custeado_pela_empresa,
+            COALESCE((SELECT c.vence_em FROM financeiro_cobrancas c
+              WHERE c.instituicao_id = a.instituicao_id AND c.organizacao_ref = o.ref_core
+                AND c.sessao_ref IN (a.ref_core, COALESCE(a.sessao_clinica_ref, a.ref_core))
+              ORDER BY c.criado_em DESC LIMIT 1), a.inicio) AS vence_em,
             (SELECT t.modalidade FROM clinica_triagens_pacientes t
               WHERE t.instituicao_id = a.instituicao_id
                 AND t.organizacao_ref = o.ref_core AND t.paciente_ref = pa.ref_core
@@ -95,6 +107,7 @@ export async function getSessionPaymentProfile(
     modality,
     fundedByCompany: Boolean(row.custeado_pela_empresa),
     companyName: row.convenio_nome ? String(row.convenio_nome) : undefined,
+    dueAt: fromSqlTimestamp(String(row.vence_em))!,
   };
 }
 
@@ -183,8 +196,8 @@ export async function reserveAppointmentCharge(input: {
     const description = descricaoFiscalDaSessao(sessionStart);
 
     const [chargeRows] = await connection.query<RowDataPacket[]>(
-      `SELECT c.ref_core AS cobranca_ref, x.id AS checkout_ref,
-              x.referencia_externa, x.provedor_pagamento_ref
+      `SELECT c.ref_core AS cobranca_ref, c.vence_em, c.status AS cobranca_status,
+              x.id AS checkout_ref, x.referencia_externa, x.provedor_pagamento_ref
          FROM financeiro_cobrancas c
          LEFT JOIN financeiro_checkouts_asaas x
            ON x.instituicao_id = c.instituicao_id AND x.cobranca_ref = c.ref_core
@@ -199,6 +212,13 @@ export async function reserveAppointmentCharge(input: {
     let chargeRef = chargeRows[0]?.cobranca_ref
       ? String(chargeRows[0].cobranca_ref)
       : undefined;
+    const chargeDueAt = chargeRows[0]?.vence_em
+      ? fromSqlTimestamp(String(chargeRows[0].vence_em))!
+      : sessionStart;
+    if (Date.parse(chargeDueAt) <= Date.now() || chargeRows[0]?.cobranca_status === 'overdue') {
+      await connection.rollback();
+      return { expired: true, dueAt: chargeDueAt };
+    }
     if (!chargeRef) {
       chargeRef = `charge-session-${randomUUID()}`;
       const billingSessionRef = String(appointment.agendamento_ref);
@@ -211,7 +231,7 @@ export async function reserveAppointmentCharge(input: {
                  CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3))`,
         [rowId('cobranca', chargeRef), instituicaoId(), appointment.organizacao_ref,
           chargeRef, billingSessionRef, appointment.paciente_ref,
-          appointment.profissional_ref, toSqlTimestamp(sessionStart),
+          appointment.profissional_ref, toSqlTimestamp(new Date().toISOString()),
           toSqlTimestamp(sessionStart), amountCents, description]
       );
     }
@@ -259,6 +279,7 @@ export async function reserveAppointmentCharge(input: {
         : undefined,
       description,
       sessionStart,
+      dueAt: chargeDueAt,
     };
   } catch (error) {
     await connection.rollback();

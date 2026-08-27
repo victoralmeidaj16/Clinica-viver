@@ -86,6 +86,14 @@ export default function AgendaPage() {
     setDados((atual) => (atual ? { ...atual, appointments: resposta.appointments } : atual));
   };
 
+  const atualizarVencimento = async (id: string, dueAt: string) => {
+    const resposta = await applicationRequest<{ appointments: AgendamentoResumo[] }>(
+      `/agenda/agendamentos/${encodeURIComponent(id)}`,
+      { method: 'PATCH', body: JSON.stringify({ action: 'update_charge_due', dueAt }) }
+    );
+    setDados((atual) => (atual ? { ...atual, appointments: resposta.appointments } : atual));
+  };
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -133,6 +141,7 @@ export default function AgendaPage() {
             agendamentos={dados.appointments}
             onCancelar={cancelarSessao}
             onConfirmarRealizacao={confirmarRealizacao}
+            onAtualizarVencimento={atualizarVencimento}
           />
         </>
       )}

@@ -17,7 +17,7 @@ import {
   type JanelaEditavel,
 } from '@/server/scheduling/agendaRepository';
 import { avisarSessaoCancelada } from '@/server/scheduling/agendaAvisos';
-import { cancelarCobrancaDaSessao } from '@/server/payments/sessionCharge';
+import { atualizarVencimentoCobrancaSessao, cancelarCobrancaDaSessao } from '@/server/payments/sessionCharge';
 
 /**
  * A agenda pelo lado de quem atende.
@@ -215,6 +215,20 @@ export async function confirmAgendaAppointmentCompleted(
     );
   }
 
+  const desde = new Date(Date.now() - 90 * 24 * 60 * 60_000);
+  return { appointments: await listAppointments(organizationId, professionalId, desde) };
+}
+
+export async function updateAgendaAppointmentChargeDue(
+  context: RequestContext,
+  appointmentId: string,
+  dueAt: string
+) {
+  const { organizationId, professionalId } = perfilDaSessao(context);
+  const outcome = await atualizarVencimentoCobrancaSessao({ organizationId, professionalId, appointmentId, dueAt });
+  if (outcome === 'not_found') throw new ApplicationError('NOT_FOUND', 'Cobrança da sessão não encontrada.', 404);
+  if (outcome === 'paid') throw new ApplicationError('CHARGE_SETTLED', 'O vencimento não pode ser alterado após o pagamento.', 409);
+  if (outcome === 'invalid') throw new ApplicationError('INVALID_INPUT', 'O vencimento deve estar no futuro.', 400);
   const desde = new Date(Date.now() - 90 * 24 * 60 * 60_000);
   return { appointments: await listAppointments(organizationId, professionalId, desde) };
 }

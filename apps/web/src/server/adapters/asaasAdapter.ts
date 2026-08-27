@@ -315,6 +315,15 @@ export async function getAsaasPayment(id: string): Promise<AsaasPaymentResult> {
   return withPixQrCode(await response.json());
 }
 
+/** Remove somente uma cobrança ainda aberta; pagamento confirmado nunca é estornado por aqui. */
+export async function deleteAsaasPayment(id: string): Promise<boolean> {
+  const response = await asaasFetch(`/payments/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  if (response.status === 404) return true;
+  if (!response.ok) throw new Error(`Falha ao remover cobrança no Asaas (${response.status}).`);
+  const body = await response.json().catch(() => ({})) as { deleted?: boolean };
+  return body.deleted !== false;
+}
+
 /** Recupera a linha digitável somente depois de o boleto existir no Asaas. */
 export async function getAsaasBoletoIdentificationField(id: string): Promise<string> {
   const response = await asaasFetch(`/payments/${encodeURIComponent(id)}/identificationField`);

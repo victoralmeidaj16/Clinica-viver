@@ -15,6 +15,7 @@ import { applicationRequest, commandHeaders } from '@/lib/applicationApi';
 import {
   CLINICAL_SERVICES,
   getServiceDuration,
+  clinicDateTimeToIso,
   manualAppointmentTimes,
   todayAtClinic,
   type ManualAppointmentMode,
@@ -54,6 +55,9 @@ export function ManualAppointmentDialog({ patients, initialPatientId, onClose, o
   const [date, setDate] = useState(() => todayAtClinic());
   const [time, setTime] = useState('14:00');
   const [mode, setMode] = useState<ManualAppointmentMode>('video');
+  const [chargeDueDate, setChargeDueDate] = useState(() => todayAtClinic());
+  const [chargeDueTime, setChargeDueTime] = useState('14:00');
+  const [customDue, setCustomDue] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ kind: 'error' | 'success'; text: string }>();
 
@@ -70,6 +74,7 @@ export function ManualAppointmentDialog({ patients, initialPatientId, onClose, o
     setSaving(true);
     try {
       const { startsAt, endsAt } = manualAppointmentTimes({ date, time, durationMinutes });
+      const chargeDueAt = clinicDateTimeToIso(chargeDueDate, chargeDueTime);
       await applicationRequest('/appointments', {
         method: 'POST',
         headers: commandHeaders(),
@@ -81,6 +86,7 @@ export function ManualAppointmentDialog({ patients, initialPatientId, onClose, o
           timezone: FUSO_CLINICA,
           mode,
           createdAt: new Date().toISOString(),
+          chargeDueAt,
         }),
       });
       setMessage({ kind: 'success', text: 'Sessão adicionada à agenda e ao sino do profissional.' });
@@ -169,13 +175,22 @@ export function ManualAppointmentDialog({ patients, initialPatientId, onClose, o
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="text-xs font-bold text-ink">
               Data *
-              <input type="date" required min={todayAtClinic()} value={date} onChange={(event) => setDate(event.target.value)} disabled={saving || message?.kind === 'success'} className="input mt-1.5 py-3 text-xs font-bold" />
+              <input type="date" required min={todayAtClinic()} value={date} onChange={(event) => { const value = event.target.value; setDate(value); if (!customDue) setChargeDueDate(value); }} disabled={saving || message?.kind === 'success'} className="input mt-1.5 py-3 text-xs font-bold" />
             </label>
             <label className="text-xs font-bold text-ink">
               Horário de início *
-              <input type="time" required value={time} onChange={(event) => setTime(event.target.value)} disabled={saving || message?.kind === 'success'} className="input mt-1.5 py-3 text-xs font-bold" />
+              <input type="time" required value={time} onChange={(event) => { const value = event.target.value; setTime(value); if (!customDue) setChargeDueTime(value); }} disabled={saving || message?.kind === 'success'} className="input mt-1.5 py-3 text-xs font-bold" />
             </label>
           </div>
+
+          <fieldset disabled={saving || message?.kind === 'success'} className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+            <legend className="px-2 text-xs font-black text-amber-950">Vencimento da cobrança</legend>
+            <p className="mb-3 text-[11px] text-amber-800">O link e o Pix serão encerrados neste horário exato.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="text-xs font-bold text-ink">Data *<input type="date" required min={todayAtClinic()} value={chargeDueDate} onChange={(event) => { setCustomDue(true); setChargeDueDate(event.target.value); }} className="input mt-1.5 py-3 text-xs font-bold" /></label>
+              <label className="text-xs font-bold text-ink">Horário *<input type="time" required value={chargeDueTime} onChange={(event) => { setCustomDue(true); setChargeDueTime(event.target.value); }} className="input mt-1.5 py-3 text-xs font-bold" /></label>
+            </div>
+          </fieldset>
 
           <fieldset disabled={saving || message?.kind === 'success'}>
             <legend className="text-xs font-bold text-ink">Modalidade</legend>
@@ -212,5 +227,4 @@ export function ManualAppointmentDialog({ patients, initialPatientId, onClose, o
     </div>
   );
 }
-
 

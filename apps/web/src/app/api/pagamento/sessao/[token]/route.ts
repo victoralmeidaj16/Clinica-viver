@@ -17,10 +17,12 @@ export async function GET(
     if (!profile) {
       return NextResponse.json({ error: 'Sessão não encontrada ou cancelada.' }, { status: 404 });
     }
+    if (!profile.fundedByCompany && Date.parse(profile.dueAt) <= Date.now()) {
+      return NextResponse.json({ error: 'O prazo para pagamento desta sessão terminou.', expired: true, dueAt: profile.dueAt }, { status: 410, headers: { 'Cache-Control': 'private, no-store' } });
+    }
     return NextResponse.json(profile, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
     console.error('[pagamento-sessao] Falha ao carregar link:', error);
     return NextResponse.json({ error: 'Não foi possível carregar o pagamento agora.' }, { status: 500 });
   }
 }
-

@@ -3,6 +3,7 @@ import type { RequestContext } from './context';
 import { ApplicationError } from './http';
 import { getApplicationStore, persistApplicationState } from './store';
 import { cancelarCobrancaDaSessao, garantirCobrancaDaSessao } from '@/server/payments/sessionCharge';
+import { isFutureChargeDueAt } from '@/lib/chargeDue';
 
 export async function listAppointments(context: RequestContext) {
   assertStaffAuthorized(context.actor, 'schedule.read', { organizationId: context.actor.organizationId });
@@ -16,9 +17,13 @@ export async function listAppointments(context: RequestContext) {
   });
 }
 
-export async function createAppointmentFlow(context: RequestContext, input: ScheduleAppointmentInput) {
+export async function createAppointmentFlow(context: RequestContext, input: ScheduleAppointmentInput, chargeDueAt?: string) {
   if (context.actor.roles.includes('professional') && context.actor.professionalProfileId !== input.professionalId) {
     throw new ApplicationError('FORBIDDEN', 'Um psicólogo só pode agendar para o próprio perfil.', 403);
+  }
+  const effectiveDueAt = chargeDueAt || input.startsAt;
+  if (!isFutureChargeDueAt(effectiveDueAt)) {
+    throw new ApplicationError('INVALID_INPUT', 'O vencimento da cobrança deve estar no futuro.', 400);
   }
   const store = getApplicationStore();
   const result = await scheduleAppointmentCommand({ appointments: store.appointments, identities: store.identities }, context.actor, input, { actorUserId: context.actor.userId, occurredAt: input.createdAt, correlationId: context.correlationId, commandId: context.idempotencyKey! });
@@ -37,7 +42,7 @@ export async function createAppointmentFlow(context: RequestContext, input: Sche
     }
   }
   await persistApplicationState();
-  await garantirCobrancaDaSessao(result.appointment.id);
+  await garantirCobrancaDaSessao(result.appointment.id, effectiveDueAt);
   return { appointment: result.appointment, reminder, idempotentReplay: result.idempotentReplay };
 }
 

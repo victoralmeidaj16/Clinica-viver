@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import {
-  CalendarDays, CheckCircle2, Copy, CreditCard, Globe, Loader2, MapPin, XCircle,
+  CalendarClock, CalendarDays, CheckCircle2, Copy, CreditCard, Globe, Loader2, MapPin, XCircle,
 } from 'lucide-react';
+import { clinicDateTimeToIso } from '@/lib/manualAppointment';
 
 export interface AgendamentoResumo {
   id: string;
@@ -17,6 +18,7 @@ export interface AgendamentoResumo {
   realizadoEm?: string;
   linkPagamento: string;
   pagamentoStatus?: string;
+  vencimentoCobrancaEm?: string;
   custeadoPelaEmpresa: boolean;
   convenioNome?: string;
   podeConfirmarRealizacao: boolean;
@@ -26,18 +28,44 @@ interface Props {
   agendamentos: readonly AgendamentoResumo[];
   onCancelar: (id: string, motivo: string) => Promise<void>;
   onConfirmarRealizacao: (id: string) => Promise<void>;
+  onAtualizarVencimento: (id: string, dueAt: string) => Promise<void>;
 }
 
 const FORMATO = new Intl.DateTimeFormat('pt-BR', {
   dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo',
 });
 
-export function UpcomingSessions({ agendamentos, onCancelar, onConfirmarRealizacao }: Props) {
+export function UpcomingSessions({ agendamentos, onCancelar, onConfirmarRealizacao, onAtualizarVencimento }: Props) {
   const [cancelando, setCancelando] = useState<AgendamentoResumo>();
   const [motivo, setMotivo] = useState('');
   const [erro, setErro] = useState<string>();
   const [confirmandoId, setConfirmandoId] = useState<string>();
   const [copiadoId, setCopiadoId] = useState<string>();
+  const [editandoVencimento, setEditandoVencimento] = useState<AgendamentoResumo>();
+  const [vencimentoData, setVencimentoData] = useState('');
+  const [vencimentoHora, setVencimentoHora] = useState('');
+  const [salvandoVencimento, setSalvandoVencimento] = useState(false);
+
+  const abrirVencimento = (item: AgendamentoResumo) => {
+    const iso = item.vencimentoCobrancaEm ?? item.inicio;
+    const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    }).formatToParts(new Date(iso)).map((part) => [part.type, part.value]));
+    setVencimentoData(`${parts.year}-${parts.month}-${parts.day}`);
+    setVencimentoHora(`${parts.hour}:${parts.minute}`);
+    setEditandoVencimento(item); setErro(undefined);
+  };
+
+  const salvarVencimento = async (event: React.FormEvent) => {
+    event.preventDefault(); if (!editandoVencimento) return;
+    setSalvandoVencimento(true); setErro(undefined);
+    try {
+      await onAtualizarVencimento(editandoVencimento.id, clinicDateTimeToIso(vencimentoData, vencimentoHora));
+      setEditandoVencimento(undefined);
+    } catch (cause) { setErro(cause instanceof Error ? cause.message : 'Não foi possível alterar o vencimento.'); }
+    finally { setSalvandoVencimento(false); }
+  };
 
   const confirmar = async (evento: React.FormEvent) => {
     evento.preventDefault();
@@ -106,6 +134,18 @@ export function UpcomingSessions({ agendamentos, onCancelar, onConfirmarRealizac
         </div>
       )}
 
+      {editandoVencimento && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+          <form onSubmit={salvarVencimento} className="w-full max-w-md space-y-4 rounded-3xl border border-line bg-surface p-6 shadow-2xl">
+            <div><p className="text-[10px] font-black uppercase tracking-[.18em] text-amber-700">Cobrança da sessão</p><h2 className="text-lg font-black text-ink">Editar vencimento</h2><p className="mt-1 text-xs text-muted">{editandoVencimento.pacienteNome} · {FORMATO.format(new Date(editandoVencimento.inicio))}</p></div>
+            <div className="grid grid-cols-2 gap-3"><label className="text-xs font-bold text-ink">Data *<input required type="date" value={vencimentoData} onChange={(e) => setVencimentoData(e.target.value)} className="input mt-1" /></label><label className="text-xs font-bold text-ink">Horário *<input required type="time" value={vencimentoHora} onChange={(e) => setVencimentoHora(e.target.value)} className="input mt-1" /></label></div>
+            {erro && <p className="rounded-xl bg-rose-50 p-3 text-[11px] font-bold text-rose-700">{erro}</p>}
+            <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] text-amber-900">Se já existir um Pix pendente, ele será invalidado e recriado no próximo acesso.</p>
+            <div className="flex gap-2"><button type="button" onClick={() => { setEditandoVencimento(undefined); setErro(undefined); }} className="btn-outline flex-1 justify-center">Voltar</button><button type="submit" disabled={salvandoVencimento} className="btn-primary flex-1 justify-center">{salvandoVencimento ? 'Salvando…' : 'Salvar'}</button></div>
+          </form>
+        </div>
+      )}
+
       <ul className="divide-y divide-line">
         {agendamentos.map((item) => {
           const cancelado = item.status === 'cancelado';
@@ -168,6 +208,10 @@ export function UpcomingSessions({ agendamentos, onCancelar, onConfirmarRealizac
                       Pagamento: {item.pagamentoStatus === 'paid' ? 'pago' : 'pendente'}
                     </span>
                   )}
+                  {!item.custeadoPelaEmpresa && !['paid', 'partially_paid', 'refunded'].includes(item.pagamentoStatus ?? '') && (
+                    <button type="button" onClick={() => abrirVencimento(item)} className="flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-900 hover:bg-amber-100"><CalendarClock className="h-3.5 w-3.5" /> Editar vencimento</button>
+                  )}
+                  {!item.custeadoPelaEmpresa && item.vencimentoCobrancaEm && <span className="self-center text-[10px] font-semibold text-muted">Vence {FORMATO.format(new Date(item.vencimentoCobrancaEm))}</span>}
                 </div>
               )}
             </li>

@@ -14,6 +14,7 @@ interface Profile {
   modality: 'social' | 'particular';
   fundedByCompany: boolean;
   companyName?: string;
+  dueAt: string;
 }
 
 interface Payment {
@@ -104,6 +105,7 @@ export default function SessionPaymentPage({ params }: { params: Promise<{ token
           <CalendarClock className="h-4 w-4" /> {dataHoraSessao(profile.sessionStart)}
         </p>
         <p className="mt-1 text-2xl font-black">{reaisDeCentavos(profile.amountCents)}</p>
+        <p className="mt-2 text-xs font-semibold text-psi-soft">Pagamento disponível até {dataHoraSessao(profile.dueAt)}</p>
       </section>
 
       {!payment ? (

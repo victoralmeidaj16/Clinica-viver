@@ -34,9 +34,9 @@ ssh "$vps_host" "set -euo pipefail
   cd '$remote_dir'
   printf '%s\\n' '$version' > .deploy-sha
   export APP_VERSION=\$(<.deploy-sha)
-  docker compose -f infra/clinic/docker-compose.yml build web sla-sweeper
+  docker compose -f infra/clinic/docker-compose.yml build web sla-sweeper billing-expirer
   docker compose -f infra/clinic/docker-compose.yml run --rm --no-deps web npm run db:migrate
-  docker compose -f infra/clinic/docker-compose.yml up -d --no-deps web sla-sweeper
+  docker compose -f infra/clinic/docker-compose.yml up -d --no-deps web sla-sweeper billing-expirer
   docker compose -f infra/clinic/docker-compose.yml ps"
 
 printf 'Deploy concluído: %s\n' "$version"

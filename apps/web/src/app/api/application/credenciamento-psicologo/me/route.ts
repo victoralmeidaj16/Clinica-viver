@@ -83,10 +83,11 @@ export async function GET() {
  * O profissional edita o próprio perfil.
  *
  * A allowlist é `CAMPOS_DO_PROPRIO_PSICOLOGO`: o que descreve a prática dele —
- * turnos, serviços, público, minibio, foto — muda sem intermediário, porque
- * quem sabe disso é ele e a alternativa é a gestão virar cartório de recado. O
- * Nome, CRP e e-mail também pertencem ao profissional e são sincronizados com
- * sua identidade de acesso. Status, vitrine e capacidade seguem protegidos.
+ * turnos, público, minibio, foto — muda sem intermediário, porque quem sabe
+ * disso é ele e a alternativa é a gestão virar cartório de recado. O nome, CRP
+ * e e-mail também pertencem ao profissional e são sincronizados com sua
+ * identidade de acesso. Status, vitrine, capacidade e os serviços homologados
+ * seguem protegidos — estes últimos mudam só por solicitação aprovada.
  */
 export async function PATCH(request: Request) {
   try {

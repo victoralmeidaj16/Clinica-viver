@@ -24,6 +24,11 @@ export async function GET() {
         posGraduacaoViverMais: item.posGraduacaoViverMais,
         especialidades: item.especialidade ? [item.especialidade] : [],
         servicosHabilitados: item.servicosHabilitados ?? [],
+        turnosDisponiveis: item.turnosDisponiveis ?? [],
+        modalidadesAtendidas: item.modalidadesAtendidas ?? [],
+        disponivelParaNovosPacientes:
+          !item.pausadoNoRodizio &&
+          (item.pacientesAtivosCount ?? 0) < (item.limitePacientesAtivos ?? 5),
       }));
     return NextResponse.json({ success: true, data }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {

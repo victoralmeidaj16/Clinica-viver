@@ -103,6 +103,8 @@ export interface DadosTriagem {
   necessidadesPaciente: readonly string[];
   necessidadesOutro?: string;
   opcaoAvaliacaoPsicologica?: string;
+  /** Presente apenas quando o paciente escolheu alguém no catálogo público. */
+  psicologoPreferidoId?: string;
 }
 
 export type ResultadoValidacao =
@@ -229,6 +231,7 @@ export function validarSubmissaoTriagem(corpo: unknown): ResultadoValidacao {
       necessidadesPaciente: necessidades,
       necessidadesOutro: livres[0],
       opcaoAvaliacaoPsicologica: texto(body.opcaoAvaliacaoPsicologica, 120),
+      psicologoPreferidoId: texto(body.psicologoPreferidoId, 120),
     },
   };
 }

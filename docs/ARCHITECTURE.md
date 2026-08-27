@@ -2,54 +2,49 @@
 
 ## Visão Geral do Sistema
 
-A **Clínica Viver Mais** adota uma arquitetura em Monorepo utilizando **TypeScript** de ponta a ponta, separando claramente as aplicações de front-end (`apps/web`) do pacote central de regras de negócio e integrações (`packages/core`).
+A **Clínica Viver Mais** adota uma arquitetura em Monorepo utilizando **TypeScript** de ponta a ponta, separando as aplicações de front-end e cockpit (`apps/web`) do pacote central de regras de negócio, IA clínica e integrações (`packages/core`).
 
-> **Estado atual (11/08/2026).** A produção usa Vercel para páginas e assets,
-> e uma VPS Hostinger para o backend e MySQL privado. Os dados persistentes são
-> acessados pelos adaptadores em `apps/web/src/server/persistence/mysql`.
+> **Estado atual (Agosto/2026).** A produção utiliza Vercel para entrega de páginas, assets estáticos e rotas públicas/SPA, e uma VPS Hostinger privada para o backend persistente, MySQL 8.4 e Evolution API.
 >
-> Prontuário, sessão clínica, linha do tempo, financeiro, comunicação,
-> check-in pré-sessão e plano terapêutico **continuam em memória**, com snapshot
-> em disco. Object Storage ainda não tem adaptador: nenhum anexo é gravado fora
-> do processo.
+> Os dados são persistidos relacionalmente através dos adaptadores em `apps/web/src/server/persistence/mysql` (prontuários SOAP, histórico da linha do tempo, sessões clínicas, cadastros, auditoria, regras financeiras e certificados digitais).
 >
-> Sem `DATABASE_URL` configurada, a aplicação inteira volta ao modo
-> demonstração. O que distingue os dois é o campo `meta.persistence` das
-> respostas da API (`mysql` ou `memory`) e a rota `GET /api/infra/mode`.
+> A autenticação é provida por cookies HTTP seguros assinados (`viver_mais_session`) com derivação de chave criptográfica (`scrypt`/HMAC) e verificação contra o banco de dados. Sem `DATABASE_URL` configurada, a aplicação opera em modo demonstração com adaptadores em memória.
 >
-> Detalhes de infraestrutura e roteiro vigente: `docs/hostinger-vps.md`.
+> Detalhes de infraestrutura e roteiro de deploy: [`docs/hostinger-vps.md`](./hostinger-vps.md) e [`docs/vercel-setup-guia.md`](./vercel-setup-guia.md).
 
 ```mermaid
 flowchart TD
     subgraph ClientLayer ["Camada de Clientes"]
         WEB["💻 Web Cockpit & Gestão (Next.js 16 App Router)"]
+        PUBLIC["🌐 Vitrine Pública & Validação de Certificados"]
     end
 
     subgraph ServiceLayer ["Camada Core (@thats-life/core)"]
-        SOAP["🧠 AI SOAP & Clinical Engine"]
-        EVO["💬 Evolution API Client"]
+        SOAP["🧠 Motor de Prontuário SOAP & Timeline"]
+        EVO["💬 Evolution API Client (WhatsApp)"]
         FIN["💳 Financial & Pix Engine (Asaas)"]
-        SCHEDULE["📅 Agenda, disponibilidade e triagem"]
-        ANON["🛡️ Anonymization Engine"]
+        SCHEDULE["📅 Agenda, disponibilidade e rodízio"]
+        CERT["🎓 Certificados Digitais & QR Code"]
+        ANON["🛡️ Anonymization Engine (LGPD/CFP)"]
     end
 
-    subgraph EdgeLayer ["Entrega web"]
-        VERCEL["▲ Vercel (páginas, assets e CDN)"]
+    subgraph EdgeLayer ["Entrega Web & CDN"]
+        VERCEL["▲ Vercel (Edge, Next.js Pages & Assets)"]
     end
 
     subgraph InfraLayer ["VPS Hostinger & Persistência"]
-        PROXY["🔒 Caddy HTTPS"]
-        DB["🐬 MySQL 8.4 Docker (rede privada)"]
-        STORAGE["🔐 Object Storage futuro (provedor a definir)"]
-        EXT_EVO["💬 Evolution API (container dedicado)"]
+        PROXY["🔒 Caddy HTTPS / Reverse Proxy"]
+        NODE["⚙️ Backend Node.js Persistente"]
+        DB["🐬 MySQL 8.4 Docker (Rede Privada)"]
+        EXT_EVO["💬 Evolution API (Container Dedicado)"]
     end
 
     WEB --> VERCEL
+    PUBLIC --> VERCEL
     VERCEL --> PROXY
-    PROXY --> ServiceLayer
-    WEB --> SCHEDULE
+    PROXY --> NODE
+    NODE --> ServiceLayer
     ServiceLayer --> DB
-    ServiceLayer --> STORAGE
     ServiceLayer --> EXT_EVO
 ```
 
@@ -59,31 +54,35 @@ flowchart TD
 
 1. **Aplicações Front-End:**
    * **Web:** Next.js 16 (React 19), Tailwind CSS / Vanilla CSS, Lucide Icons.
+   * **Cockpit Clínico & Gestão:** Painel administrativo unificado com abas operacionais (Leads, Agenda, Pacientes, Meu Financeiro, Cockpit Clínico, Gestão de Psicólogos, DRE e 11 Indicadores).
+   * **Páginas Públicas:** Vitrine de captação (`/vitrine`), Agendamento com seleção de serviços/público (`/agendar`), Checkout transparente de cobrança (`/pagar`) e Validação pública de certificados (`/validar-certificado`).
 2. **Pacote Core (`@thats-life/core`):**
    * TypeScript strictly-typed.
-   * Regras de escore, prompts clínicos e anonimização heurística.
-   * Adaptadores reais para IA e Evolution API implementados no servidor.
+   * Regras clínicas, cálculo de hash SHA-256 de prontuários, motor de rodízio (Round-Robin), split 70/30 e geração/validação de certificados.
+   * Adaptadores para Asaas (Pix/cartão), Evolution API (WhatsApp) e NFS-e nacional.
 3. **Persistência & Backend:**
-   * **Persistência Relacional:** MySQL 8.4 em container Docker na VPS
-     Hostinger, banco `viver_mais_clinica`. Schema em `infra/mysql`: o
-     `004_clinica.sql` traz o domínio
-     clínico compartilhado com o Sponteiro e o `007_thats_life_core.sql`
-     acrescenta o que os agregados do core exigem — organização, vínculos,
-     atribuição de profissionais, idempotência de comando e outbox.
-     **Ligado hoje:** cadastro e agenda. **Pendente:** prontuário SOAP,
-     financeiro e logs do WhatsApp.
-   * **Armazenamento de Objetos:** provedor ainda a definir para PDFs, anexos de
-     exames e laudos — planejado, sem adaptador implementado.
-   * **Autenticação & Segurança:** **ainda não existe.** O contexto do ator é
-     resolvido pelos cabeçalhos `X-Organization-Id` e `X-User-Id`, validados
-     contra um vínculo ativo em `clinica_membros`. Isso identifica, não
-     autentica: qualquer cliente pode enviar o cabeçalho que quiser. Sessão
-     real com papéis é a próxima etapa, e a instalação não deve receber dado
-     clínico de paciente real antes dela.
+   * **Persistência Relacional:** MySQL 8.4 em container Docker na VPS Hostinger, banco `viver_mais_clinica`. Schema estruturado com migrations em `infra/mysql` (`004_clinica.sql`, `007_thats_life_core.sql`, `008_certificados_mysql.sql`, etc.).
+   * **Repositórios Ativos:**
+     - `identityRepository.ts`: Perfis, credenciais, membros organizacionais e controle de visibilidade/capacidade de psicólogos.
+     - `appointmentRepository.ts`: Agendamentos, bloqueios e conciliação de horários.
+     - `clinicalSessionRepository.ts` & `clinicalRecordRepository.ts`: Sessões clínicas e prontuários SOAP versionados com hash SHA-256 e auditoria.
+     - `clinicalTimelineRepository.ts`: Linha do tempo longitudinal com busca determinística (*evidence-only*).
+     - `financialRepository.ts`: Cobranças, descontos, conciliação Pix/Asaas, repasses e expiração automática.
+     - `convenioRepository.ts`: Faturamento de convênios PJ e contratos corporativos.
+     - `captureRepository.ts`: Leads de triagem, SLA de 24h e rodízio de distribuição.
+     - `clinicalAccessAuditRepository.ts`: Registro imutável de acessos e auditoria cadastral.
+     - `certificadosRepository.ts`: Registro de certificados emitidos, código alfanumérico, carimbo com QR code e renderização limpa de PDF.
+   * **Autenticação & Segurança:**
+     - Implementada no servidor em `apps/web/src/server/auth.ts`.
+     - Sessão baseada em cookies HTTP seguros (`viver_mais_session`) com assinatura HMAC-SHA256 e TTL de 8 horas.
+     - Senhas protegidas com derivação de chave criptográfica `scrypt` com salt aleatório e comparação em tempo constante (`timingSafeEqual`).
+     - Controle de acesso baseado em papéis (RBAC): perfis `admin` (gestão completa, DRE, limites de profissionais) e `psicologo` (acesso estrito à própria agenda, pacientes e prontuários).
 
 ---
 
-## Domínio Financeiro
+## Domínio Financeiro & Split 70/30
+
+O módulo `packages/core/src/financial` não depende de banco, framework web ou provedor de pagamentos. Valores são armazenados em **centavos inteiros** e todas as entidades carregam os identificadores de organização, sessão, paciente e profissional necessários para isolamento multi-tenant e conciliação.
 
 O módulo `packages/core/src/financial` não depende de banco, framework web ou
 provedor de pagamentos. Valores são armazenados em **centavos inteiros** e todas
@@ -117,10 +116,10 @@ flowchart LR
 6. **Portas externas:** repositório, auditoria, idempotência, cobrança/Pix,
    webhook normalizado, NFSe e Receita Saúde.
 
-`InMemoryFinancialRepository` é apenas um adaptador de desenvolvimento e testes.
-O futuro adaptador Firestore deverá implementar `FinancialRepository`, enquanto
-Asaas deverá implementar `BillingProviderPort`. Webhooks precisam validar
-assinatura e passar por `IdempotencyRepository` antes de alterar o livro-razão.
+`InMemoryFinancialRepository` é apenas um adaptador de desenvolvimento e testes rápidos.
+Em produção, a persistência é gerenciada por `financialRepository.ts` no MySQL, enquanto
+o Asaas implementa `BillingProviderPort` com expiração configurável e cobrança Pix/cartão.
+Webhooks validam assinatura e passam por `IdempotencyRepository` antes de alterar o livro-razão.
 
 Logs de auditoria não podem carregar nome, e-mail, telefone, CPF, transcrição ou
 nota clínica do paciente. Documentos fiscais são uma exceção controlada e devem
@@ -502,12 +501,11 @@ cobranças ou mensagens. O dashboard transversal consulta agenda, tarefas,
 finanças e fila de comunicação em paralelo, sem tornar a projeção uma nova fonte
 de verdade.
 
-O hash SHA-256 do conteúdo aprovado passa a ser computado no core
+O hash SHA-256 do conteúdo aprovado é computado no core
 (`computeSoapContentHash`), sobre uma serialização canônica da revisão SOAP.
 Ele é o elo verificável entre a aprovação registrada no prontuário e cada
 entrada projetada na linha do tempo.
 
-O contexto atual é demonstrativo e resolvido por cabeçalhos contra vínculos em
-memória. Ele não deve ser tratado como autenticação real. Estado, comandos e
-filas podem desaparecer ou divergir entre processos; essa limitação será
-substituída pelos adaptadores persistentes e pelo provedor de identidade.
+A segurança da aplicação é garantida pela autenticação de sessão via cookies
+criptografados (`viver_mais_session`), isolamento multi-tenant por `organizationId`
+e políticas estritas de RBAC, garantindo conformidade com a LGPD e o CFP.

@@ -16,6 +16,7 @@ import { PsicologoCard } from '@/components/gestao/PsicologoCard';
 import { ModalMotivo } from '@/components/gestao/ModalMotivo';
 import { ModalEdicao } from '@/components/gestao/ModalEdicao';
 import { ModalLimitePacientes } from '@/components/gestao/ModalLimitePacientes';
+import { ausenciaEmCurso } from '@/lib/ausenciaAgenda';
 
 const FILTROS: Array<[FiltroStatus, string]> = [
   ['TODOS', 'Todos'],
@@ -222,9 +223,16 @@ export default function GestaoPsicologosPage() {
   ).length;
 
   const aprovados = psicologos.filter((p) => p.status === 'APROVADO');
-  const noRodizio = aprovados.filter((p) => !p.pausadoNoRodizio);
+  // "No rodízio" tem que significar quem de fato recebe encaminhamento agora.
+  // Férias marcadas na agenda tiram da fila sem tocar em `pausadoNoRodizio`, e
+  // contar essa pessoa aqui faria o painel prometer uma capacidade que a
+  // distribuição não tem.
+  const ausentes = aprovados.filter((p) => Boolean(ausenciaEmCurso(p.ausenciasAgenda)));
+  const noRodizio = aprovados.filter(
+    (p) => !p.pausadoNoRodizio && !ausenciaEmCurso(p.ausenciasAgenda)
+  );
   const pendentes = psicologos.filter((p) => p.status === 'EM_ANALISE').length;
-  const pausados = aprovados.length - noRodizio.length;
+  const pausados = aprovados.filter((p) => p.pausadoNoRodizio).length;
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -311,6 +319,13 @@ export default function GestaoPsicologosPage() {
               de {psicologos.length}
             </span>
           </div>
+          {ausentes.length > 0 && (
+            <p className="text-[11px] font-semibold text-sky-700">
+              {ausentes.length === 1
+                ? '1 profissional de férias ou folga hoje'
+                : `${ausentes.length} profissionais de férias ou folga hoje`}
+            </p>
+          )}
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-1">

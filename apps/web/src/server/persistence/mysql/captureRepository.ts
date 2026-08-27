@@ -6,6 +6,7 @@ import { getMysqlPool } from '@/server/oci/runtime';
 import {
   emptySnapshot,
   readSnapshot,
+  type AusenciaAgenda,
   type CadastroPsicologoRecord,
   type PersistedSnapshot,
   type StatusCadastroPsicologo,
@@ -334,8 +335,67 @@ export class MysqlCaptureRepository {
     );
     return {
       triagensPacientes: leadRows.map(toLead),
-      cadastrosPsicologos: psychRows.map(toPsychologist),
+      cadastrosPsicologos: await this.comAusencias(connection, psychRows.map(toPsychologist)),
     };
+  }
+
+  /**
+   * Anexa as férias/folgas que cada profissional marcou na própria agenda.
+   *
+   * Uma consulta para a organização inteira, não uma por psicólogo: o roster do
+   * rodízio é lido a cada alocação, e um N+1 aqui apareceria no caminho crítico
+   * de todo encaminhamento.
+   *
+   * Só ausências que ainda não terminaram entram. É o que faz a pausa se
+   * desfazer sozinha no fim das férias — sem job, sem alguém lembrando de
+   * desmarcar.
+   *
+   * Falha em silêncio: a agenda é um módulo à parte, e uma indisponibilidade
+   * dela não pode derrubar a leitura da fila de triagem. O custo do silêncio é
+   * um profissional de férias continuar recebendo encaminhamento até a agenda
+   * responder de novo — ruim, mas menos do que a captação inteira parar.
+   */
+  private async comAusencias(
+    connection: Pool | PoolConnection,
+    cadastros: CadastroPsicologoRecord[]
+  ): Promise<CadastroPsicologoRecord[]> {
+    if (cadastros.length === 0) return cadastros;
+    try {
+      const [rows] = await connection.query<RowDataPacket[]>(
+        `SELECT p.ref_core AS profissional_ref, b.inicio, b.fim, b.motivo, b.criado_em
+           FROM clinica_agenda_bloqueios b
+           JOIN clinica_profissionais p ON p.id = b.profissional_id
+           JOIN clinica_organizacoes o ON o.id = p.organizacao_id
+          WHERE b.instituicao_id = ? AND o.ref_core = ?
+            AND b.tipo = 'dia' AND b.fim > UTC_TIMESTAMP(3)
+          ORDER BY b.inicio`,
+        [instituicaoId(), organizacaoRef()]
+      );
+      if (rows.length === 0) return cadastros;
+
+      const porProfissional = new Map<string, AusenciaAgenda[]>();
+      for (const row of rows) {
+        const ref = String(row.profissional_ref);
+        const lista = porProfissional.get(ref) ?? [];
+        lista.push({
+          inicio: new Date(row.inicio).toISOString(),
+          fim: new Date(row.fim).toISOString(),
+          motivo: row.motivo ? String(row.motivo) : undefined,
+          criadoEm: fromSqlTimestamp(row.criado_em) ?? new Date(row.inicio).toISOString(),
+        });
+        porProfissional.set(ref, lista);
+      }
+
+      return cadastros.map((cadastro) => {
+        const ausencias = cadastro.profissionalRef
+          ? porProfissional.get(cadastro.profissionalRef)
+          : undefined;
+        return ausencias ? { ...cadastro, ausenciasAgenda: ausencias } : cadastro;
+      });
+    } catch (error) {
+      console.error('Erro ao ler ausências da agenda para o roster:', error);
+      return cadastros;
+    }
   }
 
   /** Migra o conteúdo antigo apenas quando a tabela correspondente ainda está vazia. */

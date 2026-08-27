@@ -14,10 +14,15 @@ export interface PsicologoVitrineItem {
   posGraduacaoViverMais?: string;
   especialidades: string[];
   servicosHabilitados: string[];
+  turnosDisponiveis?: string[];
+  modalidadesAtendidas?: string[];
+  disponivelParaNovosPacientes?: boolean;
 }
 
 interface VitrineCarrosselProps {
   psicologos: PsicologoVitrineItem[];
+  onSelecionar?: (psicologo: PsicologoVitrineItem) => void;
+  selecionadoId?: string;
 }
 
 function FotoOuIniciais({ fotoUrl, nome }: { fotoUrl?: string; nome: string }) {
@@ -48,7 +53,16 @@ function FotoOuIniciais({ fotoUrl, nome }: { fotoUrl?: string; nome: string }) {
   );
 }
 
-export function VitrineCarrossel({ psicologos }: VitrineCarrosselProps) {
+const ROTULOS_TURNO: Record<string, string> = {
+  MANHA: 'Manhã',
+  MATUTINO: 'Manhã',
+  TARDE: 'Tarde',
+  VESPERTINO: 'Tarde',
+  NOITE: 'Noite',
+  NOTURNO: 'Noite',
+};
+
+export function VitrineCarrossel({ psicologos, onSelecionar, selecionadoId }: VitrineCarrosselProps) {
   if (!psicologos || psicologos.length === 0) {
     return null;
   }
@@ -68,7 +82,9 @@ export function VitrineCarrossel({ psicologos }: VitrineCarrosselProps) {
           return (
             <div
               key={psi.id}
-              className="bg-surface rounded-3xl border border-psi-soft p-6 space-y-4 shadow-card hover:shadow-lift transition-all group overflow-hidden relative flex flex-col justify-between"
+              className={`bg-surface rounded-3xl border p-6 space-y-4 shadow-card hover:shadow-lift transition-all group overflow-hidden relative flex flex-col justify-between ${
+                selecionadoId === psi.id ? 'border-psi-vibrant ring-2 ring-psi-vibrant/20' : 'border-psi-soft'
+              }`}
             >
               <div className="space-y-4">
                 <div className="flex items-center gap-4">
@@ -109,7 +125,32 @@ export function VitrineCarrossel({ psicologos }: VitrineCarrosselProps) {
                     ))}
                   </div>
                 )}
+
+                {onSelecionar && (psi.turnosDisponiveis?.length ?? 0) > 0 && (
+                  <div className="flex flex-wrap gap-1.5 border-t border-line pt-3">
+                    <span className="w-full text-[10px] font-extrabold uppercase tracking-wider text-muted">Períodos disponíveis</span>
+                    {[...new Set(psi.turnosDisponiveis?.map((turno) => ROTULOS_TURNO[turno] ?? turno))].map((turno) => (
+                      <span key={turno} className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-extrabold text-emerald-800 border border-emerald-100">
+                        {turno}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
+
+              {onSelecionar && (
+                <button
+                  type="button"
+                  onClick={() => onSelecionar(psi)}
+                  className={`w-full rounded-xl px-4 py-3 text-xs font-black transition-all ${
+                    selecionadoId === psi.id
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-psi-deep text-white hover:bg-psi-darkest'
+                  }`}
+                >
+                  {selecionadoId === psi.id ? 'Profissional escolhido' : 'Escolher este profissional'}
+                </button>
+              )}
             </div>
           );
         })}

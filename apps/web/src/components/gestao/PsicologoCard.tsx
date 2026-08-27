@@ -11,7 +11,9 @@ import {
   ChevronUp,
   Phone,
   Bell,
+  Plane,
 } from 'lucide-react';
+import { ausenciaEmCurso, periodoAusencia } from '@/lib/ausenciaAgenda';
 import { rotuloModalidade, rotuloTipoAtendimento, rotuloTurno } from '@/components/forms/opcoesPsicologo';
 import { formatBrazilPhone } from '@/lib/brazilPhone';
 import { formatGender } from '@/lib/gender';
@@ -55,6 +57,18 @@ export function PsicologoCard({
   const ativos = p.pacientesAtivosCount ?? 0;
   const perc = limite > 0 ? Math.min(100, Math.round((ativos / limite) * 100)) : 0;
   const pausado = Boolean(p.pausadoNoRodizio);
+  // Ausência e pausa manual são estados diferentes com o mesmo efeito. Mantê-los
+  // separados é o que permite ao botão "Retomar" continuar respondendo só pela
+  // pausa da gestão: retomar quem está de férias não faria nada, e prometer o
+  // contrário no botão seria pior do que não oferecê-lo.
+  // Um "agora" por montagem, não por render: as duas badges abaixo precisam
+  // concordar entre si, e a resolução aqui é de dias — a lista é remontada a
+  // cada recarga da gestão, que é de sobra para um período de férias.
+  const [agora] = useState(() => new Date());
+  const ausencia = ausenciaEmCurso(p.ausenciasAgenda, agora);
+  const proximaAusencia = !ausencia
+    ? p.ausenciasAgenda?.find((item) => Date.parse(item.inicio) > agora.getTime())
+    : undefined;
   const semTurno = !p.turnosDisponiveis?.length;
   const trabalhando = ocupado === p.id;
   const temSolicitacaoPendente = p.solicitacaoAlteracaoGestao?.status === 'PENDENTE';
@@ -108,6 +122,13 @@ export function PsicologoCard({
                 <span className="text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 bg-slate-100 text-slate-600 border border-slate-200">
                   <XCircle className="w-3 h-3" /> Recusado
                 </span>
+              ) : ausencia ? (
+                <span
+                  className="text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 bg-sky-50 text-sky-800 border border-sky-200"
+                  title={`Férias/folga marcadas na própria agenda${ausencia.motivo ? `: ${ausencia.motivo}` : ''}. Fora do rodízio até o fim do período.`}
+                >
+                  <Plane className="w-3 h-3" /> Ausente {periodoAusencia(ausencia)}
+                </span>
               ) : (
                 <span
                   className={`text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 ${
@@ -119,6 +140,15 @@ export function PsicologoCard({
                 >
                   {pausado ? <PauseCircle className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
                   {pausado ? 'Pausado' : 'No rodízio'}
+                </span>
+              )}
+
+              {proximaAusencia && p.status === 'APROVADO' && (
+                <span
+                  className="text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 bg-slate-50 text-slate-600 border border-slate-200"
+                  title={`Sai do rodízio automaticamente no período${proximaAusencia.motivo ? `: ${proximaAusencia.motivo}` : ''}.`}
+                >
+                  <Plane className="w-3 h-3" /> Folga {periodoAusencia(proximaAusencia)}
                 </span>
               )}
             </div>

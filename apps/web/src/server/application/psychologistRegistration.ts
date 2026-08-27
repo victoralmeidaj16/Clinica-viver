@@ -45,12 +45,18 @@ export const CAMPOS_DA_GESTAO = new Set([
  * O que o psicólogo altera no próprio perfil. Nome, CRP e e-mail fazem parte
  * dos próprios dados profissionais; status, vitrine e capacidade continuam
  * sendo decisões da clínica.
+ *
+ * `servicosPrestados` ficou de fora: quais serviços o profissional está
+ * habilitado a prestar é homologação da coordenação, não autodeclaração. Ele
+ * pede a mudança por `solicitacaoAlteracaoGestao` e a gestão aplica ao
+ * aprovar. O descarte aqui é silencioso, como nos demais campos fora da
+ * allowlist — um PATCH que ainda carregue o campo mantém o valor homologado.
  */
 export const CAMPOS_DO_PROPRIO_PSICOLOGO = new Set([
   'nomeCompleto', 'crp', 'email', 'nomeSocial', 'whatsapp', 'fotoUrl', 'minibio', 'especialidade',
   'estadoUf', 'cidade', 'logradouro', 'bairro', 'genero', 'generoOutro',
   'modalidadeAtendimento', 'atendimentoPreferencia', 'turnosDisponiveis',
-  'servicosPrestados', 'publicoAlvo', 'publicoAlvoOutro',
+  'publicoAlvo', 'publicoAlvoOutro',
   'especificarNecessidades', 'necessidadesAtendidas', 'necessidadesOutro',
   'turmaViverMais', 'posGraduacaoViverMais', 'segundaPosGraduacao',
   'solicitacaoAlteracaoGestao',

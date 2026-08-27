@@ -32,6 +32,13 @@ export interface PsicologoItem {
   motivoDesativacao?: string;
   pausadoNoRodizio?: boolean;
   motivoPausaRodizio?: string;
+  /**
+   * Férias/folgas que o profissional marcou na própria agenda, vigentes ou
+   * futuras. Só de leitura: quem as cria é ele, e a pausa que elas provocam é
+   * derivada — não se desfaz pelo botão de retomar, que responde por
+   * `pausadoNoRodizio`.
+   */
+  ausenciasAgenda?: Array<{ inicio: string; fim: string; motivo?: string; criadoEm: string }>;
   ultimoLeadRecebidoEm?: string;
   turmaViverMais?: string;
   posGraduacaoViverMais?: string;

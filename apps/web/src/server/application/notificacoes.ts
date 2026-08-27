@@ -6,6 +6,7 @@ import type { PagamentoRecebido } from '@/server/payments/paymentLinkRepository'
 import type { AgendamentoResumo } from '@/server/scheduling/agendaRepository';
 import type { AlteracaoPerfil } from '@/server/persistence/perfilAlteracoes';
 import { descreverMudancas } from '@/lib/perfilPsicologoDiff';
+import { diasDeAusencia, periodoAusencia } from '@/lib/ausenciaAgenda';
 import { dataHoraSessao } from '@/lib/sessionReference';
 import {
   classificarSla,
@@ -476,6 +477,27 @@ export function notificacoesDaGestao(
         severidade: 'ATENCAO',
         href: '/gestao/psicologos',
         pendente: true,
+      });
+    }
+
+    for (const ausencia of cadastro.ausenciasAgenda ?? []) {
+      const vigente = Date.parse(ausencia.inicio) <= agora.getTime();
+      itens.push({
+        // O instante de criação na chave faz cada novo período marcado voltar
+        // como não lido, em vez de ser silenciado pela leitura do anterior.
+        chave: `psicologo-ausente:${cadastro.id}:${ausencia.criadoEm}`,
+        tipo: 'psicologo-ausente',
+        titulo: vigente
+          ? 'Profissional ausente — fora do rodízio'
+          : 'Profissional marcou férias ou folga',
+        descricao: `${nomeDeExibicao(cadastro)} ${vigente ? 'está' : 'ficará'} indisponível ${periodoAusencia(ausencia)}${ausencia.motivo ? ` — ${ausencia.motivo}` : ''}. Não recebe encaminhamento nesse intervalo.`,
+        ocorridoEm: ausencia.criadoEm,
+        severidade: diasDeAusencia(ausencia) >= 2 ? 'ATENCAO' : 'INFO',
+        href: '/gestao/psicologos',
+        // A gestão é informada, não convocada: marcar a própria folga é
+        // decisão do profissional, e o rodízio já se ajustou sozinho. O que
+        // exigiria ação — paciente sem quem atenda — tem aviso próprio.
+        pendente: false,
       });
     }
   }

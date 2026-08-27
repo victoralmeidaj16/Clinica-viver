@@ -5,26 +5,20 @@ import { VitrineCarrossel, PsicologoVitrineItem } from '@/components/vitrineCarr
 import { GenderFields } from '@/components/forms/GenderFields';
 import { CadastroPsicologoForm } from '@/components/forms/CadastroPsicologoForm';
 import { TurnoPreferenceField } from '@/components/forms/TurnoPreferenceField';
-import { OPCOES_AVALIACAO_PSICOLOGICA, NecessidadesSelector } from '@/components/forms/necessidades';
 import { validateGender, type GenderValue } from '@/lib/gender';
 import { CAMPO_ARMADILHA } from '@/lib/triagemSubmissao';
-import type { TurnoPreferencia } from '@/lib/turnos';
+import { normalizarTurnoPreferencia, type TurnoPreferencia } from '@/lib/turnos';
 import {
   Sparkles,
   Heart,
   Calendar,
-  CheckCircle2,
-  Phone,
   User,
-  Mail,
   MapPin,
-  HelpCircle,
   Clock,
   ArrowRight,
   Brain,
   Check,
   Building2,
-  DollarSign,
   Send,
   UserPlus
 } from 'lucide-react';
@@ -55,7 +49,9 @@ interface ServicoVitrine {
 export default function ViverMaisLandingPage() {
   const [selectedService, setSelectedService] = useState<ServicoKey | null>(null);
   const [selectedModalidade, setSelectedModalidade] = useState<ModalidadeKey | null>(null);
-  const [step, setStep] = useState<'SERVICOS' | 'FORMULARIO' | 'CADASTRO_PSICOLOGO' | 'SUCESSO' | 'SUCESSO_PSICOLOGO'>('SERVICOS');
+  const [step, setStep] = useState<'SERVICOS' | 'CAMINHO' | 'MATCH' | 'PROFISSIONAIS' | 'FORMULARIO' | 'CADASTRO_PSICOLOGO' | 'SUCESSO' | 'SUCESSO_PSICOLOGO'>('SERVICOS');
+  const [caminho, setCaminho] = useState<'MATCH' | 'PROFISSIONAL' | null>(null);
+  const [psicologoEscolhido, setPsicologoEscolhido] = useState<PsicologoVitrineItem | null>(null);
   
   const [temNomeSocialPaciente, setTemNomeSocialPaciente] = useState(false);
 
@@ -292,8 +288,28 @@ export default function ViverMaisLandingPage() {
       }
       return { ...prev, paraQuemE };
     });
+    setCaminho(null);
+    setPsicologoEscolhido(null);
+    setStep('CAMINHO');
+  };
+
+  const continuarMatch = () => {
+    const paraQuem = form.paraQuemE === 'Outro' ? form.paraQuemEOutro.trim() : form.paraQuemE;
+    if (!paraQuem || !form.necessidadesOutro.trim() || !form.turno) {
+      alert('Responda às três perguntas para continuar.');
+      return;
+    }
+    setForm((prev) => ({ ...prev, especificarNecessidades: true }));
     setStep('FORMULARIO');
   };
+
+  const profissionaisCompativeis = psicologosCredenciados.filter((psi) => {
+    if (psi.disponivelParaNovosPacientes === false) return false;
+    if (selectedService && psi.servicosHabilitados.length > 0 && !psi.servicosHabilitados.includes(selectedService)) return false;
+    const modalidadeMotor = selectedModalidade?.includes('PARTICULAR') ? 'PARTICULAR' : 'ACESSIVEL_SOCIAL';
+    const atendeModalidade = !psi.modalidadesAtendidas?.length || psi.modalidadesAtendidas.includes(modalidadeMotor);
+    return atendeModalidade && Boolean(psi.turnosDisponiveis?.some((turno) => normalizarTurnoPreferencia(turno)));
+  });
 
 
   const handleSubmitPaciente = async (e: React.FormEvent) => {
@@ -330,17 +346,18 @@ export default function ViverMaisLandingPage() {
         body: JSON.stringify({
           ...form,
           [CAMPO_ARMADILHA]: armadilha,
-          paraQuemE: selectedService === 'ORIENTACAO_PARENTAL' ? undefined : (form.paraQuemE === 'Outro' && form.paraQuemEOutro.trim() ? `Outro: ${form.paraQuemEOutro.trim()}` : form.paraQuemE),
+          paraQuemE: form.paraQuemE === 'Outro' && form.paraQuemEOutro.trim() ? `Outro: ${form.paraQuemEOutro.trim()}` : form.paraQuemE,
           servico: selectedService ? precos[selectedService]?.titulo : '',
           servicoKey: selectedService,
           modalidade: selectedModalidade,
+          psicologoPreferidoId: caminho === 'PROFISSIONAL' ? psicologoEscolhido?.id : undefined,
         }),
       });
       const data = await resp.json();
       if (data.success) {
         setStep('SUCESSO');
       } else {
-        alert('Erro ao enviar solicitação. Tente novamente.');
+        alert(data.error || 'Erro ao enviar solicitação. Tente novamente.');
       }
     } catch (err) {
       console.error(err);
@@ -602,17 +619,17 @@ export default function ViverMaisLandingPage() {
 
                 <div className="p-5 rounded-2xl bg-canvas border border-psi-soft/60 space-y-3 relative">
                   <span className="w-8 h-8 rounded-xl bg-psi-vibrant text-white font-black text-xs flex items-center justify-center">2</span>
-                  <h4 className="font-extrabold text-sm text-ink">Preencha Seus Dados</h4>
+                  <h4 className="font-extrabold text-sm text-ink">Escolha Como Encontrar Seu Psicólogo</h4>
                   <p className="text-xs text-muted leading-relaxed">
-                    Informe seu contato no WhatsApp e endereço. O sistema encaminha para um psicólogo especializado via rodízio inteligente.
+                    Escolha diretamente no catálogo ou responda três perguntas para receber uma recomendação compatível.
                   </p>
                 </div>
 
                 <div className="p-5 rounded-2xl bg-canvas border border-psi-soft/60 space-y-3 relative">
                   <span className="w-8 h-8 rounded-xl bg-emerald-600 text-white font-black text-xs flex items-center justify-center">3</span>
-                  <h4 className="font-extrabold text-sm text-ink">Confirmação via WhatsApp (24h)</h4>
+                  <h4 className="font-extrabold text-sm text-ink">Complete o Cadastro & Receba a Confirmação</h4>
                   <div className="text-xs text-muted leading-relaxed space-y-2">
-                    <p>Seu psicólogo entra em contato no WhatsApp em até 24 horas.</p>
+                    <p>Somente no último passo você informa seus dados. O psicólogo entra em contato no WhatsApp em até 24 horas.</p>
                     <p>Se após 24 horas você ainda não tiver recebido o contato do seu psicoterapeuta, por favor, nos avise para que possamos ajudar.</p>
                     <p className="text-[10px] text-muted/80 italic">
                       (→ Se o prazo de 24h coincidir com finais de semana ou feriados, ele será automaticamente estendido até o próximo dia útil.)
@@ -802,18 +819,184 @@ export default function ViverMaisLandingPage() {
           </div>
         )}
 
+        {step === 'CAMINHO' && selectedService && selectedModalidade && (
+          <section className="mx-auto max-w-4xl space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <div className="text-center space-y-2">
+              <span className="chip-accent text-[11px]">Serviço e valor escolhidos</span>
+              <h3 className="text-2xl sm:text-3xl font-black text-ink">Como você prefere encontrar seu psicólogo?</h3>
+              <p className="text-xs text-muted">Você pode escolher alguém da equipe ou deixar que a gente encontre o perfil mais compatível.</p>
+            </div>
+
+            <div className="grid gap-5 md:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setCaminho('PROFISSIONAL');
+                  setStep('PROFISSIONAIS');
+                }}
+                className="group rounded-3xl border border-psi-soft bg-surface p-7 text-left shadow-card transition-all hover:-translate-y-1 hover:border-psi-vibrant hover:shadow-lift"
+              >
+                <span className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-psi-soft text-psi-deep group-hover:bg-psi-deep group-hover:text-white">
+                  <User className="h-5 w-5" />
+                </span>
+                <h4 className="text-lg font-black text-ink">Escolher o profissional</h4>
+                <p className="mt-2 text-xs leading-relaxed text-muted">Conheça os psicólogos disponíveis, veja os períodos de atendimento e escolha quem você prefere.</p>
+                <span className="mt-5 flex items-center gap-2 text-xs font-black text-psi-deep">Ver profissionais <ArrowRight className="h-4 w-4" /></span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setCaminho('MATCH');
+                  setStep('MATCH');
+                }}
+                className="group relative overflow-hidden rounded-3xl border border-psi-vibrant bg-psi-darkest p-7 text-left text-white shadow-lift transition-all hover:-translate-y-1"
+              >
+                <span className="absolute right-5 top-5 rounded-full bg-emerald-400 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-950">Recomendado</span>
+                <span className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-psi-soft">
+                  <Sparkles className="h-5 w-5" />
+                </span>
+                <h4 className="text-lg font-black">Escolha conforme minhas necessidades</h4>
+                <p className="mt-2 text-xs leading-relaxed text-purple-100/80">Responda somente três perguntas. O sistema filtra a equipe e encaminha o primeiro profissional compatível da fila.</p>
+                <span className="mt-5 flex items-center gap-2 text-xs font-black text-psi-soft">Começar recomendação <ArrowRight className="h-4 w-4" /></span>
+              </button>
+            </div>
+
+            <button type="button" onClick={() => setStep('SERVICOS')} className="mx-auto block text-xs font-bold text-muted hover:text-ink hover:underline">
+              Voltar aos valores
+            </button>
+          </section>
+        )}
+
+        {step === 'MATCH' && selectedService && selectedModalidade && (
+          <section className="mx-auto max-w-2xl rounded-3xl border border-line bg-surface p-6 shadow-lift sm:p-8 animate-in fade-in duration-300">
+            <div className="mb-7 flex items-start justify-between gap-4 border-b border-line pb-5">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-psi-vibrant">Recomendação inteligente · 3 perguntas</span>
+                <h3 className="mt-1 text-2xl font-black text-ink">Conte só o necessário</h3>
+                <p className="mt-1 text-xs text-muted">Nenhum dado pessoal será pedido nesta etapa.</p>
+              </div>
+              <button type="button" onClick={() => setStep('CAMINHO')} className="text-xs font-bold text-muted hover:text-ink">Voltar</button>
+            </div>
+
+            <div className="space-y-7">
+              <div className="space-y-3">
+                <label className="text-sm font-black text-ink">1. Para quem é o atendimento? <span className="text-rose-500">*</span></label>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {['Individual', 'Casal', 'Infantil', 'Adolescente', 'Família', 'Outro'].map((opcao) => (
+                    <button
+                      key={opcao}
+                      type="button"
+                      onClick={() => setForm((prev) => ({ ...prev, paraQuemE: opcao }))}
+                      className={`rounded-xl border p-3 text-left text-xs font-bold transition-all ${form.paraQuemE === opcao ? 'border-psi-vibrant bg-psi-soft text-psi-darkest' : 'border-line bg-white text-muted hover:border-psi-soft'}`}
+                    >
+                      {opcao}
+                    </button>
+                  ))}
+                </div>
+                {form.paraQuemE === 'Outro' && (
+                  <input
+                    value={form.paraQuemEOutro}
+                    onChange={(e) => setForm((prev) => ({ ...prev, paraQuemEOutro: e.target.value }))}
+                    placeholder="Especifique para quem é o atendimento"
+                    className="input text-xs"
+                  />
+                )}
+              </div>
+
+              <label className="block space-y-2">
+                <span className="text-sm font-black text-ink">2. Qual é a sua queixa ou necessidade? <span className="text-rose-500">*</span></span>
+                <textarea
+                  required
+                  rows={4}
+                  maxLength={300}
+                  value={form.necessidadesOutro}
+                  onChange={(e) => setForm((prev) => ({ ...prev, necessidadesOutro: e.target.value }))}
+                  placeholder="Descreva brevemente o que motivou a busca por atendimento."
+                  className="input resize-none text-xs leading-relaxed"
+                />
+                <span className="block text-right text-[10px] text-muted">{form.necessidadesOutro.length}/300</span>
+              </label>
+
+              <div className="space-y-2">
+                <span className="text-sm font-black text-ink">3. Qual período você prefere? <span className="text-rose-500">*</span></span>
+                <TurnoPreferenceField value={form.turno} onChange={(turno) => setForm((prev) => ({ ...prev, turno }))} />
+              </div>
+
+              <button type="button" onClick={continuarMatch} className="btn-accent w-full justify-center py-4 text-xs">
+                Continuar para meus dados <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+          </section>
+        )}
+
+        {step === 'PROFISSIONAIS' && selectedService && selectedModalidade && (
+          <section className="space-y-8 animate-in fade-in duration-300">
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-psi-vibrant">Catálogo compatível</span>
+                <h3 className="mt-1 text-2xl font-black text-ink">Escolha seu profissional</h3>
+                <p className="mt-1 text-xs text-muted">Mostramos somente profissionais habilitados para o serviço e a faixa de valor escolhidos.</p>
+              </div>
+              <button type="button" onClick={() => setStep('CAMINHO')} className="text-xs font-bold text-muted hover:text-ink">Voltar</button>
+            </div>
+
+            {profissionaisCompativeis.length > 0 ? (
+              <VitrineCarrossel
+                psicologos={profissionaisCompativeis}
+                selecionadoId={psicologoEscolhido?.id}
+                onSelecionar={(psicologo) => {
+                  setPsicologoEscolhido(psicologo);
+                  setForm((prev) => ({ ...prev, turno: '' }));
+                }}
+              />
+            ) : (
+              <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 text-sm font-semibold text-amber-900">
+                Nenhum profissional está disponível para esta combinação agora. Volte e use a recomendação inteligente para entrar na fila de atendimento.
+              </div>
+            )}
+
+            {psicologoEscolhido && (
+              <div className="sticky bottom-4 mx-auto max-w-2xl rounded-3xl border border-psi-vibrant/30 bg-white/95 p-5 shadow-2xl backdrop-blur-md">
+                <p className="text-[10px] font-black uppercase tracking-wider text-psi-vibrant">Horários disponíveis de {psicologoEscolhido.nomeSocial || psicologoEscolhido.nome}</p>
+                <p className="mb-3 mt-1 text-xs text-muted">Escolha um período disponível. O profissional entrará em contato para confirmar o melhor dia e horário.</p>
+                <TurnoPreferenceField
+                  value={form.turno}
+                  allowedValues={(psicologoEscolhido.turnosDisponiveis ?? [])
+                    .map(normalizarTurnoPreferencia)
+                    .filter((turno): turno is TurnoPreferencia => Boolean(turno))}
+                  onChange={(turno) => setForm((prev) => ({ ...prev, turno }))}
+                />
+                <button
+                  type="button"
+                  disabled={!form.turno}
+                  onClick={() => setStep('FORMULARIO')}
+                  className="btn-accent mt-4 w-full justify-center py-3 text-xs disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Agendar com este profissional <ArrowRight className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+          </section>
+        )}
+
         {step === 'FORMULARIO' && selectedService && selectedModalidade && (
           <div className="max-w-xl mx-auto bg-white rounded-3xl p-6 sm:p-8 border border-purple-100 shadow-xl space-y-6 animate-in fade-in duration-300">
             <div className="flex items-center justify-between border-b border-purple-50 pb-4">
               <div>
-                <span className="text-[10px] text-purple-600 font-bold uppercase tracking-wider block">Solicitação de Consulta</span>
+                <span className="text-[10px] text-purple-600 font-bold uppercase tracking-wider block">Últimos passos</span>
                 <h3 className="text-lg font-black text-slate-900">
-                  Preencha o formulário abaixo para concluir seu agendamento!
+                  Termine seu cadastro para concluir
                 </h3>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  {caminho === 'MATCH'
+                    ? 'Suas três respostas já foram salvas. Agora precisamos dos seus dados de contato.'
+                    : `Você escolheu ${psicologoEscolhido?.nomeSocial || psicologoEscolhido?.nome}. Complete seus dados para enviar a solicitação.`}
+                </p>
               </div>
               <button
                 type="button"
-                onClick={() => setStep('SERVICOS')}
+                onClick={() => setStep(caminho === 'MATCH' ? 'MATCH' : 'PROFISSIONAIS')}
                 className="text-xs text-slate-500 hover:text-slate-900 hover:underline font-bold"
               >
                 Voltar
@@ -1085,112 +1268,6 @@ export default function ViverMaisLandingPage() {
                 </div>
               )}
 
-              {/* Para quem é o atendimento? (opcional) - Oculto em Orientação Parental */}
-              {selectedService !== 'ORIENTACAO_PARENTAL' && (
-                <div className="space-y-2 pt-1">
-                  <div>
-                    <label className="font-bold text-slate-700 block">
-                      Para quem é o atendimento?: <span className="text-slate-400 font-normal">(opcional)</span>
-                    </label>
-                    <span className="text-[11px] text-slate-500 block mt-0.5">
-                      Selecione a opção que mais combina com o que você procura.
-                    </span>
-                  </div>
-                  <div className={`grid gap-2 text-xs ${selectedService === 'PSICOTERAPIA_CASAL' ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3'}`}>
-                    {(selectedService === 'PSICOTERAPIA_CASAL'
-                      ? ['Casal', 'Outro']
-                      : selectedService === 'AVALIACAO'
-                        ? ['Criança', 'Adolescente', 'Homem', 'Mulher', 'Idoso']
-                        : ['Criança', 'Adolescente', 'Homem', 'Mulher', 'Idoso', 'Outro']
-                    ).map((opcao) => {
-                      const isSelected = form.paraQuemE === opcao;
-                      return (
-                        <button
-                          key={opcao}
-                          type="button"
-                          onClick={() =>
-                            setForm((prev) => ({
-                              ...prev,
-                              paraQuemE: isSelected ? '' : opcao,
-                            }))
-                          }
-                          className={`p-2.5 rounded-xl border text-left font-semibold transition-all ${
-                            isSelected
-                              ? 'bg-purple-50 border-purple-500 text-purple-900 font-bold shadow-xs'
-                              : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                          }`}
-                        >
-                          {opcao}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* Habilitar campo se for selecionada a opção Outro */}
-                  {form.paraQuemE === 'Outro' && (
-                    <div className="animate-in fade-in duration-200 pt-2">
-                      <label className="font-bold text-slate-700 block mb-1 text-xs">
-                        Especifique para quem é o atendimento <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={form.paraQuemEOutro}
-                        onChange={(e) => setForm({ ...form, paraQuemEOutro: e.target.value })}
-                        placeholder="Digite para quem é o atendimento..."
-                        className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600 text-xs"
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Opções de Avaliação Psicológica se o serviço selecionado for AVALIACAO */}
-              {selectedService === 'AVALIACAO' && (
-                <div className="space-y-2.5 p-4 bg-purple-50/70 border border-purple-200 rounded-2xl animate-in fade-in duration-200">
-                  <div>
-                    <label className="font-bold text-purple-950 block text-xs sm:text-sm">
-                      Qual o objetivo da sua Avaliação Psicológica? <span className="text-rose-500">*</span>
-                    </label>
-                    <span className="text-[11px] text-purple-700 block mt-0.5">
-                      Selecione a opção que melhor se aplica ao seu caso.
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-1 gap-2 text-xs">
-                    {OPCOES_AVALIACAO_PSICOLOGICA.map((opcao) => {
-                      const isSelected = form.opcaoAvaliacaoPsicologica === opcao;
-                      return (
-                        <button
-                          key={opcao}
-                          type="button"
-                          onClick={() => setForm((prev) => ({ ...prev, opcaoAvaliacaoPsicologica: opcao }))}
-                          className={`p-3 rounded-xl border text-left font-semibold transition-all ${
-                            isSelected
-                              ? 'bg-purple-700 border-purple-700 text-white font-bold shadow-xs'
-                              : 'bg-white border-purple-200 text-slate-800 hover:bg-purple-100/60'
-                          }`}
-                        >
-                          {opcao}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* VOCÊ GOSTARIA DE ESPECIFICAR SUA NECESSIDADE? - Oculto em Orientação Parental */}
-              {selectedService !== 'ORIENTACAO_PARENTAL' && (
-                <NecessidadesSelector
-                  prefix="paciente"
-                  especificar={form.especificarNecessidades}
-                  onEspecificarChange={(especificar) => setForm((prev) => ({ ...prev, especificarNecessidades: especificar }))}
-                  selecionados={form.necessidadesPaciente}
-                  onSelecionadosChange={(necessidadesPaciente) => setForm((prev) => ({ ...prev, necessidadesPaciente }))}
-                  outro={form.necessidadesOutro}
-                  onOutroChange={(necessidadesOutro) => setForm((prev) => ({ ...prev, necessidadesOutro }))}
-                />
-              )}
-
               {/* Como ficou sabendo da clínica? */}
               <div>
                 <label className="font-bold text-slate-700 block mb-1">Como ficou sabendo da clínica? <span className="text-rose-500">*</span></label>
@@ -1209,11 +1286,6 @@ export default function ViverMaisLandingPage() {
                   <option value="Outros">Outros</option>
                 </select>
               </div>
-
-              <TurnoPreferenceField
-                value={form.turno}
-                onChange={(turno) => setForm((current) => ({ ...current, turno }))}
-              />
 
               <button
                 type="submit"

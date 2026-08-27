@@ -9,6 +9,7 @@ import {
   type TurnoAtendimento,
 } from '@thats-life/core';
 import type {
+  AusenciaAgenda,
   CadastroPsicologoRecord,
   PersistedSnapshot,
   TriagemPacienteRecord,
@@ -102,6 +103,23 @@ export function nomeDeExibicao(record: CadastroPsicologoRecord): string {
 }
 
 /**
+ * A ausência que cobre este instante, se houver.
+ *
+ * Quem está de férias não recebe paciente novo — e volta a receber no dia
+ * seguinte ao fim, sem ninguém precisar desmarcar nada.
+ */
+export function ausenciaVigente(
+  record: CadastroPsicologoRecord,
+  agora: Date = new Date()
+): AusenciaAgenda | undefined {
+  const instante = agora.getTime();
+  return record.ausenciasAgenda?.find(
+    (ausencia) =>
+      Date.parse(ausencia.inicio) <= instante && Date.parse(ausencia.fim) > instante
+  );
+}
+
+/**
  * Converte o cadastro do credenciamento no perfil que o motor entende.
  *
  * Campos ausentes viram ausência de habilitação, não permissão: quem não
@@ -109,7 +127,10 @@ export function nomeDeExibicao(record: CadastroPsicologoRecord): string {
  * padrão generoso é `exibirNaVitrine`, porque um cadastro aprovado sem a chave
  * gravada foi aprovado para atender.
  */
-export function paraPsicologoPerfil(record: CadastroPsicologoRecord): PsicologoPerfil {
+export function paraPsicologoPerfil(
+  record: CadastroPsicologoRecord,
+  agora: Date = new Date()
+): PsicologoPerfil {
   return {
     id: record.id,
     // Nome social tem prioridade de exibição — é o nome que a pessoa usa, e é
@@ -130,7 +151,9 @@ export function paraPsicologoPerfil(record: CadastroPsicologoRecord): PsicologoP
     pacientesAtivosCount: record.pacientesAtivosCount ?? 0,
     exibirNaVitrine: record.exibirNaVitrine ?? true,
     motivoDesativacao: record.motivoDesativacao,
-    pausadoNoRodizio: record.pausadoNoRodizio ?? false,
+    // Férias na agenda pausam sem apagar a pausa manual: as duas somam, e
+    // quando as férias acabam continua valendo o que a gestão decidiu.
+    pausadoNoRodizio: (record.pausadoNoRodizio ?? false) || Boolean(ausenciaVigente(record, agora)),
     posicaoFilaRoundRobin: 0,
     ultimoLeadRecebidoEm: record.ultimoLeadRecebidoEm,
     saldoCreditoAbatimento: 0,
@@ -243,7 +266,8 @@ export function recalcularPacientesAtivos(snapshot: PersistedSnapshot): Persiste
  */
 export function alocarLead(
   snapshot: PersistedSnapshot,
-  leadRecord: TriagemPacienteRecord
+  leadRecord: TriagemPacienteRecord,
+  agora: Date = new Date()
 ): ResultadoAlocacao {
   snapshot = recalcularPacientesAtivos(snapshot);
   const lead = paraLeadTriagem(leadRecord);
@@ -256,7 +280,7 @@ export function alocarLead(
 
   const resultado = processarTriagemLead(
     lead,
-    roster.map(paraPsicologoPerfil),
+    roster.map((psi) => paraPsicologoPerfil(psi, agora)),
     leadRecord.servicoKey
   );
 
@@ -287,6 +311,44 @@ export function alocarLead(
 }
 
 /**
+ * Respeita a escolha explícita feita no catálogo público.
+ *
+ * A pessoa escolhida ainda passa pelas mesmas regras do rodízio (aprovação,
+ * pausa, capacidade, serviço, modalidade e turno). A diferença é só que não
+ * procuramos um substituto silenciosamente: se ela deixou de estar elegível
+ * entre a abertura do catálogo e o envio, o chamador pede uma nova escolha.
+ */
+export function alocarLeadEscolhido(
+  snapshot: PersistedSnapshot,
+  leadRecord: TriagemPacienteRecord,
+  psicologoId: string,
+  agora: Date = new Date()
+): ResultadoAlocacao {
+  const atual = recalcularPacientesAtivos(snapshot);
+  const escolhido = listarPsicologosCompativeis(atual, leadRecord, agora)
+    .find((item) => item.id === psicologoId);
+  if (!escolhido) return { snapshot: atual, lead: leadRecord };
+
+  const alocadoEm = agora.toISOString();
+  const atualizado: TriagemPacienteRecord = {
+    ...leadRecord,
+    status: 'AGUARDANDO_CONTATO',
+    psicologoAlocadoId: escolhido.id,
+    psicologoNome: nomeDeExibicao(escolhido),
+    alocadoEm,
+    slaExpirado: false,
+    transbordos: leadRecord.transbordos ?? 0,
+    psicologosJaTentados: [...new Set([...(leadRecord.psicologosJaTentados ?? []), escolhido.id])],
+  };
+
+  return {
+    snapshot: registrarRecebimento(substituirLead(atual, atualizado), escolhido.id, alocadoEm),
+    lead: atualizado,
+    psicologo: escolhido,
+  };
+}
+
+/**
  * Lista somente quem poderia receber este paciente pelas mesmas regras do
  * rodízio: aprovação, pausa, capacidade, turno, modalidade, serviço e perfil
  * da demanda. Rodar o motor com um candidato por vez evita uma segunda versão
@@ -294,7 +356,8 @@ export function alocarLead(
  */
 export function listarPsicologosCompativeis(
   snapshot: PersistedSnapshot,
-  leadRecord: TriagemPacienteRecord
+  leadRecord: TriagemPacienteRecord,
+  agora: Date = new Date()
 ): CadastroPsicologoRecord[] {
   const atual = recalcularPacientesAtivos(snapshot);
   const lead = paraLeadTriagem(leadRecord);
@@ -303,7 +366,7 @@ export function listarPsicologosCompativeis(
   return rosterAtivo(atual).filter((psicologo) =>
     processarTriagemLead(
       lead,
-      [paraPsicologoPerfil(psicologo)],
+      [paraPsicologoPerfil(psicologo, agora)],
       leadRecord.servicoKey
     ).sucesso
   );
@@ -377,7 +440,8 @@ export function classificarSla(alocadoEm: string | undefined, agora = new Date()
  */
 export function varrerSla(
   snapshot: PersistedSnapshot,
-  apenasLeadId?: string
+  apenasLeadId?: string,
+  agora: Date = new Date()
 ): { snapshot: PersistedSnapshot; transbordos: TransbordoOcorrido[]; alterado: boolean } {
   const transbordos: TransbordoOcorrido[] = [];
   let atual = recalcularPacientesAtivos(snapshot);
@@ -402,7 +466,7 @@ export function varrerSla(
 
     const resultado = checarEExecutarTransbordoSla(
       lead,
-      roster.map(paraPsicologoPerfil),
+      roster.map((psi) => paraPsicologoPerfil(psi, agora)),
       SLA_CONTATO_HORAS,
       {
         servicoDesejado: leadRecord.servicoKey,
@@ -547,7 +611,8 @@ export interface ResultadoEncaminhamento {
 export function encaminharParaProximo(
   snapshot: PersistedSnapshot,
   leadId: string,
-  psicologoAtualId: string
+  psicologoAtualId: string,
+  agora: Date = new Date()
 ): ResultadoEncaminhamento {
   const atual = recalcularPacientesAtivos(snapshot);
   const leadRecord = atual.triagensPacientes?.find((item) => item.id === leadId);
@@ -571,7 +636,11 @@ export function encaminharParaProximo(
     return { snapshot: atual, situacao: 'sem_candidato', lead: leadRecord };
   }
 
-  const resultado = processarTriagemLead(lead, candidatos.map(paraPsicologoPerfil), leadRecord.servicoKey);
+  const resultado = processarTriagemLead(
+    lead,
+    candidatos.map((psi) => paraPsicologoPerfil(psi, agora)),
+    leadRecord.servicoKey
+  );
   if (!resultado.sucesso || !resultado.psicologoAlocado) {
     return { snapshot: atual, situacao: 'sem_candidato', lead: leadRecord };
   }

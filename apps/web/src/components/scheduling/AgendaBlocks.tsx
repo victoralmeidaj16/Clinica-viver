@@ -62,6 +62,8 @@ export function AgendaBlocks({ bloqueios, onAdicionar, onRemover }: Props) {
         </h3>
         <p className="text-xs text-muted">
           Férias e folgas somem do link do paciente sem que você precise apagar a grade semanal.
+          No período, você também sai da fila de novos pacientes e a coordenação é avisada —
+          seus pacientes atuais continuam vendo seu perfil normalmente.
         </p>
       </div>
 

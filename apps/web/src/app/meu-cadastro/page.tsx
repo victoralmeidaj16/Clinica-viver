@@ -18,7 +18,6 @@ import { LISTA_NECESSIDADES } from '@/components/forms/necessidades';
 import {
   MODALIDADES_ATENDIMENTO,
   PUBLICO_ALVO,
-  SERVICOS_PRESTADOS,
   TIPOS_ATENDIMENTO,
   TURNOS_PSICOLOGO,
   comValoresRegistrados,
@@ -111,7 +110,6 @@ type Rascunho = {
   modalidadeAtendimento: string;
   atendimentoPreferencia: 'PARTICULAR' | 'SOCIAL' | 'AMBOS';
   turnosDisponiveis: string[];
-  servicosPrestados: string[];
   publicoAlvo: string[];
   publicoAlvoOutro: string;
   especificarNecessidades: boolean;
@@ -136,7 +134,6 @@ function rascunhoDe(c: Cadastro): Rascunho {
     modalidadeAtendimento: c.modalidadeAtendimento ?? 'AMBOS',
     atendimentoPreferencia: c.atendimentoPreferencia ?? 'AMBOS',
     turnosDisponiveis: [...(c.turnosDisponiveis ?? [])],
-    servicosPrestados: [...(c.servicosPrestados ?? [])],
     publicoAlvo: [...(c.publicoAlvo ?? [])],
     publicoAlvoOutro: c.publicoAlvoOutro ?? '',
     especificarNecessidades: Boolean(c.especificarNecessidades),
@@ -450,17 +447,12 @@ export default function MeuCadastroPage() {
             </div>
           </div>
 
-          <div>
-            <label className="text-[10px] uppercase tracking-wider font-extrabold text-muted block mb-2">Serviços que presto</label>
-            <div className="flex flex-wrap gap-2">
-              {comValoresRegistrados(SERVICOS_PRESTADOS, rascunho.servicosPrestados).map((servico) => (
-                <label key={servico} className={chipClasse(rascunho.servicosPrestados.includes(servico))}>
-                  <input type="checkbox" className="sr-only" checked={rascunho.servicosPrestados.includes(servico)} onChange={() => setRascunho({ ...rascunho, servicosPrestados: alternar(rascunho.servicosPrestados, servico) })} />
-                  {servico}
-                </label>
-              ))}
-            </div>
-          </div>
+          {/*
+            "Serviços que presto" não aparece aqui: ele é homologado pela
+            gestão e só muda por solicitação aprovada, no card "Definido pela
+            gestão". Um campo editável nesta tela prometia uma alteração que a
+            aprovação ainda teria que confirmar.
+          */}
 
           <div>
             <label className="text-[10px] uppercase tracking-wider font-extrabold text-muted block mb-2">Público que atendo</label>
@@ -591,7 +583,6 @@ export default function MeuCadastroPage() {
                     <p className="text-xs font-bold text-amber-700 mt-2">Sem turno definido, nenhum encaminhamento chega até você.</p>
                   )}
                 </div>
-                <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Serviços que presto</p><Chips itens={cadastro.servicosPrestados} /></div>
                 <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Público que atendo</p><Chips itens={[...(cadastro.publicoAlvo ?? []), ...(cadastro.publicoAlvoOutro ? [cadastro.publicoAlvoOutro] : [])]} /></div>
                 {(cadastro.especificarNecessidades || cadastro.necessidadesAtendidas?.length || cadastro.necessidadesOutro) && (
                   <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Demandas específicas</p><Chips itens={[...(cadastro.necessidadesAtendidas ?? []), ...(cadastro.necessidadesOutro ? [cadastro.necessidadesOutro] : [])]} /></div>
@@ -615,7 +606,7 @@ export default function MeuCadastroPage() {
               <li><strong className="text-white">3. Publicado</strong><br />Após aprovação, seu perfil entra na vitrine e no rodízio.</li>
             </ol>
             <p className="mt-6 pt-4 border-t border-white/10 text-xs text-white/50 leading-5">
-              Turnos, serviços e público-alvo são os critérios usados para encaminhar pacientes a você. Mantê-los atualizados muda o que você recebe.
+              Turnos, serviços e público-alvo são os critérios usados para encaminhar pacientes a você. Turnos e público você mantém atualizados aqui; os serviços homologados mudam por solicitação à gestão.
             </p>
             <p className="mt-4 text-xs text-white/50 flex items-center gap-2"><Mail className="w-3.5 h-3.5" /> Dúvidas? Fale com a coordenação da clínica.</p>
           </aside>

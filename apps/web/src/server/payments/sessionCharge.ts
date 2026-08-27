@@ -13,6 +13,11 @@ import {
   toSqlTimestamp,
 } from '@/server/persistence/mysql/mappers';
 import { deleteAsaasPayment, getAsaasPayment } from '@/server/adapters/asaasAdapter';
+import {
+  cancelInterPixCharge,
+  getInterPixCharge,
+  isInterPixSettled,
+} from '@/server/adapters/interPixAdapter';
 import { isAsaasPaymentSettled, isFutureChargeDueAt } from '@/lib/chargeDue';
 
 type ChargeOutcome = 'created' | 'existing' | 'skipped' | 'failed';
@@ -142,7 +147,7 @@ export async function atualizarVencimentoCobrancaSessao(input: {
   if (!isFutureChargeDueAt(input.dueAt)) return 'invalid';
   const [rows] = await getMysqlPool().query<RowDataPacket[]>(
     `SELECT c.ref_core AS cobranca_ref, c.status, c.provedor_ref,
-            x.id AS checkout_id, x.provedor_pagamento_ref
+            x.id AS checkout_id, x.provedor_pagamento_ref, x.provedor AS checkout_provedor
        FROM clinica_agendamentos a
        JOIN clinica_organizacoes o ON o.id = a.organizacao_id
        JOIN clinica_profissionais p ON p.id = a.profissional_id
@@ -162,14 +167,21 @@ export async function atualizarVencimentoCobrancaSessao(input: {
   if (['paid', 'partially_paid', 'refunded'].includes(String(row.status))) return 'paid';
   const providerId = row.provedor_pagamento_ref ?? row.provedor_ref;
   if (providerId) {
-    try {
-      const remote = await getAsaasPayment(String(providerId));
-      if (isAsaasPaymentSettled(remote.status)) return 'paid';
-      await deleteAsaasPayment(String(providerId));
-    } catch {
-      // Uma remoção anterior pode ter sido concluída antes de a transação local
-      // falhar. DELETE trata 404 como estado final e torna a retomada segura.
-      await deleteAsaasPayment(String(providerId));
+    const provider = String(row.checkout_provedor ?? 'asaas');
+    if (provider === 'inter') {
+      const remote = await getInterPixCharge(String(providerId));
+      if (isInterPixSettled(remote.status)) return 'paid';
+      await cancelInterPixCharge(String(providerId));
+    } else {
+      try {
+        const remote = await getAsaasPayment(String(providerId));
+        if (isAsaasPaymentSettled(remote.status)) return 'paid';
+        await deleteAsaasPayment(String(providerId));
+      } catch {
+        // Uma remoção anterior pode ter sido concluída antes de a transação local
+        // falhar. DELETE trata 404 como estado final e torna a retomada segura.
+        await deleteAsaasPayment(String(providerId));
+      }
     }
   }
 
@@ -192,7 +204,8 @@ export async function atualizarVencimentoCobrancaSessao(input: {
       const externalReference = `VM-${String(row.checkout_id).replaceAll('-', '')}-${Date.now()}`;
       await connection.execute(
         `UPDATE financeiro_checkouts_asaas
-            SET referencia_externa = ?, provedor_pagamento_ref = NULL, status = 'creating',
+            SET referencia_externa = ?, provedor_pagamento_ref = NULL, provedor = NULL,
+                status = 'creating',
                 erro_codigo = NULL, expirado_em = NULL, atualizado_em = CURRENT_TIMESTAMP(3)
           WHERE instituicao_id = ? AND id = ?`,
         [externalReference, instituicaoId(), row.checkout_id]
@@ -210,7 +223,9 @@ export async function expirarCobrancasPendentes(limit = 100): Promise<{
   expired: number; paid: number; failed: number;
 }> {
   const [rows] = await getMysqlPool().query<RowDataPacket[]>(
-    `SELECT c.ref_core AS cobranca_ref, COALESCE(x.provedor_pagamento_ref, c.provedor_ref) AS provedor_ref
+    `SELECT c.ref_core AS cobranca_ref,
+            COALESCE(x.provedor_pagamento_ref, c.provedor_ref) AS provedor_ref,
+            x.provedor AS checkout_provedor
        FROM financeiro_cobrancas c
        LEFT JOIN financeiro_checkouts_asaas x
          ON x.instituicao_id = c.instituicao_id AND x.cobranca_ref = c.ref_core
@@ -223,12 +238,19 @@ export async function expirarCobrancasPendentes(limit = 100): Promise<{
   for (const row of rows) {
     try {
       if (row.provedor_ref) {
-        try {
-          const remote = await getAsaasPayment(String(row.provedor_ref));
-          if (isAsaasPaymentSettled(remote.status)) { result.paid += 1; continue; }
-          await deleteAsaasPayment(String(row.provedor_ref));
-        } catch {
-          await deleteAsaasPayment(String(row.provedor_ref));
+        const provider = String(row.checkout_provedor ?? 'asaas');
+        if (provider === 'inter') {
+          const remote = await getInterPixCharge(String(row.provedor_ref));
+          if (isInterPixSettled(remote.status)) { result.paid += 1; continue; }
+          await cancelInterPixCharge(String(row.provedor_ref));
+        } else {
+          try {
+            const remote = await getAsaasPayment(String(row.provedor_ref));
+            if (isAsaasPaymentSettled(remote.status)) { result.paid += 1; continue; }
+            await deleteAsaasPayment(String(row.provedor_ref));
+          } catch {
+            await deleteAsaasPayment(String(row.provedor_ref));
+          }
         }
       }
       const [update] = await getMysqlPool().execute<ResultSetHeader>(

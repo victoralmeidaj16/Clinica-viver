@@ -142,6 +142,20 @@ export interface SolicitacaoAlteracaoGestao {
   motivoRecusa?: string;
 }
 
+/**
+ * Férias ou folga que o profissional marcou na própria agenda.
+ *
+ * Só bloqueios de dias inteiros viram ausência. Bloquear duas horas da terça é
+ * rotina de agenda: o horário some da lista do paciente e nada mais muda.
+ */
+export interface AusenciaAgenda {
+  inicio: string;
+  fim: string;
+  motivo?: string;
+  /** Quando o bloqueio foi criado. É a data do aviso no sino da gestão. */
+  criadoEm: string;
+}
+
 export interface CadastroPsicologoRecord {
   id: string;
   nomeCompleto: string;
@@ -195,6 +209,17 @@ export interface CadastroPsicologoRecord {
    */
   pausadoNoRodizio?: boolean;
   motivoPausaRodizio?: string;
+  /**
+   * Ausências vigentes e futuras, derivadas da agenda a cada leitura — nunca
+   * gravadas neste registro.
+   *
+   * Derivar em vez de carimbar um `pausadoNoRodizio` no início das férias é o
+   * que dispensa alguém (ou um job) para desmarcar no fim: passada a data, a
+   * ausência some da leitura e o profissional volta à fila sozinho. Também
+   * evita que a pausa automática apague a pausa manual da gestão, que continua
+   * morando em `pausadoNoRodizio`.
+   */
+  ausenciasAgenda?: readonly AusenciaAgenda[];
   /** Atualizado a cada alocação; é o que faz o rodízio girar. */
   ultimoLeadRecebidoEm?: string;
   turmaViverMais?: string;

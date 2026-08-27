@@ -13,7 +13,7 @@ export function proxy(request: NextRequest) {
     '/api/infra/',
     '/api/pagamento/',
     '/api/agenda/',
-    '/api/financeiro/asaas/',
+    '/api/financeiro/',
     '/api/certificados/',
     '/api/public/certificados/',
   ].some((prefix) => pathname.startsWith(prefix));

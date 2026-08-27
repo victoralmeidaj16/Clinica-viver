@@ -25,6 +25,7 @@ export interface ReservedCheckout {
   amountCents: number;
   professionalName: string;
   providerPaymentId?: string;
+  provider?: 'asaas' | 'inter';
   description?: string;
   sessionStart?: string;
   dueAt: string;
@@ -197,7 +198,8 @@ export async function reserveAppointmentCharge(input: {
 
     const [chargeRows] = await connection.query<RowDataPacket[]>(
       `SELECT c.ref_core AS cobranca_ref, c.vence_em, c.status AS cobranca_status,
-              x.id AS checkout_ref, x.referencia_externa, x.provedor_pagamento_ref
+              x.id AS checkout_ref, x.referencia_externa, x.provedor_pagamento_ref,
+              x.provedor AS checkout_provedor
          FROM financeiro_cobrancas c
          LEFT JOIN financeiro_checkouts_asaas x
            ON x.instituicao_id = c.instituicao_id AND x.cobranca_ref = c.ref_core
@@ -277,6 +279,9 @@ export async function reserveAppointmentCharge(input: {
       providerPaymentId: chargeRows[0]?.provedor_pagamento_ref
         ? String(chargeRows[0].provedor_pagamento_ref)
         : undefined,
+      provider: ['asaas', 'inter'].includes(String(chargeRows[0]?.checkout_provedor))
+        ? chargeRows[0].checkout_provedor as 'asaas' | 'inter'
+        : undefined,
       description,
       sessionStart,
       dueAt: chargeDueAt,
@@ -337,16 +342,17 @@ export async function listRecentConfirmedPayments(
 export async function bindProviderPayment(
   checkout: ReservedCheckout,
   providerPaymentId: string,
-  method: 'pix' | 'card' | 'other'
+  method: 'pix' | 'card' | 'other',
+  provider: 'asaas' | 'inter' = 'asaas'
 ): Promise<void> {
   const connection = await getMysqlPool().getConnection();
   try {
     await connection.beginTransaction();
     await connection.execute(
       `UPDATE financeiro_checkouts_asaas
-          SET provedor_pagamento_ref = ?, status = 'pending', erro_codigo = NULL
+          SET provedor_pagamento_ref = ?, provedor = ?, status = 'pending', erro_codigo = NULL
         WHERE instituicao_id = ? AND referencia_externa = ?`,
-      [providerPaymentId, instituicaoId(), checkout.externalReference]
+      [providerPaymentId, provider, instituicaoId(), checkout.externalReference]
     );
     await connection.execute(
       `UPDATE financeiro_cobrancas
@@ -355,6 +361,104 @@ export async function bindProviderPayment(
       [providerPaymentId, method, instituicaoId(), checkout.chargeId]
     );
     await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+/** Reserva atomicamente o provedor antes de qualquer chamada externa. */
+export async function claimCheckoutProvider(
+  externalReference: string,
+  requested: 'asaas' | 'inter'
+): Promise<'asaas' | 'inter'> {
+  const connection = await getMysqlPool().getConnection();
+  try {
+    await connection.beginTransaction();
+    await connection.execute(
+      `UPDATE financeiro_checkouts_asaas SET provedor = ?
+        WHERE instituicao_id = ? AND referencia_externa = ? AND provedor IS NULL
+          AND provedor_pagamento_ref IS NULL`,
+      [requested, instituicaoId(), externalReference]
+    );
+    const [rows] = await connection.query<RowDataPacket[]>(
+      `SELECT provedor FROM financeiro_checkouts_asaas
+        WHERE instituicao_id = ? AND referencia_externa = ? LIMIT 1 FOR UPDATE`,
+      [instituicaoId(), externalReference]
+    );
+    const provider = String(rows[0]?.provedor ?? '');
+    if (provider !== 'asaas' && provider !== 'inter') {
+      throw new Error('Não foi possível reservar o provedor deste checkout.');
+    }
+    await connection.commit();
+    return provider;
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+export async function reconcileInterPix(input: {
+  eventId: string;
+  txid: string;
+  endToEndId: string;
+  amountCents: number;
+  receivedAt: string;
+}): Promise<'processed' | 'duplicate' | 'unknown'> {
+  const connection = await getMysqlPool().getConnection();
+  try {
+    await connection.beginTransaction();
+    const [chargeRows] = await connection.query<RowDataPacket[]>(
+      `SELECT organizacao_ref, ref_core, valor_centavos
+         FROM financeiro_cobrancas
+        WHERE instituicao_id = ? AND provedor_ref = ? LIMIT 1 FOR UPDATE`,
+      [instituicaoId(), input.txid]
+    );
+    const charge = chargeRows[0];
+    if (!charge) { await connection.rollback(); return 'unknown'; }
+    const [existing] = await connection.query<RowDataPacket[]>(
+      `SELECT id FROM financeiro_webhooks_inter
+        WHERE instituicao_id = ? AND evento_ref = ? LIMIT 1`,
+      [instituicaoId(), input.eventId]
+    );
+    if (existing[0]) { await connection.rollback(); return 'duplicate'; }
+    await connection.execute(
+      `INSERT INTO financeiro_webhooks_inter
+         (id, instituicao_id, evento_ref, txid, end_to_end_id)
+       VALUES (?, ?, ?, ?, ?)`,
+      [rowId('inter_event', input.eventId), instituicaoId(), input.eventId,
+        input.txid, input.endToEndId]
+    );
+    const paymentRef = `inter-${input.endToEndId}`;
+    await connection.execute(
+      `INSERT INTO financeiro_pagamentos
+         (id, instituicao_id, organizacao_ref, ref_core, cobranca_ref, recebido_em,
+          valor_centavos, forma, status, provedor, provedor_transacao_ref)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'pix', 'confirmed', 'inter', ?)
+       ON DUPLICATE KEY UPDATE recebido_em = VALUES(recebido_em),
+         valor_centavos = VALUES(valor_centavos), forma = 'pix', status = 'confirmed'`,
+      [rowId('pagamento', paymentRef), instituicaoId(), charge.organizacao_ref,
+        paymentRef, charge.ref_core, input.receivedAt, input.amountCents, input.endToEndId]
+    );
+    const nextStatus = input.amountCents >= Number(charge.valor_centavos)
+      ? 'paid' : 'partially_paid';
+    await connection.execute(
+      `UPDATE financeiro_cobrancas SET status = ?, forma_pagamento = 'pix',
+          atualizado_em = CURRENT_TIMESTAMP(3)
+        WHERE instituicao_id = ? AND ref_core = ?`,
+      [nextStatus, instituicaoId(), charge.ref_core]
+    );
+    await connection.execute(
+      `UPDATE financeiro_checkouts_asaas SET status = 'paid'
+        WHERE instituicao_id = ? AND provedor = 'inter' AND provedor_pagamento_ref = ?`,
+      [instituicaoId(), input.txid]
+    );
+    await connection.commit();
+    return 'processed';
   } catch (error) {
     await connection.rollback();
     throw error;

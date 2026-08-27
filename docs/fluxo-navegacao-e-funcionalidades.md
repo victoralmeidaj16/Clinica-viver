@@ -5,12 +5,12 @@
 
 ## 📌 Visão Geral do Sistema
 
-A **Clínica Viver Mais** é uma plataforma integrada de **Inteligência Clínica, Gestão de Atendimentos, Automação de Prontuários via IA e Gestão de Clínica-Escola**, desenhada especificamente para a **Viver Mais Psicologia**.
+A **Clínica Viver Mais** é uma plataforma integrada de **Inteligência Clínica, Gestão de Atendimentos, Automação de Prontuários SOAP, Rodízio via WhatsApp e Gestão de Clínica-Escola**, desenhada especificamente para a **Viver Mais Psicologia**.
 
-A plataforma divide-se em **três visões principais de acesso (RBAC)**:
-1. **Visão do Psicólogo (Cockpit Clínico):** Foco em ganho de tempo, automação de prontuários pós-sessão (SOAP em 1 clique), visualização estrita de seus próprios pacientes e controle de agenda.
-2. **Visão da Gestão da Clínica:** Gestão financeira completa (DRE, conciliação, cobrança Asaas), supervisão de estagiários/profissionais, acompanhamento de 11 indicadores, relatórios por período e controle de acessos/tabelas de preços.
-3. **Visão do Paciente (App Mobile / Portal Web):** Agendamentos, acompanhamento de tarefas pós-sessão, pagamentos Pix/cartão e histórico financeiro.
+A plataforma divide-se em **duas visões autenticadas principais (RBAC)** e uma **camada pública de captação e validação**:
+1. **Visão do Psicólogo (Cockpit Clínico):** Foco em ganho de tempo, prontuário SOAP estruturado, visualização estrita de seus próprios pacientes, controle de agenda e extrato de créditos (split 70/30).
+2. **Visão da Gestão da Clínica:** Gestão financeira completa (DRE, conciliação, cobrança Asaas, NFS-e), supervisão de estagiários/profissionais, acompanhamento dos 11 indicadores, controle de capacidade dos psicólogos, auditoria cadastral e emissão de certificados digitais.
+3. **Camada Pública (Vitrine, Agendamento, Pagamento & Certificados):** Vitrine institucional com agendamento online (`/vitrine`, `/agendar`), checkout transparente via link único (`/pagar/[id]`) e validação pública de certificados digitais com QR Code (`/validar-certificado`).
 
 ---
 
@@ -21,11 +21,11 @@ Telas e fluxos priorizados especificamente para a operação da **Viver Mais Psi
 
 | Rota / Tela / Aba | Nome da Aba | Descrição do Fluxo & Objetivo |
 |---|---|---|
-| `/cockpit/leads` (Aba 1) | **📥 Leads & SLA 24h** | Recebimento de pacientes do formulário (turno/modalidade), botão "Chamar no WhatsApp" e alteração de status em até 24h. |
+| `/cockpit/leads` (Aba 1) | **📥 Leads & SLA 24h** | Recebimento de novos pacientes via rodízio (turno/modalidade), botão "Chamar no WhatsApp", confirmação de contato ou repasse de fila. |
 | `/pacientes` (Aba 2) | **👥 Meus Pacientes & Status** | Carteira de pacientes sob responsabilidade do profissional (sigilo LGPD), cadastro manual e status (Ativo/Férias/Desistente + Motivo). |
-| `/agenda` (Aba 3) | **🗓️ Agenda & Atendimentos** | Marcador de sessões (50 min fixos), modalidade (Social R$ 75 / Particular R$ 130), cobrança pré/pós e reagendamento com motivo obrigatório. |
-| `/meu-financeiro` (Aba 4) | **💰 Desconto na Mensalidade** | Extrato de créditos acumulados (**70% do valor da sessão**) para abatimento direto na mensalidade/boleto do aluno/psicólogo. |
-| `/cockpit/atendimento` (Aba 5) | **🎙️ Cockpit SOAP & IA** | Transcrição de consultas ao vivo, gerador de prontuário SOAP em 1-clique e envio de tarefas de casa no WhatsApp. |
+| `/agenda` (Aba 3) | **🗓️ Agenda & Atendimentos** | Marcação de sessões (50 min fixos), modalidade (Social R$ 75 / Particular R$ 130), cobrança pré/pós e reagendamento com motivo obrigatório. |
+| `/meu-financeiro` (Aba 4) | **💰 Desconto na Mensalidade** | Extrato de créditos acumulados (**70% do valor da sessão**) para abatimento direto na mensalidade/boleto da pós-graduação. |
+| `/cockpit/atendimento` (Aba 5) | **📝 Cockpit SOAP & Histórico** | Registro ágil de prontuário SOAP, assinatura digital com hash SHA-256, histórico na Linha do Tempo e disparo de tarefas via WhatsApp. |
 
 
 ---
@@ -35,16 +35,25 @@ Telas e fluxos administrativos para diretoria, recepção, supervisores e contro
 
 | Rota / Tela | Nome do Módulo | Descrição do Fluxo & Objetivo |
 |---|---|---|
-| `/financeiro` | **Financeiro Global & DRE** | DRE consolidado, controle de despesas, fluxo de caixa, conciliação e réguas Asaas. |
-| `/relatorios` | **11 Indicadores & Período** | Dashboard com os 11 indicadores operacionais/financeiros e relatórios filtrados por data. |
-| `/triagem` | **Robô & Triagem WhatsApp** | Monitoramento de leads de entrada, rodízio fair-share (Round-Robin) e indicação inteligente. |
-| `/pacientes` | **Base Geral de Pacientes** | Visão administrativa de todos os pacientes da clínica e vínculos com alunos/estagiários. |
-| `/gestao/pacientes` | **Auditoria de desistências** | Registro da saída e do reengajamento dentro do cadastro do paciente. Substituiu a rota `/retencao`, removida. |
-| `/supervisao` | **Supervisão Geral** | Painel do supervisor para revisar, assinar e emitir pareceres de atendimentos em formação. |
-| `/convenios` | **Gestão de Convênios** | Tabela de repasses, faturamento e integração com operadoras de planos de saúde. |
-| `/configuracoes` | **Configurações & Tabela Fixa** | Cadastro de tabelas de preço (Social/Particular), limites de duração e controle de permissões. |
-| `/vitrine` | **Vitrine Pública** | Página pública da clínica para agendamento online e informações institucionais. |
+| `/financeiro` | **Financeiro Global & DRE** | DRE consolidado, controle de despesas, fluxo de caixa, conciliação e réguas Asaas com expiração automática. |
+| `/relatorios` | **11 Indicadores & Período** | Dashboard com os 11 indicadores operacionais/financeiros, filtros por data e exportação em Excel/PDF. |
+| `/triagem` | **Robô & Triagem WhatsApp** | Monitoramento de leads de entrada, rodízio equitativo (*Round-Robin*) e indicação inteligente. |
+| `/gestao` | **Gestão de Psicólogos** | Controle unificado de pausa/visibilidade na vitrine e definição de limites de pacientes ativos (individual e em lote). |
+| `/gestao/pacientes` | **Cadastro Geral & Auditoria** | Visão administrativa de todos os pacientes, histórico de edições com auditoria e registro de desistências/reengajamento. |
+| `/painel-certificados` | **Certificados Digitais** | Emissão individual ou em lote de certificados de estágio/cursos com QR Code dinâmico, dropzone de arte/verso e geração de PDF. |
+| `/convenios` | **Gestão de Convênios** | Tabela de repasses, faturamento corporativo e integração com operadoras de planos de saúde/empresas PJ. |
+| `/configuracoes` | **Configurações & Tabela Fixa** | Cadastro de tabelas de preço (Social/Particular), limites de duração e controle de permissões de acesso. |
 
+---
+
+### 🌐 3. Camada Pública & Paciente
+
+| Rota / Tela | Nome da Página | Descrição do Fluxo & Objetivo |
+|---|---|---|
+| `/vitrine` | **Vitrine Institucional** | Apresentação do corpo clínico, especialidades, abordagens e formulário de captação. |
+| `/agendar` | **Agendamento Inteligente** | Seleção de serviço (Individual, Casal, Avaliação), turno preferencial e dados para matching no rodízio. |
+| `/pagar/[id]` | **Checkout Transparente** | Pagamento via Pix Copia e Cola / QR Code dinâmico ou Cartão de Crédito com baixa automática por Webhook. |
+| `/validar-certificado` | **Validação de Certificados** | Conferência pública da autenticidade de certificados emitidos via código único ou QR Code (verificação de hash SHA-256). |
 
 ---
 
@@ -52,35 +61,34 @@ Telas e fluxos administrativos para diretoria, recepção, supervisores e contro
 
 ```mermaid
 flowchart TB
-    %% Paleta de Cores e Estilização Premium
+    %% Paleta de Cores e Estilização
     classDef authStyle fill:#0f172a,stroke:#38bdf8,stroke-width:2.5px,color:#fff,rx:12px;
     classDef psiStyle fill:#064e3b,stroke:#34d399,stroke-width:2px,color:#ecfdf5,rx:10px;
     classDef gestaoStyle fill:#312e81,stroke:#818cf8,stroke-width:2px,color:#e0e7ff,rx:10px;
-    classDef mobileStyle fill:#701a75,stroke:#f0abfc,stroke-width:2px,color:#fdf4ff,rx:10px;
+    classDef publicStyle fill:#701a75,stroke:#f0abfc,stroke-width:2px,color:#fdf4ff,rx:10px;
     classDef actionStyle fill:#1e293b,stroke:#64748b,stroke-width:1px,color:#f8fafc,rx:8px;
     classDef featureStyle fill:#0284c7,stroke:#38bdf8,stroke-width:1.5px,color:#fff,rx:8px;
     classDef alertStyle fill:#881337,stroke:#fda4af,stroke-width:1.5px,color:#fff,rx:8px;
 
-    %% Nó de Entrada Principal
-    AUTH["🔐 Autenticação Central & Controle de Acesso (RBAC)"]:::authStyle
+    %% Nós de Entrada
+    AUTH["🔐 Autenticação Central (Cookies Seguros / RBAC)"]:::authStyle
+    PUBLIC["🌐 Portal Público da Clínica"]:::publicStyle
 
     %% 1. JORNADA DO PSICÓLOGO
     subgraph COCKPIT_PSI ["🩺 1. JORNADA DO PSICÓLOGO (Cockpit Clínico)"]
         direction TB
         P_HUB["Dashboard do Profissional"]:::psiStyle
         
-        P_AGENDA["🗓️ Agenda & Sessões<br/><i>(Cobrança Pré/Pós 24h & Motivo Cancelamento)</i>"]:::actionStyle
-        P_SESSAO["🎙️ Sessão ao Vivo / Gravador"]:::actionStyle
-        P_SOAP["🤖 Automação SOAP 1-Clique"]:::featureStyle
-        P_TAREFAS["📱 Envio de Tarefas no WhatsApp"]:::featureStyle
+        P_LEADS["📥 Leads & SLA 24h<br/><i>(Alerta WhatsApp & Transbordo)</i>"]:::featureStyle
+        P_AGENDA["🗓️ Agenda & Sessões<br/><i>(Cobrança Pré/Pós & Motivo Cancelamento)</i>"]:::actionStyle
+        P_SOAP["📝 Prontuário SOAP Estruturado<br/><i>(Assinatura Digital & Hash SHA-256)</i>"]:::featureStyle
         P_PACIENTES["👥 Meus Pacientes<br/><i>(Sigilo Estrito LGPD & Motivo Desistência)</i>"]:::actionStyle
-        P_SUPERV["🎓 Minha Supervisão & Parecer IA"]:::actionStyle
-        P_FINANCA["💰 Meus Honorários & Repasses"]:::actionStyle
+        P_FINANCA["💰 Meu Financeiro<br/><i>(Split 70% & Desconto em Mensalidade)</i>"]:::actionStyle
 
+        P_HUB --> P_LEADS
         P_HUB --> P_AGENDA
-        P_HUB --> P_SESSAO --> P_SOAP --> P_TAREFAS
+        P_HUB --> P_SOAP
         P_HUB --> P_PACIENTES
-        P_HUB --> P_SUPERV
         P_HUB --> P_FINANCA
     end
 
@@ -89,150 +97,102 @@ flowchart TB
         direction TB
         G_HUB["Painel Administrativo da Clínica"]:::gestaoStyle
         
-        G_TRIAGEM["🤖 Robô WhatsApp & Rodízio Leads<br/><i>(Matching Psicólogo/Paciente)</i>"]:::featureStyle
-        G_FINAN["💰 Financeiro Global & DRE<br/><i>(Conciliação, Despesas & Asaas)</i>"]:::actionStyle
+        G_TRIAGEM["🤖 Rodízio WhatsApp (Round-Robin)<br/><i>(Matching Psicólogo/Paciente)</i>"]:::featureStyle
+        G_PSICOS["👥 Gestão de Psicólogos<br/><i>(Pausa, Visibilidade & Limite de Vagas)</i>"]:::actionStyle
+        G_PACIENTES["📋 Base de Pacientes & Auditoria<br/><i>(Histórico de Edição & Retenção)</i>"]:::actionStyle
+        G_CERT["🎓 Certificados Digitais<br/><i>(QR Code, PDF Oficial & Dropzone)</i>"]:::featureStyle
+        G_FINAN["💰 Financeiro Global & DRE<br/><i>(Asaas, NFS-e Nacional & Conciliação)</i>"]:::actionStyle
         G_RELA["📊 11 Indicadores & Filtro por Período"]:::actionStyle
-        G_CONFIG["🔒 Tabelas Fixas de Preço & Trava Duração (50min)"]:::actionStyle
-        G_RETENCAO["🛡️ Monitor de Evasão<br/><i>(Inativos 14/30 dias & Reativação)</i>"]:::alertStyle
 
         G_HUB --> G_TRIAGEM
+        G_HUB --> G_PSICOS
+        G_HUB --> G_PACIENTES
+        G_HUB --> G_CERT
         G_HUB --> G_FINAN
         G_HUB --> G_RELA
-        G_HUB --> G_CONFIG
-        G_HUB --> G_RETENCAO
     end
 
-    %% 3. JORNADA DO PACIENTE (APP MOBILE)
-    subgraph APP_PACIENTE ["📱 3. JORNADA DO PACIENTE (App Mobile / Portal)"]
+    %% 3. JORNADA PÚBLICA & PACIENTE
+    subgraph FLUXO_PUBLICO ["🌐 3. CAMADA PÚBLICA & PACIENTE"]
         direction TB
-        M_HUB["Home do App do Paciente"]:::mobileStyle
-        
-        M_AGENDA["📅 Minhas Consultas & Agendamento"]:::actionStyle
-        M_TAREFAS["✅ Minhas Tarefas Pós-Sessão (SOAP)"]:::featureStyle
-        M_PAGTO["💳 Pagamentos Pix Copia e Cola / Faturas"]:::actionStyle
+        PUB_VITRINE["Vitrine & Apresentação Clínica (`/vitrine`)"]:::publicStyle
+        PUB_AGENDAR["Agendamento Online (`/agendar`)"]:::actionStyle
+        PUB_CHECKOUT["Checkout Transparente (`/pagar/[id]`)"]:::featureStyle
+        PUB_VALIDAR["Validação Pública de Certificados (`/validar-certificado`)"]:::featureStyle
 
-        M_HUB --> M_AGENDA
-        M_HUB --> M_TAREFAS
-        M_HUB --> M_PAGTO
+        PUBLIC --> PUB_VITRINE --> PUB_AGENDAR
+        PUBLIC --> PUB_CHECKOUT
+        PUBLIC --> PUB_VALIDAR
     end
 
     %% Conexões de Entrada por Perfil
-    AUTH -->|Psicólogo| COCKPIT_PSI
-    AUTH -->|Gestão/Diretoria| GESTAO_CLINICA
-    AUTH -->|Paciente| APP_PACIENTE
+    AUTH -->|Perfil: Psicólogo| COCKPIT_PSI
+    AUTH -->|Perfil: Gestão/Admin| GESTAO_CLINICA
 
-    %% Interconexões Operacionais Dinâmicas entre Módulos
-    G_TRIAGEM -.->|Indicação & Agendamento| P_AGENDA
-    P_TAREFAS -.->|Sincroniza Tarefas| M_TAREFAS
-    M_PAGTO -.->|Liquidação de Fatura| G_FINAN
-    G_FINAN -.->|Calcula Comissão| P_FINANCA
+    %% Interconexões Operacionais Dinâmicas
+    PUB_AGENDAR -.->|Alimenta Fila de Triagem| G_TRIAGEM
+    G_TRIAGEM -.->|Aloca com SLA 24h| P_LEADS
+    P_SOAP -.->|Gera Cobrança e Tarefas WhatsApp| PUB_CHECKOUT
+    PUB_CHECKOUT -.->|Baixa Automática Webhook| G_FINAN
+    G_FINAN -.->|Calcula Crédito 70%| P_FINANCA
+    G_CERT -.->|Gera Hash Verificável| PUB_VALIDAR
 ```
-
-
 
 ---
 
 ## ⚙️ Funcionalidades Detalhadas por Módulo
 
 ### 1. 🗓️ Agenda e Regras de Atendimento (`/agenda`)
-* **Fluxo de Navegação:**
-  * O profissional visualiza as sessões do dia, semana ou mês em formato de lista ou grade.
-* **Funcionalidades Principais:**
-  * **Remarcação e Cancelamento com Motivo Obrigatório:** O botão de cancelamento/reagendamento abre um modal que **bloqueia a ação caso a justificativa não seja preenchida**.
-  * **Modo de Cobrança Ajustável e Personalizado por Paciente:**
-    * *Cobrança Pré-Sessão (ex: 24h antes):* Vencimento calculado automaticamente antes da sessão.
-    * *Cobrança Pós-Sessão:* Opção para cobrança realizada após o atendimento.
-    * *Réguas Customizadas de Atraso:* Flexibilidade para definir réguas de cobrança específicas por perfil de paciente (ex: notificar 1 dia após o atraso para paciente X, ou 5 dias após para paciente Y).
-  * **Travamento de Valores e Duração:** O valor da sessão (ex: Social R$ 75,00 / Particular R$ 130,00) e a duração (fixa em 50 min) são travados pela gestão, impedindo alterações não autorizadas pelo psicólogo.
-  * **Disparo Manual/Automático de Régua de Inadimplência:** Botão de 1-clique para notificar pacientes com pagamentos atrasados via WhatsApp.
+* **Remarcação e Cancelamento com Motivo Obrigatório:** Bloqueio da ação caso a justificativa não seja preenchida.
+* **Modo de Cobrança Ajustável:** Pré-sessão ou pós-sessão, com vencimento exato e expiração de links.
+* **Travamento de Valores e Duração:** Valor da sessão (Social R$ 75,00 / Particular R$ 130,00) e duração (50 min fixos) controlados pela gestão.
 
 ---
 
-### 2. 🎙️ Cockpit do Psicólogo & Automação SOAP (`/cockpit`)
-* **Fluxo de Navegação:**
-  * Tela de trabalho em tempo de consulta. Permite selecionar o paciente do horário e iniciar o gravador/transcritor.
-* **Funcionalidades Principais:**
-  * **Transcrição de Sessão em Tempo Real:** Captura de áudio da consulta (com consentimento do paciente) com síntese clínica.
-  * **Gerador de Prontuário SOAP em 1-Clique:**
-    * **S (Subjetivo):** Principais queixas e falas relevantes trazidas pelo paciente.
-    * **O (Objetivo):** Comportamento, linguagem não-verbal e estado de humor observado.
-    * **A (Avaliação):** Hipóteses diagnósticas e evolução terapêutica.
-    * **P (Plano):** Tarefas de casa, metas para a próxima sessão e técnicas a utilizar.
-  * **Envio Automático de Tarefas Pós-Sessão:** Integração direta com a Evolution API para enviar o plano de ação e compromissos do paciente no WhatsApp.
+### 2. 📝 Cockpit do Psicólogo & Automação SOAP (`/cockpit`)
+* **Prontuário SOAP Estruturado:** Editor campo a campo com versionamento imutável e assinatura digital.
+* **Linha do Tempo Longitudinal:** Consulta rápida do histórico clínico com busca determinística (*evidence-only*).
+* **Envio de Tarefas e Resumo via WhatsApp:** Disparo de orientações pós-sessão sem exposição de notas técnicas confidenciais.
 
 ---
 
-### 3. 👥 Gestão de Pacientes, Sigilo & Status (`/pacientes`)
-* **Fluxo de Navegação:**
-  * Listagem e cadastro de pacientes.
-* **Funcionalidades Principais:**
-  * **Cadastro Manual de Pacientes:** Permitido tanto para a Gestão quanto para o Psicólogo (sem depender de cadastro pelo site/vitrine).
-  * **Status do Paciente & Métrica de Desistência:**
-    * Mapeamento de status: **Ativo**, **Em Férias** ou **Desistente**.
-    * *Registro de Motivo de Desistência:* Quando marcado como "Desistente", o sistema **exige registrar a justificativa/motivo** (ex: financeiro, mudança, horário) para gerar relatórios de retenção e métricas da clínica.
-  * **Sigilo Estrito (CFP / LGPD):** Cada psicólogo visualiza **apenas os seus próprios pacientes**. A lista de pacientes dos colegas permanece inacessível e oculta.
-  * **Vínculo Opcional Paciente-Aluno/Estagiário:** Mapeamento interno para acompanhar a ocupação de clínicas-escola.
-
+### 3. 👥 Gestão de Pacientes, Sigilo & Auditoria (`/gestao/pacientes` e `/pacientes`)
+* **Cadastro Completo & Edição com Auditoria:** Histórico detalhado de alterações cadastrais para resguardo jurídico e ético.
+* **Sigilo Estrito (CFP / LGPD):** Cada psicólogo visualiza apenas os seus próprios pacientes.
+* **Auditoria de Desistências:** Registro do motivo da evasão (financeiro, horário, insatisfação, etc.) e acompanhamento da fila de reengajamento.
 
 ---
 
-### 4. 📊 Relatórios & 11 Indicadores Clínicos (`/relatorios`)
-* **Fluxo de Navegação:**
-  * Dashboard de inteligência de negócios e relatórios exportáveis.
-* **Funcionalidades Principais:**
-  * **Filtro por Período de Atendimento:** Permite selecionar datas específicas (Ex: *01/08/2026 a 31/08/2026*) para gerar o balanço de atendimentos.
-  * **Os 11 Indicadores da Clínica Viver Mais:**
-    1. Fila de Espera por Psicólogo
-    2. Cumprimento do SLA de Contato (24h)
-    3. Distribuição por Gênero dos Pacientes
-    4. Faixa Etária Predominante
-    5. Origem dos Leads (Instagram, Indicação, Google)
-    6. Taxa de Conversão da Triagem
-    7. Taxa de Retenção e Abandonos
-    8. Taxa de Ocupação de Horários da Clínica
-    9. Inadimplência & Eficiência de Cobrança
-    10. Faturamento Bruto por Profissional
-    11. Índice de Satisfação / NPS do Paciente
-  * **Exportação em 1-Clique:** Geração de relatórios formatados em PDF e Excel para reuniões de alinhamento.
+### 4. 🎓 Módulo de Certificados Digitais (`/painel-certificados` e `/validar-certificado`)
+* **Emissão Rápida:** Cadastro de certificados com dropzone de arte/verso, seleção de modelo e dados do formando/aluno.
+* **Carimbo Digital Transparente:** Assinatura com QR code posicionado perfeitamente sobre a arte do verso.
+* **Renderização Direta de PDF:** PDF em alta definição gerado de forma limpa, sem dependência de iframes.
+* **Validação Pública em Tempo Real:** Consulta por código único ou leitura de QR code diretamente pelo portal público.
 
 ---
 
-### 5. 🤖 Robô de Triagem e WhatsApp (Evolution API) (`/triagem`)
-* **Fluxo de Navegação:**
-  * Painel de acompanhamento dos leads que entram pelo WhatsApp da clínica.
-* **Funcionalidades Principais:**
-  * **Atendimento Automatizado e Rodízio (Round-Robin):** O robô identifica a demanda e distribui os contatos de forma justa entre a fila de psicólogos disponíveis.
-  * **Indicação Inteligente (Matching):** Cruza a queixa principal do paciente com as especialidades e disponibilidade de horário do corpo clínico.
-  * **Encaminhamento sem Perda de Julgamento Clínico:** O robô apresenta as opções e conecta o paciente diretamente ao WhatsApp do profissional escolhido para a marcação da sessão.
+### 5. 📊 Relatórios & 11 Indicadores Clínicos (`/relatorios`)
+* **Os 11 Indicadores da Clínica Viver Mais:**
+  1. Fila de Espera por Psicólogo
+  2. Cumprimento do SLA de Contato (24h)
+  3. Distribuição por Gênero dos Pacientes
+  4. Faixa Etária Predominante
+  5. Origem dos Leads (Instagram, Indicação, Google)
+  6. Taxa de Conversão da Triagem
+  7. Taxa de Retenção e Abandonos
+  8. Taxa de Ocupação de Horários da Clínica
+  9. Inadimplência & Eficiência de Cobrança
+  10. Faturamento Bruto por Profissional
+  11. Índice de Satisfação / NPS do Paciente
+* **Filtros por Período & Exportação:** Filtro por data e exportação em PDF e Excel.
 
 ---
 
-### 7. 🎓 Módulo de Supervisão Clínica & IA (`/supervisao`)
-* **Fluxo de Navegação:**
-  * Espaço dedicado a supervisores clínicos e estagiários/psicólogos em formação.
-* **Funcionalidades Principais:**
-  * **Anonimização Automática:** Dados sensíveis de identificação do paciente são anonimizados antes do envio para revisão de supervisão.
-  * **Feedback Gerado via IA:** Análise do caso clínico com sugestões de abordagens terapêuticas e hipóteses.
-  * **Assinatura Digital & Validação de Supervisão:** Motor de validação por token público para certificar horas de supervisão concluídas.
-
----
-
-### 8. 🛡️ Auditoria de Desistências e Reengajamento (`/gestao/pacientes`)
-* **Fluxo de Navegação:**
-  * Não é mais uma tela própria. A rota `/retencao` foi removida: a auditoria é
-    conduzida a partir da linha do paciente, no painel lateral da gestão de
-    pacientes.
-* **Funcionalidades Principais:**
-  * **Registro da Saída:** motivo obrigatório (financeiro, insatisfação com a
-    conduta, troca de abordagem, motivos pessoais, outro), detalhes e ação
-    sugerida de reengajamento. A identidade do paciente e do psicólogo vem do
-    cadastro, não de campo digitado.
-  * **Efeito Operacional:** o paciente deixa de contar como acompanhamento ativo
-    e a vaga do profissional é liberada no rodízio.
-  * **Fila de Reengajamento:** obtida filtrando `Status = Desistente` na
-    própria tabela; o selo `reengajado` marca quem já voltou.
-  * **Métricas:** total de desistências e taxa de reengajamento no cabeçalho da
-    página.
+### 6. 🤖 Robô de Triagem e WhatsApp (Evolution API) (`/triagem`)
+* **Atendimento Automatizado e Rodízio (*Round-Robin*):** Distribuição equilibrada entre profissionais disponíveis.
+* **Matching por Demanda:** Cruza modalidade, turno e perfil do paciente com o corpo clínico.
+* **Respostas Rápidas no Chat:** Psicólogo responde `CONTATO` ou `ENCAMINHAR` diretamente no WhatsApp.
+* **Transbordo Automático:** Reatribuição do lead após 24h sem confirmação de contato.
 
 ---
 
@@ -241,10 +201,11 @@ flowchart TB
 | Módulo / Tela | Psicólogo | Gestão da Clínica |
 |---|:---:|:---:|
 | **Agenda (`/agenda`)** | Ver/Editar própria agenda | Ver todas as agendas |
-| **Cockpit SOAP (`/cockpit`)** | Acesso completo | Apenas com permissão |
-| **Pacientes (`/pacientes`)** | Apenas seus pacientes | Todos os pacientes |
+| **Cockpit SOAP (`/cockpit`)** | Acesso completo | Apenas metadados administrativos (sem conteúdo íntimo) |
+| **Pacientes (`/pacientes`)** | Apenas seus pacientes | Base completa com auditoria (`/gestao/pacientes`) |
+| **Gestão de Psicólogos (`/gestao`)** | Solicitar alterações cadastrais | Controle total (pausa, visibilidade, limite de vagas) |
+| **Certificados (`/painel-certificados`)** | Visualizar seus certificados | Emissão, edição e gestão completa |
 | **Valores & Duração** | 🔒 Somente Leitura | ✏️ Alteração Permitida |
-| **Relatórios Global (`/relatorios`)** | Visão individualizada | Visão consolidada 11 indicadores |
-| **Financeiro Global (`/financeiro`)** | Sem acesso | Completo |
-| **Supervisão (`/supervisao`)** | Criar/Ver seus casos | Validar & Assinar todos |
-| **Desistências** | Registrar a saída de paciente da própria carteira (`/pacientes`) | Registrar e auditar a saída de qualquer paciente (`/gestao/pacientes`) |
+| **Relatórios Globais (`/relatorios`)** | Visão individualizada | Visão consolidada (11 indicadores) |
+| **Financeiro Global (`/financeiro`)** | Extrato individual (`/meu-financeiro`) | DRE, NFS-e e conciliação completa |
+| **Desistências & Retenção** | Registrar saída de paciente da própria carteira | Auditar e gerenciar reengajamento de todos |

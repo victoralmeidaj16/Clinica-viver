@@ -29,6 +29,12 @@ describe('validação do formulário público de triagem', () => {
     expect(resultado.dados.turno).toBe('TARDE');
   });
 
+  it('saneia a escolha explícita do profissional', () => {
+    const resultado = validarSubmissaoTriagem({ ...valido, psicologoPreferidoId: '  psi-123  ' });
+    expect(resultado.ok).toBe(true);
+    if (resultado.ok) expect(resultado.dados.psicologoPreferidoId).toBe('psi-123');
+  });
+
   it.each(['MANHA', 'TARDE', 'NOITE'] as const)('aceita e preserva o turno canônico %s', (turno) => {
     const resultado = validarSubmissaoTriagem({ ...valido, turno });
     expect(resultado.ok).toBe(true);

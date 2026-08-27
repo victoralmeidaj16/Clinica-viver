@@ -4,7 +4,7 @@ import {
   captureStateAsSnapshot,
   getCaptureRepository,
 } from '@/server/persistence/captureRepository';
-import { alocarLead, classificarSla, horasDesdeAlocacao, varrerSla } from '@/server/application/viverMaisRodizio';
+import { alocarLead, alocarLeadEscolhido, classificarSla, horasDesdeAlocacao, varrerSla } from '@/server/application/viverMaisRodizio';
 import { avisarAlocacao, avisarTransbordo } from '@/server/application/viverMaisWhatsApp';
 import { ehGestao, exigirGestao, NaoAutorizadoError } from '@/server/viverMaisGestaoAuth';
 import { rateLimited } from '@/server/http/publicRequest';
@@ -23,6 +23,7 @@ export const dynamic = 'force-dynamic';
 type EntradaDeLead =
   | { situacao: 'criado'; lead: TriagemPacienteRecord; psicologo?: CadastroPsicologoRecord }
   | { situacao: 'reenvio'; lead: TriagemPacienteRecord }
+  | { situacao: 'escolha_indisponivel' }
   | { situacao: 'teto' };
 
 /**
@@ -125,13 +126,17 @@ export async function POST(request: Request) {
         return { next: state, result: { situacao: 'teto' } };
       }
 
-      const alocado = alocarLead(
-        {
-          ...snapshot,
-          triagensPacientes: [...(snapshot.triagensPacientes ?? []), novaTriagem],
-        },
-        novaTriagem
-      );
+      const comNovoLead = {
+        ...snapshot,
+        triagensPacientes: [...(snapshot.triagensPacientes ?? []), novaTriagem],
+      };
+      const alocado = dados.psicologoPreferidoId
+        ? alocarLeadEscolhido(comNovoLead, novaTriagem, dados.psicologoPreferidoId)
+        : alocarLead(comNovoLead, novaTriagem);
+
+      if (dados.psicologoPreferidoId && !alocado.psicologo) {
+        return { next: state, result: { situacao: 'escolha_indisponivel' } };
+      }
 
       return {
         next: {
@@ -151,6 +156,13 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { success: false, error: 'Estamos recebendo solicitações acima do normal. Tente novamente em alguns minutos ou chame a clínica no WhatsApp.' },
         { status: 429, headers: { 'Retry-After': '900' } }
+      );
+    }
+
+    if (resultado.situacao === 'escolha_indisponivel') {
+      return NextResponse.json(
+        { success: false, error: 'Este profissional não está mais disponível para os critérios escolhidos. Selecione outro profissional.' },
+        { status: 409 }
       );
     }
 

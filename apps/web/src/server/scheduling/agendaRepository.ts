@@ -48,6 +48,8 @@ export interface BloqueioAgenda {
   inicio: string;
   fim: string;
   motivo?: string;
+  /** `dia` é férias/folga e tira do rodízio; `horario` é um buraco na agenda. */
+  tipo: 'dia' | 'horario';
 }
 
 export interface AgendamentoResumo {
@@ -269,7 +271,7 @@ export async function listBlocks(
   professionalId: string
 ): Promise<BloqueioAgenda[]> {
   const [rows] = await getMysqlPool().query<RowDataPacket[]>(
-    `SELECT b.id, b.inicio, b.fim, b.motivo
+    `SELECT b.id, b.inicio, b.fim, b.motivo, b.tipo
        FROM clinica_agenda_bloqueios b
        JOIN clinica_profissionais p ON p.id = b.profissional_id
        JOIN clinica_organizacoes o ON o.id = p.organizacao_id
@@ -283,13 +285,14 @@ export async function listBlocks(
     inicio: new Date(row.inicio).toISOString(),
     fim: new Date(row.fim).toISOString(),
     motivo: row.motivo ? String(row.motivo) : undefined,
+    tipo: row.tipo === 'dia' ? 'dia' : 'horario',
   }));
 }
 
 export async function createBlock(
   organizationId: string,
   professionalId: string,
-  input: { inicio: string; fim: string; motivo?: string }
+  input: { inicio: string; fim: string; motivo?: string; tipo?: 'dia' | 'horario' }
 ): Promise<'created' | 'appointment_conflict' | 'block_conflict'> {
   const connection = await getMysqlPool().getConnection();
   try {
@@ -332,10 +335,10 @@ export async function createBlock(
 
     await connection.execute(
       `INSERT INTO clinica_agenda_bloqueios
-         (id, instituicao_id, profissional_id, inicio, fim, motivo)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+         (id, instituicao_id, profissional_id, inicio, fim, motivo, tipo)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [randomUUID(), instituicaoId(), profissionalRowId, new Date(input.inicio),
-        new Date(input.fim), input.motivo?.trim() || null]
+        new Date(input.fim), input.motivo?.trim() || null, input.tipo ?? 'horario']
     );
     await connection.commit();
     return 'created';

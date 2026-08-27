@@ -63,7 +63,9 @@
       "Bash(pdftoppm -png -r 60 /tmp/declaracao.pdf /tmp/pg)",
       "Bash(git stash *)",
       "Bash(MYSQL_ADMIN_URL=mysql://root:dev-root-local@127.0.0.1:3307/viver_mais_clinica node infra/mysql/migrate.mjs --dry-run)",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "Bash(git fetch *)",
+      "Bash(git rev-list *)"
     ]
   }
 }

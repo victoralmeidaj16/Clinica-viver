@@ -3,20 +3,62 @@ import type { TurnoPreferencia } from '@/lib/turnos';
 
 export type PatientRegistrationForm = {
   nome: string; nomeSocial: string; whatsapp: string; whatsappConfirmacao: string;
-  dataNascimento: string; email: string; cpf: string; cep: string; numeroResidencia: string;
+  dataNascimento: string; idade: string; email: string; cpf: string; cep: string;
+  numeroResidencia: string; logradouro: string; complemento: string; bairro: string; cidade: string; uf: string;
   possuiConvenio: 'SIM' | 'NAO'; convenioSelecionado: string; origem: string;
   turno: TurnoPreferencia | ''; paraQuemE: string; paraQuemEOutro: string;
   genero: GenderValue | ''; generoOutro: string; servicoKey: string; modalidade: string;
   opcaoAvaliacaoPsicologica: string;
+  especificarNecessidades: boolean; necessidadesPaciente: string[]; necessidadesOutro: string;
+  emergencyContactName: string; emergencyContactPhone: string; registrationNotes: string;
 };
 
 export const EMPTY_PATIENT_REGISTRATION: PatientRegistrationForm = {
   nome: '', nomeSocial: '', whatsapp: '', whatsappConfirmacao: '', dataNascimento: '',
-  email: '', cpf: '', cep: '', numeroResidencia: '', possuiConvenio: 'NAO',
-  convenioSelecionado: '', origem: 'Indicação', turno: '', paraQuemE: '',
+  idade: '', email: '', cpf: '', cep: '', numeroResidencia: '', logradouro: '', complemento: '', bairro: '', cidade: '', uf: '',
+  possuiConvenio: 'NAO', convenioSelecionado: '', origem: 'Indicação', turno: '', paraQuemE: '',
   paraQuemEOutro: '', genero: '', generoOutro: '',
   servicoKey: '', modalidade: '', opcaoAvaliacaoPsicologica: '',
+  especificarNecessidades: false, necessidadesPaciente: [], necessidadesOutro: '',
+  emergencyContactName: '', emergencyContactPhone: '', registrationNotes: '',
 };
+
+/** O que o ViaCEP devolve e a tela mostra para conferência. */
+export interface EnderecoDoCep {
+  logradouro: string;
+  bairro: string;
+  cidade: string;
+  uf: string;
+}
+
+export const ENDERECO_VAZIO: EnderecoDoCep = { logradouro: '', bairro: '', cidade: '', uf: '' };
+
+/**
+ * Endereço a partir do CEP, como na vitrine.
+ *
+ * O resultado não vai para o servidor — a triagem grava só CEP e número. Ele
+ * existe para quem digita conferir que acertou o CEP antes de salvar, que é
+ * exatamente o erro difícil de perceber depois.
+ */
+export async function buscarEnderecoPorCep(cep: string): Promise<EnderecoDoCep | null> {
+  const limpo = cep.replace(/\D/g, '');
+  if (limpo.length !== 8) return null;
+  try {
+    const resposta = await fetch(`https://viacep.com.br/ws/${limpo}/json/`);
+    const dados = (await resposta.json()) as {
+      erro?: boolean; logradouro?: string; bairro?: string; localidade?: string; uf?: string;
+    };
+    if (dados.erro) return null;
+    return {
+      logradouro: dados.logradouro ?? '',
+      bairro: dados.bairro ?? '',
+      cidade: dados.localidade ?? '',
+      uf: dados.uf ?? '',
+    };
+  } catch {
+    return null;
+  }
+}
 
 export const PATIENT_AUDIENCES = ['Criança', 'Adolescente', 'Homem', 'Mulher', 'Idoso', 'Casal', 'Família', 'Grupo', 'Outro'] as const;
 export const PATIENT_ORIGINS = ['Facebook', 'Instagram', 'Google', 'Whatsapp', 'Sou aluno', 'Conveniado', 'Indicação', 'Outros'] as const;

@@ -17,16 +17,33 @@ export default function NewPatientModal({ isOpen, onClose, onPatientCreated }: P
   const [form, setForm] = useState<PatientRegistrationForm>(EMPTY_PATIENT_REGISTRATION);
   const [temNomeSocial, setTemNomeSocial] = useState(false);
   const [convenios, setConvenios] = useState<string[]>([]);
+  const [conveniosCarregando, setConveniosCarregando] = useState(true);
+  const [conveniosIndisponiveis, setConveniosIndisponiveis] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // A lista de empresas parceiras é a mesma da vitrine. Os três estados —
+  // carregando, disponível, indisponível — são o que separa "ainda não chegou"
+  // de "não existe": sem eles o campo caía em texto livre durante a busca.
   useEffect(() => {
     if (!isOpen) return;
+    let active = true;
+    Promise.resolve().then(() => {
+      if (!active) return;
+      setConveniosCarregando(true);
+      setConveniosIndisponiveis(false);
+    });
     fetch('/api/convenios/publicos', { cache: 'no-store' })
       .then((response) => response.json())
-      .then((body: { convenios?: Array<{ nome?: string }> }) =>
-        setConvenios((body.convenios ?? []).map((item) => item.nome?.trim() ?? '').filter(Boolean)))
-      .catch(() => setConvenios([]));
+      .then((body: { convenios?: Array<{ nome?: string }> }) => {
+        const nomes = (body.convenios ?? []).map((item) => item.nome?.trim() ?? '').filter(Boolean);
+        if (active) { setConvenios(nomes); setConveniosIndisponiveis(nomes.length === 0); }
+      })
+      .catch(() => {
+        if (active) { setConvenios([]); setConveniosIndisponiveis(true); }
+      })
+      .finally(() => { if (active) setConveniosCarregando(false); });
+    return () => { active = false; };
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -55,8 +72,12 @@ export default function NewPatientModal({ isOpen, onClose, onPatientCreated }: P
           birthDate: form.dataNascimento || undefined,
           professionalId: undefined,
           servico: serviceName(form.servicoKey),
-          especificarNecessidades: false,
-          necessidadesPaciente: [],
+          // Antes iam fixos como "não especificadas". Agora acompanham o que
+          // foi preenchido, como na triagem da vitrine.
+          especificarNecessidades: form.especificarNecessidades,
+          necessidadesPaciente: form.necessidadesPaciente,
+          necessidadesOutro: form.necessidadesOutro || undefined,
+          idade: form.idade || undefined,
         }),
       });
       await onPatientCreated();
@@ -76,7 +97,7 @@ export default function NewPatientModal({ isOpen, onClose, onPatientCreated }: P
         <div><h2 id="new-patient-title" className="text-base font-extrabold text-ink">Cadastrar novo paciente</h2><p className="text-xs text-muted">O paciente será vinculado automaticamente ao seu perfil.</p></div>
       </div>
       <form onSubmit={submit} className="space-y-5 text-xs">
-        <PatientRegistrationFields form={form} setForm={setForm} convenios={convenios} temNomeSocial={temNomeSocial} onTemNomeSocialChange={(checked) => { setTemNomeSocial(checked); if (!checked) setForm((current) => ({ ...current, nomeSocial: '' })); }} />
+        <PatientRegistrationFields form={form} setForm={setForm} convenios={convenios} conveniosCarregando={conveniosCarregando} conveniosIndisponiveis={conveniosIndisponiveis} temNomeSocial={temNomeSocial} onTemNomeSocialChange={(checked) => { setTemNomeSocial(checked); if (!checked) setForm((current) => ({ ...current, nomeSocial: '' })); }} />
         {error && <p className="rounded-xl border border-rose-200 bg-rose-50 p-3 font-semibold text-rose-700">{error}</p>}
         <div className="flex flex-col-reverse gap-2 border-t border-line pt-4 sm:flex-row sm:justify-end"><button type="button" onClick={close} className="btn-ghost min-h-11 justify-center" disabled={saving}>Cancelar</button><button type="submit" className="btn-primary min-h-11 justify-center" disabled={saving}><Save className="h-4 w-4" />{saving ? 'Salvando…' : 'Salvar paciente'}</button></div>
       </form>

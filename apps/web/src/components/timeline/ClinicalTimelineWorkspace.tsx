@@ -8,6 +8,8 @@ import TimelineFeed from './TimelineFeed';
 import TimelineFilters, { TIMELINE_FILTERS } from './TimelineFilters';
 import TimelineHeader from './TimelineHeader';
 import TimelineSectionTabs from './TimelineSectionTabs';
+import EditPatientModal from '@/components/patients/EditPatientModal';
+import type { PatientRegistrationRecord } from '@/lib/patientRegistrationDetails';
 import {
   Plus,
   FileText,
@@ -69,6 +71,7 @@ function ClinicalTimelineContent() {
   const [novosPlano, setNovosPlano] = useState('');
   const [salvandoProntuario, setSalvandoProntuario] = useState(false);
   const [mensagemSucesso, setMensagemSucesso] = useState<string>();
+  const [editandoPaciente, setEditandoPaciente] = useState(false);
 
   // Carrega Lista de Pacientes
   useEffect(() => {
@@ -258,6 +261,7 @@ function ClinicalTimelineContent() {
         }}
         patients={patients}
         entriesCount={allEntries.length}
+        onEditPatient={selectedPatientId ? () => setEditandoPaciente(true) : undefined}
       />
 
       {loadError && (
@@ -271,6 +275,20 @@ function ClinicalTimelineContent() {
           <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           {mensagemSucesso}
         </div>
+      )}
+
+      {editandoPaciente && selectedPatient && (
+        <EditPatientModal
+          patientId={selectedPatient.id}
+          patientName={selectedPatient.displayName}
+          onClose={() => setEditandoPaciente(false)}
+          onSaved={(updated: PatientRegistrationRecord) => {
+            setPatients((current) => current.map((patient) => patient.id === updated.patientId
+              ? { ...patient, displayName: updated.displayName, phone: updated.phone, email: updated.email }
+              : patient));
+            setMensagemSucesso('Dados cadastrais atualizados com auditoria.');
+          }}
+        />
       )}
 
       {/* Cartão de Ficha do Paciente e Próxima Sessão */}

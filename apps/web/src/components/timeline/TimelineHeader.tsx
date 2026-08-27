@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileText, User } from 'lucide-react';
+import { FileText, Pencil, User } from 'lucide-react';
 
 export interface TimelinePatientOption {
   id: string;
@@ -11,12 +11,14 @@ interface TimelineHeaderProps {
   onSelectPatient: (id: string) => void;
   patients: readonly TimelinePatientOption[];
   entriesCount?: number;
+  onEditPatient?: () => void;
 }
 
 export default function TimelineHeader({
   selectedPatientId,
   onSelectPatient,
   patients,
+  onEditPatient,
 }: TimelineHeaderProps) {
   const selectedPatient =
     patients.find((p) => p.id === selectedPatientId) ?? patients[0];
@@ -54,9 +56,10 @@ export default function TimelineHeader({
             </select>
           </div>
 
-          <span className="hidden text-xs font-medium text-slate-300 sm:inline">
-            Seus Pacientes em Acompanhamento
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="hidden text-xs font-medium text-slate-300 sm:inline">Seus Pacientes em Acompanhamento</span>
+            {onEditPatient && <button type="button" onClick={onEditPatient} className="flex min-h-10 items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-3 text-[11px] font-bold text-white transition hover:bg-white/20"><Pencil className="h-3.5 w-3.5" /> Editar dados</button>}
+          </div>
         </div>
 
         {/* Título e Texto Limpos do Card Hero */}

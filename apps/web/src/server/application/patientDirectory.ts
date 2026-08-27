@@ -1,5 +1,6 @@
 import { assertStaffAuthorized, createPatientProfile, type PatientProfile } from '@thats-life/core';
-import type { PatientContact, PatientContactCapable } from '@/server/persistence/mysql/identityRepository';
+import type { PatientContact, PatientContactCapable, PatientRegistrationCapable } from '@/server/persistence/mysql/identityRepository';
+import { validatePatientRegistrationDetails, type PatientRegistrationRecord, type PatientRegistrationUpdate } from '@/lib/patientRegistrationDetails';
 import type { RequestContext } from './context';
 import { ApplicationError } from './http';
 import { getApplicationStore, persistApplicationState } from './store';
@@ -38,11 +39,18 @@ export interface PatientDirectoryEntry {
   completedSessions: number;
   /** Há uma desistência aberta para este paciente na auditoria de retenção. */
   dropoutRegistered: boolean;
+  lastRegistrationUpdate?: PatientRegistrationUpdate;
 }
 
 function contactSource(identities: unknown): PatientContactCapable | null {
   const candidate = identities as Partial<PatientContactCapable>;
   return typeof candidate.listPatientContacts === 'function' ? (candidate as PatientContactCapable) : null;
+}
+
+function registrationSource(identities: unknown): PatientRegistrationCapable | null {
+  const candidate = identities as Partial<PatientRegistrationCapable>;
+  return typeof candidate.getPatientRegistration === 'function' && typeof candidate.updatePatientRegistration === 'function'
+    ? candidate as PatientRegistrationCapable : null;
 }
 
 export async function listPatientDirectory(context: RequestContext): Promise<readonly PatientDirectoryEntry[]> {
@@ -111,6 +119,7 @@ export async function listPatientDirectory(context: RequestContext): Promise<rea
       nextAppointmentAt: next?.startsAt,
       completedSessions: own.filter((appointment) => appointment.status === 'completed').length,
       dropoutRegistered: openDropouts.has(patient.id),
+      lastRegistrationUpdate: contactMap[patient.id]?.lastRegistrationUpdate,
     };
   });
 }
@@ -245,6 +254,10 @@ export async function createPatient(
   if (fullRegistration && !fullRegistration.ok) {
     throw new ApplicationError('INVALID_INPUT', fullRegistration.erro, fullRegistration.status);
   }
+  const registration = validatePatientRegistrationDetails(body);
+  if (!registration.ok) {
+    throw new ApplicationError('INVALID_INPUT', registration.error, 400);
+  }
 
   const store = getApplicationStore();
   const id = String(body.id ?? '').trim() || `patient-${crypto.randomUUID()}`;
@@ -276,6 +289,16 @@ export async function createPatient(
       legalName: body.legalName ? String(body.legalName) : body.nome ? String(body.nome) : undefined,
       socialName: body.socialName ? String(body.socialName) : body.nomeSocial ? String(body.nomeSocial) : undefined,
       documento: body.cpf ? String(body.cpf).replace(/\D/g, '') : undefined,
+      cep: registration.data.address.cep,
+      logradouro: registration.data.address.logradouro,
+      numero: registration.data.address.numero,
+      complemento: registration.data.address.complemento,
+      bairro: registration.data.address.bairro,
+      cidade: registration.data.address.cidade,
+      uf: registration.data.address.uf,
+      emergencyContactName: registration.data.emergencyContactName,
+      emergencyContactPhone: registration.data.emergencyContactPhone,
+      registrationNotes: registration.data.registrationNotes,
     });
   }
 
@@ -315,8 +338,9 @@ export async function createPatient(
             opcaoAvaliacaoPsicologica: data.opcaoAvaliacaoPsicologica,
             genero: data.genero,
             generoOutro: data.generoOutro,
-            especificarNecessidades: false,
-            necessidadesPaciente: [],
+            especificarNecessidades: data.especificarNecessidades,
+            necessidadesPaciente: data.necessidadesPaciente,
+            necessidadesOutro: data.necessidadesOutro,
             status: 'CONTATO_CONFIRMADO' as const,
             psicologoAlocadoId: professionalId,
             psicologoNome: professional?.displayName,
@@ -336,6 +360,56 @@ export async function createPatient(
 
   await persistApplicationState();
   return patient;
+}
+
+async function authorizedPatient(context: RequestContext, patientId: string) {
+  const store = getApplicationStore();
+  const patient = await store.identities.getPatient(context.actor.organizationId, patientId);
+  if (!patient) throw new ApplicationError('NOT_FOUND', 'Paciente não encontrado.', 404);
+  assertStaffAuthorized(context.actor, 'patients.read', {
+    organizationId: context.actor.organizationId,
+    patientId: patient.id,
+    assignedProfessionalIds: patient.assignedProfessionalIds,
+  });
+  return { store, patient };
+}
+
+export async function getPatientRegistration(
+  context: RequestContext,
+  patientId: string
+): Promise<PatientRegistrationRecord> {
+  const { store } = await authorizedPatient(context, patientId);
+  const source = registrationSource(store.identities);
+  if (!source) throw new ApplicationError('UNAVAILABLE', 'O cadastro completo exige a persistência MySQL.', 503);
+  const registration = await source.getPatientRegistration(context.actor.organizationId, patientId);
+  if (!registration) throw new ApplicationError('NOT_FOUND', 'Paciente não encontrado.', 404);
+  return registration;
+}
+
+export async function updatePatientRegistration(
+  context: RequestContext,
+  patientId: string,
+  body: Record<string, unknown>
+): Promise<PatientRegistrationRecord> {
+  const { store, patient } = await authorizedPatient(context, patientId);
+  assertStaffAuthorized(context.actor, 'patients.write', {
+    organizationId: context.actor.organizationId,
+    patientId: patient.id,
+    assignedProfessionalIds: patient.assignedProfessionalIds,
+  });
+  const parsed = validatePatientRegistrationDetails(body);
+  if (!parsed.ok) throw new ApplicationError('INVALID_INPUT', parsed.error, 400);
+  const source = registrationSource(store.identities);
+  if (!source) throw new ApplicationError('UNAVAILABLE', 'O cadastro completo exige a persistência MySQL.', 503);
+  const updated = await source.updatePatientRegistration({
+    organizationId: context.actor.organizationId,
+    patientId,
+    details: parsed.data,
+    actorUserId: context.actor.userId,
+    changedAt: new Date().toISOString(),
+  });
+  if (!updated) throw new ApplicationError('NOT_FOUND', 'Paciente não encontrado.', 404);
+  return updated;
 }
 
 export async function reassignPatient(

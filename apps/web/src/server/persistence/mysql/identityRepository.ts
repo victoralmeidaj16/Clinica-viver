@@ -3,6 +3,11 @@ import 'server-only';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import type { Pool, PoolConnection } from 'mysql2/promise';
 import type {
+  PatientRegistrationDetails,
+  PatientRegistrationRecord,
+  PatientRegistrationUpdate,
+} from '@/lib/patientRegistrationDetails';
+import type {
   IdentityRepository,
   IdentityUser,
   Organization,
@@ -110,6 +115,17 @@ export interface PatientContact {
    * não veio pela triagem — sem ele, a nota não sai e não havia onde preencher.
    */
   documento?: string;
+  cep?: string;
+  logradouro?: string;
+  numero?: string;
+  complemento?: string;
+  bairro?: string;
+  cidade?: string;
+  uf?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  registrationNotes?: string;
+  lastRegistrationUpdate?: PatientRegistrationUpdate;
 }
 
 /**
@@ -122,6 +138,17 @@ export interface PatientContactCapable {
   savePatientContact(patientId: string, contact: PatientContact): Promise<void>;
 }
 
+export interface PatientRegistrationCapable {
+  getPatientRegistration(organizationId: string, patientId: string): Promise<PatientRegistrationRecord | null>;
+  updatePatientRegistration(input: {
+    organizationId: string;
+    patientId: string;
+    details: PatientRegistrationDetails;
+    actorUserId: string;
+    changedAt: string;
+  }): Promise<PatientRegistrationRecord | null>;
+}
+
 /**
  * Gravar o CPF é capacidade separada de gravar contato porque quem chama é
  * outro: contato sai do fluxo operacional, CPF sai da correção cadastral que a
@@ -131,7 +158,7 @@ export interface PatientDocumentCapable {
   savePatientDocument(organizationId: string, patientId: string, documento: string): Promise<boolean>;
 }
 
-export class MysqlIdentityRepository implements IdentityRepository, PatientContactCapable, PatientDocumentCapable {
+export class MysqlIdentityRepository implements IdentityRepository, PatientContactCapable, PatientDocumentCapable, PatientRegistrationCapable {
   constructor(private readonly pool: Pool = getMysqlPool()) {}
 
   private async rows<T>(sql: string, params: unknown[]): Promise<T[]> {
@@ -500,17 +527,38 @@ export class MysqlIdentityRepository implements IdentityRepository, PatientConta
    * por onde `PatientProfile` passa, incluindo evento de domínio.
    */
   async listPatientContacts(organizationId: string): Promise<Record<string, PatientContact>> {
-    const rows = await this.rows<{ ref_core: string; telefone: string | null; email: string | null; documento: string | null }>(
-      `SELECT pa.ref_core, pa.telefone, pa.email, pa.documento
+    const rows = await this.rows<Record<string, string | null>>(
+      `SELECT pa.ref_core, pa.nome, pa.nome_social, pa.telefone, pa.email, pa.documento,
+              pa.cep, pa.logradouro, pa.numero_residencia, pa.complemento, pa.bairro,
+              pa.cidade, pa.estado_uf, pa.contato_emergencia_nome,
+              pa.contato_emergencia_telefone, pa.observacao_cadastral,
+              pa.cadastro_alterado_por, pa.cadastro_alterado_em, u.nome_exibicao AS ator_nome
          FROM clinica_pacientes pa
          JOIN clinica_organizacoes o ON o.id = pa.organizacao_id
+         LEFT JOIN clinica_usuarios u
+           ON u.instituicao_id = pa.instituicao_id AND u.ref_core = pa.cadastro_alterado_por
         WHERE pa.instituicao_id = ? AND o.ref_core = ?`,
       [instituicaoId(), organizationId]
     );
     return Object.fromEntries(
       rows.map((row) => [
         row.ref_core,
-        { phone: row.telefone ?? undefined, email: row.email ?? undefined, documento: row.documento ?? undefined },
+        {
+          legalName: row.nome ?? undefined, socialName: row.nome_social ?? undefined,
+          phone: row.telefone ?? undefined, email: row.email ?? undefined,
+          documento: row.documento ?? undefined, cep: row.cep ?? undefined,
+          logradouro: row.logradouro ?? undefined, numero: row.numero_residencia ?? undefined,
+          complemento: row.complemento ?? undefined, bairro: row.bairro ?? undefined,
+          cidade: row.cidade ?? undefined, uf: row.estado_uf ?? undefined,
+          emergencyContactName: row.contato_emergencia_nome ?? undefined,
+          emergencyContactPhone: row.contato_emergencia_telefone ?? undefined,
+          registrationNotes: row.observacao_cadastral ?? undefined,
+          lastRegistrationUpdate: row.cadastro_alterado_em ? {
+            actorUserId: String(row.cadastro_alterado_por),
+            actorDisplayName: row.ator_nome ?? undefined,
+            updatedAt: fromSqlTimestamp(row.cadastro_alterado_em)!, changedFields: [],
+          } : undefined,
+        },
       ])
     );
   }
@@ -522,7 +570,11 @@ export class MysqlIdentityRepository implements IdentityRepository, PatientConta
       `UPDATE clinica_pacientes
           SET telefone = ?, email = ?,
               nome = COALESCE(?, nome), nome_social = ?,
-              documento = COALESCE(?, documento)
+              documento = COALESCE(?, documento), cep = COALESCE(?, cep),
+              logradouro = COALESCE(?, logradouro), numero_residencia = COALESCE(?, numero_residencia),
+              complemento = ?, bairro = COALESCE(?, bairro), cidade = COALESCE(?, cidade),
+              estado_uf = COALESCE(?, estado_uf), contato_emergencia_nome = ?,
+              contato_emergencia_telefone = ?, observacao_cadastral = ?
         WHERE instituicao_id = ? AND ref_core = ?`,
       [
         contact.phone ?? null,
@@ -530,10 +582,141 @@ export class MysqlIdentityRepository implements IdentityRepository, PatientConta
         contact.legalName ?? null,
         contact.socialName?.trim() || null,
         contact.documento ?? null,
+        contact.cep ?? null,
+        contact.logradouro ?? null,
+        contact.numero ?? null,
+        contact.complemento ?? null,
+        contact.bairro ?? null,
+        contact.cidade ?? null,
+        contact.uf ?? null,
+        contact.emergencyContactName ?? null,
+        contact.emergencyContactPhone ?? null,
+        contact.registrationNotes ?? null,
         instituicaoId(),
         patientId,
       ]
     );
+  }
+
+  private async registrationFromConnection(
+    connection: Pool | PoolConnection,
+    organizationId: string,
+    patientId: string
+  ): Promise<PatientRegistrationRecord | null> {
+    const [rows] = await connection.query<RowDataPacket[]>(
+      `SELECT pa.ref_core, pa.nome, pa.nome_social, pa.telefone, pa.email, pa.documento,
+              pa.cep, pa.logradouro, pa.numero_residencia, pa.complemento, pa.bairro,
+              pa.cidade, pa.estado_uf, pa.contato_emergencia_nome,
+              pa.contato_emergencia_telefone, pa.observacao_cadastral,
+              pa.cadastro_alterado_por, pa.cadastro_alterado_em,
+              u.nome_exibicao AS ator_nome,
+              (SELECT ac.campos_alterados
+                 FROM clinica_pacientes_alteracoes_cadastrais ac
+                WHERE ac.instituicao_id = pa.instituicao_id
+                  AND ac.organizacao_ref = o.ref_core AND ac.paciente_ref = pa.ref_core
+                ORDER BY ac.alterado_em DESC LIMIT 1) AS campos_alterados
+         FROM clinica_pacientes pa
+         JOIN clinica_organizacoes o ON o.id = pa.organizacao_id
+         LEFT JOIN clinica_usuarios u
+           ON u.instituicao_id = pa.instituicao_id AND u.ref_core = pa.cadastro_alterado_por
+        WHERE pa.instituicao_id = ? AND o.ref_core = ? AND pa.ref_core = ? LIMIT 1`,
+      [instituicaoId(), organizationId, patientId]
+    );
+    const row = rows[0];
+    if (!row) return null;
+    const fields = typeof row.campos_alterados === 'string'
+      ? JSON.parse(row.campos_alterados) as string[]
+      : Array.isArray(row.campos_alterados) ? row.campos_alterados as string[] : [];
+    const legalName = String(row.nome ?? '');
+    const socialName = row.nome_social ? String(row.nome_social) : undefined;
+    return {
+      patientId: String(row.ref_core), displayName: socialName || legalName, legalName, socialName,
+      phone: String(row.telefone ?? ''), email: String(row.email ?? ''), cpf: String(row.documento ?? ''),
+      address: {
+        cep: String(row.cep ?? ''), logradouro: String(row.logradouro ?? ''),
+        numero: String(row.numero_residencia ?? ''), complemento: row.complemento ? String(row.complemento) : undefined,
+        bairro: String(row.bairro ?? ''), cidade: String(row.cidade ?? ''), uf: String(row.estado_uf ?? ''),
+      },
+      emergencyContactName: row.contato_emergencia_nome ? String(row.contato_emergencia_nome) : undefined,
+      emergencyContactPhone: row.contato_emergencia_telefone ? String(row.contato_emergencia_telefone) : undefined,
+      registrationNotes: row.observacao_cadastral ? String(row.observacao_cadastral) : undefined,
+      lastRegistrationUpdate: row.cadastro_alterado_em ? {
+        actorUserId: String(row.cadastro_alterado_por),
+        actorDisplayName: row.ator_nome ? String(row.ator_nome) : undefined,
+        updatedAt: fromSqlTimestamp(row.cadastro_alterado_em)!, changedFields: fields,
+      } : undefined,
+    };
+  }
+
+  async getPatientRegistration(organizationId: string, patientId: string): Promise<PatientRegistrationRecord | null> {
+    return this.registrationFromConnection(this.pool, organizationId, patientId);
+  }
+
+  async updatePatientRegistration(input: {
+    organizationId: string; patientId: string; details: PatientRegistrationDetails;
+    actorUserId: string; changedAt: string;
+  }): Promise<PatientRegistrationRecord | null> {
+    const connection = await this.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      await connection.query(
+        `SELECT pa.id FROM clinica_pacientes pa
+          JOIN clinica_organizacoes o ON o.id = pa.organizacao_id
+         WHERE pa.instituicao_id = ? AND o.ref_core = ? AND pa.ref_core = ? FOR UPDATE`,
+        [instituicaoId(), input.organizationId, input.patientId]
+      );
+      const current = await this.registrationFromConnection(connection, input.organizationId, input.patientId);
+      if (!current) { await connection.rollback(); return null; }
+      const next = input.details;
+      const pairs: Array<[string, unknown, unknown]> = [
+        ['legalName', current.legalName, next.legalName], ['socialName', current.socialName, next.socialName],
+        ['phone', current.phone, next.phone], ['email', current.email, next.email], ['cpf', current.cpf, next.cpf],
+        ['address.cep', current.address.cep, next.address.cep],
+        ['address.logradouro', current.address.logradouro, next.address.logradouro],
+        ['address.numero', current.address.numero, next.address.numero],
+        ['address.complemento', current.address.complemento, next.address.complemento],
+        ['address.bairro', current.address.bairro, next.address.bairro],
+        ['address.cidade', current.address.cidade, next.address.cidade], ['address.uf', current.address.uf, next.address.uf],
+        ['emergencyContactName', current.emergencyContactName, next.emergencyContactName],
+        ['emergencyContactPhone', current.emergencyContactPhone, next.emergencyContactPhone],
+        ['registrationNotes', current.registrationNotes, next.registrationNotes],
+      ];
+      const changedFields = pairs.filter(([, before, after]) => (before ?? '') !== (after ?? '')).map(([name]) => name);
+      if (changedFields.length > 0) {
+        await connection.execute(
+          `UPDATE clinica_pacientes pa
+             JOIN clinica_organizacoes o ON o.id = pa.organizacao_id
+              SET pa.nome = ?, pa.nome_social = ?, pa.telefone = ?, pa.email = ?, pa.documento = ?,
+                  pa.cep = ?, pa.logradouro = ?, pa.numero_residencia = ?, pa.complemento = ?,
+                  pa.bairro = ?, pa.cidade = ?, pa.estado_uf = ?, pa.contato_emergencia_nome = ?,
+                  pa.contato_emergencia_telefone = ?, pa.observacao_cadastral = ?,
+                  pa.cadastro_alterado_por = ?, pa.cadastro_alterado_em = ?, pa.atualizado_em = ?
+            WHERE pa.instituicao_id = ? AND o.ref_core = ? AND pa.ref_core = ?`,
+          [next.legalName, next.socialName ?? null, next.phone, next.email, next.cpf,
+            next.address.cep, next.address.logradouro, next.address.numero, next.address.complemento ?? null,
+            next.address.bairro, next.address.cidade, next.address.uf, next.emergencyContactName ?? null,
+            next.emergencyContactPhone ?? null, next.registrationNotes ?? null, input.actorUserId,
+            toSqlTimestamp(input.changedAt), toSqlTimestamp(input.changedAt), instituicaoId(),
+            input.organizationId, input.patientId]
+        );
+        await connection.execute(
+          `INSERT INTO clinica_pacientes_alteracoes_cadastrais
+             (id, instituicao_id, organizacao_ref, paciente_ref, ator_usuario_ref,
+              campos_alterados, alterado_em)
+           VALUES (?, ?, ?, ?, ?, CAST(? AS JSON), ?)`,
+          [rowId('paciente_alteracao', `${input.patientId}:${input.changedAt}`), instituicaoId(),
+            input.organizationId, input.patientId, input.actorUserId, JSON.stringify(changedFields),
+            toSqlTimestamp(input.changedAt)]
+        );
+      }
+      await connection.commit();
+      return this.getPatientRegistration(input.organizationId, input.patientId);
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   }
 
   /** Devolve `false` quando o paciente não existe nesta organização. */

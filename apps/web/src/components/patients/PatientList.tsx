@@ -14,10 +14,12 @@ import {
   CalendarPlus,
   FileText,
   UserX,
+  Pencil,
 } from 'lucide-react';
 import PatientDropoutModal from './PatientDropoutModal';
 import { ManualAppointmentDialog } from '@/components/scheduling/ManualAppointmentDialog';
 import { PatientListToolbar } from './PatientListToolbar';
+import EditPatientModal from './EditPatientModal';
 
 interface PatientListProps {
   patients: readonly PatientDirectoryEntry[];
@@ -56,6 +58,7 @@ export default function PatientList({
   const [searchQuery, setSearchQuery] = useState('');
   const [patientForSchedule, setPatientForSchedule] = useState<PatientDirectoryEntry | null>(null);
   const [patientForDropout, setPatientForDropout] = useState<PatientDirectoryEntry | null>(null);
+  const [patientForEdit, setPatientForEdit] = useState<PatientDirectoryEntry | null>(null);
 
   // KPIs Rápidos
   const pacientesAtivosCount = patients.filter((p) => p.status === 'active').length;
@@ -175,6 +178,13 @@ export default function PatientList({
             {/* Ações Rápidas (3 Botões) */}
             <div className="space-y-2 pt-2 border-t border-slate-100">
               <button
+                type="button"
+                onClick={() => setPatientForEdit(patient)}
+                className="w-full rounded-xl border border-psi-vibrant/25 bg-psi-vibrant/5 p-2 text-[11px] font-bold text-psi-deep transition hover:bg-psi-vibrant/10"
+              >
+                <span className="flex items-center justify-center gap-1.5"><Pencil className="h-3.5 w-3.5" /> Editar dados do paciente</span>
+              </button>
+              <button
                 onClick={() => router.push(`/linha-do-tempo?patientId=${patient.id}`)}
                 className="w-full btn-outline text-xs py-2.5 justify-center gap-2 group"
               >
@@ -235,6 +245,16 @@ export default function PatientList({
           patient={patientForDropout}
           onClose={() => setPatientForDropout(null)}
           onRegistered={() => onPatientUpdated?.()}
+        />
+      )}
+
+      {patientForEdit && (
+        <EditPatientModal
+          key={patientForEdit.id}
+          patientId={patientForEdit.id}
+          patientName={patientForEdit.displayName}
+          onClose={() => setPatientForEdit(null)}
+          onSaved={() => onPatientUpdated?.()}
         />
       )}
     </div>

@@ -5,6 +5,7 @@ import { VitrineCarrossel, PsicologoVitrineItem } from '@/components/vitrineCarr
 import { GenderFields } from '@/components/forms/GenderFields';
 import { CadastroPsicologoForm } from '@/components/forms/CadastroPsicologoForm';
 import { TurnoPreferenceField } from '@/components/forms/TurnoPreferenceField';
+import { LISTA_NECESSIDADES } from '@/components/forms/necessidades';
 import { validateGender, type GenderValue } from '@/lib/gender';
 import { CAMPO_ARMADILHA } from '@/lib/triagemSubmissao';
 import { normalizarTurnoPreferencia, type TurnoPreferencia } from '@/lib/turnos';
@@ -295,7 +296,8 @@ export default function ViverMaisLandingPage() {
 
   const continuarMatch = () => {
     const paraQuem = form.paraQuemE === 'Outro' ? form.paraQuemEOutro.trim() : form.paraQuemE;
-    if (!paraQuem || !form.necessidadesOutro.trim() || !form.turno) {
+    const informouNecessidade = form.necessidadesPaciente.length > 0 || Boolean(form.necessidadesOutro.trim());
+    if (!paraQuem || !informouNecessidade || !form.turno) {
       alert('Responda às três perguntas para continuar.');
       return;
     }
@@ -904,19 +906,50 @@ export default function ViverMaisLandingPage() {
                 )}
               </div>
 
-              <label className="block space-y-2">
-                <span className="text-sm font-black text-ink">2. Qual é a sua queixa ou necessidade? <span className="text-rose-500">*</span></span>
-                <textarea
-                  required
-                  rows={4}
-                  maxLength={300}
-                  value={form.necessidadesOutro}
-                  onChange={(e) => setForm((prev) => ({ ...prev, necessidadesOutro: e.target.value }))}
-                  placeholder="Descreva brevemente o que motivou a busca por atendimento."
-                  className="input resize-none text-xs leading-relaxed"
-                />
-                <span className="block text-right text-[10px] text-muted">{form.necessidadesOutro.length}/300</span>
-              </label>
+              <fieldset className="space-y-3">
+                <legend className="text-sm font-black text-ink">2. Qual é a sua queixa ou necessidade? <span className="text-rose-500">*</span></legend>
+                <p className="text-[11px] text-muted">Selecione uma ou mais opções.</p>
+                <div className="grid max-h-72 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+                  {LISTA_NECESSIDADES.map((necessidade) => {
+                    const selecionada = form.necessidadesPaciente.includes(necessidade);
+                    return (
+                      <button
+                        key={necessidade}
+                        type="button"
+                        aria-pressed={selecionada}
+                        onClick={() => setForm((prev) => ({
+                          ...prev,
+                          especificarNecessidades: true,
+                          necessidadesPaciente: selecionada
+                            ? prev.necessidadesPaciente.filter((item) => item !== necessidade)
+                            : [...prev.necessidadesPaciente, necessidade],
+                        }))}
+                        className={`flex items-start gap-2 rounded-xl border p-3 text-left text-xs font-bold leading-snug transition-all ${
+                          selecionada
+                            ? 'border-psi-vibrant bg-psi-soft text-psi-darkest'
+                            : 'border-line bg-white text-muted hover:border-psi-soft hover:text-ink'
+                        }`}
+                      >
+                        <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${selecionada ? 'border-psi-vibrant bg-psi-vibrant text-white' : 'border-line bg-white'}`}>
+                          {selecionada && <Check className="h-3 w-3" strokeWidth={3} />}
+                        </span>
+                        {necessidade}
+                      </button>
+                    );
+                  })}
+                </div>
+                <label className="block space-y-2 border-t border-line pt-3">
+                  <span className="text-xs font-bold text-ink">Outro <span className="font-normal text-muted">(opcional)</span></span>
+                  <input
+                    type="text"
+                    maxLength={300}
+                    value={form.necessidadesOutro}
+                    onChange={(e) => setForm((prev) => ({ ...prev, especificarNecessidades: true, necessidadesOutro: e.target.value }))}
+                    placeholder="Escreva outra necessidade"
+                    className="input text-xs"
+                  />
+                </label>
+              </fieldset>
 
               <div className="space-y-2">
                 <span className="text-sm font-black text-ink">3. Qual período você prefere? <span className="text-rose-500">*</span></span>

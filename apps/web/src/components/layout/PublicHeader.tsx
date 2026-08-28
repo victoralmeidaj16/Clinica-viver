@@ -10,7 +10,6 @@ import {
   LogIn,
   Menu,
   X,
-  Sparkles,
 } from 'lucide-react';
 
 export type PublicNavModo = 'PACIENTE' | 'ESPECIALISTA';
@@ -62,38 +61,23 @@ export default function PublicHeader({
         <Link
           href="/"
           onClick={() => handleModoClick('PACIENTE')}
-          className="flex items-center gap-3 group focus:outline-none focus:ring-2 focus:ring-purple-400 rounded-xl p-1"
+          className="group shrink-0 rounded-xl p-1 focus:outline-none focus:ring-2 focus:ring-purple-400"
           aria-label="Clínica Viver Mais Psicologia - Início"
         >
-          <div className="relative w-10 h-10 rounded-2xl overflow-hidden bg-purple-600 shadow-md shadow-purple-600/25 flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
-            <Image
-              src="/logo-viver-mais.png"
-              alt="Logo Viver Mais"
-              width={40}
-              height={40}
-              className="object-contain"
-              priority
-              onError={(e) => {
-                // Fallback invisível se a imagem não carregar
-                (e.target as HTMLElement).style.display = 'none';
-              }}
-            />
-            <Sparkles className="w-5 h-5 text-white absolute" />
-          </div>
-          <div>
-            <span className="text-base sm:text-lg font-black tracking-tight text-slate-900 leading-none block">
-              Viver Mais
-            </span>
-            <span className="text-[10px] sm:text-[11px] text-purple-600 font-extrabold uppercase tracking-wider block mt-0.5">
-              Psicologia
-            </span>
-          </div>
+          <Image
+            src="/logo-viver-mais.png"
+            alt="Viver Mais Psicologia"
+            width={317}
+            height={60}
+            className="h-auto w-[190px] transition-transform duration-200 group-hover:scale-[1.02] sm:w-[222px] lg:w-[254px]"
+            priority
+          />
         </Link>
 
         {/* 2. Navegação Central Segmentada (2 Menus Claros: "Para Você" vs "Para Especialistas") */}
         <nav
           aria-label="Navegação de perfis"
-          className="hidden md:flex items-center p-1 bg-slate-100/90 rounded-2xl border border-purple-100 shadow-inner"
+          className="hidden lg:flex items-center p-1 bg-slate-100/90 rounded-2xl border border-purple-100 shadow-inner"
         >
           <button
             type="button"
@@ -155,7 +139,7 @@ export default function PublicHeader({
         </div>
 
         {/* Botão Hambúrguer para Mobile */}
-        <div className="flex md:hidden items-center gap-2">
+        <div className="flex lg:hidden items-center gap-2">
           <button
             type="button"
             onClick={() => setMenuMobileAberto(!menuMobileAberto)}
@@ -169,7 +153,7 @@ export default function PublicHeader({
 
       {/* Menu Drawer Mobile Expansível */}
       {menuMobileAberto && (
-        <div className="md:hidden border-t border-purple-100 bg-white/98 px-4 py-4 space-y-3 shadow-xl animate-in slide-in-from-top-2 duration-200">
+        <div className="lg:hidden border-t border-purple-100 bg-white/98 px-4 py-4 space-y-3 shadow-xl animate-in slide-in-from-top-2 duration-200">
           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2">
             Escolha o que você procura:
           </p>

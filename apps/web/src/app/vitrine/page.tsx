@@ -12,19 +12,17 @@ import { normalizarTurnoPreferencia, type TurnoPreferencia } from '@/lib/turnos'
 import PublicHeader from '@/components/layout/PublicHeader';
 import PublicFooter from '@/components/layout/PublicFooter';
 import FloatingWhatsAppButton from '@/components/layout/FloatingWhatsAppButton';
+import { BookingProgress, type BookingStep } from '@/components/vitrine/BookingProgress';
 import {
   Sparkles,
   Heart,
-  Calendar,
   User,
   MapPin,
   Clock,
   ArrowRight,
-  Brain,
   Check,
   Building2,
   Send,
-  UserPlus
 } from 'lucide-react';
 
 type ServicoKey =
@@ -53,7 +51,7 @@ interface ServicoVitrine {
 export default function ViverMaisLandingPage() {
   const [selectedService, setSelectedService] = useState<ServicoKey | null>(null);
   const [selectedModalidade, setSelectedModalidade] = useState<ModalidadeKey | null>(null);
-  const [step, setStep] = useState<'SERVICOS' | 'CAMINHO' | 'MATCH' | 'MATCH_RECOMENDACOES' | 'PROFISSIONAIS' | 'FORMULARIO' | 'CADASTRO_PSICOLOGO' | 'SUCESSO' | 'SUCESSO_PSICOLOGO'>('SERVICOS');
+  const [step, setStep] = useState<BookingStep | 'CADASTRO_PSICOLOGO' | 'SUCESSO_PSICOLOGO'>('SERVICOS');
   const [caminho, setCaminho] = useState<'MATCH' | 'PROFISSIONAL' | null>(null);
   const [psicologoEscolhido, setPsicologoEscolhido] = useState<PsicologoVitrineItem | null>(null);
   
@@ -251,7 +249,7 @@ export default function ViverMaisLandingPage() {
     if (e) e.preventDefault();
     setStep('SERVICOS');
     setTimeout(() => {
-      const el = document.getElementById('servicos-cards') || document.getElementById('modalidades');
+      const el = document.getElementById('agendamento-etapas') || document.getElementById('modalidades');
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
@@ -448,36 +446,6 @@ export default function ViverMaisLandingPage() {
       {/* Hero Banner Card Section com Imagem Premium e Conteúdo Personalizado */}
       <section className="px-6 pt-8 pb-4">
         <div className="max-w-6xl mx-auto space-y-4">
-          {/* Seletor Segmentado de Perfil */}
-          <div className="flex justify-center sm:justify-start">
-            <div className="inline-flex p-1 bg-slate-900/90 rounded-2xl border border-purple-500/20 shadow-lg backdrop-blur-md">
-              <button
-                type="button"
-                onClick={handleIrParaAgendar}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
-                  !isPsicologo
-                    ? 'bg-psi-vibrant text-white shadow-md shadow-psi-vibrant/25'
-                    : 'text-purple-200/70 hover:text-white'
-                }`}
-              >
-                <Heart className="w-3.5 h-3.5 text-pink-400" />
-                <span>Para Pacientes (Agendar Consulta)</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleIrParaCadastroPsicologo}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
-                  isPsicologo
-                    ? 'bg-psi-vibrant text-white shadow-md shadow-psi-vibrant/25'
-                    : 'text-purple-200/70 hover:text-white'
-                }`}
-              >
-                <UserPlus className="w-3.5 h-3.5 text-amber-300" />
-                <span>Para Psicólogos (Credenciamento)</span>
-              </button>
-            </div>
-          </div>
-
           <div className="relative overflow-hidden bg-slate-950 text-white rounded-3xl p-8 sm:p-14 shadow-2xl border border-purple-900/40 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
             {/* Background Decorativo */}
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(158,107,207,0.3),transparent_60%)] pointer-events-none"></div>
@@ -676,6 +644,8 @@ export default function ViverMaisLandingPage() {
 
       {/* Main Flow Section */}
       <main id="modalidades" className="max-w-6xl mx-auto px-6 py-8">
+        {!isPsicologo && <BookingProgress step={step as BookingStep} />}
+
         {step === 'SERVICOS' && (
           <div id="servicos-cards" className="space-y-16 animate-in fade-in slide-in-from-bottom-4 duration-300">
             {/* NOVO LAYOUT REELABORADO: CARDS DE SERVIÇOS PREMIUM */}

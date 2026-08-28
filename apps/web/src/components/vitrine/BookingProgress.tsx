@@ -35,9 +35,9 @@ export function BookingProgress({ step }: BookingProgressProps) {
     <nav
       id="agendamento-etapas"
       aria-label="Etapas do agendamento"
-      className="sticky top-20 z-30 mb-8 scroll-mt-24 rounded-2xl border border-purple-100 bg-white/95 px-3 shadow-lg shadow-purple-950/5 backdrop-blur-md sm:px-6"
+      className="border-t border-purple-100 bg-purple-50/50"
     >
-      <ol className="grid grid-cols-4">
+      <ol className="mx-auto grid max-w-6xl grid-cols-4 px-4 sm:px-6">
         {stages.map((stage, index) => {
           const active = index === current;
           const complete = index < current || completedFlow;
@@ -46,7 +46,7 @@ export function BookingProgress({ step }: BookingProgressProps) {
             <li
               key={stage.label}
               aria-current={active ? 'step' : undefined}
-              className={`relative min-w-0 px-1 pb-3 pt-3.5 text-center transition-colors sm:px-3 ${
+              className={`relative min-w-0 px-1 pb-2 pt-2 text-center transition-colors sm:px-3 ${
                 active ? 'text-purple-800' : complete ? 'text-purple-600' : 'text-slate-400'
               }`}
             >

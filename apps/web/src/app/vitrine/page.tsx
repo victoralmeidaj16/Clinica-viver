@@ -272,7 +272,7 @@ export default function ViverMaisLandingPage() {
     if (e) e.preventDefault();
     setStep('SERVICOS');
     setTimeout(() => {
-      const el = document.getElementById('agendamento-etapas') || document.getElementById('modalidades');
+      const el = document.getElementById('servicos-cards') || document.getElementById('modalidades');
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
@@ -474,6 +474,7 @@ export default function ViverMaisLandingPage() {
         }}
         onAgendarClick={handleIrParaAgendar}
         onCredenciarClick={handleIrParaCadastroPsicologo}
+        barraInferior={!isPsicologo ? <BookingProgress step={step as BookingStep} /> : undefined}
       />
 
       {/* Hero Banner Card Section com Imagem Premium e Conteúdo Personalizado */}
@@ -694,12 +695,10 @@ export default function ViverMaisLandingPage() {
 
       {/* Main Flow Section */}
       <main id="modalidades" className="max-w-6xl mx-auto px-6 py-8">
-        {!isPsicologo && <BookingProgress step={step as BookingStep} />}
-
         {step === 'SERVICOS' && (
           <div id="servicos-cards" className="space-y-16 animate-in fade-in slide-in-from-bottom-4 duration-300">
             {/* NOVO LAYOUT REELABORADO: CARDS DE SERVIÇOS PREMIUM */}
-            <div id="secao-servicos" className="scroll-mt-28 space-y-6">
+            <div id="secao-servicos" className="scroll-mt-36 space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
                 <div>
                   <h3 className="text-2xl sm:text-3xl font-black text-ink">Serviços Clínicos Oferecidos</h3>
@@ -742,7 +741,7 @@ export default function ViverMaisLandingPage() {
             </div>
 
             {/* Carrossel de Psicólogos Credenciados */}
-            <div id="secao-profissionais" className="scroll-mt-28">
+            <div id="secao-profissionais" className="scroll-mt-36">
               <VitrineCarrossel psicologos={psicologosCredenciados} />
             </div>
 
@@ -784,7 +783,7 @@ export default function ViverMaisLandingPage() {
                   <div
                     key={key}
                     id={`detalhes-${key}`}
-                    className="bg-surface rounded-3xl border border-line shadow-card overflow-hidden flex flex-col justify-between hover:shadow-lift transition-all scroll-mt-24"
+                    className="bg-surface rounded-3xl border border-line shadow-card overflow-hidden flex flex-col justify-between hover:shadow-lift transition-all scroll-mt-36"
                   >
                     <div>
                       {/* Banner de Imagem com Gradiente */}
@@ -1106,6 +1105,7 @@ export default function ViverMaisLandingPage() {
                 psicologos={profissionaisCompativeis}
                 selecionadoId={psicologoEscolhido?.id}
                 mostrarFiltros
+                layout="lista"
                 onSelecionar={(psicologo) => {
                   setPsicologoEscolhido(psicologo);
                   setForm((prev) => ({ ...prev, turno: '' }));

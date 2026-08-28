@@ -19,6 +19,8 @@ interface PublicHeaderProps {
   onSelecionarModo?: (modo: PublicNavModo) => void;
   onAgendarClick?: () => void;
   onCredenciarClick?: () => void;
+  /** Faixa fixada logo abaixo da barra principal (ex.: etapas do agendamento). */
+  barraInferior?: React.ReactNode;
 }
 
 export default function PublicHeader({
@@ -26,6 +28,7 @@ export default function PublicHeader({
   onSelecionarModo,
   onAgendarClick,
   onCredenciarClick,
+  barraInferior,
 }: PublicHeaderProps) {
   const [menuMobileAberto, setMenuMobileAberto] = useState(false);
 
@@ -216,6 +219,8 @@ export default function PublicHeader({
           </div>
         </div>
       )}
+
+      {barraInferior}
     </header>
   );
 }

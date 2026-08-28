@@ -272,11 +272,16 @@ export function textoParaPsicologo(
  */
 export function textoParaPaciente(lead: TriagemPacienteRecord): string {
   return [
-    `Olá, ${lead.nomePaciente}! Recebemos sua solicitação de atendimento na Viver Mais Psicologia.`,
+    '🤖 *Mensagem automática da Clínica Viver Mais Psicologia*',
     '',
-    `Protocolo: ${lead.protocolo}`,
+    `Olá, ${lead.nomePaciente}! Recebemos sua solicitação de agendamento.`,
     '',
-    `Um de nossos psicólogos entra em contato com você em até ${SLA_CONTATO_HORAS} horas para combinar o dia e o horário.`,
+    `*Protocolo:* ${lead.protocolo}`,
+    `*Serviço:* ${lead.servico || 'Psicoterapia'}`,
+    '',
+    `Um de nossos psicólogos credenciados entrará em contato com você via WhatsApp em até *${SLA_CONTATO_HORAS} horas* para combinar o melhor dia e horário.`,
+    '',
+    '⚠️ *Em caso de urgência:* Se estiver em sofrimento emocional agudo ou crise, ligue gratuitamente para o *CVV no 188* (Centro de Valorização da Vida - 24h) ou procure o serviço de emergência mais próximo.',
   ].join('\n');
 }
 

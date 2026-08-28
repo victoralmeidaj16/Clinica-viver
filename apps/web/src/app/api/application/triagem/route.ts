@@ -6,6 +6,7 @@ import {
 } from '@/server/persistence/captureRepository';
 import { alocarLead, alocarLeadEscolhido, classificarSla, horasDesdeAlocacao, varrerSla } from '@/server/application/viverMaisRodizio';
 import { avisarAlocacao, avisarTransbordo } from '@/server/application/viverMaisWhatsApp';
+import { avisarTriagemRecebidaPorEmail } from '@/server/application/triagemEmail';
 import { ehGestao, exigirGestao, NaoAutorizadoError } from '@/server/viverMaisGestaoAuth';
 import { rateLimited } from '@/server/http/publicRequest';
 import {
@@ -148,7 +149,7 @@ export async function POST(request: Request) {
     });
 
     // Aviso depois de gravar, e sem travar a resposta ao paciente: a alocação
-    // já está persistida, então uma falha de WhatsApp não perde o lead.
+    // já está persistida, então uma falha de WhatsApp ou e-mail não perde o lead.
     if (resultado.situacao === 'teto') {
       console.warn(
         `[triagem] Teto de ${TETO_LEADS_POR_HORA} leads/hora atingido; entrada recusada. Verifique se a fila está sendo inundada.`
@@ -170,10 +171,12 @@ export async function POST(request: Request) {
       console.info(`[triagem] Reenvio do mesmo telefone; devolvido o protocolo ${resultado.lead.protocolo}.`);
     } else if (resultado.psicologo) {
       void avisarAlocacao(resultado.lead, resultado.psicologo);
+      void avisarTriagemRecebidaPorEmail(resultado.lead, resultado.psicologo);
     } else {
       console.warn(
         `[triagem] Lead ${novaTriagem.protocolo} sem profissional elegível; aguardando decisão da gestão.`
       );
+      void avisarTriagemRecebidaPorEmail(resultado.lead);
     }
 
     return NextResponse.json({

@@ -1,4 +1,5 @@
 import { Brain } from 'lucide-react';
+import FloatingWhatsAppButton from './FloatingWhatsAppButton';
 
 /**
  * Moldura das páginas públicas — checkout e agendamento.
@@ -45,6 +46,8 @@ export default function PublicBrandShell({
       </header>
 
       <main className="max-w-xl w-full mx-auto my-8 flex-1">{children}</main>
+
+      <FloatingWhatsAppButton />
 
       <footer className="max-w-xl w-full mx-auto text-center py-4 border-t border-line text-[11px] text-muted">
         {rodape}

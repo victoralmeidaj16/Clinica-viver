@@ -226,6 +226,9 @@ export interface CadastroPsicologoRecord {
   posGraduacaoViverMais?: string;
   segundaPosGraduacao?: string;
   solicitacaoAlteracaoGestao?: SolicitacaoAlteracaoGestao;
+  aceitouTermos?: boolean;
+  aceitouTermosEm?: string;
+  versaoTermos?: string;
 }
 
 export interface LancamentoLedgerAluno {

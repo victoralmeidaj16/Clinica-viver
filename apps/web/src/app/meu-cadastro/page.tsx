@@ -11,6 +11,7 @@ import {
   Pencil,
   ShieldCheck,
   XCircle,
+  ExternalLink,
 } from 'lucide-react';
 import { formatBrazilPhone, maskBrazilPhoneInput, normalizeBrazilPhone } from '@/lib/brazilPhone';
 import { formatGender } from '@/lib/gender';
@@ -28,6 +29,7 @@ import {
 import { BrazilLocationFields } from '@/components/forms/BrazilLocationFields';
 import { processImageUpload } from '@/lib/imageUpload';
 import { CardDefinidoPelaGestao } from '@/components/meu-cadastro/CardDefinidoPelaGestao';
+import { ModalTermosParceria } from '@/components/forms/ModalTermosParceria';
 import type { SolicitacaoGestaoFormValues } from '@/components/meu-cadastro/ModalSolicitacaoGestao';
 
 interface Cadastro {
@@ -167,6 +169,7 @@ export default function MeuCadastroPage() {
   const [salvando, setSalvando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const [rascunho, setRascunho] = useState<Rascunho | null>(null);
+  const [modalTermosAberto, setModalTermosAberto] = useState(false);
 
   const carregar = async () => {
     try {
@@ -595,6 +598,34 @@ export default function MeuCadastroPage() {
               onSalvarSolicitacao={salvarSolicitacaoGestao}
               onCancelarSolicitacao={cancelarSolicitacaoGestao}
             />
+
+            {/* Card de Termos & Políticas de Parceria Clínica */}
+            <section className="bg-surface rounded-3xl border border-line shadow-card p-6 space-y-4">
+              <div className="flex items-center justify-between gap-3 border-b border-line pb-4">
+                <div className="flex items-center gap-3">
+                  <ShieldCheck className="w-5 h-5 text-psi-vibrant" />
+                  <h2 className="font-black text-ink">Termos & Políticas de Parceria</h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setModalTermosAberto(true)}
+                  className="inline-flex items-center gap-1.5 text-xs font-extrabold text-psi-deep hover:text-psi-darkest underline"
+                >
+                  <span>Consultar contrato completo</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              <div className="bg-psi-soft/40 border border-psi-soft p-4 rounded-2xl space-y-2">
+                <div className="flex items-center gap-2 text-xs font-extrabold text-psi-darkest">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Credenciamento em Conformidade Ética e Contratual</span>
+                </div>
+                <p className="text-xs text-muted leading-relaxed">
+                  Seu cadastro opera sob as diretrizes de SLA de contato em 24h, autonomia de agenda com comunicação prévia de pausas, sigilo profissional conforme o CFP e conformidade com a LGPD.
+                </p>
+              </div>
+            </section>
           </div>
 
           <aside className="bg-psi-darkest rounded-3xl p-6 text-white shadow-contrast h-fit">
@@ -612,6 +643,14 @@ export default function MeuCadastroPage() {
           </aside>
         </div>
       )}
+
+      {/* Modal para Visualização dos Termos de Parceria */}
+      <ModalTermosParceria
+        isOpen={modalTermosAberto}
+        onClose={() => setModalTermosAberto(false)}
+        jaAceito={true}
+        onAceitar={() => setModalTermosAberto(false)}
+      />
     </div>
   );
 }

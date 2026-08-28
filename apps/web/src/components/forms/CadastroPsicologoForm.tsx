@@ -1,10 +1,9 @@
-'use client';
-
 import React, { useState } from 'react';
-import { UserPlus, Upload } from 'lucide-react';
+import { UserPlus, Upload, ShieldCheck, ExternalLink } from 'lucide-react';
 import { BrazilLocationFields } from '@/components/forms/BrazilLocationFields';
 import { GenderFields } from '@/components/forms/GenderFields';
 import { NecessidadesSelector } from '@/components/forms/necessidades';
+import { ModalTermosParceria, VERSAO_TERMOS_PARCERIA } from '@/components/forms/ModalTermosParceria';
 import {
   MODALIDADES_ATENDIMENTO,
   POS_GRADUACOES_VIVER_MAIS,
@@ -58,6 +57,8 @@ export function CadastroPsicologoForm({
   const [temSegundaPos, setTemSegundaPos] = useState(false);
   const [segundaPosGraduacao, setSegundaPosGraduacao] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [modalTermosAberto, setModalTermosAberto] = useState(false);
+  const [aceitouTermos, setAceitouTermos] = useState(false);
 
   const [formPsicologo, setFormPsicologo] = useState({
     nomeCompleto: '',
@@ -117,6 +118,11 @@ export function CadastroPsicologoForm({
       alert('Selecione ao menos um turno de atendimento.');
       return;
     }
+    if (!aceitouTermos) {
+      alert('Por favor, leia e aceite os Termos e Políticas de Parceria Clínica antes de enviar seu cadastro.');
+      setModalTermosAberto(true);
+      return;
+    }
     setIsSubmitting(true);
     try {
       const resp = await fetch('/api/application/credenciamento-psicologo', {
@@ -125,6 +131,9 @@ export function CadastroPsicologoForm({
         body: JSON.stringify({
           ...formPsicologo,
           segundaPosGraduacao: temSegundaPos ? segundaPosGraduacao : undefined,
+          aceitouTermos: true,
+          aceitouTermosEm: new Date().toISOString(),
+          versaoTermos: VERSAO_TERMOS_PARCERIA,
         }),
       });
       const data = (await resp.json()) as { success: boolean; error?: string; data?: CadastroPsicologoCriado };
@@ -596,6 +605,46 @@ export function CadastroPsicologoForm({
           </div>
         </div>
 
+        {/* Termos e Políticas de Parceria Clínica */}
+        <div className="bg-purple-50/70 border border-purple-200 p-4 rounded-2xl space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-purple-700 shrink-0" />
+              <span className="font-extrabold text-xs text-purple-950">
+                Termos & Políticas de Parceria Clínica
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setModalTermosAberto(true)}
+              className="text-xs text-purple-700 hover:text-purple-900 font-extrabold flex items-center gap-1 underline shrink-0"
+            >
+              <span>{aceitouTermos ? 'Rever termos' : 'Ler termos'}</span>
+              <ExternalLink className="w-3 h-3" />
+            </button>
+          </div>
+
+          <label className="flex items-start gap-2.5 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={aceitouTermos}
+              onChange={(e) => {
+                if (e.target.checked && !aceitouTermos) {
+                  setModalTermosAberto(true);
+                } else {
+                  setAceitouTermos(e.target.checked);
+                }
+              }}
+              className="w-4 h-4 rounded border-purple-300 text-purple-700 focus:ring-purple-500 accent-purple-700 mt-0.5 cursor-pointer"
+            />
+            <span className="text-[11px] text-slate-700 font-medium leading-snug">
+              Li e concordo com os{' '}
+              <strong className="text-purple-900 font-bold">Termos e Políticas de Parceria Clínica da Viver Mais Psicologia</strong>,
+              incluindo o compromisso de primeiro contato em 24h, conformidade ética com o CFP e sigilo de dados.
+            </span>
+          </label>
+        </div>
+
         <button
           type="submit"
           disabled={isSubmitting}
@@ -605,6 +654,14 @@ export function CadastroPsicologoForm({
           {isSubmitting ? 'ENVIANDO…' : labelEnviar}
         </button>
       </form>
+
+      {/* Modal de Leitura Obrigatória dos Termos de Parceria */}
+      <ModalTermosParceria
+        isOpen={modalTermosAberto}
+        onClose={() => setModalTermosAberto(false)}
+        jaAceito={aceitouTermos}
+        onAceitar={() => setAceitouTermos(true)}
+      />
     </div>
   );
 }

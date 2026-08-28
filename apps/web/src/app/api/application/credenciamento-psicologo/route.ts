@@ -195,6 +195,9 @@ export async function POST(request: Request) {
       turmaViverMais: body.turmaViverMais || undefined,
       posGraduacaoViverMais: body.posGraduacaoViverMais || undefined,
       segundaPosGraduacao: body.segundaPosGraduacao || undefined,
+      aceitouTermos: Boolean(body.aceitouTermos),
+      aceitouTermosEm: body.aceitouTermosEm || new Date().toISOString(),
+      versaoTermos: body.versaoTermos || undefined,
 
       modalidadesAtendidas,
       exibirNaVitrine: true,

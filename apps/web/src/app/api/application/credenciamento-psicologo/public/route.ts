@@ -26,6 +26,8 @@ export async function GET() {
         servicosHabilitados: item.servicosHabilitados ?? [],
         turnosDisponiveis: item.turnosDisponiveis ?? [],
         modalidadesAtendidas: item.modalidadesAtendidas ?? [],
+        publicoAlvo: item.publicoAlvo ?? [],
+        necessidadesAtendidas: item.necessidadesAtendidas ?? [],
         disponivelParaNovosPacientes:
           !item.pausadoNoRodizio &&
           (item.pacientesAtivosCount ?? 0) < (item.limitePacientesAtivos ?? 5),

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { VitrineCarrossel, PsicologoVitrineItem } from '@/components/vitrineCarrossel';
 import { GenderFields } from '@/components/forms/GenderFields';
 import { CadastroPsicologoForm } from '@/components/forms/CadastroPsicologoForm';
@@ -9,6 +9,9 @@ import { LISTA_NECESSIDADES } from '@/components/forms/necessidades';
 import { validateGender, type GenderValue } from '@/lib/gender';
 import { CAMPO_ARMADILHA } from '@/lib/triagemSubmissao';
 import { normalizarTurnoPreferencia, type TurnoPreferencia } from '@/lib/turnos';
+import PublicHeader from '@/components/layout/PublicHeader';
+import PublicFooter from '@/components/layout/PublicFooter';
+import FloatingWhatsAppButton from '@/components/layout/FloatingWhatsAppButton';
 import {
   Sparkles,
   Heart,
@@ -50,7 +53,7 @@ interface ServicoVitrine {
 export default function ViverMaisLandingPage() {
   const [selectedService, setSelectedService] = useState<ServicoKey | null>(null);
   const [selectedModalidade, setSelectedModalidade] = useState<ModalidadeKey | null>(null);
-  const [step, setStep] = useState<'SERVICOS' | 'CAMINHO' | 'MATCH' | 'PROFISSIONAIS' | 'FORMULARIO' | 'CADASTRO_PSICOLOGO' | 'SUCESSO' | 'SUCESSO_PSICOLOGO'>('SERVICOS');
+  const [step, setStep] = useState<'SERVICOS' | 'CAMINHO' | 'MATCH' | 'MATCH_RECOMENDACOES' | 'PROFISSIONAIS' | 'FORMULARIO' | 'CADASTRO_PSICOLOGO' | 'SUCESSO' | 'SUCESSO_PSICOLOGO'>('SERVICOS');
   const [caminho, setCaminho] = useState<'MATCH' | 'PROFISSIONAL' | null>(null);
   const [psicologoEscolhido, setPsicologoEscolhido] = useState<PsicologoVitrineItem | null>(null);
   
@@ -302,8 +305,65 @@ export default function ViverMaisLandingPage() {
       return;
     }
     setForm((prev) => ({ ...prev, especificarNecessidades: true }));
-    setStep('FORMULARIO');
+    setStep('MATCH_RECOMENDACOES');
   };
+
+  const psicologosRecomendadosMatch = useMemo(() => {
+    if (!form.turno) return [];
+
+    const modalidadeMotor = selectedModalidade?.includes('PARTICULAR') ? 'PARTICULAR' : 'ACESSIVEL_SOCIAL';
+    const turnoNormalizado = normalizarTurnoPreferencia(form.turno);
+    const paraQuemNorm = (form.paraQuemE === 'Outro' ? form.paraQuemEOutro : form.paraQuemE)
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+
+    const candidatos = psicologosCredenciados.filter((psi) => {
+      if (psi.disponivelParaNovosPacientes === false) return false;
+      if (selectedService && psi.servicosHabilitados.length > 0 && !psi.servicosHabilitados.includes(selectedService)) {
+        return false;
+      }
+      const atendeModalidade = !psi.modalidadesAtendidas?.length || psi.modalidadesAtendidas.includes(modalidadeMotor);
+      if (!atendeModalidade) return false;
+
+      // Turno precisa coincidir
+      const atendeTurno = psi.turnosDisponiveis?.some((t) => normalizarTurnoPreferencia(t) === turnoNormalizado);
+      if (!atendeTurno) return false;
+
+      return true;
+    });
+
+    // Pontuar candidatos por match de público e necessidades
+    const pontuados = candidatos.map((psi) => {
+      let score = 1; // base por bater turno e modalidade
+
+      // Match público alvo
+      if (paraQuemNorm && psi.publicoAlvo?.length) {
+        const matchPublico = psi.publicoAlvo.some((pa) => {
+          const normPa = pa.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          return normPa.includes(paraQuemNorm) || paraQuemNorm.includes(normPa);
+        });
+        if (matchPublico) score += 3;
+      }
+
+      // Match demandas/necessidades
+      if (form.necessidadesPaciente.length > 0 && psi.necessidadesAtendidas?.length) {
+        const normAtendidas = psi.necessidadesAtendidas.map((n) =>
+          n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        );
+        const matchesCount = form.necessidadesPaciente.filter((nec) => {
+          const normNec = nec.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          return normAtendidas.some((a) => a.includes(normNec) || normNec.includes(a));
+        }).length;
+        score += matchesCount * 2;
+      }
+
+      return { psi, score };
+    });
+
+    pontuados.sort((a, b) => b.score - a.score);
+    return pontuados.slice(0, 3).map((item) => item.psi);
+  }, [psicologosCredenciados, form.turno, form.paraQuemE, form.paraQuemEOutro, form.necessidadesPaciente, selectedService, selectedModalidade]);
 
   const profissionaisCompativeis = psicologosCredenciados.filter((psi) => {
     if (psi.disponivelParaNovosPacientes === false) return false;
@@ -371,50 +431,19 @@ export default function ViverMaisLandingPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-purple-100 selection:text-purple-900">
-      {/* Banner / Header */}
-      <header className="bg-white border-b border-purple-100 py-4 px-6 sticky top-0 z-40 backdrop-blur-md bg-white/90 shadow-sm">
-        <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
-          <div 
-            onClick={handleIrParaAgendar}
-            className="flex items-center gap-2 cursor-pointer group"
-          >
-            <div className="w-10 h-10 rounded-2xl bg-purple-600 text-white flex items-center justify-center shadow-lg shadow-purple-600/30 group-hover:scale-105 transition-transform">
-              <Brain className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="text-lg font-black tracking-tight text-slate-900 leading-none">Viver Mais</h1>
-              <span className="text-[10px] text-purple-600 font-bold uppercase tracking-wider">Psicologia</span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 sm:gap-3">
-            <button
-              type="button"
-              onClick={handleIrParaCadastroPsicologo}
-              className={`text-xs font-extrabold px-3 sm:px-4 py-2.5 rounded-xl transition-all border flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-                isPsicologo
-                  ? 'bg-purple-700 text-white border-purple-700 shadow-md shadow-purple-700/25'
-                  : 'text-purple-700 hover:text-purple-900 hover:bg-purple-50 border-purple-200'
-              }`}
-            >
-              <UserPlus className={`w-4 h-4 shrink-0 ${isPsicologo ? 'text-white' : 'text-purple-600'}`} />
-              <span className="whitespace-nowrap">Quero me cadastrar (Sou Psicólogo)</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleIrParaAgendar}
-              className={`font-extrabold text-xs px-3 sm:px-5 py-2.5 rounded-xl transition-all shadow-md active:scale-[0.98] whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
-                !isPsicologo
-                  ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-purple-600/25'
-                  : 'bg-white border border-purple-200 text-purple-700 hover:bg-purple-50'
-              }`}
-            >
-              <Calendar className="w-4 h-4" />
-              <span>Agendar Consulta</span>
-            </button>
-          </div>
-        </div>
-      </header>
+      {/* Banner / Header Unificado */}
+      <PublicHeader
+        modoAtivo={isPsicologo ? 'ESPECIALISTA' : 'PACIENTE'}
+        onSelecionarModo={(modo) => {
+          if (modo === 'ESPECIALISTA') {
+            handleIrParaCadastroPsicologo();
+          } else {
+            handleIrParaAgendar();
+          }
+        }}
+        onAgendarClick={handleIrParaAgendar}
+        onCredenciarClick={handleIrParaCadastroPsicologo}
+      />
 
       {/* Hero Banner Card Section com Imagem Premium e Conteúdo Personalizado */}
       <section className="px-6 pt-8 pb-4">
@@ -957,9 +986,87 @@ export default function ViverMaisLandingPage() {
               </div>
 
               <button type="button" onClick={continuarMatch} className="btn-accent w-full justify-center py-4 text-xs">
-                Continuar para meus dados <ArrowRight className="h-4 w-4" />
+                Ver Psicólogos Recomendados <ArrowRight className="h-4 w-4" />
               </button>
             </div>
+          </section>
+        )}
+
+        {step === 'MATCH_RECOMENDACOES' && selectedService && selectedModalidade && (
+          <section className="mx-auto max-w-4xl space-y-8 animate-in fade-in duration-300">
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-psi-vibrant">
+                  Recomendação Inteligente • Passo 2 de 3
+                </span>
+                <h3 className="mt-1 text-2xl font-black text-ink">Profissionais Compatíveis com Você</h3>
+                <p className="mt-1 text-xs text-muted">
+                  Encontramos estes psicólogos da nossa equipe alinhados às suas preferências de turno e demandas.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setStep('MATCH')}
+                className="text-xs font-bold text-muted hover:text-ink hover:underline"
+              >
+                Voltar às perguntas
+              </button>
+            </div>
+
+            {psicologosRecomendadosMatch.length > 0 ? (
+              <div className="space-y-6">
+                <VitrineCarrossel
+                  psicologos={psicologosRecomendadosMatch}
+                  selecionadoId={psicologoEscolhido?.id}
+                  titulo="Selecione seu Profissional Recomendado"
+                  subtitulo="Clique no profissional que você mais se identificar para seguir com o agendamento"
+                  onSelecionar={(psicologo) => {
+                    setPsicologoEscolhido(psicologo);
+                    setStep('FORMULARIO');
+                  }}
+                />
+
+                {/* Opção Alternativa: Atribuição Automática / Fila Inteligente */}
+                <div className="bg-purple-50/70 border border-purple-200 rounded-3xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="space-y-1 text-center sm:text-left">
+                    <h4 className="text-sm font-black text-purple-950">Prefere não escolher um nome específico?</h4>
+                    <p className="text-xs text-purple-800/80">
+                      Nosso sistema alocará o primeiro psicólogo compatível disponível da fila para entrar em contato com você em até 24h.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPsicologoEscolhido(null);
+                      setStep('FORMULARIO');
+                    }}
+                    className="bg-purple-700 hover:bg-purple-800 text-white font-extrabold text-xs px-5 py-3 rounded-2xl transition-all shadow-md shadow-purple-700/20 whitespace-nowrap shrink-0"
+                  >
+                    Alocar Automaticamente <ArrowRight className="w-4 h-4 inline-block ml-1" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-surface rounded-3xl border border-amber-200 p-8 text-center space-y-4">
+                <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-800 flex items-center justify-center mx-auto border border-amber-200">
+                  <Sparkles className="w-6 h-6" />
+                </div>
+                <h4 className="text-lg font-black text-ink">Nenhum profissional com agenda imediata específica</h4>
+                <p className="text-xs text-muted max-w-md mx-auto">
+                  Não se preocupe! Conclua seus dados de contato e nossa equipe alocará o próximo profissional compatível da fila para acolher o seu caso.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPsicologoEscolhido(null);
+                    setStep('FORMULARIO');
+                  }}
+                  className="bg-psi-deep hover:bg-psi-darkest text-white text-xs font-black px-6 py-3 rounded-2xl transition-all shadow-md"
+                >
+                  Continuar Cadastro de Atendimento <ArrowRight className="w-4 h-4 inline-block ml-1" />
+                </button>
+              </div>
+            )}
           </section>
         )}
 
@@ -1023,13 +1130,15 @@ export default function ViverMaisLandingPage() {
                 </h3>
                 <p className="mt-1 text-[11px] text-slate-500">
                   {caminho === 'MATCH'
-                    ? 'Suas três respostas já foram salvas. Agora precisamos dos seus dados de contato.'
+                    ? (psicologoEscolhido
+                        ? `Você escolheu a recomendação de ${psicologoEscolhido.nomeSocial || psicologoEscolhido.nome}. Preencha seus dados de contato para finalizar.`
+                        : 'Suas preferências foram salvas. Complete seus dados de contato para enviarmos ao primeiro profissional disponível da fila.')
                     : `Você escolheu ${psicologoEscolhido?.nomeSocial || psicologoEscolhido?.nome}. Complete seus dados para enviar a solicitação.`}
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => setStep(caminho === 'MATCH' ? 'MATCH' : 'PROFISSIONAIS')}
+                onClick={() => setStep(caminho === 'MATCH' ? 'MATCH_RECOMENDACOES' : 'PROFISSIONAIS')}
                 className="text-xs text-slate-500 hover:text-slate-900 hover:underline font-bold"
               >
                 Voltar
@@ -1377,17 +1486,27 @@ export default function ViverMaisLandingPage() {
             <div className="w-16 h-16 bg-purple-100 text-purple-600 rounded-2xl flex items-center justify-center mx-auto border border-purple-200">
               <Check className="w-8 h-8" />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-3">
               <h3 className="text-2xl font-black text-slate-900">Solicitação Recebida!</h3>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                Seu psicólogo entra em contato no WhatsApp em até 24 horas.
+              <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                Seu psicólogo credenciado entrará em contato via WhatsApp em até <strong>24 horas</strong> para alinhar o melhor dia e horário.
               </p>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                Se após 24 horas você ainda não tiver recebido o contato do seu psicoterapeuta, por favor, nos avise para que possamos ajudar.
-              </p>
-              <p className="text-[11px] leading-relaxed text-slate-400">
-                (→ Se o prazo de 24h coincidir com finais de semana ou feriados, ele será automaticamente estendido até o próximo dia útil.)
-              </p>
+              <div className="bg-purple-50/70 border border-purple-100 rounded-2xl p-3.5 text-[11px] text-purple-900 text-left space-y-1">
+                <p>• Enviamos uma confirmação detalhada para o seu e-mail e WhatsApp.</p>
+                <p className="text-slate-500 italic">
+                  *Se o prazo de 24h coincidir com finais de semana ou feriados, o contato ocorrerá no próximo dia útil.
+                </p>
+              </div>
+
+              {/* Alerta Ético CVV 188 */}
+              <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3.5 text-left space-y-1">
+                <span className="text-[10px] font-black uppercase tracking-wider text-rose-800 block">
+                  ⚠️ Suporte em Crise ou Emergência
+                </span>
+                <p className="text-[11px] text-rose-900 leading-relaxed">
+                  Em caso de sofrimento agudo, crise emocional ou risco à vida, ligue gratuitamente para o <strong>CVV no 188</strong> (24h) ou procure o serviço de emergência mais próximo.
+                </p>
+              </div>
             </div>
             <button
               type="button"
@@ -1396,13 +1515,20 @@ export default function ViverMaisLandingPage() {
                 setSelectedService(null);
                 setSelectedModalidade(null);
               }}
-              className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-6 py-3 rounded-xl transition-all"
+              className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-6 py-3 rounded-xl transition-all shadow-md"
             >
               Voltar ao Início
             </button>
           </div>
         )}
       </main>
+
+      <FloatingWhatsAppButton />
+
+      <PublicFooter
+        onIrParaAgendar={handleIrParaAgendar}
+        onIrParaCadastroPsicologo={handleIrParaCadastroPsicologo}
+      />
     </div>
   );
 }

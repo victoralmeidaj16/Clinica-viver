@@ -1105,6 +1105,7 @@ export default function ViverMaisLandingPage() {
               <VitrineCarrossel
                 psicologos={profissionaisCompativeis}
                 selecionadoId={psicologoEscolhido?.id}
+                mostrarFiltros
                 onSelecionar={(psicologo) => {
                   setPsicologoEscolhido(psicologo);
                   setForm((prev) => ({ ...prev, turno: '' }));

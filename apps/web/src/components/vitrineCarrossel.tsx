@@ -38,6 +38,8 @@ interface VitrineCarrosselProps {
   selecionadoId?: string;
   titulo?: string;
   subtitulo?: string;
+  /** Exibe a barra de busca e filtros. Usado apenas na etapa de escolha do profissional. */
+  mostrarFiltros?: boolean;
 }
 
 function FotoOuIniciais({ fotoUrl, nome }: { fotoUrl?: string; nome: string }) {
@@ -93,6 +95,7 @@ export function VitrineCarrossel({
   selecionadoId,
   titulo = 'Conheça Nossos Profissionais',
   subtitulo = 'Profissionais especializados e com registro ativo no CRP',
+  mostrarFiltros = false,
 }: VitrineCarrosselProps) {
   const [buscaNome, setBuscaNome] = useState('');
   const [demandaSelecionada, setDemandaSelecionada] = useState<string>('');
@@ -286,96 +289,98 @@ export function VitrineCarrossel({
           </div>
         </div>
 
-        {/* Barra de Busca e Filtros Rápidos */}
-        <div className="bg-surface p-4 sm:p-5 rounded-3xl border border-psi-soft shadow-card space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-            {/* Campo de Busca por Nome */}
-            <div className="md:col-span-6 relative">
-              <Search className="w-4 h-4 text-muted absolute left-3.5 top-3.5 pointer-events-none" />
-              <input
-                type="text"
-                value={buscaNome}
-                onChange={(e) => setBuscaNome(e.target.value)}
-                placeholder="Buscar por nome do psicólogo ou CRP..."
-                className="w-full pl-10 pr-9 py-2.5 bg-canvas border border-line rounded-2xl text-xs text-ink placeholder:text-muted focus:outline-none focus:border-psi-vibrant focus:ring-2 focus:ring-psi-vibrant/10"
-              />
-              {buscaNome && (
+        {/* Barra de Busca e Filtros Rápidos (apenas na etapa de escolha do profissional) */}
+        {mostrarFiltros && (
+          <div className="bg-surface p-4 sm:p-5 rounded-3xl border border-psi-soft shadow-card space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+              {/* Campo de Busca por Nome */}
+              <div className="md:col-span-6 relative">
+                <Search className="w-4 h-4 text-muted absolute left-3.5 top-3.5 pointer-events-none" />
+                <input
+                  type="text"
+                  value={buscaNome}
+                  onChange={(e) => setBuscaNome(e.target.value)}
+                  placeholder="Buscar por nome do psicólogo ou CRP..."
+                  className="w-full pl-10 pr-9 py-2.5 bg-canvas border border-line rounded-2xl text-xs text-ink placeholder:text-muted focus:outline-none focus:border-psi-vibrant focus:ring-2 focus:ring-psi-vibrant/10"
+                />
+                {buscaNome && (
+                  <button
+                    type="button"
+                    onClick={() => setBuscaNome('')}
+                    className="absolute right-3 top-3 text-muted hover:text-ink p-0.5"
+                    aria-label="Limpar busca"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              {/* Dropdown de Demanda */}
+              <div className="md:col-span-3">
+                <select
+                  value={demandaSelecionada}
+                  onChange={(e) => setDemandaSelecionada(e.target.value)}
+                  className="w-full py-2.5 px-3 bg-canvas border border-line rounded-2xl text-xs text-ink focus:outline-none focus:border-psi-vibrant font-medium"
+                >
+                  <option value="">Todas as demandas clínicas</option>
+                  {PRINCIPAIS_DEMANDAS.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Dropdown de Turno */}
+              <div className="md:col-span-3">
+                <select
+                  value={turnoSelecionado}
+                  onChange={(e) => setTurnoSelecionado(e.target.value)}
+                  className="w-full py-2.5 px-3 bg-canvas border border-line rounded-2xl text-xs text-ink focus:outline-none focus:border-psi-vibrant font-medium"
+                >
+                  <option value="">Todos os períodos</option>
+                  <option value="MANHA">Manhã</option>
+                  <option value="TARDE">Tarde</option>
+                  <option value="NOITE">Noite</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Chips de Demandas Frequentes para Filtro em 1-Clique */}
+            <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-line/60">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-muted flex items-center gap-1 shrink-0">
+                <Filter className="w-3 h-3 text-psi-vibrant" /> Filtros rápidos:
+              </span>
+              {PRINCIPAIS_DEMANDAS.slice(0, 5).map((demanda) => {
+                const ativo = demandaSelecionada === demanda;
+                return (
+                  <button
+                    key={demanda}
+                    type="button"
+                    onClick={() => setDemandaSelecionada(ativo ? '' : demanda)}
+                    className={`text-[11px] font-extrabold px-2.5 py-1 rounded-xl border transition-all ${
+                      ativo
+                        ? 'bg-purple-700 text-white border-purple-700 shadow-xs'
+                        : 'bg-canvas text-muted border-line hover:border-psi-soft hover:text-ink'
+                    }`}
+                  >
+                    {demanda}
+                  </button>
+                );
+              })}
+
+              {temFiltroAtivo && (
                 <button
                   type="button"
-                  onClick={() => setBuscaNome('')}
-                  className="absolute right-3 top-3 text-muted hover:text-ink p-0.5"
-                  aria-label="Limpar busca"
+                  onClick={limparFiltros}
+                  className="text-[11px] font-extrabold text-rose-600 hover:text-rose-800 ml-auto flex items-center gap-1 hover:underline"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-3 h-3" /> Limpar filtros
                 </button>
               )}
             </div>
-
-            {/* Dropdown de Demanda */}
-            <div className="md:col-span-3">
-              <select
-                value={demandaSelecionada}
-                onChange={(e) => setDemandaSelecionada(e.target.value)}
-                className="w-full py-2.5 px-3 bg-canvas border border-line rounded-2xl text-xs text-ink focus:outline-none focus:border-psi-vibrant font-medium"
-              >
-                <option value="">Todas as demandas clínicas</option>
-                {PRINCIPAIS_DEMANDAS.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Dropdown de Turno */}
-            <div className="md:col-span-3">
-              <select
-                value={turnoSelecionado}
-                onChange={(e) => setTurnoSelecionado(e.target.value)}
-                className="w-full py-2.5 px-3 bg-canvas border border-line rounded-2xl text-xs text-ink focus:outline-none focus:border-psi-vibrant font-medium"
-              >
-                <option value="">Todos os períodos</option>
-                <option value="MANHA">Manhã</option>
-                <option value="TARDE">Tarde</option>
-                <option value="NOITE">Noite</option>
-              </select>
-            </div>
           </div>
-
-          {/* Chips de Demandas Frequentes para Filtro em 1-Clique */}
-          <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-line/60">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-muted flex items-center gap-1 shrink-0">
-              <Filter className="w-3 h-3 text-psi-vibrant" /> Filtros rápidos:
-            </span>
-            {PRINCIPAIS_DEMANDAS.slice(0, 5).map((demanda) => {
-              const ativo = demandaSelecionada === demanda;
-              return (
-                <button
-                  key={demanda}
-                  type="button"
-                  onClick={() => setDemandaSelecionada(ativo ? '' : demanda)}
-                  className={`text-[11px] font-extrabold px-2.5 py-1 rounded-xl border transition-all ${
-                    ativo
-                      ? 'bg-purple-700 text-white border-purple-700 shadow-xs'
-                      : 'bg-canvas text-muted border-line hover:border-psi-soft hover:text-ink'
-                  }`}
-                >
-                  {demanda}
-                </button>
-              );
-            })}
-
-            {temFiltroAtivo && (
-              <button
-                type="button"
-                onClick={limparFiltros}
-                className="text-[11px] font-extrabold text-rose-600 hover:text-rose-800 ml-auto flex items-center gap-1 hover:underline"
-              >
-                <X className="w-3 h-3" /> Limpar filtros
-              </button>
-            )}
-          </div>
-        </div>
+        )}
       </div>
 
       {/* CARROSSEL HORIZONTAL DE PROFISSIONAIS */}
@@ -384,17 +389,25 @@ export function VitrineCarrossel({
           <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center mx-auto border border-amber-200">
             <User className="w-6 h-6" />
           </div>
-          <h4 className="text-base font-black text-ink">Nenhum profissional encontrado para estes filtros</h4>
+          <h4 className="text-base font-black text-ink">
+            {temFiltroAtivo
+              ? 'Nenhum profissional encontrado para estes filtros'
+              : 'Nenhum profissional disponível no momento'}
+          </h4>
           <p className="text-xs text-muted max-w-md mx-auto">
-            Tente remover alguns filtros ou utilize a recomendação inteligente para que nosso sistema encontre o melhor psicólogo para você.
+            {temFiltroAtivo
+              ? 'Tente remover alguns filtros ou utilize a recomendação inteligente para que nosso sistema encontre o melhor psicólogo para você.'
+              : 'Utilize a recomendação inteligente para que nosso sistema encontre o melhor psicólogo para você.'}
           </p>
-          <button
-            type="button"
-            onClick={limparFiltros}
-            className="bg-psi-deep hover:bg-psi-darkest text-white text-xs font-extrabold px-4 py-2 rounded-xl transition-all"
-          >
-            Ver todos os profissionais
-          </button>
+          {temFiltroAtivo && (
+            <button
+              type="button"
+              onClick={limparFiltros}
+              className="bg-psi-deep hover:bg-psi-darkest text-white text-xs font-extrabold px-4 py-2 rounded-xl transition-all"
+            >
+              Ver todos os profissionais
+            </button>
+          )}
         </div>
       ) : (
         <div className="relative group/carrossel">

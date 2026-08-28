@@ -9,7 +9,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Sparkles,
-  ArrowRight,
   ShieldCheck,
   Users,
   Clock,
@@ -44,6 +43,8 @@ interface VitrineCarrosselProps {
   mostrarFiltros?: boolean;
   /** 'lista' empilha os profissionais em uma secao vertical no lugar do carrossel horizontal. */
   layout?: 'carrossel' | 'lista';
+  /** Desliza o carrossel sozinho. Usado na vitrine, onde os cards so apresentam a equipe. */
+  autoDeslizar?: boolean;
 }
 
 function FotoOuIniciais({
@@ -191,7 +192,8 @@ function CardPsicologoLinha({ psi, selecionado, onSelecionar }: CardPsicologoLin
             )}
           </div>
 
-          {onSelecionar ? (
+          {/* Na vitrine o card é apenas apresentação: o agendamento acontece no fluxo. */}
+          {onSelecionar && (
             <button
               type="button"
               onClick={() => onSelecionar(psi)}
@@ -203,14 +205,6 @@ function CardPsicologoLinha({ psi, selecionado, onSelecionar }: CardPsicologoLin
             >
               {selecionado ? 'Profissional Escolhido ✓' : 'Escolher este profissional'}
             </button>
-          ) : (
-            <a
-              href="#servicos"
-              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-psi-soft px-6 py-3 text-xs font-black text-psi-darkest transition-all hover:bg-purple-200"
-            >
-              <span>Agendar Consulta</span>
-              <ArrowRight className="h-3.5 w-3.5" />
-            </a>
           )}
         </div>
       </div>
@@ -330,9 +324,9 @@ function CardPsicologo({ psi, selecionado, onSelecionar, className = '' }: CardP
         )}
       </div>
 
-      {/* Ações do Card */}
-      <div className="pt-4 border-t border-line/60 mt-4">
-        {onSelecionar ? (
+      {/* Ações do Card — na vitrine o card é apenas apresentação */}
+      {onSelecionar && (
+        <div className="pt-4 border-t border-line/60 mt-4">
           <button
             type="button"
             onClick={() => onSelecionar(psi)}
@@ -344,16 +338,8 @@ function CardPsicologo({ psi, selecionado, onSelecionar, className = '' }: CardP
           >
             {selecionado ? 'Profissional Escolhido ✓' : 'Escolher este profissional'}
           </button>
-        ) : (
-          <a
-            href="#servicos"
-            className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-black bg-psi-soft text-psi-darkest hover:bg-purple-200 transition-all text-center"
-          >
-            <span>Agendar Consulta</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </a>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -366,6 +352,7 @@ export function VitrineCarrossel({
   subtitulo = 'Profissionais especializados e com registro ativo no CRP',
   mostrarFiltros = false,
   layout = 'carrossel',
+  autoDeslizar = false,
 }: VitrineCarrosselProps) {
   const [buscaNome, setBuscaNome] = useState('');
   const [demandaSelecionada, setDemandaSelecionada] = useState<string>('');
@@ -381,6 +368,9 @@ export function VitrineCarrossel({
   const isDragging = useRef(false);
   const startX = useRef(0);
   const scrollLeftStart = useRef(0);
+
+  // O deslize automático para enquanto o visitante interage com o trilho.
+  const autoPausado = useRef(false);
 
   const temFiltroAtivo = Boolean(
     buscaNome.trim() || demandaSelecionada || turnoSelecionado || publicoSelecionado
@@ -453,7 +443,7 @@ export function VitrineCarrossel({
     setCanScrollRight(scrollLeft < maxScroll - 5);
 
     if (maxScroll > 0) {
-      setScrollProgress(Math.min(100, Math.max(0, (scrollLeft / maxScroll) * 100)));
+      setScrollProgress(Math.round(Math.min(100, Math.max(0, (scrollLeft / maxScroll) * 100))));
     } else {
       setScrollProgress(0);
     }
@@ -471,6 +461,34 @@ export function VitrineCarrossel({
       };
     }
   }, [psicologosFiltrados, updateScrollState]);
+
+  // Deslize automático: avança até o fim do trilho e volta, em vez de dar um
+  // salto seco para o começo. Pausa em hover, foco e arrasto, e não roda para
+  // quem pediu menos animação no sistema.
+  useEffect(() => {
+    if (!autoDeslizar || layout !== 'carrossel') return;
+
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    const VELOCIDADE = 0.35; // px por quadro
+    let direcao = 1;
+    let quadro = requestAnimationFrame(function passo() {
+      quadro = requestAnimationFrame(passo);
+      if (autoPausado.current || isDragging.current) return;
+
+      const maxScroll = el.scrollWidth - el.clientWidth;
+      if (maxScroll <= 0) return;
+
+      const proximo = el.scrollLeft + VELOCIDADE * direcao;
+      if (proximo >= maxScroll) direcao = -1;
+      else if (proximo <= 0) direcao = 1;
+      el.scrollLeft = proximo;
+    });
+
+    return () => cancelAnimationFrame(quadro);
+  }, [autoDeslizar, layout, psicologosFiltrados.length]);
 
   // Resetar scroll quando os filtros mudam
   useEffect(() => {
@@ -725,10 +743,17 @@ export function VitrineCarrossel({
           <div
             ref={scrollContainerRef}
             onMouseDown={handleMouseDown}
-            onMouseLeave={handleMouseLeaveOrUp}
+            onMouseEnter={() => { autoPausado.current = true; }}
+            onMouseLeave={() => { autoPausado.current = false; handleMouseLeaveOrUp(); }}
             onMouseUp={handleMouseLeaveOrUp}
             onMouseMove={handleMouseMove}
-            className="flex gap-6 overflow-x-auto scroll-smooth snap-x snap-mandatory no-scrollbar pb-4 pt-1 px-1 select-none cursor-grab active:cursor-grabbing"
+            onTouchStart={() => { autoPausado.current = true; }}
+            onTouchEnd={() => { autoPausado.current = false; }}
+            onFocusCapture={() => { autoPausado.current = true; }}
+            onBlurCapture={() => { autoPausado.current = false; }}
+            className={`flex gap-6 overflow-x-auto no-scrollbar pb-4 pt-1 px-1 select-none cursor-grab active:cursor-grabbing ${
+              autoDeslizar ? '' : 'scroll-smooth snap-x snap-mandatory'
+            }`}
           >
             {psicologosFiltrados.map((psi) => (
               <CardPsicologo
@@ -736,7 +761,7 @@ export function VitrineCarrossel({
                 psi={psi}
                 selecionado={selecionadoId === psi.id}
                 onSelecionar={onSelecionar}
-                className="w-[300px] sm:w-[330px] md:w-[350px] shrink-0 snap-start"
+                className={`w-[300px] sm:w-[330px] md:w-[350px] shrink-0 ${autoDeslizar ? '' : 'snap-start'}`}
               />
             ))}
           </div>

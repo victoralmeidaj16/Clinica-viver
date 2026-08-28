@@ -730,7 +730,7 @@ export default function ViverMaisLandingPage() {
 
             {/* Carrossel de Psicólogos Credenciados */}
             <div id="secao-profissionais" className="scroll-mt-44">
-              <VitrineCarrossel psicologos={psicologosCredenciados} />
+              <VitrineCarrossel psicologos={psicologosCredenciados} autoDeslizar />
             </div>
 
             {/* Banner Informativo Psicoterapia com Equipe */}

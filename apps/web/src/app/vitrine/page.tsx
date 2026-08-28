@@ -24,6 +24,7 @@ import {
   Check,
   Building2,
   Send,
+  ChevronDown,
 } from 'lucide-react';
 
 type ServicoKey =
@@ -122,6 +123,7 @@ export default function ViverMaisLandingPage() {
   const [caminho, setCaminho] = useState<'MATCH' | 'PROFISSIONAL' | null>(null);
   const [psicologoEscolhido, setPsicologoEscolhido] = useState<PsicologoVitrineItem | null>(null);
   const [secaoVitrineAtiva, setSecaoVitrineAtiva] = useState<SecaoVitrine>('SERVICOS');
+  const [servicoAberto, setServicoAberto] = useState<ServicoKey | null>('PSICOTERAPIA');
   
   const [temNomeSocialPaciente, setTemNomeSocialPaciente] = useState(false);
 
@@ -356,6 +358,13 @@ export default function ViverMaisLandingPage() {
 
   const handleAgendarConsultaScroll = (e?: React.MouseEvent) => {
     handleIrParaAgendar(e);
+  };
+
+  const abrirDetalhesDoServico = (servico: ServicoKey) => {
+    setServicoAberto(servico);
+    setTimeout(() => {
+      document.getElementById(`detalhes-${servico}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
   };
 
   const navegarParaSecaoVitrine = (secao: SecaoVitrine) => {
@@ -754,12 +763,13 @@ export default function ViverMaisLandingPage() {
                     </div>
 
                     <div className="pt-4 border-t border-psi-soft/50 mt-4 relative z-10">
-                      <a
-                        href={`#detalhes-${key}`}
+                      <button
+                        type="button"
+                        onClick={() => abrirDetalhesDoServico(key as ServicoKey)}
                         className="w-full bg-canvas hover:bg-psi-soft/80 border border-psi-soft text-psi-darkest font-extrabold text-xs py-2.5 px-3 rounded-xl transition-all flex items-center justify-center gap-1.5 group-hover:bg-psi-deep group-hover:text-white group-hover:border-psi-deep"
                       >
                         Ver Valores e Agendar <ArrowRight className="w-3.5 h-3.5" />
-                      </a>
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -804,60 +814,102 @@ export default function ViverMaisLandingPage() {
                 <p className="text-xs text-muted mt-1">Valores transparentes e encaminhamento ético garantido</p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {Object.entries(precos).map(([key, service]) => (
-                  <div
-                    key={key}
-                    id={`detalhes-${key}`}
-                    className="bg-surface rounded-3xl border border-line shadow-card overflow-hidden flex flex-col justify-between hover:shadow-lift transition-all scroll-mt-28"
-                  >
-                    <div>
-                      {/* Banner de Imagem com Gradiente */}
-                      <div className="relative h-48 w-full overflow-hidden bg-psi-darkest">
-                        <img
-                          src={service.imagem}
-                          alt={service.titulo}
-                          className="w-full h-full object-cover opacity-90 hover:scale-105 transition-all duration-700"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/30 to-transparent"></div>
-                        <div className="absolute bottom-4 left-6 right-6">
-                          <h4 className="text-lg font-black text-white flex items-center gap-2">
-                            {service.titulo}
-                          </h4>
-                        </div>
-                      </div>
+              {/* Sanfona: um serviço aberto por vez, para a escolha não virar uma parede de cards */}
+              <div className="mx-auto max-w-3xl space-y-3">
+                {Object.entries(precos).map(([key, service]) => {
+                  const servicoKey = key as ServicoKey;
+                  const aberto = servicoAberto === servicoKey;
 
-                      <div className="p-6">
-                        <p className="text-xs text-muted leading-relaxed pb-3">{service.descricao}</p>
-                        <div className="flex items-center gap-1.5 text-xs text-purple-800 font-extrabold border-t border-b border-purple-100 py-2.5 my-1 bg-purple-50/60 px-3 rounded-xl">
-                          <Clock className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                          <span>Duração da sessão: {service.duracao}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="p-6 pt-0 space-y-3">
-                      {service.opcoes.map((opcao) => (
-                        <div
-                          key={opcao.tipo}
-                          className="flex items-center justify-between p-4 rounded-2xl bg-canvas border border-psi-soft/80 hover:bg-psi-soft/40 transition-colors"
+                  return (
+                    <div
+                      key={key}
+                      id={`detalhes-${key}`}
+                      className={`scroll-mt-28 overflow-hidden rounded-3xl border bg-surface shadow-card transition-all ${
+                        aberto ? 'border-psi-vibrant/50 shadow-lift' : 'border-line hover:border-psi-soft'
+                      }`}
+                    >
+                      <h4>
+                        <button
+                          type="button"
+                          onClick={() => setServicoAberto(aberto ? null : servicoKey)}
+                          aria-expanded={aberto}
+                          aria-controls={`painel-${key}`}
+                          className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-psi-soft/30 sm:px-6"
                         >
-                          <div>
-                            <span className="text-xs font-extrabold text-ink block">{opcao.label}</span>
-                            <span className="text-[11px] text-psi-deep font-black">{opcao.preco} / sessão</span>
+                          <span className="min-w-0">
+                            <span className="block text-sm font-black text-ink sm:text-base">
+                              {service.titulo}
+                            </span>
+                            <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-bold text-muted">
+                              <span className="inline-flex items-center gap-1">
+                                <Clock className="h-3 w-3 shrink-0 text-psi-vibrant" />
+                                {service.duracao}
+                              </span>
+                              {service.opcoes[0] && (
+                                <>
+                                  <span aria-hidden="true">·</span>
+                                  <span className="text-psi-deep">a partir de {service.opcoes[0].preco}</span>
+                                </>
+                              )}
+                            </span>
+                          </span>
+                          <ChevronDown
+                            aria-hidden="true"
+                            className={`h-5 w-5 shrink-0 text-psi-vibrant transition-transform duration-200 ${
+                              aberto ? 'rotate-180' : ''
+                            }`}
+                          />
+                        </button>
+                      </h4>
+
+                      {aberto && (
+                        <div
+                          id={`painel-${key}`}
+                          className="animate-in fade-in slide-in-from-top-1 duration-200"
+                        >
+                          <div className="relative h-44 w-full overflow-hidden bg-psi-darkest sm:h-52">
+                            <img
+                              src={service.imagem}
+                              alt={service.titulo}
+                              className="h-full w-full object-cover opacity-90"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/10 to-transparent" />
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => handleSelectServiceAndPrice(key as ServicoKey, opcao.tipo)}
-                            className="bg-psi-deep hover:bg-psi-darkest text-white font-extrabold text-xs px-5 py-2.5 rounded-xl transition-all shadow-sm active:scale-95"
-                          >
-                            Agendar
-                          </button>
+
+                          <div className="space-y-4 p-5 sm:p-6">
+                            <p className="text-xs leading-relaxed text-muted">{service.descricao}</p>
+
+                            <div className="flex items-center gap-1.5 rounded-xl border-y border-purple-100 bg-purple-50/60 px-3 py-2.5 text-xs font-extrabold text-purple-800">
+                              <Clock className="w-3.5 h-3.5 shrink-0 text-purple-600" />
+                              <span>Duração da sessão: {service.duracao}</span>
+                            </div>
+
+                            <div className="space-y-3">
+                              {service.opcoes.map((opcao) => (
+                                <div
+                                  key={opcao.tipo}
+                                  className="flex items-center justify-between gap-3 rounded-2xl border border-psi-soft/80 bg-canvas p-4 transition-colors hover:bg-psi-soft/40"
+                                >
+                                  <div className="min-w-0">
+                                    <span className="block text-xs font-extrabold text-ink">{opcao.label}</span>
+                                    <span className="text-[11px] font-black text-psi-deep">{opcao.preco} / sessão</span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSelectServiceAndPrice(servicoKey, opcao.tipo)}
+                                    className="shrink-0 rounded-xl bg-psi-deep px-5 py-2.5 text-xs font-extrabold text-white shadow-sm transition-all hover:bg-psi-darkest active:scale-95"
+                                  >
+                                    Agendar
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
                         </div>
-                      ))}
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 

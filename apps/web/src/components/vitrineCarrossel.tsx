@@ -1,8 +1,17 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
-import { Search, X, Filter, Sparkles, Heart, Clock, User, Check } from 'lucide-react';
-import { LISTA_NECESSIDADES } from '@/components/forms/necessidades';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import {
+  Search,
+  X,
+  Filter,
+  User,
+  ChevronLeft,
+  ChevronRight,
+  Sparkles,
+  ArrowRight,
+  ShieldCheck,
+} from 'lucide-react';
 
 export interface PsicologoVitrineItem {
   id: string;
@@ -90,6 +99,16 @@ export function VitrineCarrossel({
   const [turnoSelecionado, setTurnoSelecionado] = useState<string>('');
   const [publicoSelecionado, setPublicoSelecionado] = useState<string>('');
 
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+  const [scrollProgress, setScrollProgress] = useState(0);
+
+  // Estados para Drag-to-scroll com o mouse
+  const isDragging = useRef(false);
+  const startX = useRef(0);
+  const scrollLeftStart = useRef(0);
+
   const temFiltroAtivo = Boolean(
     buscaNome.trim() || demandaSelecionada || turnoSelecionado || publicoSelecionado
   );
@@ -123,7 +142,6 @@ export function VitrineCarrossel({
           const normNec = nec.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
           return normNec.includes(normDemanda) || normDemanda.includes(normNec);
         });
-        // Se o profissional não especificou demandas, consideramos que atende demandas gerais
         if (psi.necessidadesAtendidas && psi.necessidadesAtendidas.length > 0 && !temDemanda) {
           return false;
         }
@@ -150,22 +168,122 @@ export function VitrineCarrossel({
     });
   }, [psicologos, buscaNome, demandaSelecionada, turnoSelecionado, publicoSelecionado]);
 
+  // Atualizar estado de scroll e setas de navegação
+  const updateScrollState = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    const maxScroll = scrollWidth - clientWidth;
+
+    setCanScrollLeft(scrollLeft > 5);
+    setCanScrollRight(scrollLeft < maxScroll - 5);
+
+    if (maxScroll > 0) {
+      setScrollProgress(Math.min(100, Math.max(0, (scrollLeft / maxScroll) * 100)));
+    } else {
+      setScrollProgress(0);
+    }
+  }, []);
+
+  useEffect(() => {
+    updateScrollState();
+    const el = scrollContainerRef.current;
+    if (el) {
+      el.addEventListener('scroll', updateScrollState, { passive: true });
+      window.addEventListener('resize', updateScrollState);
+      return () => {
+        el.removeEventListener('scroll', updateScrollState);
+        window.removeEventListener('resize', updateScrollState);
+      };
+    }
+  }, [psicologosFiltrados, updateScrollState]);
+
+  // Resetar scroll quando os filtros mudam
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({ left: 0, behavior: 'smooth' });
+    }
+  }, [buscaNome, demandaSelecionada, turnoSelecionado, publicoSelecionado]);
+
+  const rolarParaEsquerda = () => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollBy({ left: -360, behavior: 'smooth' });
+    }
+  };
+
+  const rolarParaDireita = () => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollBy({ left: 360, behavior: 'smooth' });
+    }
+  };
+
+  // Handlers para arrastar com o mouse (Drag to scroll)
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!scrollContainerRef.current) return;
+    isDragging.current = true;
+    startX.current = e.pageX - scrollContainerRef.current.offsetLeft;
+    scrollLeftStart.current = scrollContainerRef.current.scrollLeft;
+  };
+
+  const handleMouseLeaveOrUp = () => {
+    isDragging.current = false;
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging.current || !scrollContainerRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - scrollContainerRef.current.offsetLeft;
+    const walk = (x - startX.current) * 1.5;
+    scrollContainerRef.current.scrollLeft = scrollLeftStart.current - walk;
+  };
+
   if (!psicologos || psicologos.length === 0) {
     return null;
   }
 
   return (
     <div className="space-y-6">
-      {/* Cabeçalho e Barra de Filtros */}
+      {/* Cabeçalho com Título, Contador e Controles de Navegação do Carrossel */}
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div>
-            <h3 className="text-2xl sm:text-3xl font-black text-ink">{titulo}</h3>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-psi-vibrant flex items-center gap-1">
+                <Sparkles className="w-3.5 h-3.5" /> Equipe Clínica Credenciada
+              </span>
+            </div>
+            <h3 className="text-2xl sm:text-3xl font-black text-ink mt-1">{titulo}</h3>
             <p className="text-xs text-muted mt-1">{subtitulo}</p>
           </div>
-          <span className="text-xs font-bold text-psi-deep bg-psi-soft/80 px-3 py-1.5 rounded-xl border border-psi-soft self-start sm:self-auto">
-            {psicologosFiltrados.length} {psicologosFiltrados.length === 1 ? 'profissional encontrado' : 'profissionais encontrados'}
-          </span>
+
+          <div className="flex items-center gap-3 self-start sm:self-auto">
+            <span className="text-xs font-bold text-psi-deep bg-psi-soft/80 px-3 py-1.5 rounded-xl border border-psi-soft">
+              {psicologosFiltrados.length} {psicologosFiltrados.length === 1 ? 'profissional' : 'profissionais'}
+            </span>
+
+            {/* Botões de Rolagem Horizontal */}
+            <div className="flex items-center gap-1.5 bg-surface p-1 rounded-2xl border border-line shadow-xs">
+              <button
+                type="button"
+                onClick={rolarParaEsquerda}
+                disabled={!canScrollLeft}
+                aria-label="Rolar profissionais para a esquerda"
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-ink hover:bg-psi-soft disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={rolarParaDireita}
+                disabled={!canScrollRight}
+                aria-label="Rolar profissionais para a direita"
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-ink hover:bg-psi-soft disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Barra de Busca e Filtros Rápidos */}
@@ -260,7 +378,7 @@ export function VitrineCarrossel({
         </div>
       </div>
 
-      {/* Grade de Profissionais */}
+      {/* CARROSSEL HORIZONTAL DE PROFISSIONAIS */}
       {psicologosFiltrados.length === 0 ? (
         <div className="bg-surface rounded-3xl border border-line p-10 text-center space-y-3">
           <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center mx-auto border border-amber-200">
@@ -279,109 +397,190 @@ export function VitrineCarrossel({
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {psicologosFiltrados.map((psi) => {
-            const nomeExibicao = psi.nomeSocial?.trim() || psi.nome;
-            return (
-              <div
-                key={psi.id}
-                className={`bg-surface rounded-3xl border p-6 space-y-4 shadow-card hover:shadow-lift transition-all group overflow-hidden relative flex flex-col justify-between ${
-                  selecionadoId === psi.id ? 'border-psi-vibrant ring-2 ring-psi-vibrant/20' : 'border-psi-soft'
-                }`}
-              >
-                <div className="space-y-4">
-                  <div className="flex items-center gap-4">
-                    <FotoOuIniciais fotoUrl={psi.fotoUrl} nome={nomeExibicao} />
+        <div className="relative group/carrossel">
+          {/* Botão Flutuante Esquerdo */}
+          {canScrollLeft && (
+            <button
+              type="button"
+              onClick={rolarParaEsquerda}
+              aria-label="Rolar para a esquerda"
+              className="absolute -left-3.5 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-white/95 text-slate-800 shadow-xl border border-purple-100 flex items-center justify-center hover:scale-110 hover:bg-white transition-all hidden md:flex"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+          )}
 
-                    <div>
-                      <h4 className="font-black text-base text-ink group-hover:text-psi-vibrant transition-colors">
-                        {nomeExibicao}
-                      </h4>
-                      <span className="text-xs font-mono font-bold text-psi-vibrant block">{psi.crp}</span>
+          {/* Botão Flutuante Direito */}
+          {canScrollRight && (
+            <button
+              type="button"
+              onClick={rolarParaDireita}
+              aria-label="Rolar para a direita"
+              className="absolute -right-3.5 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-white/95 text-slate-800 shadow-xl border border-purple-100 flex items-center justify-center hover:scale-110 hover:bg-white transition-all hidden md:flex"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          )}
+
+          {/* Trilho Horizontal com Rolagem Suave e Snap */}
+          <div
+            ref={scrollContainerRef}
+            onMouseDown={handleMouseDown}
+            onMouseLeave={handleMouseLeaveOrUp}
+            onMouseUp={handleMouseLeaveOrUp}
+            onMouseMove={handleMouseMove}
+            className="flex gap-6 overflow-x-auto scroll-smooth snap-x snap-mandatory no-scrollbar pb-4 pt-1 px-1 select-none cursor-grab active:cursor-grabbing"
+          >
+            {psicologosFiltrados.map((psi) => {
+              const nomeExibicao = psi.nomeSocial?.trim() || psi.nome;
+              const estaSelecionado = selecionadoId === psi.id;
+
+              return (
+                <div
+                  key={psi.id}
+                  className={`w-[300px] sm:w-[330px] md:w-[350px] shrink-0 snap-start bg-surface rounded-3xl border p-6 flex flex-col justify-between shadow-card hover:shadow-lift transition-all group overflow-hidden relative ${
+                    estaSelecionado
+                      ? 'border-psi-vibrant ring-2 ring-psi-vibrant/20 bg-purple-50/20'
+                      : 'border-psi-soft'
+                  }`}
+                >
+                  <div className="space-y-4">
+                    {/* Topo do Card: Foto, Nome e CRP */}
+                    <div className="flex items-center gap-4">
+                      <FotoOuIniciais fotoUrl={psi.fotoUrl} nome={nomeExibicao} />
+
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-black text-base text-ink group-hover:text-psi-vibrant transition-colors truncate">
+                          {nomeExibicao}
+                        </h4>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="text-xs font-mono font-bold text-psi-vibrant">
+                            {psi.crp}
+                          </span>
+                          <span className="inline-flex items-center text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-100">
+                            <ShieldCheck className="w-2.5 h-2.5 mr-0.5" /> Ativo
+                          </span>
+                        </div>
+                      </div>
                     </div>
+
+                    {/* Destaque Pós-Graduação Viver Mais */}
+                    {psi.posGraduacaoViverMais && (
+                      <div className="text-xs text-muted space-y-1 border-t border-line pt-3">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-psi-vibrant block">
+                          Pós-Graduação Viver Mais
+                        </span>
+                        <p className="font-semibold text-ink text-[11px] leading-snug line-clamp-2">
+                          {psi.posGraduacaoViverMais}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Serviços Habilitados */}
+                    {psi.servicosHabilitados && psi.servicosHabilitados.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {psi.servicosHabilitados.map((s, idx) => (
+                          <span
+                            key={idx}
+                            className="bg-slate-100 text-slate-700 text-[10px] font-extrabold px-2.5 py-1 rounded-lg border border-slate-200"
+                          >
+                            {s === 'PSICOTERAPIA'
+                              ? 'Psicoterapia'
+                              : s === 'AVALIACAO'
+                              ? 'Avaliação Psicológica'
+                              : s === 'ORIENTACAO_PROFISSIONAL'
+                              ? 'Orientação Profissional'
+                              : 'Orientação Parental'}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Demandas Atendidas pelo Psicólogo */}
+                    {psi.necessidadesAtendidas && psi.necessidadesAtendidas.length > 0 && (
+                      <div className="space-y-1.5 border-t border-line/60 pt-3">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-muted block">
+                          Foco de atuação clínica
+                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          {psi.necessidadesAtendidas.slice(0, 3).map((demanda, idx) => (
+                            <span
+                              key={idx}
+                              className="bg-purple-50 text-purple-900 text-[10px] font-bold px-2 py-0.5 rounded-md border border-purple-100"
+                            >
+                              {demanda}
+                            </span>
+                          ))}
+                          {psi.necessidadesAtendidas.length > 3 && (
+                            <span className="text-[10px] text-muted font-bold self-center px-1">
+                              +{psi.necessidadesAtendidas.length - 3}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Períodos disponíveis */}
+                    {(psi.turnosDisponiveis?.length ?? 0) > 0 && (
+                      <div className="flex flex-wrap gap-1.5 border-t border-line pt-3">
+                        <span className="w-full text-[10px] font-extrabold uppercase tracking-wider text-muted">
+                          Períodos disponíveis
+                        </span>
+                        {[...new Set(psi.turnosDisponiveis?.map((turno) => ROTULOS_TURNO[turno] ?? turno))].map((turno) => (
+                          <span
+                            key={turno}
+                            className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-extrabold text-emerald-800 border border-emerald-100"
+                          >
+                            {turno}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
-                  {psi.posGraduacaoViverMais && (
-                    <div className="text-xs text-muted space-y-1 border-t border-line pt-3">
-                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-psi-vibrant block">
-                        Pós-Graduação Viver Mais
-                      </span>
-                      <p className="font-semibold text-ink text-[11px] leading-snug">{psi.posGraduacaoViverMais}</p>
-                    </div>
-                  )}
-
-                  {psi.servicosHabilitados && psi.servicosHabilitados.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                      {psi.servicosHabilitados.map((s, idx) => (
-                        <span
-                          key={idx}
-                          className="bg-slate-100 text-slate-700 text-[10px] font-extrabold px-2.5 py-1 rounded-lg border border-slate-200"
-                        >
-                          {s === 'PSICOTERAPIA'
-                            ? 'Psicoterapia'
-                            : s === 'AVALIACAO'
-                            ? 'Avaliação Psicológica'
-                            : s === 'ORIENTACAO_PROFISSIONAL'
-                            ? 'Orientação Profissional'
-                            : 'Orientação Parental'}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Demandas Atendidas pelo Psicólogo */}
-                  {psi.necessidadesAtendidas && psi.necessidadesAtendidas.length > 0 && (
-                    <div className="flex flex-wrap gap-1 pt-1">
-                      {psi.necessidadesAtendidas.slice(0, 3).map((demanda, idx) => (
-                        <span
-                          key={idx}
-                          className="bg-purple-50 text-purple-900 text-[10px] font-bold px-2 py-0.5 rounded-md border border-purple-100"
-                        >
-                          {demanda}
-                        </span>
-                      ))}
-                      {psi.necessidadesAtendidas.length > 3 && (
-                        <span className="text-[10px] text-muted font-bold self-center">
-                          +{psi.necessidadesAtendidas.length - 3} mais
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Períodos disponíveis */}
-                  {(psi.turnosDisponiveis?.length ?? 0) > 0 && (
-                    <div className="flex flex-wrap gap-1.5 border-t border-line pt-3">
-                      <span className="w-full text-[10px] font-extrabold uppercase tracking-wider text-muted">
-                        Períodos disponíveis
-                      </span>
-                      {[...new Set(psi.turnosDisponiveis?.map((turno) => ROTULOS_TURNO[turno] ?? turno))].map((turno) => (
-                        <span
-                          key={turno}
-                          className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-extrabold text-emerald-800 border border-emerald-100"
-                        >
-                          {turno}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  {/* Ações do Card */}
+                  <div className="pt-4 border-t border-line/60 mt-4">
+                    {onSelecionar ? (
+                      <button
+                        type="button"
+                        onClick={() => onSelecionar(psi)}
+                        className={`w-full rounded-xl px-4 py-3 text-xs font-black transition-all ${
+                          estaSelecionado
+                            ? 'bg-emerald-600 text-white shadow-md'
+                            : 'bg-psi-deep text-white hover:bg-psi-darkest'
+                        }`}
+                      >
+                        {estaSelecionado ? 'Profissional Escolhido ✓' : 'Escolher este profissional'}
+                      </button>
+                    ) : (
+                      <a
+                        href="#servicos"
+                        className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-black bg-psi-soft text-psi-darkest hover:bg-purple-200 transition-all text-center"
+                      >
+                        <span>Agendar Consulta</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+                  </div>
                 </div>
+              );
+            })}
+          </div>
 
-                {onSelecionar && (
-                  <button
-                    type="button"
-                    onClick={() => onSelecionar(psi)}
-                    className={`w-full rounded-xl px-4 py-3 text-xs font-black transition-all mt-4 ${
-                      selecionadoId === psi.id
-                        ? 'bg-emerald-600 text-white shadow-md'
-                        : 'bg-psi-deep text-white hover:bg-psi-darkest'
-                    }`}
-                  >
-                    {selecionadoId === psi.id ? 'Profissional Escolhido ✓' : 'Escolher este profissional'}
-                  </button>
-                )}
+          {/* Barra de Progresso / Indicador do Carrossel */}
+          {psicologosFiltrados.length > 1 && (
+            <div className="flex items-center justify-center gap-3 pt-3">
+              <div className="w-32 sm:w-48 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-purple-600 rounded-full transition-all duration-150"
+                  style={{ width: `${Math.max(15, scrollProgress)}%` }}
+                />
               </div>
-            );
-          })}
+              <span className="text-[10px] font-bold text-muted uppercase tracking-wider">
+                Deslize para ver mais →
+              </span>
+            </div>
+          )}
         </div>
       )}
     </div>

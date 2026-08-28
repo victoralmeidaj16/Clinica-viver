@@ -33,6 +33,7 @@ type ServicoKey =
   | 'ORIENTACAO_PARENTAL';
 
 type ModalidadeKey = 'SOCIAL' | 'PARTICULAR' | 'CASAL_SOCIAL' | 'CASAL_PARTICULAR';
+type SecaoVitrine = 'SERVICOS' | 'PROFISSIONAIS';
 
 interface OpcaoPreco {
   tipo: ModalidadeKey;
@@ -54,6 +55,7 @@ export default function ViverMaisLandingPage() {
   const [step, setStep] = useState<BookingStep | 'CADASTRO_PSICOLOGO' | 'SUCESSO_PSICOLOGO'>('SERVICOS');
   const [caminho, setCaminho] = useState<'MATCH' | 'PROFISSIONAL' | null>(null);
   const [psicologoEscolhido, setPsicologoEscolhido] = useState<PsicologoVitrineItem | null>(null);
+  const [secaoVitrineAtiva, setSecaoVitrineAtiva] = useState<SecaoVitrine>('SERVICOS');
   
   const [temNomeSocialPaciente, setTemNomeSocialPaciente] = useState(false);
 
@@ -122,6 +124,27 @@ export default function ViverMaisLandingPage() {
       .catch(() => setConveniosError(true))
       .finally(() => setConveniosLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (step !== 'SERVICOS') return;
+
+    const profissionais = document.getElementById('secao-profissionais');
+    if (!profissionais) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setSecaoVitrineAtiva('PROFISSIONAIS');
+        } else if (entry.boundingClientRect.top > 0) {
+          setSecaoVitrineAtiva('SERVICOS');
+        }
+      },
+      { rootMargin: '-20% 0px -60% 0px' }
+    );
+
+    observer.observe(profissionais);
+    return () => observer.disconnect();
+  }, [step]);
 
   // Máscara CPF: 000.000.000-00
   const maskCPF = (val: string) => {
@@ -258,6 +281,16 @@ export default function ViverMaisLandingPage() {
 
   const handleAgendarConsultaScroll = (e?: React.MouseEvent) => {
     handleIrParaAgendar(e);
+  };
+
+  const navegarParaSecaoVitrine = (secao: SecaoVitrine) => {
+    setSecaoVitrineAtiva(secao);
+    setStep('SERVICOS');
+    setTimeout(() => {
+      document
+        .getElementById(secao === 'SERVICOS' ? 'secao-servicos' : 'secao-profissionais')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
   };
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -446,6 +479,37 @@ export default function ViverMaisLandingPage() {
       {/* Hero Banner Card Section com Imagem Premium e Conteúdo Personalizado */}
       <section className="px-6 pt-8 pb-4">
         <div className="max-w-6xl mx-auto space-y-4">
+          <nav
+            aria-label="Navegação das seções da vitrine"
+            className="grid grid-cols-2 items-end gap-2 border-b border-purple-200/80 px-1 sm:flex sm:gap-10"
+          >
+            {([
+              ['SERVICOS', 'Serviços Clínicos Oferecidos'],
+              ['PROFISSIONAIS', 'Conheça Nossos Profissionais'],
+            ] as const).map(([secao, label]) => {
+              const ativa = secaoVitrineAtiva === secao;
+              return (
+                <button
+                  key={secao}
+                  type="button"
+                  aria-current={ativa ? 'page' : undefined}
+                  onClick={() => navegarParaSecaoVitrine(secao)}
+                  className={`relative min-w-0 px-1 pb-3 text-center text-[11px] font-black leading-tight transition-colors sm:shrink-0 sm:text-left sm:text-sm ${
+                    ativa ? 'text-purple-800' : 'text-slate-500 hover:text-purple-700'
+                  }`}
+                >
+                  {label}
+                  <span
+                    aria-hidden="true"
+                    className={`absolute inset-x-0 bottom-0 h-1 rounded-t-full transition-all duration-300 ${
+                      ativa ? 'bg-purple-600' : 'bg-transparent'
+                    }`}
+                  />
+                </button>
+              );
+            })}
+          </nav>
+
           <div className="relative overflow-hidden bg-slate-950 text-white rounded-3xl p-8 sm:p-14 shadow-2xl border border-purple-900/40 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
             {/* Background Decorativo */}
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(158,107,207,0.3),transparent_60%)] pointer-events-none"></div>
@@ -539,20 +603,6 @@ export default function ViverMaisLandingPage() {
                   alt={isPsicologo ? 'Psicóloga credenciada em consultório acolhedor' : 'Sessão de acolhimento psicológico Viver Mais'}
                   className="w-full h-72 lg:h-80 object-cover group-hover:scale-105 transition-transform duration-700"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-transparent"></div>
-                <div className="absolute bottom-4 left-4 right-4 bg-slate-900/85 backdrop-blur-md p-3.5 rounded-xl border border-white/10 flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] text-psi-vibrant font-extrabold uppercase block">
-                      {isPsicologo ? 'Rede Clínica Integrada' : 'Atendimento Humanizado'}
-                    </span>
-                    <span className="text-xs text-white font-extrabold">
-                      {isPsicologo ? 'Gestão, IA & Rodízio Inteligente' : 'Sessões Online ou Presenciais'}
-                    </span>
-                  </div>
-                  <span className="text-[10px] font-black text-purple-200 bg-white/10 px-2 py-1 rounded-lg border border-white/10">
-                    {isPsicologo ? 'Rede Exclusiva' : 'Nota 4.9 ★'}
-                  </span>
-                </div>
               </div>
             </div>
           </div>
@@ -649,7 +699,7 @@ export default function ViverMaisLandingPage() {
         {step === 'SERVICOS' && (
           <div id="servicos-cards" className="space-y-16 animate-in fade-in slide-in-from-bottom-4 duration-300">
             {/* NOVO LAYOUT REELABORADO: CARDS DE SERVIÇOS PREMIUM */}
-            <div className="space-y-6">
+            <div id="secao-servicos" className="scroll-mt-28 space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
                 <div>
                   <h3 className="text-2xl sm:text-3xl font-black text-ink">Serviços Clínicos Oferecidos</h3>
@@ -692,9 +742,9 @@ export default function ViverMaisLandingPage() {
             </div>
 
             {/* Carrossel de Psicólogos Credenciados */}
-            <VitrineCarrossel
-              psicologos={psicologosCredenciados}
-            />
+            <div id="secao-profissionais" className="scroll-mt-28">
+              <VitrineCarrossel psicologos={psicologosCredenciados} />
+            </div>
 
             {/* Banner Informativo Psicoterapia com Equipe */}
             <div className="bg-surface rounded-3xl p-8 border border-line shadow-card grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">

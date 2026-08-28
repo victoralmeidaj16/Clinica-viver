@@ -1,16 +1,11 @@
 import React from 'react';
-import Link from 'next/link';
 import { ShieldCheck, PhoneCall, Heart, Sparkles } from 'lucide-react';
 
 interface PublicFooterProps {
   onIrParaAgendar?: () => void;
-  onIrParaCadastroPsicologo?: () => void;
 }
 
-export default function PublicFooter({
-  onIrParaAgendar,
-  onIrParaCadastroPsicologo,
-}: PublicFooterProps) {
+export default function PublicFooter({ onIrParaAgendar }: PublicFooterProps) {
   const currentYear = new Date().getFullYear();
 
   return (
@@ -40,7 +35,7 @@ export default function PublicFooter({
         </div>
 
         {/* Grid de Conteúdo do Rodapé */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Coluna 1: Marca & Missão */}
           <div className="space-y-3 md:col-span-1">
             <div className="flex items-center gap-2">
@@ -102,42 +97,7 @@ export default function PublicFooter({
             </ul>
           </div>
 
-          {/* Coluna 3: Para Especialistas */}
-          <div className="space-y-2.5">
-            <h3 className="text-xs font-black text-white uppercase tracking-wider">
-              Para Especialistas
-            </h3>
-            <ul className="space-y-1.5 text-xs text-slate-400">
-              <li>
-                <button
-                  type="button"
-                  onClick={onIrParaCadastroPsicologo}
-                  className="hover:text-purple-300 transition-colors text-left"
-                >
-                  Credenciamento de Psicólogos
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  onClick={onIrParaCadastroPsicologo}
-                  className="hover:text-purple-300 transition-colors text-left"
-                >
-                  Políticas e Parceria Clínica
-                </button>
-              </li>
-              <li>
-                <Link
-                  href="/login"
-                  className="hover:text-purple-300 transition-colors inline-flex items-center gap-1"
-                >
-                  Área Restrita / Login
-                </Link>
-              </li>
-            </ul>
-          </div>
-
-          {/* Coluna 4: Ética, Sigilo & Compliance */}
+          {/* Coluna 3: Ética, Sigilo & Compliance */}
           <div className="space-y-2.5">
             <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
               <ShieldCheck className="w-3.5 h-3.5 text-purple-400" />

@@ -40,10 +40,7 @@ export default function PublicSiteShell({
         mensagemPadrao={whatsappMensagem}
       />
 
-      <PublicFooter
-        onIrParaAgendar={onAgendarClick}
-        onIrParaCadastroPsicologo={onCredenciarClick}
-      />
+      <PublicFooter onIrParaAgendar={onAgendarClick} />
     </div>
   );
 }

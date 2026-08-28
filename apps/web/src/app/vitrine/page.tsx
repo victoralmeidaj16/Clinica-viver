@@ -63,7 +63,8 @@ const PASSOS_AGENDAMENTO: PassoJornada[] = [
     titulo: 'Serviço',
     resumo: 'Escolha a modalidade',
     detalhes: [
-      'Selecione entre Psicoterapia, Avaliação ou Orientação. Escolha o agendamento Acessível (R$ 75) ou Particular (R$ 130).',
+      'Selecione entre Psicoterapia Individual, Psicoterapia de Casal, Avaliação Psicológica e Neuropsicológica, Orientação Profissional/Vocacional ou Orientação Parental.',
+      'Depois escolha entre o agendamento Acessível ou Particular — os valores de cada serviço aparecem logo abaixo.',
     ],
   },
   {
@@ -1624,10 +1625,7 @@ export default function ViverMaisLandingPage() {
 
       <FloatingWhatsAppButton />
 
-      <PublicFooter
-        onIrParaAgendar={handleIrParaAgendar}
-        onIrParaCadastroPsicologo={handleIrParaCadastroPsicologo}
-      />
+      <PublicFooter onIrParaAgendar={handleIrParaAgendar} />
     </div>
   );
 }

@@ -11,6 +11,8 @@ import {
   Sparkles,
   ArrowRight,
   ShieldCheck,
+  Users,
+  Clock,
 } from 'lucide-react';
 
 export interface PsicologoVitrineItem {
@@ -44,7 +46,15 @@ interface VitrineCarrosselProps {
   layout?: 'carrossel' | 'lista';
 }
 
-function FotoOuIniciais({ fotoUrl, nome }: { fotoUrl?: string; nome: string }) {
+function FotoOuIniciais({
+  fotoUrl,
+  nome,
+  className = 'w-16 h-16 rounded-2xl',
+}: {
+  fotoUrl?: string;
+  nome: string;
+  className?: string;
+}) {
   const [erro, setErro] = React.useState(false);
   const iniciais = (nome || 'Psi')
     .trim()
@@ -60,13 +70,13 @@ function FotoOuIniciais({ fotoUrl, nome }: { fotoUrl?: string; nome: string }) {
         src={fotoUrl}
         alt={nome}
         onError={() => setErro(true)}
-        className="w-16 h-16 rounded-2xl object-cover border-2 border-psi-vibrant shadow-sm shrink-0"
+        className={`${className} object-cover border-2 border-psi-vibrant shadow-sm shrink-0`}
       />
     );
   }
 
   return (
-    <div className="w-16 h-16 rounded-2xl bg-psi-soft text-psi-deep font-black text-xl flex items-center justify-center border border-psi-vibrant/30 shrink-0 select-none">
+    <div className={`${className} bg-psi-soft text-psi-deep font-black text-xl flex items-center justify-center border border-psi-vibrant/30 shrink-0 select-none`}>
       {iniciais}
     </div>
   );
@@ -90,6 +100,123 @@ const PRINCIPAIS_DEMANDAS = [
   'Estresse / Burnout',
   'Luto',
 ];
+
+const ROTULOS_SERVICO: Record<string, string> = {
+  PSICOTERAPIA: 'Psicoterapia',
+  AVALIACAO: 'Avaliação Psicológica',
+  ORIENTACAO_PROFISSIONAL: 'Orientação Profissional',
+  ORIENTACAO_PARENTAL: 'Orientação Parental',
+};
+
+interface CardPsicologoLinhaProps {
+  psi: PsicologoVitrineItem;
+  selecionado: boolean;
+  onSelecionar?: (psicologo: PsicologoVitrineItem) => void;
+}
+
+/**
+ * Versão em linha do card, usada quando os profissionais são listados na
+ * vertical: a foto fica à esquerda e os dados ocupam a largura toda, em vez de
+ * espremidos na coluna estreita que o carrossel exige.
+ */
+function CardPsicologoLinha({ psi, selecionado, onSelecionar }: CardPsicologoLinhaProps) {
+  const nomeExibicao = psi.nomeSocial?.trim() || psi.nome;
+  const local = [psi.cidade, psi.estadoUf].filter(Boolean).join(' - ');
+  const turnos = [...new Set(psi.turnosDisponiveis?.map((turno) => ROTULOS_TURNO[turno] ?? turno) ?? [])];
+  const servicos = psi.servicosHabilitados?.map((servico) => ROTULOS_SERVICO[servico] ?? servico) ?? [];
+
+  return (
+    <article
+      className={`bg-surface rounded-3xl border p-5 shadow-card transition-all hover:shadow-lift sm:p-7 ${
+        selecionado
+          ? 'border-psi-vibrant ring-2 ring-psi-vibrant/20 bg-purple-50/20'
+          : 'border-psi-soft'
+      }`}
+    >
+      <div className="flex flex-col gap-5 sm:flex-row sm:gap-7">
+        <FotoOuIniciais
+          fotoUrl={psi.fotoUrl}
+          nome={nomeExibicao}
+          className="h-24 w-24 rounded-full sm:h-28 sm:w-28"
+        />
+
+        <div className="min-w-0 flex-1 space-y-4">
+          {/* Identificação, com a localidade à direita como na referência */}
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+            <div className="min-w-0">
+              <h4 className="text-lg font-black text-psi-deep sm:text-xl">{nomeExibicao}</h4>
+              {psi.posGraduacaoViverMais && (
+                <p className="mt-0.5 text-xs text-muted sm:text-sm">{psi.posGraduacaoViverMais}</p>
+              )}
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <span className="font-mono text-xs font-bold text-psi-vibrant">CRP {psi.crp}</span>
+                <span className="inline-flex items-center rounded-md border border-emerald-100 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">
+                  <ShieldCheck className="mr-0.5 h-2.5 w-2.5" /> Ativo
+                </span>
+              </div>
+            </div>
+
+            {local && (
+              <span className="shrink-0 text-xs font-bold text-psi-deep sm:text-sm">{local}</span>
+            )}
+          </div>
+
+          <div className="space-y-2 border-t border-line pt-4">
+            {servicos.length > 0 && (
+              <div className="flex flex-wrap items-start gap-2 text-xs">
+                <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-psi-vibrant" />
+                <span className="font-semibold text-ink">{servicos.join(', ')}</span>
+              </div>
+            )}
+
+            {(psi.necessidadesAtendidas?.length ?? 0) > 0 && (
+              <div className="flex flex-wrap items-start gap-2 text-xs">
+                <Search className="mt-0.5 h-4 w-4 shrink-0 text-psi-vibrant" />
+                <span className="text-ink">{psi.necessidadesAtendidas?.join(', ')}</span>
+              </div>
+            )}
+
+            {(psi.publicoAlvo?.length ?? 0) > 0 && (
+              <div className="flex flex-wrap items-start gap-2 text-xs">
+                <Users className="mt-0.5 h-4 w-4 shrink-0 text-psi-vibrant" />
+                <span className="text-ink">{psi.publicoAlvo?.join(', ')}</span>
+              </div>
+            )}
+
+            {turnos.length > 0 && (
+              <div className="flex flex-wrap items-start gap-2 text-xs">
+                <Clock className="mt-0.5 h-4 w-4 shrink-0 text-psi-vibrant" />
+                <span className="text-ink">{turnos.join(', ')}</span>
+              </div>
+            )}
+          </div>
+
+          {onSelecionar ? (
+            <button
+              type="button"
+              onClick={() => onSelecionar(psi)}
+              className={`rounded-xl px-6 py-3 text-xs font-black transition-all ${
+                selecionado
+                  ? 'bg-emerald-600 text-white shadow-md'
+                  : 'bg-psi-deep text-white hover:bg-psi-darkest'
+              }`}
+            >
+              {selecionado ? 'Profissional Escolhido ✓' : 'Escolher este profissional'}
+            </button>
+          ) : (
+            <a
+              href="#servicos"
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-psi-soft px-6 py-3 text-xs font-black text-psi-darkest transition-all hover:bg-purple-200"
+            >
+              <span>Agendar Consulta</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </a>
+          )}
+        </div>
+      </div>
+    </article>
+  );
+}
 
 interface CardPsicologoProps {
   psi: PsicologoVitrineItem;
@@ -393,17 +520,20 @@ export function VitrineCarrossel({
       {/* Cabeçalho com Título, Contador e Controles de Navegação do Carrossel */}
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black uppercase tracking-widest text-psi-vibrant flex items-center gap-1">
-                <Sparkles className="w-3.5 h-3.5" /> Equipe Clínica Credenciada
-              </span>
+          {/* Na lista a própria página já titula a seção; repetir aqui duplicaria o cabeçalho. */}
+          {layout === 'carrossel' && (
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-psi-vibrant flex items-center gap-1">
+                  <Sparkles className="w-3.5 h-3.5" /> Equipe Clínica Credenciada
+                </span>
+              </div>
+              <h3 className="text-2xl sm:text-3xl font-black text-ink mt-1">{titulo}</h3>
+              <p className="text-xs text-muted mt-1">{subtitulo}</p>
             </div>
-            <h3 className="text-2xl sm:text-3xl font-black text-ink mt-1">{titulo}</h3>
-            <p className="text-xs text-muted mt-1">{subtitulo}</p>
-          </div>
+          )}
 
-          <div className="flex items-center gap-3 self-start sm:self-auto">
+          <div className="flex items-center gap-3 self-start sm:ml-auto sm:self-auto">
             <span className="text-xs font-bold text-psi-deep bg-psi-soft/80 px-3 py-1.5 rounded-xl border border-psi-soft">
               {psicologosFiltrados.length} {psicologosFiltrados.length === 1 ? 'profissional' : 'profissionais'}
             </span>
@@ -555,9 +685,9 @@ export function VitrineCarrossel({
           )}
         </div>
       ) : layout === 'lista' ? (
-        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="space-y-4">
           {psicologosFiltrados.map((psi) => (
-            <CardPsicologo
+            <CardPsicologoLinha
               key={psi.id}
               psi={psi}
               selecionado={selecionadoId === psi.id}

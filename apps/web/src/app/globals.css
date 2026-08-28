@@ -18,9 +18,11 @@
   }
 
   /* O layout nunca deve rolar de lado: uma tabela larga rola dentro do próprio
-     container, não arrastando a página inteira junto. */
-  html,
-  body {
+     container, não arrastando a página inteira junto.
+     O corte fica só no `html`: `overflow-x` no `body` faz dele um container de
+     rolagem e quebra todo `position: sticky` de dentro da página — era o que
+     impedia o header da vitrine de acompanhar a rolagem. */
+  html {
     overflow-x: hidden;
   }
 

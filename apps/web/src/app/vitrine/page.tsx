@@ -49,6 +49,72 @@ interface ServicoVitrine {
   opcoes: OpcaoPreco[];
 }
 
+interface PassoJornada {
+  titulo: string;
+  resumo: string;
+  detalhes: string[];
+  observacao?: string;
+}
+
+/** Espelha as etapas mostradas no header, para a explicação e o fluxo não divergirem. */
+const PASSOS_AGENDAMENTO: PassoJornada[] = [
+  {
+    titulo: 'Serviço',
+    resumo: 'Escolha a modalidade',
+    detalhes: [
+      'Selecione entre Psicoterapia, Avaliação ou Orientação. Escolha o agendamento Acessível (R$ 75) ou Particular (R$ 130).',
+    ],
+  },
+  {
+    titulo: 'Preferência',
+    resumo: 'Defina como escolher',
+    detalhes: [
+      'Escolha diretamente no catálogo ou responda três perguntas para receber uma recomendação compatível.',
+    ],
+  },
+  {
+    titulo: 'Profissional',
+    resumo: 'Encontre seu psicólogo',
+    detalhes: [
+      'Veja quem atende o serviço escolhido, com formação, foco de atuação clínica e períodos disponíveis, e escolha quem você preferir.',
+    ],
+  },
+  {
+    titulo: 'Seus dados',
+    resumo: 'Finalize a solicitação',
+    detalhes: [
+      'Somente no último passo você informa seus dados. O psicólogo entra em contato no WhatsApp em até 24 horas.',
+      'Se após 24 horas você ainda não tiver recebido o contato do seu psicoterapeuta, por favor, nos avise para que possamos ajudar.',
+    ],
+    observacao:
+      '(→ Se o prazo de 24h coincidir com finais de semana ou feriados, ele será automaticamente estendido até o próximo dia útil.)',
+  },
+];
+
+const PASSOS_CREDENCIAMENTO: PassoJornada[] = [
+  {
+    titulo: 'Perfil & CRP',
+    resumo: 'Preencha seu cadastro',
+    detalhes: [
+      'Informe seus dados profissionais, serviços prestados, turnos disponíveis e cidades de atendimento.',
+    ],
+  },
+  {
+    titulo: 'Validação',
+    resumo: 'Conferência ética',
+    detalhes: [
+      'Nossa equipe confere as credenciais junto ao Conselho e valida o alinhamento com a diretriz clínica.',
+    ],
+  },
+  {
+    titulo: 'Ativação',
+    resumo: 'Entrada no rodízio',
+    detalhes: [
+      'Você passa a receber novos pacientes automaticamente e ganha acesso ao cockpit com prontuários via IA.',
+    ],
+  },
+];
+
 export default function ViverMaisLandingPage() {
   const [selectedService, setSelectedService] = useState<ServicoKey | null>(null);
   const [selectedModalidade, setSelectedModalidade] = useState<ModalidadeKey | null>(null);
@@ -485,13 +551,10 @@ export default function ViverMaisLandingPage() {
         onAgendarClick={handleIrParaAgendar}
         onCredenciarClick={handleIrParaCadastroPsicologo}
         barraInferior={
-          isPsicologo ? undefined : (
-            <>
-              <BookingProgress step={step as BookingStep} />
-              {step === 'SERVICOS' && (
-                <SecaoVitrineNav ativa={secaoVitrineAtiva} onNavegar={navegarParaSecaoVitrine} />
-              )}
-            </>
+          isPsicologo ? undefined : step === 'SERVICOS' ? (
+            <SecaoVitrineNav ativa={secaoVitrineAtiva} onNavegar={navegarParaSecaoVitrine} />
+          ) : (
+            <BookingProgress step={step as BookingStep} />
           )
         }
       />
@@ -598,95 +661,70 @@ export default function ViverMaisLandingPage() {
         </div>
       </section>
 
-      {/* Seção 3 Passos Adaptável */}
+      {/* Seção da Jornada — espelha as etapas do header */}
       <section className="px-6 py-8">
         <div className="max-w-6xl mx-auto">
-          <div className="bg-surface rounded-3xl p-8 border border-line shadow-card space-y-6">
-            <div className="text-center max-w-2xl mx-auto space-y-2">
+          <div className="rounded-3xl border border-line bg-surface p-6 shadow-card sm:p-8">
+            <div className="mx-auto max-w-2xl space-y-2 text-center">
               <span className="chip-accent text-[11px]">
                 {isPsicologo ? 'Jornada do Profissional' : 'Jornada Descomplicada'}
               </span>
-              <h3 className="text-xl sm:text-2xl font-black text-ink">
+              <h3 className="text-xl font-black text-ink sm:text-2xl">
                 {isPsicologo
-                  ? 'Como Funciona o Credenciamento em 3 Passos'
-                  : 'Como Funciona o Seu Agendamento em 3 Passos'}
+                  ? `Como Funciona o Credenciamento em ${PASSOS_CREDENCIAMENTO.length} Passos`
+                  : `Como Funciona o Seu Agendamento em ${PASSOS_AGENDAMENTO.length} Passos`}
               </h3>
             </div>
 
-            {isPsicologo ? (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="p-5 rounded-2xl bg-canvas border border-psi-soft/60 space-y-3 relative">
-                  <span className="w-8 h-8 rounded-xl bg-psi-deep text-white font-black text-xs flex items-center justify-center">
-                    1
-                  </span>
-                  <h4 className="font-extrabold text-sm text-ink">Preencha Seu Perfil & CRP</h4>
-                  <p className="text-xs text-muted leading-relaxed">
-                    Informe seus dados profissionais, serviços prestados, turnos disponíveis e cidades de atendimento.
-                  </p>
-                </div>
+            <ol
+              className={`mt-7 grid gap-4 sm:grid-cols-2 ${
+                isPsicologo ? 'lg:grid-cols-3' : 'lg:grid-cols-4'
+              }`}
+            >
+              {(isPsicologo ? PASSOS_CREDENCIAMENTO : PASSOS_AGENDAMENTO).map((passo, indice, passos) => (
+                <li
+                  key={passo.titulo}
+                  className="relative flex flex-col gap-3 rounded-2xl border border-psi-soft/60 bg-canvas p-5 transition-all hover:border-psi-vibrant/50 hover:shadow-card"
+                >
+                  {/* Fio ligando um passo ao seguinte, só onde eles ficam lado a lado */}
+                  {indice < passos.length - 1 && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute -right-4 top-[2.25rem] hidden h-px w-4 bg-psi-soft lg:block"
+                    />
+                  )}
 
-                <div className="p-5 rounded-2xl bg-canvas border border-psi-soft/60 space-y-3 relative">
-                  <span className="w-8 h-8 rounded-xl bg-psi-vibrant text-white font-black text-xs flex items-center justify-center">
-                    2
-                  </span>
-                  <h4 className="font-extrabold text-sm text-ink">Validação Ética & Alinhamento</h4>
-                  <p className="text-xs text-muted leading-relaxed">
-                    Nossa equipe confere as credenciais junto ao Conselho e valida o alinhamento com a diretriz clínica.
-                  </p>
-                </div>
-
-                <div className="p-5 rounded-2xl bg-canvas border border-psi-soft/60 space-y-3 relative">
-                  <span className="w-8 h-8 rounded-xl bg-emerald-600 text-white font-black text-xs flex items-center justify-center">
-                    3
-                  </span>
-                  <h4 className="font-extrabold text-sm text-ink">Ativação no Rodízio & Cockpit</h4>
-                  <p className="text-xs text-muted leading-relaxed">
-                    Você passa a receber novos pacientes automaticamente e ganha acesso ao cockpit com prontuários via IA.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="p-5 rounded-2xl bg-canvas border border-psi-soft/60 space-y-3 relative">
-                  <span className="w-8 h-8 rounded-xl bg-psi-deep text-white font-black text-xs flex items-center justify-center">1</span>
-                  <h4 className="font-extrabold text-sm text-ink">Escolha o Serviço & Modalidade</h4>
-                  <p className="text-xs text-muted leading-relaxed">
-                    Selecione entre Psicoterapia, Avaliação ou Orientação. Escolha o agendamento Acessível (R$ 75) ou Particular (R$ 130).
-                  </p>
-                </div>
-
-                <div className="p-5 rounded-2xl bg-canvas border border-psi-soft/60 space-y-3 relative">
-                  <span className="w-8 h-8 rounded-xl bg-psi-vibrant text-white font-black text-xs flex items-center justify-center">2</span>
-                  <h4 className="font-extrabold text-sm text-ink">Escolha Como Encontrar Seu Psicólogo</h4>
-                  <p className="text-xs text-muted leading-relaxed">
-                    Escolha diretamente no catálogo ou responda três perguntas para receber uma recomendação compatível.
-                  </p>
-                </div>
-
-                <div className="p-5 rounded-2xl bg-canvas border border-psi-soft/60 space-y-3 relative">
-                  <span className="w-8 h-8 rounded-xl bg-emerald-600 text-white font-black text-xs flex items-center justify-center">3</span>
-                  <h4 className="font-extrabold text-sm text-ink">Complete o Cadastro & Receba a Confirmação</h4>
-                  <div className="text-xs text-muted leading-relaxed space-y-2">
-                    <p>Somente no último passo você informa seus dados. O psicólogo entra em contato no WhatsApp em até 24 horas.</p>
-                    <p>Se após 24 horas você ainda não tiver recebido o contato do seu psicoterapeuta, por favor, nos avise para que possamos ajudar.</p>
-                    <p className="text-[10px] text-muted/80 italic">
-                      (→ Se o prazo de 24h coincidir com finais de semana ou feriados, ele será automaticamente estendido até o próximo dia útil.)
-                    </p>
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-psi-vibrant text-xs font-black text-white shadow-sm shadow-psi-vibrant/30">
+                      {indice + 1}
+                    </span>
+                    <div className="min-w-0">
+                      <h4 className="text-sm font-extrabold text-ink">{passo.titulo}</h4>
+                      <p className="text-[11px] font-bold text-psi-vibrant">{passo.resumo}</p>
+                    </div>
                   </div>
-                </div>
-              </div>
-            )}
+
+                  <div className="space-y-2 border-t border-line/60 pt-3 text-xs leading-relaxed text-muted">
+                    {passo.detalhes.map((detalhe) => (
+                      <p key={detalhe}>{detalhe}</p>
+                    ))}
+                    {passo.observacao && (
+                      <p className="text-[10px] italic text-muted/80">{passo.observacao}</p>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ol>
           </div>
         </div>
       </section>
-
 
       {/* Main Flow Section */}
       <main id="modalidades" className="max-w-6xl mx-auto px-6 py-8">
         {step === 'SERVICOS' && (
           <div id="servicos-cards" className="space-y-16 animate-in fade-in slide-in-from-bottom-4 duration-300">
             {/* NOVO LAYOUT REELABORADO: CARDS DE SERVIÇOS PREMIUM */}
-            <div id="secao-servicos" className="scroll-mt-44 space-y-6">
+            <div id="secao-servicos" className="scroll-mt-28 space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
                 <div>
                   <h3 className="text-2xl sm:text-3xl font-black text-ink">Serviços Clínicos Oferecidos</h3>
@@ -729,7 +767,7 @@ export default function ViverMaisLandingPage() {
             </div>
 
             {/* Carrossel de Psicólogos Credenciados */}
-            <div id="secao-profissionais" className="scroll-mt-44">
+            <div id="secao-profissionais" className="scroll-mt-28">
               <VitrineCarrossel psicologos={psicologosCredenciados} autoDeslizar />
             </div>
 
@@ -760,7 +798,7 @@ export default function ViverMaisLandingPage() {
             </div>
 
             {/* Tabela de Preços e Ações por Serviço */}
-            <div id="secao-escolha-servico" className="scroll-mt-44 space-y-10">
+            <div id="secao-escolha-servico" className="scroll-mt-28 space-y-10">
               <div className="text-center max-w-xl mx-auto">
                 <h3 className="text-2xl font-black text-ink">Escolha Seu Serviço & Agende em 1-Clique</h3>
                 <p className="text-xs text-muted mt-1">Valores transparentes e encaminhamento ético garantido</p>
@@ -771,7 +809,7 @@ export default function ViverMaisLandingPage() {
                   <div
                     key={key}
                     id={`detalhes-${key}`}
-                    className="bg-surface rounded-3xl border border-line shadow-card overflow-hidden flex flex-col justify-between hover:shadow-lift transition-all scroll-mt-44"
+                    className="bg-surface rounded-3xl border border-line shadow-card overflow-hidden flex flex-col justify-between hover:shadow-lift transition-all scroll-mt-28"
                   >
                     <div>
                       {/* Banner de Imagem com Gradiente */}

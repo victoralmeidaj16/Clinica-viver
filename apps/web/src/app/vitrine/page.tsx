@@ -815,7 +815,7 @@ export default function ViverMaisLandingPage() {
               </div>
 
               {/* Sanfona: um único menu, com um serviço aberto por vez */}
-              <div className="mx-auto max-w-3xl divide-y divide-line overflow-hidden rounded-3xl border border-line bg-surface shadow-card">
+              <div className="divide-y divide-line overflow-hidden rounded-3xl border border-line bg-surface shadow-card">
                 {Object.entries(precos).map(([key, service]) => {
                   const servicoKey = key as ServicoKey;
                   const aberto = servicoAberto === servicoKey;
@@ -868,7 +868,7 @@ export default function ViverMaisLandingPage() {
                           <div className="space-y-4 px-5 pb-5 sm:px-6 sm:pb-6">
                             {/* Dentro do menu a imagem fica recuada: sangrando de borda a borda
                                 ela cortaria a lista em duas. */}
-                            <div className="relative h-40 w-full overflow-hidden rounded-2xl bg-psi-darkest sm:h-48">
+                            <div className="relative h-44 w-full overflow-hidden rounded-2xl bg-psi-darkest sm:h-56 lg:h-64">
                               <img
                                 src={service.imagem}
                                 alt={service.titulo}
@@ -884,7 +884,7 @@ export default function ViverMaisLandingPage() {
                               <span>Duração da sessão: {service.duracao}</span>
                             </div>
 
-                            <div className="space-y-3">
+                            <div className="grid gap-3 sm:grid-cols-2">
                               {service.opcoes.map((opcao) => (
                                 <div
                                   key={opcao.tipo}

@@ -13,6 +13,7 @@ import PublicHeader from '@/components/layout/PublicHeader';
 import PublicFooter from '@/components/layout/PublicFooter';
 import FloatingWhatsAppButton from '@/components/layout/FloatingWhatsAppButton';
 import { BookingProgress, type BookingStep } from '@/components/vitrine/BookingProgress';
+import { SecaoVitrineNav, type SecaoVitrine } from '@/components/vitrine/SecaoVitrineNav';
 import {
   Sparkles,
   Heart,
@@ -33,7 +34,6 @@ type ServicoKey =
   | 'ORIENTACAO_PARENTAL';
 
 type ModalidadeKey = 'SOCIAL' | 'PARTICULAR' | 'CASAL_SOCIAL' | 'CASAL_PARTICULAR';
-type SecaoVitrine = 'SERVICOS' | 'PROFISSIONAIS';
 
 interface OpcaoPreco {
   tipo: ModalidadeKey;
@@ -474,43 +474,18 @@ export default function ViverMaisLandingPage() {
         }}
         onAgendarClick={handleIrParaAgendar}
         onCredenciarClick={handleIrParaCadastroPsicologo}
-        barraInferior={!isPsicologo ? <BookingProgress step={step as BookingStep} /> : undefined}
+        barraInferior={
+          isPsicologo ? undefined : step === 'SERVICOS' ? (
+            <SecaoVitrineNav ativa={secaoVitrineAtiva} onNavegar={navegarParaSecaoVitrine} />
+          ) : (
+            <BookingProgress step={step as BookingStep} />
+          )
+        }
       />
 
       {/* Hero Banner Card Section com Imagem Premium e Conteúdo Personalizado */}
       <section className="px-6 pt-8 pb-4">
         <div className="max-w-6xl mx-auto space-y-4">
-          <nav
-            aria-label="Navegação das seções da vitrine"
-            className="grid grid-cols-2 items-end gap-2 border-b border-purple-200/80 px-1 sm:flex sm:gap-10"
-          >
-            {([
-              ['SERVICOS', 'Serviços Clínicos Oferecidos'],
-              ['PROFISSIONAIS', 'Conheça Nossos Profissionais'],
-            ] as const).map(([secao, label]) => {
-              const ativa = secaoVitrineAtiva === secao;
-              return (
-                <button
-                  key={secao}
-                  type="button"
-                  aria-current={ativa ? 'page' : undefined}
-                  onClick={() => navegarParaSecaoVitrine(secao)}
-                  className={`relative min-w-0 px-1 pb-3 text-center text-[11px] font-black leading-tight transition-colors sm:shrink-0 sm:text-left sm:text-sm ${
-                    ativa ? 'text-purple-800' : 'text-slate-500 hover:text-purple-700'
-                  }`}
-                >
-                  {label}
-                  <span
-                    aria-hidden="true"
-                    className={`absolute inset-x-0 bottom-0 h-1 rounded-t-full transition-all duration-300 ${
-                      ativa ? 'bg-purple-600' : 'bg-transparent'
-                    }`}
-                  />
-                </button>
-              );
-            })}
-          </nav>
-
           <div className="relative overflow-hidden bg-slate-950 text-white rounded-3xl p-8 sm:p-14 shadow-2xl border border-purple-900/40 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
             {/* Background Decorativo */}
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(158,107,207,0.3),transparent_60%)] pointer-events-none"></div>

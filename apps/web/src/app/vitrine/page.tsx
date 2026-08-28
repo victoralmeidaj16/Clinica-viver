@@ -814,8 +814,8 @@ export default function ViverMaisLandingPage() {
                 <p className="text-xs text-muted mt-1">Valores transparentes e encaminhamento ético garantido</p>
               </div>
 
-              {/* Sanfona: um serviço aberto por vez, para a escolha não virar uma parede de cards */}
-              <div className="mx-auto max-w-3xl space-y-3">
+              {/* Sanfona: um único menu, com um serviço aberto por vez */}
+              <div className="mx-auto max-w-3xl divide-y divide-line overflow-hidden rounded-3xl border border-line bg-surface shadow-card">
                 {Object.entries(precos).map(([key, service]) => {
                   const servicoKey = key as ServicoKey;
                   const aberto = servicoAberto === servicoKey;
@@ -824,9 +824,7 @@ export default function ViverMaisLandingPage() {
                     <div
                       key={key}
                       id={`detalhes-${key}`}
-                      className={`scroll-mt-28 overflow-hidden rounded-3xl border bg-surface shadow-card transition-all ${
-                        aberto ? 'border-psi-vibrant/50 shadow-lift' : 'border-line hover:border-psi-soft'
-                      }`}
+                      className={`scroll-mt-28 transition-colors ${aberto ? 'bg-psi-soft/20' : ''}`}
                     >
                       <h4>
                         <button
@@ -867,16 +865,18 @@ export default function ViverMaisLandingPage() {
                           id={`painel-${key}`}
                           className="animate-in fade-in slide-in-from-top-1 duration-200"
                         >
-                          <div className="relative h-44 w-full overflow-hidden bg-psi-darkest sm:h-52">
-                            <img
-                              src={service.imagem}
-                              alt={service.titulo}
-                              className="h-full w-full object-cover opacity-90"
-                            />
-                            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/10 to-transparent" />
-                          </div>
+                          <div className="space-y-4 px-5 pb-5 sm:px-6 sm:pb-6">
+                            {/* Dentro do menu a imagem fica recuada: sangrando de borda a borda
+                                ela cortaria a lista em duas. */}
+                            <div className="relative h-40 w-full overflow-hidden rounded-2xl bg-psi-darkest sm:h-48">
+                              <img
+                                src={service.imagem}
+                                alt={service.titulo}
+                                className="h-full w-full object-cover opacity-90"
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/10 to-transparent" />
+                            </div>
 
-                          <div className="space-y-4 p-5 sm:p-6">
                             <p className="text-xs leading-relaxed text-muted">{service.descricao}</p>
 
                             <div className="flex items-center gap-1.5 rounded-xl border-y border-purple-100 bg-purple-50/60 px-3 py-2.5 text-xs font-extrabold text-purple-800">

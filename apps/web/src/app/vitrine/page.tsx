@@ -13,7 +13,7 @@ import PublicHeader from '@/components/layout/PublicHeader';
 import PublicFooter from '@/components/layout/PublicFooter';
 import FloatingWhatsAppButton from '@/components/layout/FloatingWhatsAppButton';
 import { BookingProgress, type BookingStep } from '@/components/vitrine/BookingProgress';
-import { SecaoVitrineNav, type SecaoVitrine } from '@/components/vitrine/SecaoVitrineNav';
+import { SecaoVitrineNav, SECOES_VITRINE, type SecaoVitrine } from '@/components/vitrine/SecaoVitrineNav';
 import {
   Sparkles,
   Heart,
@@ -128,21 +128,30 @@ export default function ViverMaisLandingPage() {
   useEffect(() => {
     if (step !== 'SERVICOS') return;
 
-    const profissionais = document.getElementById('secao-profissionais');
-    if (!profissionais) return;
+    const alvos = SECOES_VITRINE
+      .map((secao) => ({ id: secao.id, el: document.getElementById(secao.ancora) }))
+      .filter((alvo): alvo is { id: SecaoVitrine; el: HTMLElement } => Boolean(alvo.el));
+    if (alvos.length === 0) return;
 
+    // A faixa central da tela decide a seção: quando mais de uma cai nela, vale
+    // a primeira na ordem da página, senão o destaque pularia para trás.
+    const visiveis = new Set<SecaoVitrine>();
     const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setSecaoVitrineAtiva('PROFISSIONAIS');
-        } else if (entry.boundingClientRect.top > 0) {
-          setSecaoVitrineAtiva('SERVICOS');
+      (entries) => {
+        for (const entry of entries) {
+          const alvo = alvos.find((item) => item.el === entry.target);
+          if (!alvo) continue;
+          if (entry.isIntersecting) visiveis.add(alvo.id);
+          else visiveis.delete(alvo.id);
         }
+
+        const primeiraVisivel = SECOES_VITRINE.find((secao) => visiveis.has(secao.id));
+        if (primeiraVisivel) setSecaoVitrineAtiva(primeiraVisivel.id);
       },
-      { rootMargin: '-20% 0px -60% 0px' }
+      { rootMargin: '-25% 0px -55% 0px' }
     );
 
-    observer.observe(profissionais);
+    alvos.forEach((alvo) => observer.observe(alvo.el));
     return () => observer.disconnect();
   }, [step]);
 
@@ -287,9 +296,10 @@ export default function ViverMaisLandingPage() {
     setSecaoVitrineAtiva(secao);
     setStep('SERVICOS');
     setTimeout(() => {
-      document
-        .getElementById(secao === 'SERVICOS' ? 'secao-servicos' : 'secao-profissionais')
-        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const ancora = SECOES_VITRINE.find((item) => item.id === secao)?.ancora;
+      if (ancora) {
+        document.getElementById(ancora)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     }, 50);
   };
 
@@ -475,10 +485,13 @@ export default function ViverMaisLandingPage() {
         onAgendarClick={handleIrParaAgendar}
         onCredenciarClick={handleIrParaCadastroPsicologo}
         barraInferior={
-          isPsicologo ? undefined : step === 'SERVICOS' ? (
-            <SecaoVitrineNav ativa={secaoVitrineAtiva} onNavegar={navegarParaSecaoVitrine} />
-          ) : (
-            <BookingProgress step={step as BookingStep} />
+          isPsicologo ? undefined : (
+            <>
+              <BookingProgress step={step as BookingStep} />
+              {step === 'SERVICOS' && (
+                <SecaoVitrineNav ativa={secaoVitrineAtiva} onNavegar={navegarParaSecaoVitrine} />
+              )}
+            </>
           )
         }
       />
@@ -673,7 +686,7 @@ export default function ViverMaisLandingPage() {
         {step === 'SERVICOS' && (
           <div id="servicos-cards" className="space-y-16 animate-in fade-in slide-in-from-bottom-4 duration-300">
             {/* NOVO LAYOUT REELABORADO: CARDS DE SERVIÇOS PREMIUM */}
-            <div id="secao-servicos" className="scroll-mt-36 space-y-6">
+            <div id="secao-servicos" className="scroll-mt-44 space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
                 <div>
                   <h3 className="text-2xl sm:text-3xl font-black text-ink">Serviços Clínicos Oferecidos</h3>
@@ -716,7 +729,7 @@ export default function ViverMaisLandingPage() {
             </div>
 
             {/* Carrossel de Psicólogos Credenciados */}
-            <div id="secao-profissionais" className="scroll-mt-36">
+            <div id="secao-profissionais" className="scroll-mt-44">
               <VitrineCarrossel psicologos={psicologosCredenciados} />
             </div>
 
@@ -747,7 +760,7 @@ export default function ViverMaisLandingPage() {
             </div>
 
             {/* Tabela de Preços e Ações por Serviço */}
-            <div className="space-y-10">
+            <div id="secao-escolha-servico" className="scroll-mt-44 space-y-10">
               <div className="text-center max-w-xl mx-auto">
                 <h3 className="text-2xl font-black text-ink">Escolha Seu Serviço & Agende em 1-Clique</h3>
                 <p className="text-xs text-muted mt-1">Valores transparentes e encaminhamento ético garantido</p>
@@ -758,7 +771,7 @@ export default function ViverMaisLandingPage() {
                   <div
                     key={key}
                     id={`detalhes-${key}`}
-                    className="bg-surface rounded-3xl border border-line shadow-card overflow-hidden flex flex-col justify-between hover:shadow-lift transition-all scroll-mt-36"
+                    className="bg-surface rounded-3xl border border-line shadow-card overflow-hidden flex flex-col justify-between hover:shadow-lift transition-all scroll-mt-44"
                   >
                     <div>
                       {/* Banner de Imagem com Gradiente */}

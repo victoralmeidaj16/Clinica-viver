@@ -1,9 +1,14 @@
-export type SecaoVitrine = 'SERVICOS' | 'PROFISSIONAIS';
+export type SecaoVitrine = 'SERVICOS' | 'PROFISSIONAIS' | 'ESCOLHA_SERVICO';
 
-const secoes = [
-  { id: 'SERVICOS', label: 'Serviços Clínicos Oferecidos' },
-  { id: 'PROFISSIONAIS', label: 'Conheça Nossos Profissionais' },
-] as const satisfies readonly { id: SecaoVitrine; label: string }[];
+/**
+ * Na ordem em que as seções aparecem na página — a navegação e o observador de
+ * rolagem dependem disso para destacar a seção certa.
+ */
+export const SECOES_VITRINE = [
+  { id: 'SERVICOS', label: 'Serviços Clínicos Oferecidos', ancora: 'secao-servicos' },
+  { id: 'PROFISSIONAIS', label: 'Conheça Nossos Profissionais', ancora: 'secao-profissionais' },
+  { id: 'ESCOLHA_SERVICO', label: 'Escolha Seu Serviço', ancora: 'secao-escolha-servico' },
+] as const satisfies readonly { id: SecaoVitrine; label: string; ancora: string }[];
 
 interface SecaoVitrineNavProps {
   ativa: SecaoVitrine;
@@ -21,8 +26,8 @@ export function SecaoVitrineNav({ ativa, onNavegar }: SecaoVitrineNavProps) {
       aria-label="Navegação das seções da vitrine"
       className="border-t border-purple-100 bg-purple-50/50"
     >
-      <ol className="mx-auto grid max-w-6xl grid-cols-2 px-4 sm:px-6">
-        {secoes.map((secao) => {
+      <ol className="mx-auto grid max-w-6xl grid-cols-3 px-4 sm:px-6">
+        {SECOES_VITRINE.map((secao) => {
           const estaAtiva = ativa === secao.id;
 
           return (
@@ -31,7 +36,7 @@ export function SecaoVitrineNav({ ativa, onNavegar }: SecaoVitrineNavProps) {
                 type="button"
                 onClick={() => onNavegar(secao.id)}
                 aria-current={estaAtiva ? 'true' : undefined}
-                className={`w-full truncate px-1 pb-2.5 pt-2.5 text-center text-[11px] font-black transition-colors sm:px-3 sm:text-xs ${
+                className={`w-full truncate px-1 pb-2 pt-2 text-center text-[10px] font-black transition-colors sm:px-3 sm:text-[11px] ${
                   estaAtiva ? 'text-purple-800' : 'text-slate-500 hover:text-purple-700'
                 }`}
               >

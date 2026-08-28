@@ -130,6 +130,39 @@ o piloto. O alerta contém somente protocolo e troca de profissional; telefone,
 nome e dados clínicos do paciente não são enviados à coordenação. Confira o
 worker com `docker compose -f infra/clinic/docker-compose.yml logs sla-sweeper`.
 
+### Expiração automática das cobranças
+
+O serviço `billing-expirer` chama `POST /api/application/financial/charges/expire`
+pela rede privada a cada minuto, no mesmo desenho do `sla-sweeper`: sem cron no
+host e sem porta publicada. Acrescente ao `.env` da VPS um segredo próprio,
+diferente do `SLA_SWEEP_TOKEN`:
+
+```sh
+BILLING_EXPIRY_TOKEN=<openssl rand -hex 24>
+BILLING_EXPIRY_INTERVAL_SECONDS=60
+```
+
+O token é lido pelos **dois** containers, `web` e `billing-expirer`, e o
+`env_file` do Compose só é aplicado quando o container é criado. Acrescentar a
+variável exige portanto recriar os dois — `docker compose up -d --no-build web
+billing-expirer` —, e não apenas reiniciar o worker. Sem isso o worker sobe e
+recebe 401 a cada ciclo.
+
+Um `docker ps` mostrando `billing-expirer` em `Restarting` significa token
+ausente: o processo encerra de propósito em vez de rodar sem autenticação. O
+log confirma o funcionamento com `Varredura financeira concluída; expiradas=N`.
+A primeira varredura logo após um restart pode falhar com `fetch failed` porque
+o `web` ainda está subindo; o ciclo seguinte se recupera sozinho.
+
+### Variáveis novas exigem passo manual
+
+O deploy sincroniza código, nunca o `.env` da VPS, que não pertence ao Git. Toda
+feature que introduz segredo ou worker precisa da variável acrescentada à mão no
+servidor — foi o que faltou ao `billing-expirer` na publicação de 27/08/2026,
+que ficou um dia inteiro em crash loop com a expiração de cobranças inativa.
+Depois de publicar, confira `docker ps` e o log do worker novo antes de dar a
+entrega por concluída.
+
 ### Migrações já aplicadas
 
 O checksum atual considera somente os comandos SQL, ignorando comentários e

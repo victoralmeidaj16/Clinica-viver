@@ -124,7 +124,6 @@ export default function ViverMaisLandingPage() {
   const [caminho, setCaminho] = useState<'MATCH' | 'PROFISSIONAL' | null>(null);
   const [psicologoEscolhido, setPsicologoEscolhido] = useState<PsicologoVitrineItem | null>(null);
   const [secaoVitrineAtiva, setSecaoVitrineAtiva] = useState<SecaoVitrine>('SERVICOS');
-  const [servicoAberto, setServicoAberto] = useState<ServicoKey | null>('PSICOTERAPIA');
   
   const [temNomeSocialPaciente, setTemNomeSocialPaciente] = useState(false);
 
@@ -350,7 +349,7 @@ export default function ViverMaisLandingPage() {
     if (e) e.preventDefault();
     setStep('SERVICOS');
     setTimeout(() => {
-      const el = document.getElementById('servicos-cards') || document.getElementById('modalidades');
+      const el = document.getElementById('secao-escolha-servico') || document.getElementById('servicos-cards') || document.getElementById('modalidades');
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
@@ -359,13 +358,6 @@ export default function ViverMaisLandingPage() {
 
   const handleAgendarConsultaScroll = (e?: React.MouseEvent) => {
     handleIrParaAgendar(e);
-  };
-
-  const abrirDetalhesDoServico = (servico: ServicoKey) => {
-    setServicoAberto(servico);
-    setTimeout(() => {
-      document.getElementById(`detalhes-${servico}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 50);
   };
 
   const navegarParaSecaoVitrine = (secao: SecaoVitrine) => {
@@ -646,7 +638,7 @@ export default function ViverMaisLandingPage() {
 
                   <div className="pt-2 flex flex-wrap items-center gap-4">
                     <a
-                      href="#servicos-cards"
+                      href="#secao-escolha-servico"
                       onClick={handleAgendarConsultaScroll}
                       className="bg-psi-vibrant hover:bg-psi-deep text-white font-black text-xs px-6 py-3.5 rounded-2xl transition-all shadow-lift flex items-center gap-2 active:scale-95"
                     >
@@ -733,47 +725,86 @@ export default function ViverMaisLandingPage() {
       <main id="modalidades" className="max-w-6xl mx-auto px-6 py-8">
         {step === 'SERVICOS' && (
           <div id="servicos-cards" className="space-y-16 animate-in fade-in slide-in-from-bottom-4 duration-300">
-            {/* NOVO LAYOUT REELABORADO: CARDS DE SERVIÇOS PREMIUM */}
-            <div id="secao-servicos" className="scroll-mt-28 space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-                <div>
-                  <h3 className="text-2xl sm:text-3xl font-black text-ink">Serviços Clínicos Oferecidos</h3>
-                  <p className="text-xs text-muted">Escolha o serviço mais adequado para o seu momento de vida</p>
-                </div>
+            {/* Escolha Seu Serviço & Agende em 1-Clique com Cards Completos */}
+            <div id="secao-escolha-servico" className="scroll-mt-28 space-y-8">
+              <div className="text-center max-w-2xl mx-auto space-y-2">
+                <span className="chip-accent text-[11px]">Agendamento em 1-Clique</span>
+                <h3 className="text-2xl sm:text-3xl font-black text-ink">
+                  Escolha Seu Serviço &amp; Agende em 1-Clique
+                </h3>
+                <p className="text-xs sm:text-sm text-muted">
+                  Valores transparentes, cuidado ético e encaminhamento descomplicado para o seu momento de vida
+                </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5">
-                {Object.entries(precos).map(([key, service]) => (
-                  <div
-                    key={key}
-                    className="bg-surface rounded-3xl border border-psi-soft/80 p-5 flex flex-col justify-between shadow-card hover:shadow-lift transition-all duration-300 group hover:-translate-y-1 relative overflow-hidden"
-                  >
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-psi-soft/40 rounded-full blur-2xl group-hover:bg-psi-vibrant/20 transition-all"></div>
-                    
-                    <div className="space-y-3 relative z-10">
-                      <div className="w-10 h-10 rounded-2xl bg-psi-soft text-psi-deep flex items-center justify-center border border-psi-soft/80 group-hover:scale-110 group-hover:bg-psi-deep group-hover:text-white transition-all">
-                        <Heart className="w-4 h-4" />
-                      </div>
-                      <h4 className="text-sm font-black text-ink leading-snug group-hover:text-psi-deep transition-colors">{service.titulo}</h4>
-                      <p className="text-xs text-muted leading-relaxed">{service.descricao}</p>
-                      
-                      <div className="flex items-center gap-1.5 text-[11px] text-purple-800 font-extrabold bg-purple-50/80 p-2 rounded-xl border border-purple-100">
-                        <Clock className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                        <span>Duração: {service.duracao}</span>
-                      </div>
-                    </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {Object.entries(precos).map(([key, service]) => {
+                  const servicoKey = key as ServicoKey;
+                  return (
+                    <div
+                      key={key}
+                      id={`detalhes-${key}`}
+                      className="bg-surface rounded-3xl border border-psi-soft shadow-card hover:shadow-lift transition-all duration-300 overflow-hidden flex flex-col justify-between group hover:-translate-y-1"
+                    >
+                      <div>
+                        {/* Banner de Imagem com Gradiente */}
+                        <div className="relative h-48 w-full overflow-hidden bg-psi-darkest">
+                          <img
+                            src={service.imagem}
+                            alt={service.titulo}
+                            className="w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-700"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/30 to-transparent" />
+                          <div className="absolute bottom-4 left-5 right-5">
+                            <span className="text-[10px] text-psi-vibrant font-extrabold uppercase tracking-wider bg-psi-darkest/90 backdrop-blur-md px-2.5 py-1 rounded-full border border-psi-vibrant/30">
+                              Atendimento Especializado
+                            </span>
+                            <h4 className="text-base sm:text-lg font-black text-white mt-1.5 leading-snug">
+                              {service.titulo}
+                            </h4>
+                          </div>
+                        </div>
 
-                    <div className="pt-4 border-t border-psi-soft/50 mt-4 relative z-10">
-                      <button
-                        type="button"
-                        onClick={() => abrirDetalhesDoServico(key as ServicoKey)}
-                        className="w-full bg-canvas hover:bg-psi-soft/80 border border-psi-soft text-psi-darkest font-extrabold text-xs py-2.5 px-3 rounded-xl transition-all flex items-center justify-center gap-1.5 group-hover:bg-psi-deep group-hover:text-white group-hover:border-psi-deep"
-                      >
-                        Ver Valores e Agendar <ArrowRight className="w-3.5 h-3.5" />
-                      </button>
+                        {/* Descrição e Duração do Serviço */}
+                        <div className="p-5 sm:p-6 space-y-4">
+                          <p className="text-xs leading-relaxed text-muted">
+                            {service.descricao}
+                          </p>
+
+                          <div className="flex items-center gap-1.5 rounded-xl border border-purple-100 bg-purple-50/70 px-3 py-2 text-xs font-extrabold text-purple-800">
+                            <Clock className="w-3.5 h-3.5 shrink-0 text-purple-600" />
+                            <span>Duração da sessão: {service.duracao}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Opções de Agendamento (Valores) */}
+                      <div className="p-5 sm:p-6 pt-0 space-y-2.5 border-t border-psi-soft/50 mt-2">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-muted block pt-3">
+                          Selecione a Modalidade:
+                        </span>
+                        {service.opcoes.map((opcao) => (
+                          <div
+                            key={opcao.tipo}
+                            className="flex items-center justify-between gap-3 p-3.5 rounded-2xl bg-canvas border border-psi-soft hover:border-psi-vibrant/50 hover:bg-psi-soft/30 transition-all"
+                          >
+                            <div className="min-w-0">
+                              <span className="block text-xs font-extrabold text-ink">{opcao.label}</span>
+                              <span className="text-[11px] font-black text-psi-deep">{opcao.preco} / sessão</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleSelectServiceAndPrice(servicoKey, opcao.tipo)}
+                              className="shrink-0 bg-psi-deep hover:bg-psi-darkest text-white font-extrabold text-xs px-4 py-2 rounded-xl transition-all shadow-sm active:scale-95 flex items-center gap-1.5"
+                            >
+                              Agendar <ArrowRight className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -808,114 +839,8 @@ export default function ViverMaisLandingPage() {
               </div>
             </div>
 
-            {/* Tabela de Preços e Ações por Serviço */}
-            <div id="secao-escolha-servico" className="scroll-mt-28 space-y-10">
-              <div className="text-center max-w-xl mx-auto">
-                <h3 className="text-2xl font-black text-ink">Escolha Seu Serviço & Agende em 1-Clique</h3>
-                <p className="text-xs text-muted mt-1">Valores transparentes e encaminhamento ético garantido</p>
-              </div>
-
-              {/* Sanfona: um único menu, com um serviço aberto por vez */}
-              <div className="divide-y divide-line overflow-hidden rounded-3xl border border-line bg-surface shadow-card">
-                {Object.entries(precos).map(([key, service]) => {
-                  const servicoKey = key as ServicoKey;
-                  const aberto = servicoAberto === servicoKey;
-
-                  return (
-                    <div
-                      key={key}
-                      id={`detalhes-${key}`}
-                      className={`scroll-mt-28 transition-colors ${aberto ? 'bg-psi-soft/20' : ''}`}
-                    >
-                      <h4>
-                        <button
-                          type="button"
-                          onClick={() => setServicoAberto(aberto ? null : servicoKey)}
-                          aria-expanded={aberto}
-                          aria-controls={`painel-${key}`}
-                          className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-psi-soft/30 sm:px-6"
-                        >
-                          <span className="min-w-0">
-                            <span className="block text-sm font-black text-ink sm:text-base">
-                              {service.titulo}
-                            </span>
-                            <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-bold text-muted">
-                              <span className="inline-flex items-center gap-1">
-                                <Clock className="h-3 w-3 shrink-0 text-psi-vibrant" />
-                                {service.duracao}
-                              </span>
-                              {service.opcoes[0] && (
-                                <>
-                                  <span aria-hidden="true">·</span>
-                                  <span className="text-psi-deep">a partir de {service.opcoes[0].preco}</span>
-                                </>
-                              )}
-                            </span>
-                          </span>
-                          <ChevronDown
-                            aria-hidden="true"
-                            className={`h-5 w-5 shrink-0 text-psi-vibrant transition-transform duration-200 ${
-                              aberto ? 'rotate-180' : ''
-                            }`}
-                          />
-                        </button>
-                      </h4>
-
-                      {aberto && (
-                        <div
-                          id={`painel-${key}`}
-                          className="animate-in fade-in slide-in-from-top-1 duration-200"
-                        >
-                          <div className="space-y-4 px-5 pb-5 sm:px-6 sm:pb-6">
-                            {/* Dentro do menu a imagem fica recuada: sangrando de borda a borda
-                                ela cortaria a lista em duas. */}
-                            <div className="relative h-44 w-full overflow-hidden rounded-2xl bg-psi-darkest sm:h-56 lg:h-64">
-                              <img
-                                src={service.imagem}
-                                alt={service.titulo}
-                                className="h-full w-full object-cover opacity-90"
-                              />
-                              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/10 to-transparent" />
-                            </div>
-
-                            <p className="text-xs leading-relaxed text-muted">{service.descricao}</p>
-
-                            <div className="flex items-center gap-1.5 rounded-xl border-y border-purple-100 bg-purple-50/60 px-3 py-2.5 text-xs font-extrabold text-purple-800">
-                              <Clock className="w-3.5 h-3.5 shrink-0 text-purple-600" />
-                              <span>Duração da sessão: {service.duracao}</span>
-                            </div>
-
-                            <div className="grid gap-3 sm:grid-cols-2">
-                              {service.opcoes.map((opcao) => (
-                                <div
-                                  key={opcao.tipo}
-                                  className="flex items-center justify-between gap-3 rounded-2xl border border-psi-soft/80 bg-canvas p-4 transition-colors hover:bg-psi-soft/40"
-                                >
-                                  <div className="min-w-0">
-                                    <span className="block text-xs font-extrabold text-ink">{opcao.label}</span>
-                                    <span className="text-[11px] font-black text-psi-deep">{opcao.preco} / sessão</span>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSelectServiceAndPrice(servicoKey, opcao.tipo)}
-                                    className="shrink-0 rounded-xl bg-psi-deep px-5 py-2.5 text-xs font-extrabold text-white shadow-sm transition-all hover:bg-psi-darkest active:scale-95"
-                                  >
-                                    Agendar
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
             {/* Dúvidas Frequentes */}
-            <div className="bg-white rounded-3xl p-8 border border-purple-100 shadow-sm space-y-6">
+            <div id="secao-duvidas" className="scroll-mt-28 bg-white rounded-3xl p-8 border border-purple-100 shadow-sm space-y-6">
               <h3 className="text-xl font-black text-slate-900 border-b border-purple-50 pb-4">Dúvidas Frequentes</h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs sm:text-sm">

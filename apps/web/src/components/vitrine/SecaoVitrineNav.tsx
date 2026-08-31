@@ -1,13 +1,13 @@
-export type SecaoVitrine = 'SERVICOS' | 'PROFISSIONAIS' | 'ESCOLHA_SERVICO';
+export type SecaoVitrine = 'SERVICOS' | 'PROFISSIONAIS' | 'DUVIDAS';
 
 /**
  * Na ordem em que as seções aparecem na página — a navegação e o observador de
  * rolagem dependem disso para destacar a seção certa.
  */
 export const SECOES_VITRINE = [
-  { id: 'SERVICOS', label: 'Serviços Clínicos Oferecidos', ancora: 'secao-servicos' },
+  { id: 'SERVICOS', label: 'Escolha Seu Serviço', ancora: 'secao-escolha-servico' },
   { id: 'PROFISSIONAIS', label: 'Conheça Nossos Profissionais', ancora: 'secao-profissionais' },
-  { id: 'ESCOLHA_SERVICO', label: 'Escolha Seu Serviço', ancora: 'secao-escolha-servico' },
+  { id: 'DUVIDAS', label: 'Dúvidas Frequentes', ancora: 'secao-duvidas' },
 ] as const satisfies readonly { id: SecaoVitrine; label: string; ancora: string }[];
 
 interface SecaoVitrineNavProps {

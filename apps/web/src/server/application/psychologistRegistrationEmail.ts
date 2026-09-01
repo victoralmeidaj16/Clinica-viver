@@ -1,6 +1,7 @@
 import 'server-only';
 
 import type { CadastroPsicologoRecord } from './persistence';
+import { montarEmailViverMais } from './viverMaisEmailTemplate';
 
 const RESEND_ENDPOINT = 'https://api.resend.com/emails';
 
@@ -65,12 +66,18 @@ export function conteudoCadastroRecebido(nome: string): ConteudoEmail {
       '',
       'Equipe Viver Mais Psicologia',
     ].join('\n'),
-    html: `<p>Olá, <strong>${seguro}</strong>!</p>
-      <p>Seja bem-vindo(a) à Viver Mais Psicologia.</p>
-      <p>Recebemos seu cadastro profissional e seu perfil já está sendo analisado pela nossa gestão.</p>
-      <p>Em até <strong>24 horas</strong>, você receberá outro e-mail com o resultado da análise. Em caso de aprovação, ele trará as instruções de acesso ao portal e o link seguro para cadastrar sua senha.</p>
-      <p>Nenhuma ação é necessária neste momento.</p>
-      <p>Equipe Viver Mais Psicologia</p>`,
+    html: montarEmailViverMais({
+      preheader: 'Recebemos seu cadastro profissional. Nossa equipe já iniciou a análise.',
+      eyebrow: 'Credenciamento profissional',
+      titulo: 'Seu cadastro chegou até nós',
+      saudacao: `Olá, <strong>${seguro}</strong>!`,
+      paragrafos: [
+        'Seja bem-vindo(a) à Viver Mais Psicologia.',
+        'Recebemos seu cadastro profissional e seu perfil já está sendo analisado com cuidado pela nossa gestão.',
+        'Em até <strong style="color:#43265e;">24 horas</strong>, você receberá outro e-mail com o resultado. Em caso de aprovação, enviaremos as instruções de acesso ao portal e o link seguro para cadastrar sua senha.',
+        '<strong style="color:#2a2028;">Nenhuma ação é necessária neste momento.</strong>',
+      ],
+    }),
   };
 }
 
@@ -97,13 +104,29 @@ export function conteudoCadastroAprovado(
       '',
       'Equipe Viver Mais Psicologia',
     ].join('\n'),
-    html: `<p>Olá, <strong>${seguro}</strong>!</p>
-      <p>Seu cadastro profissional foi aprovado pela Viver Mais Psicologia.</p>
-      <p><a href="${portalSeguro}">Acessar o portal</a></p>
-      ${ativacaoSegura ? `<p><a href="${ativacaoSegura}"><strong>Cadastrar minha senha</strong></a></p>
-      <p>O link de criação da senha é individual, pode ser usado uma única vez e expira em 72 horas.</p>` : ''}
-      <p>A Viver Mais nunca solicitará sua senha por e-mail ou WhatsApp.</p>
-      <p>Equipe Viver Mais Psicologia</p>`,
+    html: montarEmailViverMais({
+      preheader: ativacaoSegura
+        ? 'Seu cadastro foi aprovado. Crie sua senha para começar.'
+        : 'Seu cadastro foi aprovado. O portal Viver Mais já está disponível.',
+      eyebrow: 'Cadastro aprovado',
+      titulo: 'Boas-vindas à Viver Mais',
+      saudacao: `Olá, <strong>${seguro}</strong>!`,
+      paragrafos: [
+        'Seu cadastro profissional foi <strong style="color:#43265e;">aprovado</strong>. É uma alegria ter você com a gente.',
+        ativacaoSegura
+          ? 'Para começar, cadastre sua senha pessoal usando o botão abaixo. Depois disso, seu acesso ao portal estará liberado.'
+          : 'Seu acesso já está disponível. Entre no portal para continuar sua jornada com a clínica.',
+      ],
+      acaoPrincipal: ativacaoSegura
+        ? { label: 'Cadastrar minha senha', href: ativacaoSegura }
+        : { label: 'Acessar o portal', href: portalSeguro },
+      acaoSecundaria: ativacaoSegura
+        ? { label: 'Acessar o portal', href: portalSeguro }
+        : undefined,
+      aviso: ativacaoSegura
+        ? 'O link para criar sua senha é individual, funciona uma única vez e expira em 72 horas. A Viver Mais nunca solicitará sua senha por e-mail ou WhatsApp.'
+        : 'A Viver Mais nunca solicitará sua senha por e-mail ou WhatsApp.',
+    }),
   };
 }
 

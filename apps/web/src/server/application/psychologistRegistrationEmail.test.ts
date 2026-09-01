@@ -39,6 +39,8 @@ describe('e-mails do credenciamento de psicólogo', () => {
     expect(conteudo.text).toContain('Em até 24 horas');
     expect(conteudo.text).toContain('link seguro para cadastrar sua senha');
     expect(conteudo.html).toContain('Ana &amp; Silva');
+    expect(conteudo.html).toContain('logo-viver-mais.png');
+    expect(conteudo.html).toContain('Seu cadastro chegou até nós');
   });
 
   it('inclui portal, criação de senha e validade no e-mail de aprovação', () => {
@@ -50,6 +52,8 @@ describe('e-mails do credenciamento de psicólogo', () => {
     expect(conteudo.text).toContain('Portal: https://clinicavivermais.cloud/login');
     expect(conteudo.text).toContain('expira em 72 horas');
     expect(conteudo.html).toContain('Cadastrar minha senha');
+    expect(conteudo.html).toContain('Boas-vindas à Viver Mais');
+    expect(conteudo.html).toContain('background:#43265e');
   });
 
   it('orienta acesso ao portal sem inventar nova senha para conta já existente', () => {

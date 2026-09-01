@@ -88,8 +88,8 @@ export function derivarModalidadesAtendidas(
   preferencia: 'PARTICULAR' | 'SOCIAL' | 'AMBOS' | undefined
 ): string[] {
   if (preferencia === 'PARTICULAR') return ['PARTICULAR'];
-  if (preferencia === 'SOCIAL') return ['SOCIAL'];
-  return ['SOCIAL', 'PARTICULAR'];
+  if (preferencia === 'SOCIAL') return ['ACESSIVEL_SOCIAL', 'SOCIAL'];
+  return ['ACESSIVEL_SOCIAL', 'SOCIAL', 'PARTICULAR'];
 }
 
 function listaDeTexto(valor: unknown): string[] | undefined {

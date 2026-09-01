@@ -417,10 +417,18 @@ export default function ViverMaisLandingPage() {
     setStep('MATCH_RECOMENDACOES');
   };
 
+  const psicologoAtendeModalidade = (modalidades: readonly string[] | undefined, modalidadeDesejada: ModalidadeKey | null) => {
+    if (!modalidades || modalidades.length === 0) return true;
+    const isParticular = modalidadeDesejada?.includes('PARTICULAR');
+    if (isParticular) {
+      return modalidades.some((m) => m === 'PARTICULAR' || m === 'CASAL_PARTICULAR');
+    }
+    return modalidades.some((m) => m === 'SOCIAL' || m === 'CASAL_SOCIAL' || m === 'ACESSIVEL_SOCIAL');
+  };
+
   const psicologosRecomendadosMatch = useMemo(() => {
     if (!form.turno) return [];
 
-    const modalidadeMotor = selectedModalidade?.includes('PARTICULAR') ? 'PARTICULAR' : 'ACESSIVEL_SOCIAL';
     const turnoNormalizado = normalizarTurnoPreferencia(form.turno);
     const paraQuemNorm = (form.paraQuemE === 'Outro' ? form.paraQuemEOutro : form.paraQuemE)
       .toLowerCase()
@@ -432,7 +440,7 @@ export default function ViverMaisLandingPage() {
       if (selectedService && psi.servicosHabilitados.length > 0 && !psi.servicosHabilitados.includes(selectedService)) {
         return false;
       }
-      const atendeModalidade = !psi.modalidadesAtendidas?.length || psi.modalidadesAtendidas.includes(modalidadeMotor);
+      const atendeModalidade = psicologoAtendeModalidade(psi.modalidadesAtendidas, selectedModalidade);
       if (!atendeModalidade) return false;
 
       // Turno precisa coincidir
@@ -477,8 +485,7 @@ export default function ViverMaisLandingPage() {
   const profissionaisCompativeis = psicologosCredenciados.filter((psi) => {
     if (psi.disponivelParaNovosPacientes === false) return false;
     if (selectedService && psi.servicosHabilitados.length > 0 && !psi.servicosHabilitados.includes(selectedService)) return false;
-    const modalidadeMotor = selectedModalidade?.includes('PARTICULAR') ? 'PARTICULAR' : 'ACESSIVEL_SOCIAL';
-    const atendeModalidade = !psi.modalidadesAtendidas?.length || psi.modalidadesAtendidas.includes(modalidadeMotor);
+    const atendeModalidade = psicologoAtendeModalidade(psi.modalidadesAtendidas, selectedModalidade);
     return atendeModalidade && Boolean(psi.turnosDisponiveis?.some((turno) => normalizarTurnoPreferencia(turno)));
   });
 

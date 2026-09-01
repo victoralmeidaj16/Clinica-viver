@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 
 import type { CadastroPsicologoRecord } from './persistence';
-import { aplicarMudancas, CAMPOS_DA_GESTAO } from './psychologistRegistration';
+import { aplicarMudancas, CAMPOS_DA_GESTAO, derivarModalidadesAtendidas } from './psychologistRegistration';
 
 const cadastro = (mudancas: Partial<CadastroPsicologoRecord> = {}): CadastroPsicologoRecord => ({
   id: 'psi-1',
@@ -51,5 +51,13 @@ describe('estado operacional do psicólogo', () => {
 
     expect(resultado.pausadoNoRodizio).toBe(true);
     expect(resultado.exibirNaVitrine).toBe(false);
+  });
+
+  it('deriva modalidades com equivalência social e acessível', () => {
+    expect(derivarModalidadesAtendidas('SOCIAL')).toContain('ACESSIVEL_SOCIAL');
+    expect(derivarModalidadesAtendidas('SOCIAL')).toContain('SOCIAL');
+    expect(derivarModalidadesAtendidas('PARTICULAR')).toEqual(['PARTICULAR']);
+    expect(derivarModalidadesAtendidas('AMBOS')).toContain('ACESSIVEL_SOCIAL');
+    expect(derivarModalidadesAtendidas('AMBOS')).toContain('PARTICULAR');
   });
 });

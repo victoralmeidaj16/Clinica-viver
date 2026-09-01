@@ -1,13 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  CheckCircle2,
   Zap,
-  Clock,
   Check,
-  Phone,
   Calendar,
   Copy,
   UserPlus,
@@ -40,14 +37,6 @@ interface AppointmentSummary {
   prontuarioPreenchido?: boolean;
 }
 
-const LEAD_ALOCADO_EM = new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString();
-
-// Horários do exemplo de prontuário pendente, fixados no carregamento do
-// módulo. Ler o relógio dentro do render faria o valor mudar sozinho a cada
-// re-render — instabilidade que o React sinaliza como erro.
-const EXEMPLO_SESSAO_INICIO = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-const EXEMPLO_SESSAO_FIM = new Date(Date.now() - 23 * 60 * 60 * 1000).toISOString();
-
 export default function CockpitPage() {
   const router = useRouter();
 
@@ -60,29 +49,6 @@ export default function CockpitPage() {
   // Estados de Modal e Cópia
   const [modalNovoPaciente, setModalNovoPaciente] = useState(false);
   const [copiedAgendaLink, setCopiedAgendaLink] = useState(false);
-  const [copiedLeadLink, setCopiedLeadLink] = useState(false);
-
-  // Lead de Triagem pendente (SLA 24h)
-  const [pendingLead, setPendingLead] = useState<{
-    id: string;
-    nomePaciente: string;
-    telefone: string;
-    modalidade: string;
-    turno: string;
-    origem: string;
-    alocadoEm: string;
-    confirmado: boolean;
-    cobrancaUrl?: string;
-  }>({
-    id: 'lead-vivermais-89312',
-    nomePaciente: 'João Pedro Severo',
-    telefone: '(51) 99823-4411',
-    modalidade: 'Atendimento Acessível (Social)',
-    turno: 'Tarde (14h - 18h)',
-    origem: 'Site Viver Mais (Formulário)',
-    alocadoEm: LEAD_ALOCADO_EM,
-    confirmado: false,
-  });
 
   useEffect(() => {
     // Carrega Pacientes
@@ -114,63 +80,11 @@ export default function CockpitPage() {
     ? `${typeof window !== 'undefined' ? window.location.origin : 'https://clinica-viver-web.vercel.app'}/agendar/${agendaToken}`
     : '';
 
-  // Identifica sessões encerradas (registro opcional no prontuário).
-  //
-  // O horário do exemplo é calculado uma vez, e não a cada render: ler o
-  // relógio durante a renderização faz o valor mudar sozinho a cada
-  // re-render, e o React trata isso como resultado instável.
-  const sessaoPendenteProntuario = useMemo(
-    () =>
-      appointments.find((a) => a.status === 'completed' && !a.prontuarioPreenchido) || {
-        id: 'demo-pendente-1',
-        patientId: patients[0]?.id || 'p-demo-1',
-        pacienteNome: patients[0]?.displayName || 'João Pedro Severo',
-        startsAt: EXEMPLO_SESSAO_INICIO,
-        endsAt: EXEMPLO_SESSAO_FIM,
-        status: 'completed' as const,
-        modality: 'online' as const,
-        prontuarioPreenchido: false,
-      },
-    [appointments, patients]
-  );
-
-  const handleConfirmContact = async () => {
-    const linkUrl = publicAgendaUrl || `https://clinica-viver-web.vercel.app/agendar/0e1417b497fd11f197d68e553c6656d0`;
-    setPendingLead((prev) => ({
-      ...prev,
-      confirmado: true,
-      cobrancaUrl: linkUrl,
-    }));
-
-    try {
-      const textoPaciente = `Olá, ${pendingLead.nomePaciente}! 👋✨\n\nAqui é o psicólogo da *Viver Mais Psicologia*.\n\nSua vaga para atendimento de *${pendingLead.modalidade}* foi confirmada!\n\n📅 Para escolher o seu melhor dia e horário de atendimento, acesse seu link exclusivo:\n${linkUrl}\n\nEstou no aguardo!🧠`;
-
-      await fetch('/api/application/communication/send-text', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() },
-        body: JSON.stringify({
-          number: pendingLead.telefone.replace(/\D/g, ''),
-          text: textoPaciente,
-        }),
-      });
-    } catch {
-      // Ignora erro de webhook local
-    }
-  };
-
   const handleCopyAgendaLink = () => {
     if (publicAgendaUrl) {
       navigator.clipboard.writeText(publicAgendaUrl);
       setCopiedAgendaLink(true);
       setTimeout(() => setCopiedAgendaLink(false), 3000);
-    }
-  };
-
-  const handleCopyLeadLink = () => {
-    if (pendingLead.cobrancaUrl) {
-      navigator.clipboard.writeText(pendingLead.cobrancaUrl);
-      setCopiedLeadLink(true);
-      setTimeout(() => setCopiedLeadLink(false), 3000);
     }
   };
 
@@ -212,7 +126,7 @@ export default function CockpitPage() {
             Meu Painel
           </h1>
           <p className="text-xs text-muted">
-            Acompanhe suas pendências de atendimento, SLA de 24h, agendamentos do dia e prontuários.
+            Acompanhe suas pendências de atendimento, agendamentos do dia e prontuários.
           </p>
         </div>
 
@@ -228,112 +142,9 @@ export default function CockpitPage() {
         </div>
       </div>
 
-      {/* CARD DE PRONTUÁRIOS (REGISTRO OPCIONAL NAS CORES DA PLATAFORMA) */}
-      {sessaoPendenteProntuario && (
-        <div className="bg-psi-vibrant/5 rounded-3xl border border-psi-vibrant/20 p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in duration-200">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-psi-vibrant/10 text-psi-vibrant flex items-center justify-center font-bold shrink-0">
-              <FileText className="w-5 h-5 text-psi-vibrant" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black uppercase tracking-wider text-psi-vibrant bg-psi-vibrant/15 px-2 py-0.5 rounded-md">
-                  Registro Opcional
-                </span>
-                <span className="text-xs font-bold text-ink">Evolução Clínica do Paciente</span>
-              </div>
-              <p className="text-xs text-slate-700 font-medium mt-0.5">
-                Sessão concluída com <strong className="text-ink">{sessaoPendenteProntuario.pacienteNome}</strong>. Deseja registrar observações ou evolução clínica no histórico?
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => router.push(`/linha-do-tempo?patientId=${sessaoPendenteProntuario.patientId}`)}
-            className="bg-psi-vibrant hover:bg-psi-vibrant/90 text-white font-extrabold text-xs px-4 py-2.5 rounded-2xl shadow-md transition-all flex items-center gap-1.5 shrink-0 self-start sm:self-auto"
-          >
-            <FileText className="w-4 h-4" />
-            <span>Registrar Evolução (Opcional)</span>
-          </button>
-        </div>
-      )}
-
-      {/* 1. CARD HERO: PENDÊNCIA DE SLA & CONTATO (SE HOUVER ENCAMINHAMENTO) */}
-      <div className="bg-gradient-to-br from-slate-900 via-psi-darkest to-slate-900 text-white rounded-3xl p-6 shadow-contrast relative overflow-hidden border border-psi-vibrant/30">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="bg-amber-500/20 text-amber-300 border border-amber-400/30 text-[11px] font-extrabold px-3 py-1 rounded-full flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-amber-400 animate-spin" />
-                SLA 24h: Restam 21h 00m
-              </span>
-              <span className="bg-psi-vibrant/30 text-psi-soft border border-psi-vibrant/40 text-[11px] font-bold px-3 py-1 rounded-full">
-                Novo Encaminhamento Recebido
-              </span>
-            </div>
-
-            <h2 className="text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
-              {pendingLead.nomePaciente}
-            </h2>
-
-            <div className="flex flex-wrap items-center gap-4 text-xs text-slate-300">
-              <span className="flex items-center gap-1 font-bold">
-                <Phone className="w-3.5 h-3.5 text-psi-vibrant" />
-                {pendingLead.telefone}
-              </span>
-              <span className="flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5 text-psi-vibrant" />
-                Pref: {pendingLead.turno}
-              </span>
-              <span className="bg-white/10 px-2.5 py-0.5 rounded-lg text-[11px] font-semibold text-white">
-                {pendingLead.modalidade}
-              </span>
-            </div>
-          </div>
-
-          <div className="shrink-0 flex flex-col gap-3">
-            {!pendingLead.confirmado ? (
-              <button
-                type="button"
-                onClick={handleConfirmContact}
-                className="bg-emerald-500 hover:bg-emerald-400 text-white font-extrabold text-xs px-5 py-3 rounded-2xl shadow-lg shadow-emerald-500/30 transition-all flex items-center gap-2"
-              >
-                <Check className="w-4 h-4" />
-                CONFIRMAR CONTATO EFETUADO
-              </button>
-            ) : (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold bg-emerald-500/10 px-3 py-2 rounded-xl border border-emerald-500/30">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  Contato Efetuado! Paciente Notificado.
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    readOnly
-                    value={pendingLead.cobrancaUrl}
-                    className="bg-black/50 border border-white/20 rounded-xl px-3 py-2 text-[11px] font-mono text-psi-soft w-48 truncate"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleCopyLeadLink}
-                    className="bg-psi-vibrant hover:bg-psi-vibrant/90 text-white font-bold text-xs px-3 py-2 rounded-xl transition-all flex items-center gap-1"
-                  >
-                    {copiedLeadLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    {copiedLeadLink ? 'Copiado!' : 'Copiar'}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
       {/* GRID DE CARDS PRINCIPAIS DO MEU PAINEL */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-
-        {/* CARD 3: ACESSO RÁPIDO AO PRONTUÁRIO DO PACIENTE */}
+        {/* CARD 1: ACESSO RÁPIDO AO PRONTUÁRIO DO PACIENTE */}
         <div className="bg-surface rounded-3xl p-5 border border-line shadow-card flex flex-col justify-between space-y-4">
           <div className="space-y-1">
             <span className="text-[10px] font-black uppercase tracking-wider text-psi-vibrant">
@@ -373,7 +184,7 @@ export default function CockpitPage() {
           </div>
         </div>
 
-        {/* CARD 4: CARD MENOR PARA COPIAR LINK PÚBLICO DA AGENDA */}
+        {/* CARD 2: COMPARTILHAR LINK PÚBLICO DA AGENDA */}
         <div className="bg-surface rounded-3xl p-5 border border-line shadow-card flex flex-col justify-between space-y-4">
           <div className="space-y-1">
             <span className="text-[10px] font-black uppercase tracking-wider text-psi-vibrant">

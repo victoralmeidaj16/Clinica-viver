@@ -90,7 +90,12 @@ export interface DadosTriagem {
   email?: string;
   cpf?: string;
   cep?: string;
+  logradouro?: string;
   numeroResidencia?: string;
+  complemento?: string;
+  bairro?: string;
+  cidade?: string;
+  estadoUf?: string;
   possuiConvenio?: string;
   convenioSelecionado: string;
   origem: string;
@@ -179,6 +184,20 @@ export function validarSubmissaoTriagem(corpo: unknown): ResultadoValidacao {
     return recusa('O CEP informado não parece válido.');
   }
 
+  const logradouro = texto(body.logradouro, 255);
+  const numeroResidencia = texto(body.numeroResidencia, 32);
+  const complemento = texto(body.complemento, 120);
+  const bairro = texto(body.bairro, 120);
+  const cidade = texto(body.cidade, 120);
+  const estadoUf = texto(body.estadoUf, 2)?.toLocaleUpperCase('pt-BR');
+  const informouEndereco = Boolean(cep || logradouro || numeroResidencia || bairro || cidade || estadoUf);
+  if (informouEndereco && (!cep || !logradouro || !numeroResidencia || !bairro || !cidade || !estadoUf)) {
+    return recusa('Confirme o endereço completo: CEP, rua, número, bairro, cidade e UF.');
+  }
+  if (estadoUf && !/^[A-Z]{2}$/.test(estadoUf)) {
+    return recusa('A UF informada não parece válida.');
+  }
+
   const dataNascimento = texto(body.dataNascimento, 10);
   if (dataNascimento && !dataNascimentoPlausivel(dataNascimento)) {
     return recusa('A data de nascimento informada não parece válida.');
@@ -218,7 +237,12 @@ export function validarSubmissaoTriagem(corpo: unknown): ResultadoValidacao {
       email,
       cpf,
       cep,
-      numeroResidencia: texto(body.numeroResidencia, 20),
+      logradouro,
+      numeroResidencia,
+      complemento,
+      bairro,
+      cidade,
+      estadoUf,
       possuiConvenio: texto(body.possuiConvenio, 20),
       convenioSelecionado: texto(body.convenioSelecionado, 120) ?? 'Nenhum',
       origem: texto(body.origem, 80) ?? 'Formulário Vitrine',

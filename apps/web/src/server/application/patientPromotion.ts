@@ -109,6 +109,15 @@ export async function promoverLeadEmPaciente(
     await contato.savePatientContact(paciente.id, {
       phone: lead.telefone,
       email: lead.email,
+      legalName: lead.nomePaciente,
+      documento: lead.cpf,
+      cep: lead.cep,
+      logradouro: lead.logradouro,
+      numero: lead.numeroResidencia,
+      complemento: lead.complemento,
+      bairro: lead.bairro,
+      cidade: lead.cidade,
+      uf: lead.estadoUf,
     } satisfies PatientContact);
   }
 

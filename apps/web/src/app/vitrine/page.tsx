@@ -138,8 +138,11 @@ export default function ViverMaisLandingPage() {
     cpf: '',
     cep: '',
     numeroResidencia: '',
-    ruaManual: '',
-    bairroManual: '',
+    logradouro: '',
+    complemento: '',
+    bairro: '',
+    cidade: '',
+    estadoUf: '',
     possuiConvenio: 'NAO',
     convenioSelecionado: '',
     origem: 'Facebook',
@@ -154,8 +157,8 @@ export default function ViverMaisLandingPage() {
     generoOutro: '',
   });
 
-  const [enderecoInfo, setEnderecoInfo] = useState({ logradouro: '', bairro: '', cidade: '', uf: '' });
   const [loadingCep, setLoadingCep] = useState(false);
+  const [cepStatus, setCepStatus] = useState<'idle' | 'encontrado' | 'nao_encontrado' | 'erro'>('idle');
   const [psicologosCredenciados, setPsicologosCredenciados] = useState<PsicologoVitrineItem[]>([]);
   const [conveniosDisponiveis, setConveniosDisponiveis] = useState<string[]>([]);
   const [conveniosLoading, setConveniosLoading] = useState(true);
@@ -223,6 +226,23 @@ export default function ViverMaisLandingPage() {
     return () => observer.disconnect();
   }, [step]);
 
+  useEffect(() => {
+    if (step !== 'FORMULARIO') return;
+
+    // A troca de etapa reduz bastante a altura da página. Sem reposicionar a
+    // janela, o navegador preserva o scroll do catálogo e acaba mostrando o
+    // fim do formulário. Esperar o próximo frame garante que o novo conteúdo
+    // já exista antes de levá-lo para baixo do cabeçalho fixo.
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById('formulario-agendamento')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [step]);
+
   // Máscara CPF: 000.000.000-00
   const maskCPF = (val: string) => {
     return val
@@ -254,27 +274,40 @@ export default function ViverMaisLandingPage() {
   const handleCepChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value;
     const masked = maskCEP(rawValue);
-    setForm((prev) => ({ ...prev, cep: masked }));
+    setForm((prev) => ({
+      ...prev,
+      cep: masked,
+      ...(prev.cep !== masked ? {
+        logradouro: '', complemento: '', bairro: '', cidade: '', estadoUf: '',
+      } : {}),
+    }));
+    setCepStatus('idle');
 
     const cleanCep = masked.replace(/\D/g, '');
-    if (cleanCep.length === 8) {
-      setLoadingCep(true);
-      try {
-        const resp = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
-        const data = await resp.json();
-        if (!data.erro) {
-          setEnderecoInfo({
-            logradouro: data.logradouro || '',
-            bairro: data.bairro || '',
-            cidade: data.localidade || '',
-            uf: data.uf || '',
-          });
-        }
-      } catch (err) {
-        console.error('Erro ao consultar ViaCEP:', err);
-      } finally {
-        setLoadingCep(false);
+    if (cleanCep.length !== 8) return;
+
+    setLoadingCep(true);
+    try {
+      const resp = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+      if (!resp.ok) throw new Error(`ViaCEP respondeu HTTP ${resp.status}`);
+      const data = await resp.json();
+      if (data.erro) {
+        setCepStatus('nao_encontrado');
+        return;
       }
+      setForm((prev) => prev.cep === masked ? {
+        ...prev,
+        logradouro: String(data.logradouro ?? ''),
+        bairro: String(data.bairro ?? ''),
+        cidade: String(data.localidade ?? ''),
+        estadoUf: String(data.uf ?? '').toUpperCase(),
+      } : prev);
+      setCepStatus('encontrado');
+    } catch (err) {
+      console.error('Erro ao consultar ViaCEP:', err);
+      setCepStatus('erro');
+    } finally {
+      setLoadingCep(false);
     }
   };
 
@@ -486,7 +519,11 @@ export default function ViverMaisLandingPage() {
     if (psi.disponivelParaNovosPacientes === false) return false;
     if (selectedService && psi.servicosHabilitados.length > 0 && !psi.servicosHabilitados.includes(selectedService)) return false;
     const atendeModalidade = psicologoAtendeModalidade(psi.modalidadesAtendidas, selectedModalidade);
-    return atendeModalidade && Boolean(psi.turnosDisponiveis?.some((turno) => normalizarTurnoPreferencia(turno)));
+    const turnoEscolhido = normalizarTurnoPreferencia(form.turno);
+    const atendeTurno = Boolean(turnoEscolhido && psi.turnosDisponiveis?.some(
+      (turno) => normalizarTurnoPreferencia(turno) === turnoEscolhido
+    ));
+    return atendeModalidade && atendeTurno;
   });
 
 
@@ -500,17 +537,9 @@ export default function ViverMaisLandingPage() {
       alert('Selecione o gênero e, se escolher Outro, informe a descrição.');
       return;
     }
-    if (enderecoInfo.cidade) {
-      const temRua = (enderecoInfo.logradouro || form.ruaManual).trim();
-      const temBairro = (enderecoInfo.bairro || form.bairroManual).trim();
-      if (!temRua) {
-        alert('Informe o nome da sua rua / logradouro.');
-        return;
-      }
-      if (!temBairro) {
-        alert('Informe o seu bairro.');
-        return;
-      }
+    if (!form.logradouro.trim() || !form.bairro.trim() || !form.cidade.trim() || !form.estadoUf.trim()) {
+      alert('Confirme o endereço completo: rua, bairro, cidade e UF.');
+      return;
     }
     if (selectedService !== 'ORIENTACAO_PARENTAL' && form.paraQuemE === 'Outro' && !form.paraQuemEOutro.trim()) {
       alert('Especifique para quem é o atendimento.');
@@ -893,6 +922,8 @@ export default function ViverMaisLandingPage() {
                 type="button"
                 onClick={() => {
                   setCaminho('PROFISSIONAL');
+                  setForm((prev) => ({ ...prev, turno: '' }));
+                  setPsicologoEscolhido(null);
                   setStep('PROFISSIONAIS');
                 }}
                 className="group rounded-3xl border border-psi-soft bg-surface p-7 text-left shadow-card transition-all hover:-translate-y-1 hover:border-psi-vibrant hover:shadow-lift"
@@ -1106,54 +1137,51 @@ export default function ViverMaisLandingPage() {
               <div>
                 <span className="text-[10px] font-black uppercase tracking-widest text-psi-vibrant">Catálogo compatível</span>
                 <h3 className="mt-1 text-2xl font-black text-ink">Escolha seu profissional</h3>
-                <p className="mt-1 text-xs text-muted">Mostramos somente profissionais habilitados para o serviço e a faixa de valor escolhidos.</p>
+                <p className="mt-1 text-xs text-muted">Primeiro informe o período desejado. Depois mostraremos somente os profissionais compatíveis.</p>
               </div>
               <button type="button" onClick={() => setStep('CAMINHO')} className="text-xs font-bold text-muted hover:text-ink">Voltar</button>
             </div>
 
-            {profissionaisCompativeis.length > 0 ? (
-              <VitrineCarrossel
-                psicologos={profissionaisCompativeis}
-                selecionadoId={psicologoEscolhido?.id}
-                mostrarFiltros
-                layout="lista"
-                onSelecionar={(psicologo) => {
-                  setPsicologoEscolhido(psicologo);
-                  setForm((prev) => ({ ...prev, turno: '' }));
+            <div className="mx-auto max-w-2xl rounded-3xl border border-psi-soft bg-surface p-5 shadow-card sm:p-7">
+              <span className="mb-4 block text-[10px] font-black uppercase tracking-[0.18em] text-psi-vibrant">
+                Antes de conhecer a equipe
+              </span>
+              <TurnoPreferenceField
+                value={form.turno}
+                onChange={(turno) => {
+                  setForm((prev) => ({ ...prev, turno }));
+                  setPsicologoEscolhido(null);
                 }}
               />
-            ) : (
-              <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 text-sm font-semibold text-amber-900">
-                Nenhum profissional está disponível para esta combinação agora. Volte e use a recomendação inteligente para entrar na fila de atendimento.
-              </div>
-            )}
+            </div>
 
-            {psicologoEscolhido && (
-              <div className="sticky bottom-4 mx-auto max-w-2xl rounded-3xl border border-psi-vibrant/30 bg-white/95 p-5 shadow-2xl backdrop-blur-md">
-                <p className="text-[10px] font-black uppercase tracking-wider text-psi-vibrant">Horários disponíveis de {psicologoEscolhido.nomeSocial || psicologoEscolhido.nome}</p>
-                <p className="mb-3 mt-1 text-xs text-muted">Escolha um período disponível. O profissional entrará em contato para confirmar o melhor dia e horário.</p>
-                <TurnoPreferenceField
-                  value={form.turno}
-                  allowedValues={(psicologoEscolhido.turnosDisponiveis ?? [])
-                    .map(normalizarTurnoPreferencia)
-                    .filter((turno): turno is TurnoPreferencia => Boolean(turno))}
-                  onChange={(turno) => setForm((prev) => ({ ...prev, turno }))}
+            {form.turno && (
+              profissionaisCompativeis.length > 0 ? (
+                <VitrineCarrossel
+                  psicologos={profissionaisCompativeis}
+                  selecionadoId={psicologoEscolhido?.id}
+                  titulo={`Profissionais disponíveis no período da ${form.turno === 'MANHA' ? 'manhã' : form.turno === 'TARDE' ? 'tarde' : 'noite'}`}
+                  subtitulo="Clique no profissional com quem você mais se identificar para continuar"
+                  layout="lista"
+                  onSelecionar={(psicologo) => {
+                    setPsicologoEscolhido(psicologo);
+                    setStep('FORMULARIO');
+                  }}
                 />
-                <button
-                  type="button"
-                  disabled={!form.turno}
-                  onClick={() => setStep('FORMULARIO')}
-                  className="btn-accent mt-4 w-full justify-center py-3 text-xs disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Agendar com este profissional <ArrowRight className="h-4 w-4" />
-                </button>
-              </div>
+              ) : (
+                <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 text-sm font-semibold text-amber-900">
+                  Nenhum profissional está disponível no período escolhido para esta combinação. Selecione outro período ou volte e use a recomendação inteligente para entrar na fila de atendimento.
+                </div>
+              )
             )}
           </section>
         )}
 
         {step === 'FORMULARIO' && selectedService && selectedModalidade && (
-          <div className="max-w-xl mx-auto bg-white rounded-3xl p-6 sm:p-8 border border-purple-100 shadow-xl space-y-6 animate-in fade-in duration-300">
+          <div
+            id="formulario-agendamento"
+            className="scroll-mt-44 max-w-xl mx-auto bg-white rounded-3xl p-6 sm:p-8 border border-purple-100 shadow-xl space-y-6 animate-in fade-in duration-300"
+          >
             <div className="flex items-center justify-between border-b border-purple-50 pb-4">
               <div>
                 <span className="text-[10px] text-purple-600 font-bold uppercase tracking-wider block">Últimos passos</span>
@@ -1332,55 +1360,73 @@ export default function ViverMaisLandingPage() {
                 </div>
               </div>
 
-              {/* Endereço auto-preenchido pelo ViaCEP ou manual caso não venha rua/bairro */}
-              {enderecoInfo.cidade && (
-                <div className="bg-purple-50/60 border border-purple-100 p-4 rounded-2xl text-[11px] space-y-3 animate-in fade-in">
-                  <span className="font-bold text-purple-800 flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5 text-purple-600" /> Endereço Localizado:
-                  </span>
-                  <p className="text-slate-600">
-                    {enderecoInfo.logradouro ? `${enderecoInfo.logradouro}` : (form.ruaManual || 'Rua a informar')}
-                    {form.numeroResidencia ? `, nº ${form.numeroResidencia}` : ''}
-                    {enderecoInfo.bairro ? ` — ${enderecoInfo.bairro}` : (form.bairroManual ? ` — ${form.bairroManual}` : '')} —{' '}
-                    <span className="font-semibold text-slate-800">{enderecoInfo.cidade}/{enderecoInfo.uf}</span>
+              {/* O endereço sempre aparece após oito dígitos, mesmo se o ViaCEP falhar. */}
+              {form.cep.replace(/\D/g, '').length === 8 && (
+                <fieldset className="animate-in fade-in space-y-4 rounded-2xl border border-purple-100 bg-purple-50/60 p-4">
+                  <legend className="flex items-center gap-1.5 px-1 text-xs font-black text-purple-900">
+                    <MapPin className="h-4 w-4 text-purple-600" /> Endereço para cadastro e nota fiscal
+                  </legend>
+                  <p className={`text-[11px] ${cepStatus === 'encontrado' ? 'text-emerald-700' : cepStatus === 'idle' ? 'text-slate-500' : 'text-amber-700'}`}>
+                    {loadingCep && 'Consultando o CEP…'}
+                    {!loadingCep && cepStatus === 'encontrado' && 'Endereço localizado. Confira os dados antes de continuar.'}
+                    {!loadingCep && cepStatus === 'nao_encontrado' && 'CEP não localizado. Preencha o endereço manualmente.'}
+                    {!loadingCep && cepStatus === 'erro' && 'Não foi possível consultar agora. Preencha o endereço manualmente.'}
                   </p>
 
-                  {/* Exigir Nome da Rua e/ou Bairro caso o CEP não traga */}
-                  {(!enderecoInfo.logradouro || !enderecoInfo.bairro) && (
-                    <div className="pt-2 border-t border-purple-100/80 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {!enderecoInfo.logradouro && (
-                        <div>
-                          <label className="font-bold text-purple-900 block mb-1">
-                            Nome da Rua / Logradouro <span className="text-rose-500">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            value={form.ruaManual}
-                            onChange={(e) => setForm({ ...form, ruaManual: e.target.value })}
-                            placeholder="Digite o nome da sua rua"
-                            className="w-full border border-purple-200 bg-white rounded-xl p-2.5 text-slate-800 focus:outline-none focus:border-purple-600 text-xs"
-                          />
-                        </div>
-                      )}
-                      {!enderecoInfo.bairro && (
-                        <div>
-                          <label className="font-bold text-purple-900 block mb-1">
-                            Bairro <span className="text-rose-500">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            value={form.bairroManual}
-                            onChange={(e) => setForm({ ...form, bairroManual: e.target.value })}
-                            placeholder="Digite seu bairro"
-                            className="w-full border border-purple-200 bg-white rounded-xl p-2.5 text-slate-800 focus:outline-none focus:border-purple-600 text-xs"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <label className="sm:col-span-2">
+                      <span className="mb-1 block font-bold text-slate-700">Rua / Logradouro <span className="text-rose-500">*</span></span>
+                      <input
+                        required
+                        value={form.logradouro}
+                        onChange={(e) => setForm({ ...form, logradouro: e.target.value })}
+                        placeholder="Nome da rua, avenida ou estrada"
+                        className="w-full rounded-xl border border-purple-200 bg-white p-3 text-slate-800 focus:border-purple-600 focus:outline-none"
+                      />
+                    </label>
+                    <label>
+                      <span className="mb-1 block font-bold text-slate-700">Complemento <span className="font-normal text-slate-400">(opcional)</span></span>
+                      <input
+                        value={form.complemento}
+                        onChange={(e) => setForm({ ...form, complemento: e.target.value })}
+                        placeholder="Apto, bloco, sala…"
+                        className="w-full rounded-xl border border-purple-200 bg-white p-3 text-slate-800 focus:border-purple-600 focus:outline-none"
+                      />
+                    </label>
+                    <label>
+                      <span className="mb-1 block font-bold text-slate-700">Bairro <span className="text-rose-500">*</span></span>
+                      <input
+                        required
+                        value={form.bairro}
+                        onChange={(e) => setForm({ ...form, bairro: e.target.value })}
+                        placeholder="Bairro"
+                        className="w-full rounded-xl border border-purple-200 bg-white p-3 text-slate-800 focus:border-purple-600 focus:outline-none"
+                      />
+                    </label>
+                    <label>
+                      <span className="mb-1 block font-bold text-slate-700">Cidade <span className="text-rose-500">*</span></span>
+                      <input
+                        required
+                        value={form.cidade}
+                        onChange={(e) => setForm({ ...form, cidade: e.target.value })}
+                        placeholder="Cidade"
+                        className="w-full rounded-xl border border-purple-200 bg-white p-3 text-slate-800 focus:border-purple-600 focus:outline-none"
+                      />
+                    </label>
+                    <label>
+                      <span className="mb-1 block font-bold text-slate-700">UF <span className="text-rose-500">*</span></span>
+                      <input
+                        required
+                        value={form.estadoUf}
+                        onChange={(e) => setForm({ ...form, estadoUf: e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2) })}
+                        placeholder="SC"
+                        minLength={2}
+                        maxLength={2}
+                        className="w-full rounded-xl border border-purple-200 bg-white p-3 uppercase text-slate-800 focus:border-purple-600 focus:outline-none"
+                      />
+                    </label>
+                  </div>
+                </fieldset>
               )}
 
               {/* Você é conveniado com alguma empresa parceira? */}

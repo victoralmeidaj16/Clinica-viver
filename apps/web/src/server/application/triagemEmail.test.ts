@@ -15,6 +15,9 @@ const lead: TriagemPacienteRecord = {
   telefone: '5548988887777',
   email: ' JOAO@EXAMPLE.COM ',
   servico: 'Psicoterapia Individual',
+  convenioSelecionado: 'Nenhum',
+  origem: 'Formulário Vitrine',
+  turno: 'TARDE',
   status: 'PENDENTE_ATRIBUICAO',
   criadoEm: '2026-08-28T12:00:00.000Z',
 };

@@ -17,6 +17,16 @@ const valido = {
   turno: 'VESPERTINO',
 };
 
+const endereco = {
+  cep: '88900-000',
+  logradouro: 'Rua das Flores',
+  numeroResidencia: '205',
+  complemento: 'Apto 4',
+  bairro: 'Centro',
+  cidade: 'Araranguá',
+  estadoUf: 'sc',
+};
+
 describe('validação do formulário público de triagem', () => {
   it('aceita o envio mínimo e preenche os padrões da fila', () => {
     const resultado = validarSubmissaoTriagem(valido);
@@ -98,6 +108,26 @@ describe('validação do formulário público de triagem', () => {
     expect(validarSubmissaoTriagem({ ...valido, email: 'ana@' }).ok).toBe(false);
     expect(validarSubmissaoTriagem({ ...valido, dataNascimento: '31/02/1990' }).ok).toBe(false);
     expect(validarSubmissaoTriagem({ ...valido, dataNascimento: '2999-01-01' }).ok).toBe(false);
+  });
+
+  it('preserva o endereço fiscal completo e normaliza a UF', () => {
+    const resultado = validarSubmissaoTriagem({ ...valido, ...endereco });
+    expect(resultado.ok).toBe(true);
+    if (!resultado.ok) return;
+    expect(resultado.dados).toMatchObject({
+      cep: '88900000',
+      logradouro: 'Rua das Flores',
+      numeroResidencia: '205',
+      complemento: 'Apto 4',
+      bairro: 'Centro',
+      cidade: 'Araranguá',
+      estadoUf: 'SC',
+    });
+  });
+
+  it('recusa endereço fiscal incompleto quando o CEP é informado', () => {
+    expect(validarSubmissaoTriagem({ ...valido, ...endereco, bairro: '' }).ok).toBe(false);
+    expect(validarSubmissaoTriagem({ ...valido, ...endereco, estadoUf: 'S' }).ok).toBe(false);
   });
 
   it('recusa corpo que não é objeto', () => {

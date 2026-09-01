@@ -72,7 +72,12 @@ export interface TriagemPacienteRecord {
   email?: string;
   cpf?: string;
   cep?: string;
+  logradouro?: string;
   numeroResidencia?: string;
+  complemento?: string;
+  bairro?: string;
+  cidade?: string;
+  estadoUf?: string;
   possuiConvenio?: string;
   convenioSelecionado: string;
   origem: string;

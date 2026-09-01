@@ -39,6 +39,7 @@ interface TriagemRow extends RowDataPacket {
   email: string | null;
   cpf: string | null;
   cep: string | null;
+  logradouro: string | null;
   possui_convenio: string | null;
   convenio_selecionado: string;
   origem: string;
@@ -47,6 +48,10 @@ interface TriagemRow extends RowDataPacket {
   servico_key: string | null;
   modalidade: string | null;
   numero_residencia: string | null;
+  complemento: string | null;
+  bairro: string | null;
+  cidade: string | null;
+  estado_uf: string | null;
   para_quem_e: string | null;
   especificar_necessidades: number;
   necessidades_paciente: unknown;
@@ -154,6 +159,7 @@ function toLead(row: TriagemRow): TriagemPacienteRecord {
     email: row.email ?? undefined,
     cpf: row.cpf ?? undefined,
     cep: row.cep ?? undefined,
+    logradouro: row.logradouro ?? undefined,
     possuiConvenio: row.possui_convenio ?? undefined,
     convenioSelecionado: row.convenio_selecionado,
     origem: row.origem,
@@ -162,6 +168,10 @@ function toLead(row: TriagemRow): TriagemPacienteRecord {
     servicoKey: row.servico_key ?? undefined,
     modalidade: row.modalidade ?? undefined,
     numeroResidencia: row.numero_residencia ?? undefined,
+    complemento: row.complemento ?? undefined,
+    bairro: row.bairro ?? undefined,
+    cidade: row.cidade ?? undefined,
+    estadoUf: row.estado_uf ?? undefined,
     paraQuemE: row.para_quem_e ?? undefined,
     especificarNecessidades: Boolean(row.especificar_necessidades),
     necessidadesPaciente: asStringArray(row.necessidades_paciente),
@@ -305,7 +315,8 @@ export class MysqlCaptureRepository {
     const lock = lockRows ? ' FOR UPDATE' : '';
     const [leadRows] = await connection.query<TriagemRow[]>(
       `SELECT ref_core, protocolo, nome_paciente, telefone, idade, email, cpf, cep,
-              numero_residencia, possui_convenio, convenio_selecionado, origem, turno, servico,
+              logradouro, numero_residencia, complemento, bairro, cidade, estado_uf,
+              possui_convenio, convenio_selecionado, origem, turno, servico,
               servico_key, modalidade, para_quem_e, especificar_necessidades,
               necessidades_paciente, necessidades_outro, opcao_avaliacao_psicologica,
               genero, genero_outro, status, psicologo_alocado_id,
@@ -535,17 +546,20 @@ export class MysqlCaptureRepository {
       await connection.execute(
         `INSERT INTO clinica_triagens_pacientes
            (id, instituicao_id, organizacao_ref, ref_core, protocolo, nome_paciente,
-            telefone, idade, email, cpf, cep, numero_residencia, possui_convenio,
+            telefone, idade, email, cpf, cep, logradouro, numero_residencia, complemento,
+            bairro, cidade, estado_uf, possui_convenio,
             convenio_selecionado, origem, turno, servico, servico_key, modalidade,
             para_quem_e, especificar_necessidades, necessidades_paciente,
             necessidades_outro, opcao_avaliacao_psicologica, genero, genero_outro, status,
             psicologo_alocado_id, psicologo_nome, paciente_ref, alocado_em, confirmado_em,
             sla_expirado, transbordos, psicologos_ja_tentados, criado_em)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
            protocolo = VALUES(protocolo), nome_paciente = VALUES(nome_paciente),
            telefone = VALUES(telefone), idade = VALUES(idade), email = VALUES(email),
-           cpf = VALUES(cpf), cep = VALUES(cep), numero_residencia = VALUES(numero_residencia),
+           cpf = VALUES(cpf), cep = VALUES(cep), logradouro = VALUES(logradouro),
+           numero_residencia = VALUES(numero_residencia), complemento = VALUES(complemento),
+           bairro = VALUES(bairro), cidade = VALUES(cidade), estado_uf = VALUES(estado_uf),
            possui_convenio = VALUES(possui_convenio),
            convenio_selecionado = VALUES(convenio_selecionado), origem = VALUES(origem),
            turno = VALUES(turno), servico = VALUES(servico), servico_key = VALUES(servico_key),
@@ -573,7 +587,12 @@ export class MysqlCaptureRepository {
           lead.email ?? null,
           lead.cpf ?? null,
           lead.cep ?? null,
+          lead.logradouro ?? null,
           lead.numeroResidencia ?? null,
+          lead.complemento ?? null,
+          lead.bairro ?? null,
+          lead.cidade ?? null,
+          lead.estadoUf ?? null,
           lead.possuiConvenio ?? null,
           lead.convenioSelecionado,
           lead.origem,

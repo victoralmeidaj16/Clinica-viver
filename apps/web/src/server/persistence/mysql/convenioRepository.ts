@@ -443,3 +443,40 @@ export async function reconcileConvenioInvoicePayment(input: { eventId: string; 
   } catch (error) { await connection.rollback(); throw error; }
   finally { connection.release(); }
 }
+
+export async function cancelarFatura(organizationId: string, convenioId: string, faturaId: string): Promise<void> {
+  const connection = await getMysqlPool().getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const [faturas] = await connection.query<FaturaRow[]>(
+      `${FATURA_SELECT} WHERE instituicao_id = ? AND organizacao_ref = ? AND convenio_ref = ? AND ref_core = ? LIMIT 1 FOR UPDATE`,
+      [instituicaoId(), organizationId, convenioId, faturaId]
+    );
+    const fatura = faturas[0];
+    if (!fatura) throw new Error('Fatura não encontrada.');
+    if (fatura.status === 'paga') throw new Error('Não é possível cancelar uma fatura que já foi paga.');
+
+    // Desvincula as cobranças associadas para que voltem a ficar disponíveis para faturamento
+    await connection.execute(
+      `UPDATE financeiro_cobrancas
+          SET fatura_convenio_ref = NULL, atualizado_em = CURRENT_TIMESTAMP(3)
+        WHERE instituicao_id = ? AND organizacao_ref = ? AND fatura_convenio_ref = ?`,
+      [instituicaoId(), organizationId, faturaId]
+    );
+
+    // Remove a fatura para liberar a competência e permitir faturar novamente
+    await connection.execute(
+      `DELETE FROM financeiro_faturas_convenio
+        WHERE instituicao_id = ? AND organizacao_ref = ? AND convenio_ref = ? AND ref_core = ?`,
+      [instituicaoId(), organizationId, convenioId, faturaId]
+    );
+
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}

@@ -4,12 +4,12 @@ import type { RequestContext } from './context';
 import { ApplicationError } from './http';
 import { exigirAdminFiscal } from './clinicFinanceService';
 import {
-  atualizarConvenio, criarConvenio, fecharFatura, listarConvenios, listarFaturas,
+  atualizarConvenio, cancelarFatura, criarConvenio, fecharFatura, listarConvenios, listarFaturas,
   obterConvenio, obterFatura, pacientesDoConvenio, registrarBoleto, sessoesDoConvenio,
   vincularPacienteConvenio,
 } from '@/server/persistence/mysql/convenioRepository';
 import {
-  createAsaasPayment, findAsaasPaymentByExternalReference, getAsaasBoletoIdentificationField,
+  createAsaasPayment, deleteAsaasPayment, findAsaasPaymentByExternalReference, getAsaasBoletoIdentificationField,
   getOrCreateAsaasCustomer,
 } from '@/server/adapters/asaasAdapter';
 import { gerarRelatorioConvenioPdf } from '@/server/reports/convenioReportPdf';
@@ -188,4 +188,25 @@ export async function convenioReport(context: RequestContext, convenioId: string
     ...sessions.map((item) => [item.realizadaEm, item.pacienteNome, item.psicologoNome, item.sessionId, item.faturaId ? 'Faturado' : 'A faturar', (item.valorCents / 100).toFixed(2).replace('.', ',')]),
   ];
   return { contentType: 'text/csv; charset=utf-8', filename: `relatorio-${convenioId}.csv`, body: `﻿${rows.map((row) => row.map(csvCell).join(';')).join('\r\n')}` };
+}
+
+export async function cancelConvenioInvoice(context: RequestContext, convenioId: string, faturaId: string) {
+  const organizationId = admin(context);
+  const [convenio, fatura] = await Promise.all([
+    obterConvenio(organizationId, convenioId),
+    obterFatura(organizationId, convenioId, faturaId),
+  ]);
+  if (!convenio || !fatura) throw new ApplicationError('NOT_FOUND', 'Convênio ou fatura não encontrado.', 404);
+  if (fatura.status === 'paga') throw new ApplicationError('INVALID_INVOICE_STATE', 'Esta fatura já está paga e não pode ser cancelada.', 409);
+
+  if (fatura.providerId) {
+    try {
+      await deleteAsaasPayment(fatura.providerId);
+    } catch {
+      // continua se o boleto já havia sido removido no provedor
+    }
+  }
+
+  await cancelarFatura(organizationId, convenioId, faturaId);
+  return { cancelled: true, id: faturaId };
 }

@@ -376,60 +376,84 @@ export async function listAppointments(
   desde: Date,
   agora: Date = new Date()
 ): Promise<AgendamentoResumo[]> {
-  const [rows] = await getMysqlPool().query<RowDataPacket[]>(
-    `SELECT a.id, a.inicio, a.fim, a.duracao_min, a.modalidade, a.status,
-            a.origem_criacao, a.criado_em, a.realizado_em, a.token_pagamento_sessao,
-            COALESCE(pa.nome_social, pa.nome) AS paciente_nome,
-            conv.nome AS convenio_nome,
-            CASE WHEN pa.convenio_ref IS NULL THEN 0
-                 ELSE COALESCE(pa.custeado_pela_empresa, conv.empresa_paga_sessoes, 1) END
-              AS custeado_pela_empresa,
-            (SELECT c.status FROM financeiro_cobrancas c
-              WHERE c.instituicao_id = a.instituicao_id
-                AND c.organizacao_ref = o.ref_core
-                AND c.sessao_ref IN (a.ref_core, a.sessao_clinica_ref)
-              ORDER BY c.criado_em DESC LIMIT 1) AS pagamento_status
-            ,(SELECT c.vence_em FROM financeiro_cobrancas c
-              WHERE c.instituicao_id = a.instituicao_id
-                AND c.organizacao_ref = o.ref_core
-                AND c.sessao_ref IN (a.ref_core, a.sessao_clinica_ref)
-              ORDER BY c.criado_em DESC LIMIT 1) AS vencimento_cobranca_em
-       FROM clinica_agendamentos a
-       JOIN clinica_profissionais p ON p.id = a.profissional_id
-       JOIN clinica_organizacoes o ON o.id = p.organizacao_id
-       JOIN clinica_pacientes pa ON pa.id = a.paciente_id
-       LEFT JOIN clinica_convenios conv
-         ON conv.instituicao_id = pa.instituicao_id AND conv.organizacao_ref = o.ref_core
-        AND conv.ref_core = pa.convenio_ref
-      WHERE a.instituicao_id = ? AND o.ref_core = ? AND p.ref_core = ?
-        AND (a.inicio >= ? OR a.status IN ('agendado', 'confirmado'))
-      ORDER BY a.inicio
-      LIMIT 200`,
-    [instituicaoId(), organizationId, professionalId, desde]
-  );
-  return rows.map((row) => {
-    const fim = new Date(
-      row.fim ?? new Date(row.inicio).getTime() + Number(row.duracao_min) * 60_000
+  const connection = await getMysqlPool().getConnection();
+  try {
+    await connection.execute(
+      `UPDATE clinica_agendamentos a
+         JOIN clinica_profissionais p ON p.id = a.profissional_id
+         JOIN clinica_organizacoes o ON o.id = p.organizacao_id
+          SET a.status = 'realizado',
+              a.realizado_em = COALESCE(a.realizado_em, COALESCE(a.fim, DATE_ADD(a.inicio, INTERVAL a.duracao_min MINUTE))),
+              a.versao = a.versao + 1,
+              a.atualizado_em = CURRENT_TIMESTAMP(3)
+        WHERE a.instituicao_id = ? AND o.ref_core = ? AND p.ref_core = ?
+          AND a.status IN ('agendado', 'confirmado')
+          AND COALESCE(a.fim, DATE_ADD(a.inicio, INTERVAL a.duracao_min MINUTE)) <= NOW()`,
+      [instituicaoId(), organizationId, professionalId]
+    ).catch(() => {});
+
+    const [rows] = await connection.query<RowDataPacket[]>(
+      `SELECT a.id, a.inicio, a.fim, a.duracao_min, a.modalidade, a.status,
+              a.origem_criacao, a.criado_em, a.realizado_em, a.token_pagamento_sessao,
+              COALESCE(pa.nome_social, pa.nome) AS paciente_nome,
+              conv.nome AS convenio_nome,
+              CASE WHEN pa.convenio_ref IS NULL THEN 0
+                   ELSE COALESCE(pa.custeado_pela_empresa, conv.empresa_paga_sessoes, 1) END
+                AS custeado_pela_empresa,
+              (SELECT c.status FROM financeiro_cobrancas c
+                WHERE c.instituicao_id = a.instituicao_id
+                  AND c.organizacao_ref = o.ref_core
+                  AND c.sessao_ref IN (a.ref_core, a.sessao_clinica_ref)
+                ORDER BY c.criado_em DESC LIMIT 1) AS pagamento_status
+              ,(SELECT c.vence_em FROM financeiro_cobrancas c
+                WHERE c.instituicao_id = a.instituicao_id
+                  AND c.organizacao_ref = o.ref_core
+                  AND c.sessao_ref IN (a.ref_core, a.sessao_clinica_ref)
+                ORDER BY c.criado_em DESC LIMIT 1) AS vencimento_cobranca_em
+         FROM clinica_agendamentos a
+         JOIN clinica_profissionais p ON p.id = a.profissional_id
+         JOIN clinica_organizacoes o ON o.id = p.organizacao_id
+         JOIN clinica_pacientes pa ON pa.id = a.paciente_id
+         LEFT JOIN clinica_convenios conv
+           ON conv.instituicao_id = pa.instituicao_id AND conv.organizacao_ref = o.ref_core
+          AND conv.ref_core = pa.convenio_ref
+        WHERE a.instituicao_id = ? AND o.ref_core = ? AND p.ref_core = ?
+          AND (a.inicio >= ? OR a.status IN ('agendado', 'confirmado'))
+        ORDER BY a.inicio
+        LIMIT 200`,
+      [instituicaoId(), organizationId, professionalId, desde]
     );
-    const status = String(row.status);
-    return {
-      id: String(row.id),
-      pacienteNome: String(row.paciente_nome ?? 'Paciente'),
-      inicio: new Date(row.inicio).toISOString(),
-      fim: fim.toISOString(),
-      modalidade: row.modalidade,
-      status,
-      origem: String(row.origem_criacao),
-      criadoEm: new Date(row.criado_em).toISOString(),
-      realizadoEm: row.realizado_em ? new Date(row.realizado_em).toISOString() : undefined,
-      linkPagamento: `/pagar/sessao/${String(row.token_pagamento_sessao)}`,
-      pagamentoStatus: row.pagamento_status ? String(row.pagamento_status) : undefined,
-      vencimentoCobrancaEm: row.vencimento_cobranca_em ? new Date(row.vencimento_cobranca_em).toISOString() : undefined,
-      custeadoPelaEmpresa: Boolean(row.custeado_pela_empresa),
-      convenioNome: row.convenio_nome ? String(row.convenio_nome) : undefined,
-      podeConfirmarRealizacao: podeConfirmarRealizacao(status, fim, agora),
-    };
-  });
+
+    return rows.map((row) => {
+      const fim = new Date(
+        row.fim ?? new Date(row.inicio).getTime() + Number(row.duracao_min) * 60_000
+      );
+      const rawStatus = String(row.status);
+      const jaOcorreu = fim.getTime() <= agora.getTime();
+      const status = rawStatus === 'cancelado' ? 'cancelado' :
+                     (rawStatus === 'realizado' || jaOcorreu) ? 'realizado' : rawStatus;
+
+      return {
+        id: String(row.id),
+        pacienteNome: String(row.paciente_nome ?? 'Paciente'),
+        inicio: new Date(row.inicio).toISOString(),
+        fim: fim.toISOString(),
+        modalidade: row.modalidade,
+        status,
+        origem: String(row.origem_criacao),
+        criadoEm: new Date(row.criado_em).toISOString(),
+        realizadoEm: row.realizado_em ? new Date(row.realizado_em).toISOString() : (jaOcorreu ? fim.toISOString() : undefined),
+        linkPagamento: `/pagar/sessao/${String(row.token_pagamento_sessao)}`,
+        pagamentoStatus: row.pagamento_status ? String(row.pagamento_status) : undefined,
+        vencimentoCobrancaEm: row.vencimento_cobranca_em ? new Date(row.vencimento_cobranca_em).toISOString() : undefined,
+        custeadoPelaEmpresa: Boolean(row.custeado_pela_empresa),
+        convenioNome: row.convenio_nome ? String(row.convenio_nome) : undefined,
+        podeConfirmarRealizacao: podeConfirmarRealizacao(status, fim, agora),
+      };
+    });
+  } finally {
+    connection.release();
+  }
 }
 
 export type ResultadoConfirmacaoRealizacao =

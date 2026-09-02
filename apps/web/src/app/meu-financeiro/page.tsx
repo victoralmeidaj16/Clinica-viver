@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { CalendarDays, CheckCircle2, CreditCard, FileSpreadsheet, Pencil, XCircle } from 'lucide-react';
+import { Building2, CalendarDays, CheckCircle2, CreditCard, FileSpreadsheet, Pencil, XCircle } from 'lucide-react';
 import { applicationRequest } from '@/lib/applicationApi';
 import { reaisDeCentavos } from '@/lib/modalidadesPagamento';
 import { EditSessionModal, type SessionEditableData } from '@/components/scheduling/EditSessionModal';
@@ -29,6 +29,9 @@ interface Receivable {
   status: PaymentStatus;
   attendanceStatus?: 'agendado' | 'realizado' | 'cancelado';
   modalidade?: 'online' | 'presencial' | 'telefone';
+  conveniado?: boolean;
+  convenioNome?: string;
+  custeadoPelaEmpresa?: boolean;
   amountCents: number;
   receivedCents: number;
   outstandingCents: number;
@@ -202,9 +205,29 @@ export default function MeuFinanceiroPage() {
                     )}
                   </td>
                   <td>
-                    <span className={`inline-flex rounded-full border px-2 py-0.5 font-bold ${paymentStatusStyle[item.status]}`}>
-                      {paymentStatusLabel[item.status]}
-                    </span>
+                    {item.conveniado ? (
+                      <div className="space-y-1">
+                        <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-extrabold text-sky-800">
+                          <Building2 className="w-3 h-3 text-sky-600" />
+                          {item.convenioNome ? `Convênio: ${item.convenioNome}` : 'Conveniado'}
+                        </span>
+                        <div className="text-[10px]">
+                          {item.custeadoPelaEmpresa ? (
+                            <span className="font-bold text-emerald-700">
+                              Custeado pela empresa
+                            </span>
+                          ) : (
+                            <span className={`inline-flex rounded-full border px-1.5 py-0.5 font-bold ${paymentStatusStyle[item.status]}`}>
+                              {paymentStatusLabel[item.status]}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <span className={`inline-flex rounded-full border px-2 py-0.5 font-bold ${paymentStatusStyle[item.status]}`}>
+                        {paymentStatusLabel[item.status]}
+                      </span>
+                    )}
                   </td>
                   <td>{reaisDeCentavos(item.amountCents)}</td>
                   <td className="text-emerald-700 font-bold">{reaisDeCentavos(item.receivedCents)}</td>

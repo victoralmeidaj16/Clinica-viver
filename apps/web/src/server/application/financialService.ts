@@ -11,6 +11,7 @@ import type { RequestContext } from './context';
 import { getApplicationStore } from './store';
 import { getMysqlPool, isMysqlConfigured } from '@/server/oci/runtime';
 import { instituicaoId } from '@/server/persistence/mysql/mappers';
+import { readSnapshot } from './persistence';
 
 export async function getFinancialReportsData(
   context: RequestContext,
@@ -80,13 +81,41 @@ export async function getMyFinancialData(
     startsAt: string;
     endsAt: string;
     modalidade: 'online' | 'presencial' | 'telefone';
+    conveniado?: boolean;
+    convenioNome?: string;
+    custeadoPelaEmpresa?: boolean;
   }>();
+
+  const conveniosByPatient = new Map<string, {
+    conveniado: boolean;
+    convenioNome?: string;
+    custeadoPelaEmpresa?: boolean;
+  }>();
+
+  try {
+    const snapshot = readSnapshot();
+    if (snapshot?.triagensPacientes) {
+      for (const lead of snapshot.triagensPacientes) {
+        if (lead.pacienteRef && lead.convenioSelecionado && lead.convenioSelecionado !== 'NENHUM') {
+          conveniosByPatient.set(lead.pacienteRef, {
+            conveniado: true,
+            convenioNome: lead.convenioSelecionado,
+            custeadoPelaEmpresa: true,
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[financial] Erro ao ler triagens do snapshot:', err);
+  }
 
   try {
     const appointments = await store.appointments.list({ organizationId, professionalId });
     for (const apt of appointments) {
+      const fimDate = new Date(apt.endsAt || apt.startsAt);
+      const jaOcorreu = fimDate.getTime() <= Date.now();
       const statusNorm: 'agendado' | 'realizado' | 'cancelado' =
-        apt.status === 'completed' ? 'realizado' :
+        apt.status === 'completed' || jaOcorreu ? 'realizado' :
         apt.status === 'cancelled' ? 'cancelado' : 'agendado';
       const entry = {
         appointmentId: apt.id,
@@ -106,29 +135,87 @@ export async function getMyFinancialData(
 
   if (isMysqlConfigured()) {
     try {
-      const [rows] = await getMysqlPool().query<RowDataPacket[]>(
-        `SELECT a.id, a.ref_core, a.sessao_clinica_ref, a.status, a.inicio, a.fim, a.duracao_min, a.modalidade
+      const pool = getMysqlPool();
+      // Auto-sincroniza agendamentos passados para status 'realizado'
+      await pool.execute(
+        `UPDATE clinica_agendamentos a
+           JOIN clinica_profissionais p ON p.id = a.profissional_id
+           JOIN clinica_organizacoes o ON o.id = p.organizacao_id
+            SET a.status = 'realizado',
+                a.realizado_em = COALESCE(a.realizado_em, COALESCE(a.fim, DATE_ADD(a.inicio, INTERVAL a.duracao_min MINUTE))),
+                a.versao = a.versao + 1,
+                a.atualizado_em = CURRENT_TIMESTAMP(3)
+          WHERE a.instituicao_id = ? AND o.ref_core = ? AND p.ref_core = ?
+            AND a.status IN ('agendado', 'confirmado')
+            AND COALESCE(a.fim, DATE_ADD(a.inicio, INTERVAL a.duracao_min MINUTE)) <= NOW()`,
+        [instituicaoId(), organizationId, professionalId]
+      ).catch(() => {});
+
+      // Convênios dos pacientes da clínica
+      const [patientRows] = await pool.query<RowDataPacket[]>(
+        `SELECT pa.ref_core, conv.nome AS convenio_nome,
+                CASE WHEN pa.convenio_ref IS NOT NULL OR conv.nome IS NOT NULL THEN 1 ELSE 0 END AS conveniado,
+                CASE WHEN pa.convenio_ref IS NULL THEN 0
+                     ELSE COALESCE(pa.custeado_pela_empresa, conv.empresa_paga_sessoes, 1) END
+                  AS custeado_pela_empresa
+           FROM clinica_pacientes pa
+           JOIN clinica_organizacoes o ON o.id = pa.organizacao_id
+           LEFT JOIN clinica_convenios conv
+             ON conv.instituicao_id = pa.instituicao_id AND conv.organizacao_ref = o.ref_core
+            AND conv.ref_core = pa.convenio_ref
+          WHERE pa.instituicao_id = ? AND o.ref_core = ?`,
+        [instituicaoId(), organizationId]
+      );
+      for (const row of patientRows) {
+        if (row.ref_core) {
+          conveniosByPatient.set(String(row.ref_core), {
+            conveniado: Boolean(row.conveniado),
+            convenioNome: row.convenio_nome ? String(row.convenio_nome) : undefined,
+            custeadoPelaEmpresa: Boolean(row.custeado_pela_empresa),
+          });
+        }
+      }
+
+      // Agendamentos detalhados com vínculo de convênio
+      const [rows] = await pool.query<RowDataPacket[]>(
+        `SELECT a.id, a.ref_core, a.sessao_clinica_ref, a.status, a.inicio, a.fim, a.duracao_min, a.modalidade,
+                pa.ref_core AS paciente_ref,
+                conv.nome AS convenio_nome,
+                CASE WHEN pa.convenio_ref IS NOT NULL OR conv.nome IS NOT NULL THEN 1 ELSE 0 END AS conveniado,
+                CASE WHEN pa.convenio_ref IS NULL THEN 0
+                     ELSE COALESCE(pa.custeado_pela_empresa, conv.empresa_paga_sessoes, 1) END
+                  AS custeado_pela_empresa
            FROM clinica_agendamentos a
            JOIN clinica_profissionais p ON p.id = a.profissional_id
            JOIN clinica_organizacoes o ON o.id = p.organizacao_id
+           JOIN clinica_pacientes pa ON pa.id = a.paciente_id
+           LEFT JOIN clinica_convenios conv
+             ON conv.instituicao_id = pa.instituicao_id AND conv.organizacao_ref = o.ref_core
+            AND conv.ref_core = pa.convenio_ref
           WHERE a.instituicao_id = ? AND o.ref_core = ? AND p.ref_core = ?`,
         [instituicaoId(), organizationId, professionalId]
       );
       for (const row of rows) {
         const rawStatus = String(row.status);
-        const statusNorm: 'agendado' | 'realizado' | 'cancelado' =
-          rawStatus === 'realizado' ? 'realizado' :
-          rawStatus === 'cancelado' ? 'cancelado' : 'agendado';
         const dur = Number(row.duracao_min) || 50;
-        const fim = row.fim
-          ? new Date(row.fim).toISOString()
-          : new Date(new Date(row.inicio).getTime() + dur * 60_000).toISOString();
+        const fimDate = row.fim
+          ? new Date(row.fim)
+          : new Date(new Date(row.inicio).getTime() + dur * 60_000);
+        const jaOcorreu = fimDate.getTime() <= Date.now();
+        const statusNorm: 'agendado' | 'realizado' | 'cancelado' =
+          rawStatus === 'cancelado' ? 'cancelado' :
+          (rawStatus === 'realizado' || jaOcorreu) ? 'realizado' : 'agendado';
+
+        const isConveniado = Boolean(row.conveniado || row.convenio_nome);
         const entry = {
           appointmentId: String(row.id),
           attendanceStatus: statusNorm,
           startsAt: new Date(row.inicio).toISOString(),
-          endsAt: fim,
+          endsAt: fimDate.toISOString(),
           modalidade: (row.modalidade === 'presencial' ? 'presencial' : row.modalidade === 'telefone' ? 'telefone' : 'online') as 'online' | 'presencial' | 'telefone',
+          conveniado: isConveniado,
+          convenioNome: row.convenio_nome ? String(row.convenio_nome) : undefined,
+          custeadoPelaEmpresa: Boolean(row.custeado_pela_empresa),
         };
         if (row.id) appointmentsMap.set(String(row.id), entry);
         if (row.ref_core) appointmentsMap.set(String(row.ref_core), entry);
@@ -145,6 +232,14 @@ export async function getMyFinancialData(
   const receivables = reconcileSessionReceivables(ledger)
     .map((receivable) => {
       const apt = appointmentsMap.get(receivable.sessionId);
+      const patientConv = conveniosByPatient.get(receivable.patientId);
+      const conveniado = Boolean(apt?.conveniado || patientConv?.conveniado);
+      const convenioNome = apt?.convenioNome || patientConv?.convenioNome;
+      const custeadoPelaEmpresa = Boolean(apt?.custeadoPelaEmpresa ?? patientConv?.custeadoPelaEmpresa);
+
+      const duePassed = Date.parse(receivable.dueAt) <= Date.now();
+      const attendanceStatus = apt?.attendanceStatus ?? (receivable.chargeStatus === 'paid' || duePassed ? 'realizado' : 'agendado');
+
       return {
         chargeId: receivable.chargeId,
         sessionId: receivable.sessionId,
@@ -154,8 +249,11 @@ export async function getMyFinancialData(
         startsAt: apt?.startsAt ?? receivable.dueAt,
         endsAt: apt?.endsAt,
         status: receivable.chargeStatus as ChargeStatus,
-        attendanceStatus: apt?.attendanceStatus ?? (receivable.chargeStatus === 'paid' ? 'realizado' : 'agendado'),
+        attendanceStatus,
         modalidade: apt?.modalidade ?? 'online',
+        conveniado,
+        convenioNome,
+        custeadoPelaEmpresa,
         amountCents: receivable.netAmountCents,
         receivedCents: Math.max(receivable.paidAmountCents - receivable.refundedAmountCents, 0),
         outstandingCents: receivable.outstandingAmountCents,

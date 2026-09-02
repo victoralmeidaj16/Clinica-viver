@@ -33,6 +33,9 @@ export function NfsePreviewModal({
   const possuiPendencias = (previa?.camposPendentes.length ?? 0) > 0;
   const jaEmitida = emissao?.status === 'issued' || emissao?.status === 'cancelled';
   const podeEmitir = Boolean(previa && !possuiPendencias && previa.integracaoConfigurada) && !jaEmitida;
+  const podeReenviarEmail = Boolean(previa && !possuiPendencias && previa.integracaoConfigurada)
+    && emissao?.status === 'issued' && emissao.emailStatus === 'failed';
+  const podeConfirmar = podeEmitir || podeReenviarEmail;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto bg-slate-950/55 p-4 backdrop-blur-sm">
@@ -79,13 +82,17 @@ export function NfsePreviewModal({
           <button
             type="button"
             onClick={onConfirmar}
-            disabled={!podeEmitir || emitindo}
-            title={podeEmitir ? 'Gerar NFS-e' : jaEmitida ? 'Esta cobrança já tem NFS-e' : 'A emissão ainda não está configurada'}
+            disabled={!podeConfirmar || emitindo}
+            title={podeReenviarEmail ? 'Reenviar a NFS-e existente por e-mail'
+              : podeEmitir ? 'Gerar NFS-e'
+                : jaEmitida ? 'Esta cobrança já tem NFS-e' : 'A emissão ainda não está configurada'}
             className="rounded-xl bg-psi-vibrant px-4 py-2.5 text-xs font-extrabold text-white shadow-md disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {emissao?.status === 'issued' ? 'NFS-e emitida'
+            {emitindo ? (podeReenviarEmail ? 'Reenviando…' : 'Emitindo…')
+              : podeReenviarEmail ? 'Reenviar e-mail'
+                : emissao?.status === 'issued' ? 'NFS-e emitida'
               : emissao?.status === 'cancelled' ? 'NFS-e cancelada'
-                : emitindo ? 'Emitindo…' : 'Confirmar e gerar NFS-e'}
+                : 'Confirmar e gerar NFS-e'}
           </button>
         </footer>
       </section>

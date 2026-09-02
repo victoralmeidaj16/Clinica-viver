@@ -16,6 +16,7 @@ import {
   isCompanyFundedReservation,
   isExpiredReservation,
   reserveAppointmentCharge,
+  reconcileSettledInterPixCharge,
 } from '@/server/payments/paymentLinkRepository';
 import { asaasDueDate } from '@/lib/chargeDue';
 
@@ -89,6 +90,7 @@ export async function POST(request: Request) {
           dueAt: checkout.dueAt,
         });
       await bindProviderPayment(checkout, pix.id, 'pix', 'inter');
+      await reconcileSettledInterPixCharge(pix);
       return NextResponse.json({
         success: true,
         provider: 'inter',

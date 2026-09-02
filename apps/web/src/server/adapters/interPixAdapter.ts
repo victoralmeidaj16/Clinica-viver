@@ -17,6 +17,13 @@ interface InterCobResponse {
   loc?: { location?: string };
   valor?: { original?: string };
   pixCopiaECola?: string;
+  pix?: unknown[];
+}
+
+export interface InterPixSettlement {
+  endToEndId: string;
+  amountCents: number;
+  receivedAt: string;
 }
 
 export interface InterPixCharge {
@@ -25,6 +32,7 @@ export interface InterPixCharge {
   value: number;
   pixCopiaECola: string;
   pixQrCode: string;
+  settlements: InterPixSettlement[];
 }
 
 let tokenCache: { value: string; expiresAt: number } | undefined;
@@ -177,6 +185,20 @@ function qrDataUrl(payload: string): string {
   return qr.createDataURL(6, 4);
 }
 
+export function parseInterPixSettlements(entries: unknown): InterPixSettlement[] {
+  if (!Array.isArray(entries)) return [];
+  return entries.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return [];
+    const pix = entry as Record<string, unknown>;
+    const endToEndId = String(pix.endToEndId ?? '');
+    const amountCents = Math.round(Number(pix.valor) * 100);
+    const receivedAt = new Date(String(pix.horario ?? ''));
+    if (!endToEndId || !Number.isSafeInteger(amountCents) || amountCents <= 0
+      || Number.isNaN(receivedAt.getTime())) return [];
+    return [{ endToEndId, amountCents, receivedAt: receivedAt.toISOString() }];
+  });
+}
+
 export async function createInterPixCharge(input: {
   externalReference: string;
   amountCents: number;
@@ -206,6 +228,7 @@ export async function createInterPixCharge(input: {
     value: Number(response.valor?.original ?? input.amountCents / 100),
     pixCopiaECola: payload,
     pixQrCode: qrDataUrl(payload),
+    settlements: parseInterPixSettlements(response.pix),
   };
 }
 
@@ -219,6 +242,7 @@ export async function getInterPixCharge(txid: string): Promise<InterPixCharge> {
   return {
     id: txid, status: response.status, value: Number(response.valor?.original ?? 0),
     pixCopiaECola: payload, pixQrCode: qrDataUrl(payload),
+    settlements: parseInterPixSettlements(response.pix),
   };
 }
 

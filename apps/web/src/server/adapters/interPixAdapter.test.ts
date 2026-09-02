@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { dynamicPixPayload, interTxid, isInterPixSettled } from './interPixAdapter';
+import {
+  dynamicPixPayload,
+  interTxid,
+  isInterPixSettled,
+  parseInterPixSettlements,
+} from './interPixAdapter';
 
 vi.mock('server-only', () => ({}));
 
@@ -30,5 +35,18 @@ describe('adaptador Pix do Banco Inter', () => {
     expect(isInterPixSettled('CONCLUIDA')).toBe(true);
     expect(isInterPixSettled('ATIVA')).toBe(false);
     expect(isInterPixSettled('REMOVIDA_PELO_USUARIO_RECEBEDOR')).toBe(false);
+  });
+
+  it('normaliza a liquidação devolvida na consulta de cobrança', () => {
+    expect(parseInterPixSettlements([{
+      endToEndId: 'E123456789',
+      valor: '75.00',
+      horario: '2026-09-02T13:17:47.912Z',
+    }])).toEqual([{
+      endToEndId: 'E123456789',
+      amountCents: 7500,
+      receivedAt: '2026-09-02T13:17:47.912Z',
+    }]);
+    expect(parseInterPixSettlements([{ valor: 'inválido' }])).toEqual([]);
   });
 });

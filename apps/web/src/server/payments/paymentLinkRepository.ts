@@ -10,6 +10,7 @@ import {
   toSqlTimestamp,
 } from '@/server/persistence/mysql/mappers';
 import { descricaoFiscalDaSessao } from '@/lib/sessionReference';
+import type { InterPixCharge } from '@/server/adapters/interPixAdapter';
 
 export type PaymentModality = 'social' | 'particular';
 
@@ -466,6 +467,27 @@ export async function reconcileInterPix(input: {
   } finally {
     connection.release();
   }
+}
+
+/**
+ * Recupera a conciliação quando o callback não chegou, mas uma consulta
+ * autenticada ao Inter já devolve a cobrança como concluída.
+ */
+export async function reconcileSettledInterPixCharge(charge: InterPixCharge): Promise<boolean> {
+  if (charge.status !== 'CONCLUIDA') return false;
+  if (charge.settlements.length === 0) {
+    throw new Error('Banco Inter marcou a cobrança como concluída sem informar a liquidação.');
+  }
+  for (const settlement of charge.settlements) {
+    await reconcileInterPix({
+      eventId: settlement.endToEndId,
+      txid: charge.id,
+      endToEndId: settlement.endToEndId,
+      amountCents: settlement.amountCents,
+      receivedAt: settlement.receivedAt,
+    });
+  }
+  return true;
 }
 
 export async function reconcileAsaasPayment(input: {

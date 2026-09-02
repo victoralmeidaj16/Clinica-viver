@@ -16,8 +16,8 @@ import { deleteAsaasPayment, getAsaasPayment } from '@/server/adapters/asaasAdap
 import {
   cancelInterPixCharge,
   getInterPixCharge,
-  isInterPixSettled,
 } from '@/server/adapters/interPixAdapter';
+import { reconcileSettledInterPixCharge } from '@/server/payments/paymentLinkRepository';
 import { isAsaasPaymentSettled, isFutureChargeDueAt } from '@/lib/chargeDue';
 
 type ChargeOutcome = 'created' | 'existing' | 'skipped' | 'failed';
@@ -170,7 +170,7 @@ export async function atualizarVencimentoCobrancaSessao(input: {
     const provider = String(row.checkout_provedor ?? 'asaas');
     if (provider === 'inter') {
       const remote = await getInterPixCharge(String(providerId));
-      if (isInterPixSettled(remote.status)) return 'paid';
+      if (await reconcileSettledInterPixCharge(remote)) return 'paid';
       await cancelInterPixCharge(String(providerId));
     } else {
       try {
@@ -241,7 +241,7 @@ export async function expirarCobrancasPendentes(limit = 100): Promise<{
         const provider = String(row.checkout_provedor ?? 'asaas');
         if (provider === 'inter') {
           const remote = await getInterPixCharge(String(row.provedor_ref));
-          if (isInterPixSettled(remote.status)) { result.paid += 1; continue; }
+          if (await reconcileSettledInterPixCharge(remote)) { result.paid += 1; continue; }
           await cancelInterPixCharge(String(row.provedor_ref));
         } else {
           try {

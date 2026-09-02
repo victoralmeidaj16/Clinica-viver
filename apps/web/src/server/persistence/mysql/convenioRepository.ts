@@ -265,42 +265,97 @@ export async function obterFatura(organizationId: string, convenioId: string, fa
   return rows[0] ? toFatura(rows[0]) : null;
 }
 
-export async function fecharFatura(organizationId: string, convenioId: string, input: { competencia: string; periodoInicio: string; periodoFim: string }): Promise<FaturaConvenio> {
+export async function fecharFatura(
+  organizationId: string,
+  convenioId: string,
+  input: {
+    competencia: string;
+    periodoInicio: string;
+    periodoFim: string;
+    cobrancaRefs?: string[];
+  }
+): Promise<FaturaConvenio> {
   const connection = await getMysqlPool().getConnection();
   try {
     await connection.beginTransaction();
-    const [existentes] = await connection.query<FaturaRow[]>(
-      `${FATURA_SELECT} WHERE instituicao_id = ? AND convenio_ref = ? AND competencia = ? LIMIT 1 FOR UPDATE`,
-      [instituicaoId(), convenioId, input.competencia]
-    );
-    if (existentes[0]) { await connection.commit(); return toFatura(existentes[0]); }
+
+    const whereClauses = [
+      'fc.instituicao_id = ?',
+      'fc.organizacao_ref = ?',
+      'p.convenio_ref = ?',
+      'fc.fatura_convenio_ref IS NULL',
+      "fc.status IN ('pending','overdue')",
+      'fc.emitida_em >= ?',
+      'fc.emitida_em < DATE_ADD(?, INTERVAL 1 DAY)',
+    ];
+    const queryParams: unknown[] = [
+      instituicaoId(),
+      organizationId,
+      convenioId,
+      input.periodoInicio,
+      input.periodoFim,
+    ];
+
+    if (input.cobrancaRefs && input.cobrancaRefs.length > 0) {
+      whereClauses.push('fc.ref_core IN (?)');
+      queryParams.push(input.cobrancaRefs);
+    }
 
     const [charges] = await connection.query<RowDataPacket[]>(
       `SELECT fc.ref_core, fc.valor_centavos
          FROM financeiro_cobrancas fc
          JOIN clinica_pacientes p ON p.instituicao_id = fc.instituicao_id AND p.ref_core = fc.paciente_ref
-        WHERE fc.instituicao_id = ? AND fc.organizacao_ref = ? AND p.convenio_ref = ?
-          AND fc.fatura_convenio_ref IS NULL AND fc.status IN ('pending','overdue')
-          AND fc.emitida_em >= ? AND fc.emitida_em < DATE_ADD(?, INTERVAL 1 DAY)
+        WHERE ${whereClauses.join(' AND ')}
         ORDER BY fc.emitida_em, fc.ref_core FOR UPDATE`,
-      [instituicaoId(), organizationId, convenioId, input.periodoInicio, input.periodoFim]
+      queryParams
     );
-    if (charges.length === 0) throw new Error('Não há sessões provisionadas nesse período para fechar a fatura.');
+
+    if (charges.length === 0) {
+      throw new Error('Nenhum atendimento selecionado ou disponível nesse período para fechar a fatura.');
+    }
+
     const valorCents = charges.reduce((total, row) => total + Number(row.valor_centavos), 0);
-    const faturaId = `fatura-convenio-${randomUUID()}`;
-    await connection.execute(
-      `INSERT INTO financeiro_faturas_convenio
-        (id, instituicao_id, organizacao_ref, ref_core, convenio_ref, competencia,
-         periodo_inicio, periodo_fim, total_sessoes, valor_centavos)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [rowId('fatura_convenio', faturaId), instituicaoId(), organizationId, faturaId,
-        convenioId, input.competencia, input.periodoInicio, input.periodoFim, charges.length, valorCents]
+
+    const [existentes] = await connection.query<FaturaRow[]>(
+      `${FATURA_SELECT} WHERE instituicao_id = ? AND convenio_ref = ? AND competencia = ? LIMIT 1 FOR UPDATE`,
+      [instituicaoId(), convenioId, input.competencia]
     );
+
+    let faturaId: string;
+    if (existentes[0]) {
+      if (existentes[0].status !== 'aberta') {
+        throw new Error(`A fatura da competência ${input.competencia} já possui boleto gerado ou foi paga (${existentes[0].status}).`);
+      }
+      faturaId = existentes[0].ref_core;
+      const novoTotalSessoes = existentes[0].total_sessoes + charges.length;
+      const novoValorCents = Number(existentes[0].valor_centavos) + valorCents;
+      await connection.execute(
+        `UPDATE financeiro_faturas_convenio
+            SET total_sessoes = ?, valor_centavos = ?,
+                periodo_inicio = LEAST(periodo_inicio, ?),
+                periodo_fim = GREATEST(periodo_fim, ?),
+                atualizado_em = CURRENT_TIMESTAMP(3)
+          WHERE instituicao_id = ? AND organizacao_ref = ? AND ref_core = ?`,
+        [novoTotalSessoes, novoValorCents, input.periodoInicio, input.periodoFim, instituicaoId(), organizationId, faturaId]
+      );
+    } else {
+      faturaId = `fatura-convenio-${randomUUID()}`;
+      await connection.execute(
+        `INSERT INTO financeiro_faturas_convenio
+          (id, instituicao_id, organizacao_ref, ref_core, convenio_ref, competencia,
+           periodo_inicio, periodo_fim, total_sessoes, valor_centavos)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [rowId('fatura_convenio', faturaId), instituicaoId(), organizationId, faturaId,
+          convenioId, input.competencia, input.periodoInicio, input.periodoFim, charges.length, valorCents]
+      );
+    }
+
     await connection.query(
       `UPDATE financeiro_cobrancas SET fatura_convenio_ref = ?, atualizado_em = CURRENT_TIMESTAMP(3)
         WHERE instituicao_id = ? AND organizacao_ref = ? AND ref_core IN (?) AND fatura_convenio_ref IS NULL`,
       [faturaId, instituicaoId(), organizationId, charges.map((row) => row.ref_core)]
     );
+
     await connection.commit();
     return (await obterFatura(organizationId, convenioId, faturaId))!;
   } catch (error) { await connection.rollback(); throw error; }

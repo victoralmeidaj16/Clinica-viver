@@ -104,10 +104,14 @@ function periodo(body: Record<string, unknown>) {
   const competencia = String(body.competencia ?? '').trim();
   const periodoInicio = String(body.periodoInicio ?? '').slice(0, 10);
   const periodoFim = String(body.periodoFim ?? '').slice(0, 10);
+  const cobrancaRefs = Array.isArray(body.cobrancaRefs)
+    ? body.cobrancaRefs.map(String).filter(Boolean)
+    : undefined;
+
   if (!/^\d{4}-\d{2}$/.test(competencia) || !/^\d{4}-\d{2}-\d{2}$/.test(periodoInicio) || !/^\d{4}-\d{2}-\d{2}$/.test(periodoFim) || periodoFim < periodoInicio) {
     throw new ApplicationError('INVALID_INPUT', 'Informe competência e período válidos.', 400);
   }
-  return { competencia, periodoInicio, periodoFim };
+  return { competencia, periodoInicio, periodoFim, cobrancaRefs };
 }
 
 export async function closeConvenioInvoice(context: RequestContext, convenioId: string, body: Record<string, unknown>) {

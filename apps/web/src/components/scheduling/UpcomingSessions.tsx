@@ -155,7 +155,8 @@ export function UpcomingSessions({ agendamentos, onCancelar, onConfirmarRealizac
       <ul className="divide-y divide-line">
         {agendamentos.map((item) => {
           const cancelado = item.status === 'cancelado';
-          const realizado = item.status === 'realizado';
+          const jaPassou = Number.isFinite(Date.parse(item.fim || item.inicio)) && Date.parse(item.fim || item.inicio) <= Date.now();
+          const realizado = item.status === 'realizado' || Boolean(item.realizadoEm) || (!cancelado && jaPassou);
           return (
             <li key={item.id} className="space-y-3 px-6 py-4">
               <div className="flex flex-wrap items-start justify-between gap-3">

@@ -97,6 +97,7 @@ export default function MeuFinanceiroPage() {
   const [data, setData] = useState<FinancialData | null>(null);
   const [error, setError] = useState<string>();
   const [editingSession, setEditingSession] = useState<SessionEditableData>();
+  const [pacientesMap, setPacientesMap] = useState<Map<string, { conveniado?: boolean; convenioNome?: string }>>(new Map());
 
   const load = useCallback(() => {
     const { start, end } = periodoDoMes(mes);
@@ -109,6 +110,21 @@ export default function MeuFinanceiroPage() {
   }, [mes]);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    applicationRequest<Array<{ id: string; displayName: string; conveniado?: boolean; convenioNome?: string }>>('/patients')
+      .then((list) => {
+        const map = new Map<string, { conveniado?: boolean; convenioNome?: string }>();
+        for (const p of list) {
+          map.set(p.id, p);
+          if (p.displayName) {
+            map.set(p.displayName.trim().toLowerCase(), p);
+          }
+        }
+        setPacientesMap(map);
+      })
+      .catch(() => {});
+  }, []);
 
   const exportCsv = () => {
     if (!data) return;
@@ -125,13 +141,18 @@ export default function MeuFinanceiroPage() {
   };
 
   const handleEditSession = (item: Receivable) => {
+    const sessionTime = Date.parse(item.startsAt || item.dueAt);
+    const jaPassou = Number.isFinite(sessionTime) && sessionTime <= Date.now();
+    const isCancelado = item.attendanceStatus === 'cancelado';
+    const isRealizado = item.attendanceStatus === 'realizado' || (!isCancelado && jaPassou);
+
     setEditingSession({
       id: item.appointmentId || item.sessionId,
       pacienteNome: item.patientName,
       inicio: item.startsAt || item.dueAt,
       fim: item.endsAt,
       modalidade: item.modalidade || 'online',
-      status: item.attendanceStatus || 'agendado',
+      status: isRealizado ? 'realizado' : (isCancelado ? 'cancelado' : 'agendado'),
     });
   };
 
@@ -183,68 +204,84 @@ export default function MeuFinanceiroPage() {
               </tr>
             </thead>
             <tbody>
-              {data?.receivables.map((item) => (
-                <tr key={item.chargeId} className="border-b border-line/70 hover:bg-slate-50/50 transition">
-                  <td className="py-3 whitespace-nowrap">
-                    {new Date(item.startsAt || item.dueAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' })}
-                  </td>
-                  <td className="font-bold text-ink">{item.patientName}</td>
-                  <td>
-                    {item.attendanceStatus === 'realizado' ? (
-                      <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-extrabold text-emerald-800">
-                        <CheckCircle2 className="w-3 h-3" /> Realizado
-                      </span>
-                    ) : item.attendanceStatus === 'cancelado' ? (
-                      <span className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] font-bold text-rose-700">
-                        <XCircle className="w-3 h-3" /> Cancelado
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-extrabold text-sky-800">
-                        <CalendarDays className="w-3 h-3" /> Agendado
-                      </span>
-                    )}
-                  </td>
-                  <td>
-                    {item.conveniado ? (
-                      <div className="space-y-1">
-                        <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-extrabold text-sky-800">
-                          <Building2 className="w-3 h-3 text-sky-600" />
-                          {item.convenioNome ? `Convênio: ${item.convenioNome}` : 'Conveniado'}
+              {data?.receivables.map((item) => {
+                const patientInfo =
+                  pacientesMap.get(item.appointmentId ?? '') ||
+                  pacientesMap.get(item.sessionId ?? '') ||
+                  pacientesMap.get(item.patientName.trim().toLowerCase());
+
+                const sessionTime = Date.parse(item.startsAt || item.dueAt);
+                const jaPassou = Number.isFinite(sessionTime) && sessionTime <= Date.now();
+                const isCancelado = item.attendanceStatus === 'cancelado';
+                const isRealizado = item.attendanceStatus === 'realizado' || (!isCancelado && jaPassou);
+
+                const isConveniado = Boolean(item.conveniado || patientInfo?.conveniado);
+                const convenioNome = item.convenioNome || patientInfo?.convenioNome;
+                const custeado = Boolean(item.custeadoPelaEmpresa ?? isConveniado);
+
+                return (
+                  <tr key={item.chargeId} className="border-b border-line/70 hover:bg-slate-50/50 transition">
+                    <td className="py-3 whitespace-nowrap">
+                      {new Date(item.startsAt || item.dueAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' })}
+                    </td>
+                    <td className="font-bold text-ink">{item.patientName}</td>
+                    <td>
+                      {isRealizado ? (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-extrabold text-emerald-800">
+                          <CheckCircle2 className="w-3 h-3" /> Realizado
                         </span>
-                        <div className="text-[10px]">
-                          {item.custeadoPelaEmpresa ? (
-                            <span className="font-bold text-emerald-700">
-                              Custeado pela empresa
-                            </span>
-                          ) : (
-                            <span className={`inline-flex rounded-full border px-1.5 py-0.5 font-bold ${paymentStatusStyle[item.status]}`}>
-                              {paymentStatusLabel[item.status]}
-                            </span>
-                          )}
+                      ) : isCancelado ? (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] font-bold text-rose-700">
+                          <XCircle className="w-3 h-3" /> Cancelado
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-extrabold text-sky-800">
+                          <CalendarDays className="w-3 h-3" /> Agendado
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      {isConveniado ? (
+                        <div className="space-y-1">
+                          <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-extrabold text-sky-800">
+                            <Building2 className="w-3 h-3 text-sky-600" />
+                            {convenioNome ? `Convênio: ${convenioNome}` : 'Conveniado'}
+                          </span>
+                          <div className="text-[10px]">
+                            {custeado ? (
+                              <span className="font-bold text-emerald-700">
+                                Custeado pela empresa
+                              </span>
+                            ) : (
+                              <span className={`inline-flex rounded-full border px-1.5 py-0.5 font-bold ${paymentStatusStyle[item.status]}`}>
+                                {paymentStatusLabel[item.status]}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ) : (
-                      <span className={`inline-flex rounded-full border px-2 py-0.5 font-bold ${paymentStatusStyle[item.status]}`}>
-                        {paymentStatusLabel[item.status]}
-                      </span>
-                    )}
-                  </td>
-                  <td>{reaisDeCentavos(item.amountCents)}</td>
-                  <td className="text-emerald-700 font-bold">{reaisDeCentavos(item.receivedCents)}</td>
-                  <td className={item.outstandingCents > 0 ? 'font-bold text-amber-700' : 'text-muted'}>
-                    {reaisDeCentavos(item.outstandingCents)}
-                  </td>
-                  <td className="text-right py-3 pr-2">
-                    <button
-                      type="button"
-                      onClick={() => handleEditSession(item)}
-                      className="rounded-xl border border-line bg-white px-2.5 py-1 text-[11px] font-bold text-ink hover:bg-slate-100 hover:text-psi-deep transition inline-flex items-center gap-1 shadow-sm"
-                    >
-                      <Pencil className="w-3 h-3 text-psi-vibrant" /> Editar
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                      ) : (
+                        <span className={`inline-flex rounded-full border px-2 py-0.5 font-bold ${paymentStatusStyle[item.status]}`}>
+                          {paymentStatusLabel[item.status]}
+                        </span>
+                      )}
+                    </td>
+                    <td>{reaisDeCentavos(item.amountCents)}</td>
+                    <td className="text-emerald-700 font-bold">{reaisDeCentavos(item.receivedCents)}</td>
+                    <td className={item.outstandingCents > 0 ? 'font-bold text-amber-700' : 'text-muted'}>
+                      {reaisDeCentavos(item.outstandingCents)}
+                    </td>
+                    <td className="text-right py-3 pr-2">
+                      <button
+                        type="button"
+                        onClick={() => handleEditSession(item)}
+                        className="rounded-xl border border-line bg-white px-2.5 py-1 text-[11px] font-bold text-ink hover:bg-slate-100 hover:text-psi-deep transition inline-flex items-center gap-1 shadow-sm"
+                      >
+                        <Pencil className="w-3 h-3 text-psi-vibrant" /> Editar
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           {data?.receivables.length === 0 && <p className="text-center text-muted py-8">Nenhuma cobrança de atendimento encontrada.</p>}

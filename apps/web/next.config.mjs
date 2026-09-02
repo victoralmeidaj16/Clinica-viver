@@ -14,6 +14,10 @@ if (backendOrigin && !backendOrigin.startsWith('https://')) {
 const nextConfig = {
   outputFileTracingRoot: path.join(appDirectory, '../..'),
   transpilePackages: ['@thats-life/core'],
+  // PDFKit lê métricas das fontes padrão (.afm) em tempo de execução. Se o
+  // Turbopack o incorporar ao bundle, __dirname vira /ROOT/node_modules/... e
+  // o container não encontra Helvetica.afm, que está em /app/node_modules.
+  serverExternalPackages: ['pdfkit'],
   async rewrites() {
     if (!backendOrigin) return [];
 

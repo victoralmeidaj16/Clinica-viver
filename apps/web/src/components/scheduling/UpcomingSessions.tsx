@@ -2,9 +2,11 @@
 
 import { useState } from 'react';
 import {
-  CalendarClock, CalendarDays, CheckCircle2, Copy, CreditCard, Globe, Loader2, MapPin, XCircle,
+  CalendarClock, CalendarDays, CheckCircle2, Copy, CreditCard, Globe, Loader2, MapPin, Pencil, RefreshCw, XCircle,
 } from 'lucide-react';
 import { clinicDateTimeToIso } from '@/lib/manualAppointment';
+import { RescheduleModal } from './RescheduleModal';
+import { EditSessionModal, type SessionEditableData } from './EditSessionModal';
 
 export interface AgendamentoResumo {
   id: string;
@@ -29,14 +31,18 @@ interface Props {
   onCancelar: (id: string, motivo: string) => Promise<void>;
   onConfirmarRealizacao: (id: string) => Promise<void>;
   onAtualizarVencimento: (id: string, dueAt: string) => Promise<void>;
+  onReagendar?: (id: string, startsAt: string, endsAt: string) => Promise<void>;
+  onEditar?: (id: string, input: { startsAt?: string; endsAt?: string; modalidade?: string; status?: string }) => Promise<void>;
 }
 
 const FORMATO = new Intl.DateTimeFormat('pt-BR', {
   dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo',
 });
 
-export function UpcomingSessions({ agendamentos, onCancelar, onConfirmarRealizacao, onAtualizarVencimento }: Props) {
+export function UpcomingSessions({ agendamentos, onCancelar, onConfirmarRealizacao, onAtualizarVencimento, onReagendar, onEditar }: Props) {
   const [cancelando, setCancelando] = useState<AgendamentoResumo>();
+  const [reagendando, setReagendando] = useState<AgendamentoResumo>();
+  const [editingSession, setEditingSession] = useState<SessionEditableData>();
   const [motivo, setMotivo] = useState('');
   const [erro, setErro] = useState<string>();
   const [confirmandoId, setConfirmandoId] = useState<string>();
@@ -166,15 +172,63 @@ export function UpcomingSessions({ agendamentos, onCancelar, onConfirmarRealizac
                   {item.origem === 'portal' && <span className="chip-accent text-[10px] py-0">pelo link</span>}
                 </p>
               </div>
-              {cancelado ? <span className="text-[11px] font-extrabold text-rose-600">CANCELADA</span>
-              : realizado ? (
-                <span className="flex items-center gap-1 text-[11px] font-extrabold text-emerald-700">
-                  <CheckCircle2 className="h-4 w-4" /> REALIZADA
-                </span>
+              {cancelado ? (
+                <span className="text-[11px] font-extrabold text-rose-600">CANCELADA</span>
+              ) : realizado ? (
+                <div className="flex items-center gap-2">
+                  <span className="flex items-center gap-1 text-[11px] font-extrabold text-emerald-700 mr-1">
+                    <CheckCircle2 className="h-4 w-4" /> REALIZADA
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setEditingSession({
+                        id: item.id,
+                        pacienteNome: item.pacienteNome,
+                        inicio: item.inicio,
+                        fim: item.fim,
+                        modalidade: item.modalidade,
+                        status: item.status,
+                      })
+                    }
+                    className="rounded-xl border border-line bg-white px-3 py-1.5 text-[11px] font-bold text-ink hover:bg-slate-100 flex items-center gap-1.5 transition shadow-sm"
+                  >
+                    <Pencil className="w-3.5 h-3.5 text-psi-vibrant" /> Editar
+                  </button>
+                </div>
               ) : (
-                <button type="button" onClick={() => setCancelando(item)} className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-[11px] font-bold text-rose-700 hover:bg-rose-100 flex items-center gap-1.5">
-                  <XCircle className="w-3.5 h-3.5" /> Cancelar
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setEditingSession({
+                        id: item.id,
+                        pacienteNome: item.pacienteNome,
+                        inicio: item.inicio,
+                        fim: item.fim,
+                        modalidade: item.modalidade,
+                        status: item.status,
+                      })
+                    }
+                    className="rounded-xl border border-line bg-white px-3 py-1.5 text-[11px] font-bold text-ink hover:bg-slate-100 flex items-center gap-1.5 transition shadow-sm"
+                  >
+                    <Pencil className="w-3.5 h-3.5 text-psi-vibrant" /> Editar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReagendando(item)}
+                    className="rounded-xl border border-purple-200 bg-purple-50 px-3 py-1.5 text-[11px] font-bold text-purple-700 hover:bg-purple-100 flex items-center gap-1.5 transition"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" /> Reagendar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCancelando(item)}
+                    className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-[11px] font-bold text-rose-700 hover:bg-rose-100 flex items-center gap-1.5 transition"
+                  >
+                    <XCircle className="w-3.5 h-3.5" /> Cancelar
+                  </button>
+                </div>
               )}
               </div>
 
@@ -223,6 +277,37 @@ export function UpcomingSessions({ agendamentos, onCancelar, onConfirmarRealizac
           </li>
         )}
       </ul>
+
+      {reagendando && (
+        <RescheduleModal
+          appointment={reagendando}
+          isOpen={Boolean(reagendando)}
+          onClose={() => setReagendando(undefined)}
+          onConfirm={async (id, startsAt, endsAt) => {
+            if (onReagendar) {
+              await onReagendar(id, startsAt, endsAt);
+            }
+          }}
+        />
+      )}
+
+      {editingSession && (
+        <EditSessionModal
+          session={editingSession}
+          isOpen={Boolean(editingSession)}
+          onClose={() => setEditingSession(undefined)}
+          onSaved={async () => {
+            if (onEditar) {
+              await onEditar(editingSession.id, {
+                startsAt: editingSession.inicio,
+                endsAt: editingSession.fim,
+                modalidade: editingSession.modalidade,
+                status: editingSession.status,
+              });
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

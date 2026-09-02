@@ -14,6 +14,9 @@ import {
   writeSnapshot,
   type AuditoriaDesistenciaRecord,
 } from './persistence';
+import { isMysqlConfigured, getMysqlPool } from '@/server/oci/runtime';
+import { instituicaoId } from '@/server/persistence/mysql/mappers';
+import type { RowDataPacket } from 'mysql2/promise';
 
 /**
  * Cadastro de pacientes visto pela equipe.
@@ -40,6 +43,8 @@ export interface PatientDirectoryEntry {
   /** Há uma desistência aberta para este paciente na auditoria de retenção. */
   dropoutRegistered: boolean;
   lastRegistrationUpdate?: PatientRegistrationUpdate;
+  conveniado?: boolean;
+  convenioNome?: string;
 }
 
 function contactSource(identities: unknown): PatientContactCapable | null {
@@ -60,11 +65,34 @@ export async function listPatientDirectory(context: RequestContext): Promise<rea
   const organizationId = context.actor.organizationId;
   const contacts = contactSource(store.identities);
 
-  const [patients, appointments, contactMap] = await Promise.all([
+  const [patients, appointments, contactMap, capture, mysqlAgreementRows] = await Promise.all([
     store.identities.listPatients(organizationId),
     store.appointments.list({ organizationId }),
     contacts ? contacts.listPatientContacts(organizationId) : Promise.resolve<Record<string, PatientContact>>({}),
+    getCaptureRepository().read(),
+    isMysqlConfigured()
+      ? getMysqlPool()
+          .query<RowDataPacket[]>(
+            `SELECT p.ref_core, p.convenio_ref, p.custeado_pela_empresa,
+                    c.nome AS convenio_nome
+               FROM clinica_pacientes p
+               JOIN clinica_organizacoes o ON o.id = p.organizacao_id
+               LEFT JOIN clinica_convenios c ON c.instituicao_id = p.instituicao_id
+                AND c.organizacao_ref = o.ref_core AND c.ref_core = p.convenio_ref
+              WHERE p.instituicao_id = ? AND o.ref_core = ?`,
+            [instituicaoId(), organizationId]
+          )
+          .then(([rows]) => rows)
+          .catch(() => [] as RowDataPacket[])
+      : Promise.resolve([] as RowDataPacket[]),
   ]);
+
+  const agreementsByPatient = new Map(mysqlAgreementRows.map((r) => [String(r.ref_core), r]));
+  const leadsByPatient = new Map(
+    capture.triagensPacientes
+      .filter((lead) => lead.pacienteRef)
+      .map((lead) => [lead.pacienteRef!, lead])
+  );
 
   // Papel clínico enxerga apenas os pacientes atribuídos a si. Papéis
   // administrativos veem a lista inteira — cadastro não é prontuário.
@@ -105,6 +133,25 @@ export async function listPatientDirectory(context: RequestContext): Promise<rea
       )
       .sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt))[0];
 
+    const agreement = agreementsByPatient.get(patient.id);
+    const lead = leadsByPatient.get(patient.id);
+    const contact = contactMap[patient.id];
+    const update = contact?.lastRegistrationUpdate as (Record<string, unknown> | undefined);
+
+    const updatePossuiConvenio = update?.possuiConvenio === 'SIM' || Boolean(update?.convenioSelecionado && update.convenioSelecionado !== 'Nenhum');
+    const updateConvenioNome = typeof update?.convenioSelecionado === 'string' && update.convenioSelecionado !== 'Nenhum' ? update.convenioSelecionado : undefined;
+
+    const convenioNome =
+      (typeof agreement?.convenio_nome === 'string' ? agreement.convenio_nome : undefined)
+      || (lead?.possuiConvenio === 'SIM' && lead.convenioSelecionado && lead.convenioSelecionado !== 'Nenhum' ? lead.convenioSelecionado : undefined)
+      || updateConvenioNome;
+
+    const conveniado = Boolean(
+      agreement?.convenio_ref
+      || (lead?.possuiConvenio === 'SIM' && lead.convenioSelecionado && lead.convenioSelecionado !== 'Nenhum')
+      || updatePossuiConvenio
+    );
+
     return {
       id: patient.id,
       displayName: patient.displayName,
@@ -120,6 +167,8 @@ export async function listPatientDirectory(context: RequestContext): Promise<rea
       completedSessions: own.filter((appointment) => appointment.status === 'completed').length,
       dropoutRegistered: openDropouts.has(patient.id),
       lastRegistrationUpdate: contactMap[patient.id]?.lastRegistrationUpdate,
+      conveniado,
+      convenioNome,
     };
   });
 }

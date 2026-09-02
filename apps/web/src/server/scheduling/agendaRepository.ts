@@ -2,7 +2,7 @@ import 'server-only';
 
 import { randomUUID } from 'node:crypto';
 import type { RowDataPacket } from 'mysql2';
-import { getMysqlPool } from '@/server/oci/runtime';
+import { getMysqlPool, isMysqlConfigured } from '@/server/oci/runtime';
 import { instituicaoId, rowId } from '@/server/persistence/mysql/mappers';
 import {
   disponibilidadePadraoDoCadastro,
@@ -582,6 +582,211 @@ export async function cancelAppointment(
   return (result as { affectedRows: number }).affectedRows > 0;
 }
 
+export async function rescheduleAppointmentProfessional(
+  organizationId: string,
+  professionalId: string,
+  appointmentId: string,
+  startsAtIso: string,
+  endsAtIso: string
+): Promise<'ok' | 'not_found' | 'conflict'> {
+  const connection = await getMysqlPool().getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const [rows] = await connection.query<RowDataPacket[]>(
+      `SELECT a.id, a.ref_core, a.profissional_id
+         FROM clinica_agendamentos a
+         JOIN clinica_profissionais p ON p.id = a.profissional_id
+         JOIN clinica_organizacoes o ON o.id = p.organizacao_id
+        WHERE a.instituicao_id = ? AND o.ref_core = ? AND p.ref_core = ?
+          AND (a.id = ? OR a.ref_core = ?) AND a.status IN ('agendado', 'confirmado')
+        LIMIT 1 FOR UPDATE`,
+      [instituicaoId(), organizationId, professionalId, appointmentId, appointmentId]
+    );
+    const agendamento = rows[0];
+    if (!agendamento) {
+      await connection.rollback();
+      return 'not_found';
+    }
+
+    const novoInicio = new Date(startsAtIso);
+    const novoFim = new Date(endsAtIso);
+
+    const [conflitos] = await connection.query<RowDataPacket[]>(
+      `SELECT a.id FROM clinica_agendamentos a
+        WHERE a.instituicao_id = ? AND a.profissional_id = ? AND a.status <> 'cancelado'
+          AND a.id <> ?
+          AND a.inicio < ? AND COALESCE(a.fim, DATE_ADD(a.inicio, INTERVAL a.duracao_min MINUTE)) > ?
+        FOR UPDATE`,
+      [instituicaoId(), agendamento.profissional_id, agendamento.id, novoFim, novoInicio]
+    );
+    if (conflitos.length > 0) {
+      await connection.rollback();
+      return 'conflict';
+    }
+
+    const [bloqueios] = await connection.query<RowDataPacket[]>(
+      `SELECT b.id FROM clinica_agenda_bloqueios b
+        WHERE b.instituicao_id = ? AND b.profissional_id = ?
+          AND b.inicio < ? AND b.fim > ?
+        FOR UPDATE`,
+      [instituicaoId(), agendamento.profissional_id, novoFim, novoInicio]
+    );
+    if (bloqueios.length > 0) {
+      await connection.rollback();
+      return 'conflict';
+    }
+
+    await connection.execute(
+      `UPDATE clinica_agendamentos
+          SET inicio = ?, fim = ?, status = 'agendado', versao = versao + 1, atualizado_em = CURRENT_TIMESTAMP(3)
+        WHERE instituicao_id = ? AND id = ?`,
+      [novoInicio, novoFim, instituicaoId(), agendamento.id]
+    );
+
+    await connection.execute(
+      `UPDATE financeiro_cobrancas
+          SET vencimento_em = ?, atualizado_em = CURRENT_TIMESTAMP(3)
+        WHERE instituicao_id = ? AND sessao_ref IN (?, ?) AND status IN ('pending', 'overdue')`,
+      [novoInicio, instituicaoId(), agendamento.id, agendamento.ref_core]
+    );
+
+    await connection.commit();
+    return 'ok';
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+export interface UpdateAppointmentInput {
+  startsAt?: string;
+  endsAt?: string;
+  modalidade?: 'online' | 'presencial' | 'telefone';
+  status?: 'agendado' | 'confirmado' | 'realizado' | 'cancelado';
+}
+
+export async function updateAppointmentDetails(
+  organizationId: string,
+  professionalId: string,
+  appointmentId: string,
+  input: UpdateAppointmentInput
+): Promise<'ok' | 'not_found' | 'conflict'> {
+  if (!isMysqlConfigured()) {
+    return 'ok';
+  }
+  const connection = await getMysqlPool().getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const [rows] = await connection.query<RowDataPacket[]>(
+      `SELECT a.id, a.ref_core, a.profissional_id, a.status, a.inicio, a.fim, a.duracao_min, a.modalidade
+         FROM clinica_agendamentos a
+         JOIN clinica_profissionais p ON p.id = a.profissional_id
+         JOIN clinica_organizacoes o ON o.id = p.organizacao_id
+        WHERE a.instituicao_id = ? AND o.ref_core = ? AND p.ref_core = ?
+          AND (a.id = ? OR a.ref_core = ?)
+        LIMIT 1 FOR UPDATE`,
+      [instituicaoId(), organizationId, professionalId, appointmentId, appointmentId]
+    );
+    const agendamento = rows[0];
+    if (!agendamento) {
+      await connection.rollback();
+      return 'not_found';
+    }
+
+    let novoInicio = agendamento.inicio ? new Date(agendamento.inicio) : null;
+    let novoFim = agendamento.fim ? new Date(agendamento.fim) : null;
+    let novoDuracao = agendamento.duracao_min ? Number(agendamento.duracao_min) : 50;
+
+    if (input.startsAt) {
+      novoInicio = new Date(input.startsAt);
+      if (input.endsAt) {
+        novoFim = new Date(input.endsAt);
+        novoDuracao = Math.round((novoFim.getTime() - novoInicio.getTime()) / 60_000);
+      } else {
+        novoFim = new Date(novoInicio.getTime() + novoDuracao * 60_000);
+      }
+
+      // Conflitos de agendamento (apenas se horário estiver ativo)
+      const [conflitos] = await connection.query<RowDataPacket[]>(
+        `SELECT a.id FROM clinica_agendamentos a
+          WHERE a.instituicao_id = ? AND a.profissional_id = ? AND a.status <> 'cancelado'
+            AND a.id <> ?
+            AND a.inicio < ? AND COALESCE(a.fim, DATE_ADD(a.inicio, INTERVAL a.duracao_min MINUTE)) > ?
+          FOR UPDATE`,
+        [instituicaoId(), agendamento.profissional_id, agendamento.id, novoFim, novoInicio]
+      );
+      if (conflitos.length > 0) {
+        await connection.rollback();
+        return 'conflict';
+      }
+
+      // Conflitos de bloqueio
+      const [bloqueios] = await connection.query<RowDataPacket[]>(
+        `SELECT b.id FROM clinica_agenda_bloqueios b
+          WHERE b.instituicao_id = ? AND b.profissional_id = ?
+            AND b.inicio < ? AND b.fim > ?
+          FOR UPDATE`,
+        [instituicaoId(), agendamento.profissional_id, novoFim, novoInicio]
+      );
+      if (bloqueios.length > 0) {
+        await connection.rollback();
+        return 'conflict';
+      }
+    }
+
+    const updates: string[] = ['versao = versao + 1', 'atualizado_em = CURRENT_TIMESTAMP(3)'];
+    const values: any[] = [];
+
+    if (input.startsAt && novoInicio && novoFim) {
+      updates.push('inicio = ?', 'fim = ?', 'duracao_min = ?');
+      values.push(novoInicio, novoFim, novoDuracao);
+    }
+
+    if (input.modalidade) {
+      updates.push('modalidade = ?');
+      values.push(input.modalidade);
+    }
+
+    if (input.status) {
+      updates.push('status = ?');
+      values.push(input.status);
+      if (input.status === 'realizado') {
+        updates.push('realizado_em = COALESCE(realizado_em, CURRENT_TIMESTAMP(3))');
+      } else if (input.status === 'agendado') {
+        updates.push('realizado_em = NULL');
+      }
+    }
+
+    values.push(instituicaoId(), agendamento.id);
+
+    await connection.execute(
+      `UPDATE clinica_agendamentos SET ${updates.join(', ')} WHERE instituicao_id = ? AND id = ?`,
+      values
+    );
+
+    if (input.startsAt && novoInicio) {
+      await connection.execute(
+        `UPDATE financeiro_cobrancas
+            SET vencimento_em = ?, atualizado_em = CURRENT_TIMESTAMP(3)
+          WHERE instituicao_id = ? AND sessao_ref IN (?, ?) AND status IN ('pending', 'overdue')`,
+        [novoInicio, instituicaoId(), agendamento.id, agendamento.ref_core]
+      );
+    }
+
+    await connection.commit();
+    return 'ok';
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Contatos da sessão — o que os avisos de WhatsApp precisam saber
 // ---------------------------------------------------------------------------
@@ -889,6 +1094,158 @@ export async function bookAppointment(
       inicio: slot.inicio,
       fim: slot.fim,
       modalidade: slot.modalidade,
+      linkPagamento: `/pagar/sessao/${tokenPagamento}`,
+    };
+  } catch (error) {
+    await connection.rollback();
+    if ((error as { code?: string }).code === 'ER_DUP_ENTRY') {
+      return { ok: false, motivo: 'DUPLICADO' };
+    }
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+export interface ActivePatientAppointment {
+  id: string;
+  inicio: string;
+  fim: string;
+  modalidade: string;
+  status: string;
+  linkPagamento?: string;
+  podeReagendar: boolean;
+  horasAteInicio: number;
+}
+
+export async function getActiveUpcomingAppointment(
+  paciente: PacienteIdentificado,
+  agora: Date = new Date()
+): Promise<ActivePatientAppointment | null> {
+  const [rows] = await getMysqlPool().query<RowDataPacket[]>(
+    `SELECT a.id, a.ref_core, a.inicio,
+            COALESCE(a.fim, DATE_ADD(a.inicio, INTERVAL a.duracao_min MINUTE)) AS fim,
+            a.modalidade, a.status, a.token_pagamento_sessao
+       FROM clinica_agendamentos a
+      WHERE a.instituicao_id = ? AND a.profissional_id = ? AND a.paciente_id = ?
+        AND a.status IN ('agendado', 'confirmado')
+        AND a.inicio >= ?
+      ORDER BY a.inicio ASC
+      LIMIT 1`,
+    [instituicaoId(), paciente.professionalRowId, paciente.patientRowId, agora]
+  );
+  const row = rows[0];
+  if (!row) return null;
+
+  const inicioMs = new Date(row.inicio).getTime();
+  const agoraMs = agora.getTime();
+  const horasAteInicio = Math.max(0, (inicioMs - agoraMs) / (1000 * 60 * 60));
+  const podeReagendar = horasAteInicio >= 2;
+
+  return {
+    id: String(row.id),
+    inicio: new Date(row.inicio).toISOString(),
+    fim: new Date(row.fim).toISOString(),
+    modalidade: String(row.modalidade ?? 'online'),
+    status: String(row.status),
+    linkPagamento: row.token_pagamento_sessao ? `/pagar/sessao/${row.token_pagamento_sessao}` : undefined,
+    podeReagendar,
+    horasAteInicio: Number(horasAteInicio.toFixed(1)),
+  };
+}
+
+export type ResultadoReagendamento =
+  | { ok: true; agendamentoId: string; inicio: string; fim: string; modalidade: string; linkPagamento: string }
+  | { ok: false; motivo: 'INDISPONIVEL' | 'DUPLICADO' | 'PRAZO_EXPIRADO' | 'NAO_ENCONTRADO' };
+
+export async function rescheduleAppointmentPublic(
+  paciente: PacienteIdentificado,
+  appointmentId: string,
+  novoInicioIso: string,
+  agora: Date = new Date()
+): Promise<ResultadoReagendamento> {
+  const connection = await getMysqlPool().getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const [rows] = await connection.query<RowDataPacket[]>(
+      `SELECT a.id, a.ref_core, a.inicio, a.token_pagamento_sessao, a.duracao_min, a.modalidade
+         FROM clinica_agendamentos a
+        WHERE a.instituicao_id = ? AND a.profissional_id = ? AND a.paciente_id = ?
+          AND (a.id = ? OR a.ref_core = ?) AND a.status IN ('agendado', 'confirmado')
+        LIMIT 1 FOR UPDATE`,
+      [instituicaoId(), paciente.professionalRowId, paciente.patientRowId, appointmentId, appointmentId]
+    );
+    const agendamento = rows[0];
+    if (!agendamento) {
+      await connection.rollback();
+      return { ok: false, motivo: 'NAO_ENCONTRADO' };
+    }
+
+    const horasAteInicio = (new Date(agendamento.inicio).getTime() - agora.getTime()) / (1000 * 60 * 60);
+    if (horasAteInicio < 2) {
+      await connection.rollback();
+      return { ok: false, motivo: 'PRAZO_EXPIRADO' };
+    }
+
+    const novoInicio = new Date(novoInicioIso);
+    const duracaoMin = Number(agendamento.duracao_min || 50);
+    const novoFim = new Date(novoInicio.getTime() + duracaoMin * 60_000);
+
+    const [conflitos] = await connection.query<RowDataPacket[]>(
+      `SELECT a.id FROM clinica_agendamentos a
+        WHERE a.instituicao_id = ? AND a.profissional_id = ? AND a.status <> 'cancelado'
+          AND a.id <> ?
+          AND a.inicio < ? AND COALESCE(a.fim, DATE_ADD(a.inicio, INTERVAL a.duracao_min MINUTE)) > ?
+        FOR UPDATE`,
+      [
+        instituicaoId(),
+        paciente.professionalRowId,
+        agendamento.id,
+        novoFim,
+        novoInicio,
+      ]
+    );
+    if (conflitos.length > 0) {
+      await connection.rollback();
+      return { ok: false, motivo: 'INDISPONIVEL' };
+    }
+
+    const [bloqueios] = await connection.query<RowDataPacket[]>(
+      `SELECT b.id FROM clinica_agenda_bloqueios b
+        WHERE b.instituicao_id = ? AND b.profissional_id = ?
+          AND b.inicio < ? AND b.fim > ?
+        FOR UPDATE`,
+      [instituicaoId(), paciente.professionalRowId, novoFim, novoInicio]
+    );
+    if (bloqueios.length > 0) {
+      await connection.rollback();
+      return { ok: false, motivo: 'INDISPONIVEL' };
+    }
+
+    await connection.execute(
+      `UPDATE clinica_agendamentos
+          SET inicio = ?, fim = ?, status = 'agendado', versao = versao + 1, atualizado_em = CURRENT_TIMESTAMP(3)
+        WHERE instituicao_id = ? AND id = ?`,
+      [novoInicio, novoFim, instituicaoId(), agendamento.id]
+    );
+
+    await connection.execute(
+      `UPDATE financeiro_cobrancas
+          SET vencimento_em = ?, atualizado_em = CURRENT_TIMESTAMP(3)
+        WHERE instituicao_id = ? AND sessao_ref IN (?, ?) AND status IN ('pending', 'overdue')`,
+      [novoInicio, instituicaoId(), agendamento.id, agendamento.ref_core]
+    );
+
+    await connection.commit();
+
+    const tokenPagamento = agendamento.token_pagamento_sessao || randomUUID().replaceAll('-', '');
+    return {
+      ok: true,
+      agendamentoId: String(agendamento.id),
+      inicio: novoInicio.toISOString(),
+      fim: novoFim.toISOString(),
+      modalidade: String(agendamento.modalidade ?? 'online'),
       linkPagamento: `/pagar/sessao/${tokenPagamento}`,
     };
   } catch (error) {

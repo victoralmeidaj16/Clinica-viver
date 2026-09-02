@@ -94,6 +94,25 @@ export default function AgendaPage() {
     setDados((atual) => (atual ? { ...atual, appointments: resposta.appointments } : atual));
   };
 
+  const reagendarSessao = async (id: string, startsAt: string, endsAt: string) => {
+    const resposta = await applicationRequest<{ appointments: AgendamentoResumo[] }>(
+      `/agenda/agendamentos/${encodeURIComponent(id)}`,
+      { method: 'PATCH', body: JSON.stringify({ action: 'reschedule', startsAt, endsAt }) }
+    );
+    setDados((atual) => (atual ? { ...atual, appointments: resposta.appointments } : atual));
+  };
+
+  const editarSessao = async (
+    id: string,
+    input: { startsAt?: string; endsAt?: string; modalidade?: string; status?: string }
+  ) => {
+    const resposta = await applicationRequest<{ appointments: AgendamentoResumo[] }>(
+      `/agenda/agendamentos/${encodeURIComponent(id)}`,
+      { method: 'PATCH', body: JSON.stringify({ action: 'edit', ...input }) }
+    );
+    setDados((atual) => (atual ? { ...atual, appointments: resposta.appointments } : atual));
+  };
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -142,6 +161,8 @@ export default function AgendaPage() {
             onCancelar={cancelarSessao}
             onConfirmarRealizacao={confirmarRealizacao}
             onAtualizarVencimento={atualizarVencimento}
+            onReagendar={reagendarSessao}
+            onEditar={editarSessao}
           />
         </>
       )}

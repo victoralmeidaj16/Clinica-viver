@@ -2,7 +2,11 @@ import { assertStaffAuthorized, cancelAppointmentCommand, confirmAppointmentComm
 import type { RequestContext } from './context';
 import { ApplicationError } from './http';
 import { getApplicationStore, persistApplicationState } from './store';
-import { cancelarCobrancaDaSessao, garantirCobrancaDaSessao } from '@/server/payments/sessionCharge';
+import {
+  atualizarVencimentoCobrancaSessao,
+  cancelarCobrancaDaSessao,
+  garantirCobrancaDaSessao,
+} from '@/server/payments/sessionCharge';
 import { isFutureChargeDueAt } from '@/lib/chargeDue';
 
 export async function listAppointments(context: RequestContext) {
@@ -60,6 +64,18 @@ export async function changeAppointment(context: RequestContext, id: string, bod
   if (!result) throw new ApplicationError('INVALID_ACTION', 'Ação de agendamento inválida.', 400);
   await persistApplicationState();
   if (body.action === 'cancel') await cancelarCobrancaDaSessao(id);
+  if (body.action === 'reschedule' && result?.appointment) {
+    const professionalId = result.appointment.professionalId;
+    const dueAt = result.appointment.startsAt;
+    if (isFutureChargeDueAt(dueAt)) {
+      await atualizarVencimentoCobrancaSessao({
+        organizationId: context.actor.organizationId,
+        professionalId,
+        appointmentId: id,
+        dueAt,
+      }).catch((err) => console.error('[agenda] Falha ao atualizar cobrança no reagendamento:', err));
+    }
+  }
   return result;
 }
 

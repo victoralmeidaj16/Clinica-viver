@@ -1,9 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { CreditCard, FileSpreadsheet } from 'lucide-react';
+import { CalendarDays, CheckCircle2, CreditCard, FileSpreadsheet, Pencil, XCircle } from 'lucide-react';
 import { applicationRequest } from '@/lib/applicationApi';
 import { reaisDeCentavos } from '@/lib/modalidadesPagamento';
+import { EditSessionModal, type SessionEditableData } from '@/components/scheduling/EditSessionModal';
 
 interface Transaction {
   id: string;
@@ -20,9 +21,14 @@ type PaymentStatus = 'draft' | 'paid' | 'pending' | 'partially_paid' | 'overdue'
 interface Receivable {
   chargeId: string;
   sessionId: string;
+  appointmentId?: string;
   patientName: string;
   dueAt: string;
+  startsAt?: string;
+  endsAt?: string;
   status: PaymentStatus;
+  attendanceStatus?: 'agendado' | 'realizado' | 'cancelado';
+  modalidade?: 'online' | 'presencial' | 'telefone';
   amountCents: number;
   receivedCents: number;
   outstandingCents: number;
@@ -87,6 +93,7 @@ export default function MeuFinanceiroPage() {
   const [mes, setMes] = useState(mesAtual);
   const [data, setData] = useState<FinancialData | null>(null);
   const [error, setError] = useState<string>();
+  const [editingSession, setEditingSession] = useState<SessionEditableData>();
 
   const load = useCallback(() => {
     const { start, end } = periodoDoMes(mes);
@@ -112,6 +119,17 @@ export default function MeuFinanceiroPage() {
     anchor.download = `meu-financeiro-${mes}.csv`;
     anchor.click();
     URL.revokeObjectURL(anchor.href);
+  };
+
+  const handleEditSession = (item: Receivable) => {
+    setEditingSession({
+      id: item.appointmentId || item.sessionId,
+      pacienteNome: item.patientName,
+      inicio: item.startsAt || item.dueAt,
+      fim: item.endsAt,
+      modalidade: item.modalidade || 'online',
+      status: item.attendanceStatus || 'agendado',
+    });
   };
 
   return (
@@ -145,13 +163,79 @@ export default function MeuFinanceiroPage() {
       <section className="bg-surface border border-line rounded-3xl p-5 space-y-4">
         <div>
           <h2 className="font-black text-ink">Status dos atendimentos</h2>
-          <p className="text-xs text-muted mt-1">Acompanhe as cobranças das suas sessões e identifique o que ainda está em aberto.</p>
+          <p className="text-xs text-muted mt-1">Acompanhe as cobranças das suas sessões e identifique o que já foi atendido ou ainda está em aberto.</p>
         </div>
-        <div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr className="text-left text-muted border-b border-line"><th className="py-3">Sessão</th><th>Paciente</th><th>Status</th><th>Valor</th><th>Recebido</th><th>Em aberto</th></tr></thead>
-          <tbody>{data?.receivables.map((item) => <tr key={item.chargeId} className="border-b border-line/70"><td className="py-3 whitespace-nowrap">{new Date(item.dueAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' })}</td><td className="font-bold">{item.patientName}</td><td><span className={`inline-flex rounded-full border px-2 py-1 font-bold ${paymentStatusStyle[item.status]}`}>{paymentStatusLabel[item.status]}</span></td><td>{reaisDeCentavos(item.amountCents)}</td><td className="text-emerald-700 font-bold">{reaisDeCentavos(item.receivedCents)}</td><td className={item.outstandingCents > 0 ? 'font-bold text-amber-700' : 'text-muted'}>{reaisDeCentavos(item.outstandingCents)}</td></tr>)}</tbody></table>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-left text-muted border-b border-line">
+                <th className="py-3">Sessão</th>
+                <th>Paciente</th>
+                <th>Atendimento</th>
+                <th>Pagamento</th>
+                <th>Valor</th>
+                <th>Recebido</th>
+                <th>Em aberto</th>
+                <th className="text-right py-3 pr-2">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data?.receivables.map((item) => (
+                <tr key={item.chargeId} className="border-b border-line/70 hover:bg-slate-50/50 transition">
+                  <td className="py-3 whitespace-nowrap">
+                    {new Date(item.startsAt || item.dueAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' })}
+                  </td>
+                  <td className="font-bold text-ink">{item.patientName}</td>
+                  <td>
+                    {item.attendanceStatus === 'realizado' ? (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-extrabold text-emerald-800">
+                        <CheckCircle2 className="w-3 h-3" /> Realizado
+                      </span>
+                    ) : item.attendanceStatus === 'cancelado' ? (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] font-bold text-rose-700">
+                        <XCircle className="w-3 h-3" /> Cancelado
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-extrabold text-sky-800">
+                        <CalendarDays className="w-3 h-3" /> Agendado
+                      </span>
+                    )}
+                  </td>
+                  <td>
+                    <span className={`inline-flex rounded-full border px-2 py-0.5 font-bold ${paymentStatusStyle[item.status]}`}>
+                      {paymentStatusLabel[item.status]}
+                    </span>
+                  </td>
+                  <td>{reaisDeCentavos(item.amountCents)}</td>
+                  <td className="text-emerald-700 font-bold">{reaisDeCentavos(item.receivedCents)}</td>
+                  <td className={item.outstandingCents > 0 ? 'font-bold text-amber-700' : 'text-muted'}>
+                    {reaisDeCentavos(item.outstandingCents)}
+                  </td>
+                  <td className="text-right py-3 pr-2">
+                    <button
+                      type="button"
+                      onClick={() => handleEditSession(item)}
+                      className="rounded-xl border border-line bg-white px-2.5 py-1 text-[11px] font-bold text-ink hover:bg-slate-100 hover:text-psi-deep transition inline-flex items-center gap-1 shadow-sm"
+                    >
+                      <Pencil className="w-3 h-3 text-psi-vibrant" /> Editar
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
           {data?.receivables.length === 0 && <p className="text-center text-muted py-8">Nenhuma cobrança de atendimento encontrada.</p>}
         </div>
       </section>
+
+      {editingSession && (
+        <EditSessionModal
+          session={editingSession}
+          isOpen={Boolean(editingSession)}
+          onClose={() => setEditingSession(undefined)}
+          onSaved={load}
+        />
+      )}
     </div>
   );
 }

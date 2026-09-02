@@ -15,6 +15,7 @@ import {
   FileText,
   UserX,
   Pencil,
+  Building2,
 } from 'lucide-react';
 import PatientDropoutModal from './PatientDropoutModal';
 import { ManualAppointmentDialog } from '@/components/scheduling/ManualAppointmentDialog';
@@ -146,20 +147,31 @@ export default function PatientList({
                   </div>
                 </div>
 
-                <span
-                  className={`chip text-[11px] ${
-                    patient.status === 'active'
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                      : 'bg-amber-50 text-amber-700 border-amber-200'
-                  }`}
-                >
-                  {patient.status === 'active' ? (
-                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                  ) : (
-                    <PauseCircle className="w-3 h-3 text-amber-600" />
+                <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                  {patient.conveniado && (
+                    <span
+                      className="chip text-[11px] font-extrabold bg-purple-100 text-purple-800 border-purple-200 flex items-center gap-1"
+                      title={patient.convenioNome ? `Convênio: ${patient.convenioNome}` : 'Paciente Conveniado'}
+                    >
+                      <Building2 className="w-3 h-3 text-purple-700 shrink-0" />
+                      <span>{patient.convenioNome ? `Convênio: ${patient.convenioNome}` : 'Conveniado'}</span>
+                    </span>
                   )}
-                  {patient.dropoutRegistered ? 'Desistente' : STATUS_LABEL[patient.status]}
-                </span>
+                  <span
+                    className={`chip text-[11px] ${
+                      patient.status === 'active'
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-amber-50 text-amber-700 border-amber-200'
+                    }`}
+                  >
+                    {patient.status === 'active' ? (
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    ) : (
+                      <PauseCircle className="w-3 h-3 text-amber-600" />
+                    )}
+                    {patient.dropoutRegistered ? 'Desistente' : STATUS_LABEL[patient.status]}
+                  </span>
+                </div>
               </div>
 
               {/* Metadados da Agenda */}

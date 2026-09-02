@@ -812,12 +812,11 @@ export default function ViverMaisLandingPage() {
                           </div>
 
                           <div className="min-w-0 space-y-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="text-[10px] font-extrabold text-psi-deep uppercase tracking-wider bg-psi-soft px-2 py-0.5 rounded-full border border-psi-soft">
-                                Opção 0{index + 1}
-                              </span>
-                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-100">
-                                <Clock className="w-3 h-3 text-purple-600 shrink-0" />
+                            <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500 font-medium">
+                              <span>Opção 0{index + 1}</span>
+                              <span className="text-slate-300">•</span>
+                              <span className="inline-flex items-center gap-1 text-slate-500">
+                                <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                                 {service.duracao}
                               </span>
                             </div>

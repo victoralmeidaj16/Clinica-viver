@@ -14,7 +14,10 @@ import {
   listAvailability,
   listBlocks,
   replaceAvailability,
+  rescheduleAppointmentProfessional,
+  updateAppointmentDetails,
   type JanelaEditavel,
+  type UpdateAppointmentInput,
 } from '@/server/scheduling/agendaRepository';
 import { avisarSessaoCancelada } from '@/server/scheduling/agendaAvisos';
 import { atualizarVencimentoCobrancaSessao, cancelarCobrancaDaSessao } from '@/server/payments/sessionCharge';
@@ -229,6 +232,71 @@ export async function updateAgendaAppointmentChargeDue(
   if (outcome === 'not_found') throw new ApplicationError('NOT_FOUND', 'Cobrança da sessão não encontrada.', 404);
   if (outcome === 'paid') throw new ApplicationError('CHARGE_SETTLED', 'O vencimento não pode ser alterado após o pagamento.', 409);
   if (outcome === 'invalid') throw new ApplicationError('INVALID_INPUT', 'O vencimento deve estar no futuro.', 400);
+  const desde = new Date(Date.now() - 90 * 24 * 60 * 60_000);
+  return { appointments: await listAppointments(organizationId, professionalId, desde) };
+}
+
+export async function rescheduleAgendaAppointment(
+  context: RequestContext,
+  appointmentId: string,
+  startsAt: string,
+  endsAt: string
+) {
+  const { organizationId, professionalId } = perfilDaSessao(context);
+  if (!startsAt || !endsAt) {
+    throw new ApplicationError('INVALID_INPUT', 'Envie o início e o fim da sessão.', 400);
+  }
+  const startsAtDate = new Date(startsAt);
+  if (startsAtDate.getTime() <= Date.now()) {
+    throw new ApplicationError('INVALID_INPUT', 'O novo horário deve estar no futuro.', 400);
+  }
+
+  const outcome = await rescheduleAppointmentProfessional(
+    organizationId,
+    professionalId,
+    appointmentId,
+    startsAt,
+    endsAt
+  );
+
+  if (outcome === 'not_found') {
+    throw new ApplicationError('NOT_FOUND', 'Agendamento não encontrado.', 404);
+  }
+  if (outcome === 'conflict') {
+    throw new ApplicationError('SLOT_CONFLICT', 'Este horário já possui outro agendamento ou bloqueio.', 409);
+  }
+
+  const desde = new Date(Date.now() - 90 * 24 * 60 * 60_000);
+  return { appointments: await listAppointments(organizationId, professionalId, desde) };
+}
+
+export async function editAgendaAppointment(
+  context: RequestContext,
+  appointmentId: string,
+  input: UpdateAppointmentInput
+) {
+  const { organizationId, professionalId } = perfilDaSessao(context);
+  if (input.startsAt) {
+    const startsAtDate = new Date(input.startsAt);
+    if (isNaN(startsAtDate.getTime())) {
+      throw new ApplicationError('INVALID_INPUT', 'Data de início inválida.', 400);
+    }
+  }
+
+  const outcome = await updateAppointmentDetails(
+    organizationId,
+    professionalId,
+    appointmentId,
+    input
+  );
+
+  if (outcome === 'not_found') {
+    throw new ApplicationError('NOT_FOUND', 'Agendamento não encontrado.', 404);
+  }
+  if (outcome === 'conflict') {
+    throw new ApplicationError('SLOT_CONFLICT', 'Este horário já possui outro agendamento ou bloqueio.', 409);
+  }
+
   const desde = new Date(Date.now() - 90 * 24 * 60 * 60_000);
   return { appointments: await listAppointments(organizationId, professionalId, desde) };
 }

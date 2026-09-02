@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { rateLimited, validCpf } from '@/server/http/publicRequest';
-import { identifyPatient, listAvailableSlots } from '@/server/scheduling/agendaRepository';
+import {
+  getActiveUpcomingAppointment,
+  identifyPatient,
+  listAvailableSlots,
+} from '@/server/scheduling/agendaRepository';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -46,12 +50,15 @@ export async function POST(request: Request) {
     }
 
     const agora = new Date();
-    const slots = await listAvailableSlots(
-      paciente,
-      agora,
-      new Date(agora.getTime() + HORIZONTE_DIAS * 24 * 60 * 60_000),
-      agora
-    );
+    const [slots, agendamentoAtual] = await Promise.all([
+      listAvailableSlots(
+        paciente,
+        agora,
+        new Date(agora.getTime() + HORIZONTE_DIAS * 24 * 60 * 60_000),
+        agora
+      ),
+      getActiveUpcomingAppointment(paciente, agora),
+    ]);
 
     // Agrupado por dia porque é assim que a tela pergunta: primeiro o dia no
     // calendário, depois o horário. Montar os grupos no cliente exigiria
@@ -69,6 +76,7 @@ export async function POST(request: Request) {
         pacienteNome: paciente.nome,
         professionalName: paciente.professionalName,
         dias: [...dias.entries()].map(([dia, horarios]) => ({ dia, horarios })),
+        agendamentoAtual: agendamentoAtual ?? null,
       },
       { headers: { 'Cache-Control': 'private, no-store' } }
     );

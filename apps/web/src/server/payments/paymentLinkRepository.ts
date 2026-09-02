@@ -442,7 +442,8 @@ export async function reconcileInterPix(input: {
        ON DUPLICATE KEY UPDATE recebido_em = VALUES(recebido_em),
          valor_centavos = VALUES(valor_centavos), forma = 'pix', status = 'confirmed'`,
       [rowId('pagamento', paymentRef), instituicaoId(), charge.organizacao_ref,
-        paymentRef, charge.ref_core, input.receivedAt, input.amountCents, input.endToEndId]
+        paymentRef, charge.ref_core, toSqlTimestamp(input.receivedAt),
+        input.amountCents, input.endToEndId]
     );
     const nextStatus = input.amountCents >= Number(charge.valor_centavos)
       ? 'paid' : 'partially_paid';
@@ -517,7 +518,7 @@ export async function reconcileAsaasPayment(input: {
        ON DUPLICATE KEY UPDATE recebido_em = VALUES(recebido_em),
          valor_centavos = VALUES(valor_centavos), forma = VALUES(forma), status = 'confirmed'`,
       [rowId('pagamento', paymentRef), instituicaoId(), charge.organizacao_ref,
-        paymentRef, charge.ref_core, input.receivedAt, input.amountCents,
+        paymentRef, charge.ref_core, toSqlTimestamp(input.receivedAt), input.amountCents,
         paymentMethod, input.paymentId]
     );
     const nextStatus = input.amountCents >= Number(charge.valor_centavos)

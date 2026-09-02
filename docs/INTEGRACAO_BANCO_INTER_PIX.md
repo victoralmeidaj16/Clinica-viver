@@ -40,7 +40,7 @@ Depois do deploy, obtenha um token OAuth com o certificado mTLS e registre uma
 única vez esta URL no endpoint `PUT /pix/v2/webhook/{chave}` do ambiente Inter:
 
 ```text
-https://clinicavivermais.cloud/api/financeiro/inter/webhook?token=INTER_WEBHOOK_TOKEN
+https://app.clinicavivermais.cloud/api/financeiro/inter/webhook?token=INTER_WEBHOOK_TOKEN
 ```
 
 O callback usa `txid` para localizar a cobrança e `endToEndId` como chave

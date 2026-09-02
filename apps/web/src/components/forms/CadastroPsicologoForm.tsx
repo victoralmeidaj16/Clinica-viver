@@ -16,6 +16,7 @@ import {
 } from '@/components/forms/opcoesPsicologo';
 import { processImageUpload } from '@/lib/imageUpload';
 import { maskBrazilPhoneInput, normalizeBrazilPhone } from '@/lib/brazilPhone';
+import { maskCrpInput } from '@/lib/crp';
 import { validateGender, type GenderValue } from '@/lib/gender';
 
 export interface CadastroPsicologoCriado {
@@ -272,8 +273,9 @@ export function CadastroPsicologoForm({
               type="text"
               required
               value={formPsicologo.crp}
-              onChange={(e) => setFormPsicologo({ ...formPsicologo, crp: e.target.value })}
-              placeholder="Ex: CRP 07/12345"
+              onChange={(e) => setFormPsicologo({ ...formPsicologo, crp: maskCrpInput(e.target.value) })}
+              placeholder="Ex: 12/34567"
+              maxLength={10}
               className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
             />
           </div>

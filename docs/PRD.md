@@ -20,7 +20,7 @@ A **Clínica Viver Mais** é uma **Plataforma Web Integrada de Inteligência Cl�
 * **Automação Pós-Sessão em 1 Clique:** Prontuário SOAP estruturado com assinatura digital $\rightarrow$ Extração de tarefas para o paciente via WhatsApp $\rightarrow$ Disparo de cobrança Pix/cartão via Link Único.
 * **Fila Inteligente & Atribuição Automática (Round-Robin):** Triagem no site por turno e modalidade com timer de SLA de 24h via Evolution API e transbordo automático para o próximo psicólogo.
 * **Checkout Transparente via Link Único (`/pagar/[ID]`):** Pagamento via Pix Copia e Cola / Cartão com conciliação automática por Webhook, eliminando o envio manual de comprovantes.
-* **Split de Receita 70/30 & Abatimento no Boleto de Pós:** 30% retidos pela clínica e 70% creditados para abatimento automático na mensalidade/boleto do aluno.
+* **Split de Receita 70/30 & Registro de Créditos:** 30% retidos para a receita operacional da clínica e 70% creditados em extrato auditável (`/meu-financeiro`). O abatimento financeiro das mensalidades ou do montante do curso é processado manualmente pela administração para contemplar planos de pagamento estendidos e flexíveis (dedução no montante final).
 * **Módulo de Certificados Digitais (`/painel-certificados`):** Emissão em lote com chancela digital transparente, QR Code dinâmico e validação pública instantânea (`/validar-certificado`).
 * **Cockpit de Gestão da Clínica (11 Relatórios em Tempo Real):** Dashboard completo monitorando SLAs, CPA/CAC de marketing, distribuição demográfica, volume social vs. particular e audit log de agendamentos.
 * **Auditoria de Desistências & Edição Cadastral:** Registro de motivos de evasão no cadastro e rastreamento completo de alterações cadastrais para conformidade ética.

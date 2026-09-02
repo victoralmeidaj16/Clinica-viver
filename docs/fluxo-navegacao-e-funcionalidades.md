@@ -24,7 +24,7 @@ Telas e fluxos priorizados especificamente para a operação da **Viver Mais Psi
 | `/cockpit/leads` (Aba 1) | **📥 Leads & SLA 24h** | Recebimento de novos pacientes via rodízio (turno/modalidade), botão "Chamar no WhatsApp", confirmação de contato ou repasse de fila. |
 | `/pacientes` (Aba 2) | **👥 Meus Pacientes & Status** | Carteira de pacientes sob responsabilidade do profissional (sigilo LGPD), cadastro manual e status (Ativo/Férias/Desistente + Motivo). |
 | `/agenda` (Aba 3) | **🗓️ Agenda & Atendimentos** | Marcação de sessões (50 min fixos), modalidade (Social R$ 75 / Particular R$ 130), cobrança pré/pós e reagendamento com motivo obrigatório. |
-| `/meu-financeiro` (Aba 4) | **💰 Desconto na Mensalidade** | Extrato de créditos acumulados (**70% do valor da sessão**) para abatimento direto na mensalidade/boleto da pós-graduação. |
+| `/meu-financeiro` (Aba 4) | **💰 Créditos & Financeiro** | Extrato de créditos acumulados (**70% do valor da sessão**) para controle do aluno e abatimento manual na pós-graduação/montante do curso pelo setor financeiro. |
 | `/cockpit/atendimento` (Aba 5) | **📝 Cockpit SOAP & Histórico** | Registro ágil de prontuário SOAP, assinatura digital com hash SHA-256, histórico na Linha do Tempo e disparo de tarefas via WhatsApp. |
 
 

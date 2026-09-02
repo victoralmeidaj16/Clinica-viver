@@ -120,6 +120,7 @@ const PASSOS_CREDENCIAMENTO: PassoJornada[] = [
 export default function ViverMaisLandingPage() {
   const [selectedService, setSelectedService] = useState<ServicoKey | null>(null);
   const [selectedModalidade, setSelectedModalidade] = useState<ModalidadeKey | null>(null);
+  const [servicoSanfonaAberto, setServicoSanfonaAberto] = useState<ServicoKey | null>('PSICOTERAPIA');
   const [step, setStep] = useState<BookingStep | 'CADASTRO_PSICOLOGO' | 'SUCESSO_PSICOLOGO'>('SERVICOS');
   const [caminho, setCaminho] = useState<'MATCH' | 'PROFISSIONAL' | null>(null);
   const [psicologoEscolhido, setPsicologoEscolhido] = useState<PsicologoVitrineItem | null>(null);
@@ -761,7 +762,7 @@ export default function ViverMaisLandingPage() {
       <main id="modalidades" className="max-w-6xl mx-auto px-6 py-8">
         {step === 'SERVICOS' && (
           <div id="servicos-cards" className="space-y-16 animate-in fade-in slide-in-from-bottom-4 duration-300">
-            {/* Escolha Seu Serviço & Agende em 1-Clique com Cards Completos */}
+            {/* Escolha Seu Serviço & Agende em 1-Clique - Menu Sanfona (Accordion) */}
             <div id="secao-escolha-servico" className="scroll-mt-28 space-y-8">
               <div className="text-center max-w-2xl mx-auto space-y-2">
                 <span className="chip-accent text-[11px]">Agendamento em 1-Clique</span>
@@ -773,71 +774,159 @@ export default function ViverMaisLandingPage() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {Object.entries(precos).map(([key, service]) => {
+              <div className="space-y-4 max-w-4xl mx-auto">
+                {Object.entries(precos).map(([key, service], index) => {
                   const servicoKey = key as ServicoKey;
+                  const estaAberto = servicoSanfonaAberto === servicoKey;
+                  const precoMinimo = service.opcoes[0]?.preco;
+
                   return (
                     <div
                       key={key}
                       id={`detalhes-${key}`}
-                      className="bg-surface rounded-3xl border border-psi-soft shadow-card hover:shadow-lift transition-all duration-300 overflow-hidden flex flex-col justify-between group hover:-translate-y-1"
+                      className={`bg-surface rounded-3xl border transition-all duration-300 overflow-hidden shadow-sm ${
+                        estaAberto
+                          ? 'border-psi-deep/30 ring-2 ring-psi-soft shadow-lift'
+                          : 'border-psi-soft hover:border-purple-300 hover:shadow-md'
+                      }`}
                     >
-                      <div>
-                        {/* Banner de Imagem com Gradiente */}
-                        <div className="relative h-48 w-full overflow-hidden bg-psi-darkest">
-                          <img
-                            src={service.imagem}
-                            alt={service.titulo}
-                            className="w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-700"
-                          />
-                          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/30 to-transparent" />
-                          <div className="absolute bottom-4 left-5 right-5">
-                            <span className="text-[10px] text-psi-vibrant font-extrabold uppercase tracking-wider bg-psi-darkest/90 backdrop-blur-md px-2.5 py-1 rounded-full border border-psi-vibrant/30">
-                              Atendimento Especializado
-                            </span>
-                            <h4 className="text-base sm:text-lg font-black text-white mt-1.5 leading-snug">
+                      {/* Cabeçalho Sanfona (Botão Expansível) */}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setServicoSanfonaAberto((prev) => (prev === servicoKey ? null : servicoKey))
+                        }
+                        aria-expanded={estaAberto}
+                        aria-controls={`conteudo-servico-${key}`}
+                        className="w-full text-left p-4 sm:p-5 flex items-center justify-between gap-4 transition-colors hover:bg-psi-soft/20 focus:outline-none"
+                      >
+                        <div className="flex items-center gap-3.5 sm:gap-4 min-w-0">
+                          {/* Mini Thumbnail */}
+                          <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-2xl overflow-hidden shrink-0 border border-psi-soft bg-psi-darkest">
+                            <img
+                              src={service.imagem}
+                              alt={service.titulo}
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/50 to-transparent" />
+                          </div>
+
+                          <div className="min-w-0 space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-[10px] font-extrabold text-psi-deep uppercase tracking-wider bg-psi-soft px-2 py-0.5 rounded-full border border-psi-soft">
+                                Opção 0{index + 1}
+                              </span>
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-100">
+                                <Clock className="w-3 h-3 text-purple-600 shrink-0" />
+                                {service.duracao}
+                              </span>
+                            </div>
+                            <h4 className="text-sm sm:text-base md:text-lg font-black text-ink leading-tight truncate sm:whitespace-normal">
                               {service.titulo}
                             </h4>
                           </div>
                         </div>
 
-                        {/* Descrição e Duração do Serviço */}
-                        <div className="p-5 sm:p-6 space-y-4">
-                          <p className="text-xs leading-relaxed text-muted">
-                            {service.descricao}
-                          </p>
-
-                          <div className="flex items-center gap-1.5 rounded-xl border border-purple-100 bg-purple-50/70 px-3 py-2 text-xs font-extrabold text-purple-800">
-                            <Clock className="w-3.5 h-3.5 shrink-0 text-purple-600" />
-                            <span>Duração da sessão: {service.duracao}</span>
+                        {/* Lado Direito: Preço de referência e Chevron */}
+                        <div className="flex items-center gap-3 shrink-0">
+                          <div className="hidden sm:flex flex-col items-end">
+                            <span className="text-[10px] uppercase font-bold text-muted">A partir de</span>
+                            <span className="text-xs sm:text-sm font-black text-psi-deep">{precoMinimo}</span>
+                          </div>
+                          <div
+                            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-transform duration-300 ${
+                              estaAberto
+                                ? 'bg-psi-deep text-white rotate-180 shadow-sm'
+                                : 'bg-psi-soft/80 text-psi-darkest hover:bg-psi-soft'
+                            }`}
+                          >
+                            <ChevronDown className="w-4 h-4 sm:w-5 sm:h-5" />
                           </div>
                         </div>
-                      </div>
+                      </button>
 
-                      {/* Opções de Agendamento (Valores) */}
-                      <div className="p-5 sm:p-6 pt-0 space-y-2.5 border-t border-psi-soft/50 mt-2">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-muted block pt-3">
-                          Selecione a Modalidade:
-                        </span>
-                        {service.opcoes.map((opcao) => (
-                          <div
-                            key={opcao.tipo}
-                            className="flex items-center justify-between gap-3 p-3.5 rounded-2xl bg-canvas border border-psi-soft hover:border-psi-vibrant/50 hover:bg-psi-soft/30 transition-all"
-                          >
-                            <div className="min-w-0">
-                              <span className="block text-xs font-extrabold text-ink">{opcao.label}</span>
-                              <span className="text-[11px] font-black text-psi-deep">{opcao.preco} / sessão</span>
+                      {/* Conteúdo Expandido da Sanfona */}
+                      {estaAberto && (
+                        <div
+                          id={`conteudo-servico-${key}`}
+                          className="border-t border-psi-soft/60 p-5 sm:p-8 bg-gradient-to-b from-white to-purple-50/20 animate-in fade-in slide-in-from-top-3 duration-300"
+                        >
+                          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+                            {/* Coluna Esquerda: Imagem & Descrição Completa */}
+                            <div className="lg:col-span-6 space-y-4">
+                              <div className="relative h-44 sm:h-52 w-full rounded-2xl overflow-hidden bg-psi-darkest shadow-md">
+                                <img
+                                  src={service.imagem}
+                                  alt={service.titulo}
+                                  className="w-full h-full object-cover"
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/30 to-transparent" />
+                                <div className="absolute bottom-3.5 left-4 right-4">
+                                  <span className="text-[10px] text-psi-vibrant font-extrabold uppercase tracking-wider bg-psi-darkest/90 backdrop-blur-md px-2.5 py-1 rounded-full border border-psi-vibrant/30">
+                                    Atendimento Especializado
+                                  </span>
+                                  <p className="text-white text-xs sm:text-sm font-bold mt-1">
+                                    {service.titulo}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <p className="text-xs sm:text-sm leading-relaxed text-muted">
+                                {service.descricao}
+                              </p>
+
+                              <div className="flex items-center gap-2 rounded-xl border border-purple-100 bg-purple-50/80 px-3.5 py-2.5 text-xs font-extrabold text-purple-800">
+                                <Clock className="w-4 h-4 shrink-0 text-purple-600" />
+                                <span>Duração estimada da sessão: {service.duracao}</span>
+                              </div>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => handleSelectServiceAndPrice(servicoKey, opcao.tipo)}
-                              className="shrink-0 bg-psi-deep hover:bg-psi-darkest text-white font-extrabold text-xs px-4 py-2 rounded-xl transition-all shadow-sm active:scale-95 flex items-center gap-1.5"
-                            >
-                              Agendar <ArrowRight className="w-3.5 h-3.5" />
-                            </button>
+
+                            {/* Coluna Direita: Cards de Modalidade & Agendamento em 1-Clique */}
+                            <div className="lg:col-span-6 space-y-3">
+                              <div className="flex items-center justify-between pb-1">
+                                <span className="text-xs font-black uppercase tracking-wider text-ink">
+                                  Selecione a Modalidade &amp; Agende:
+                                </span>
+                                <span className="text-[11px] font-bold text-psi-vibrant">
+                                  1-Clique
+                                </span>
+                              </div>
+
+                              {service.opcoes.map((opcao) => (
+                                <div
+                                  key={opcao.tipo}
+                                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 p-4 rounded-2xl bg-canvas border border-psi-soft hover:border-psi-vibrant hover:shadow-sm transition-all group"
+                                >
+                                  <div className="space-y-0.5">
+                                    <span className="block text-xs sm:text-sm font-extrabold text-ink group-hover:text-psi-deep transition-colors">
+                                      {opcao.label}
+                                    </span>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-sm sm:text-base font-black text-psi-deep">
+                                        {opcao.preco}
+                                      </span>
+                                      <span className="text-[11px] text-muted font-medium">/ sessão</span>
+                                    </div>
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSelectServiceAndPrice(servicoKey, opcao.tipo)}
+                                    className="shrink-0 bg-psi-deep hover:bg-psi-darkest text-white font-extrabold text-xs px-5 py-2.5 rounded-xl transition-all shadow-sm active:scale-95 flex items-center justify-center gap-2"
+                                  >
+                                    <span>Agendar em 1-Clique</span>
+                                    <ArrowRight className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              ))}
+
+                              <p className="text-[11px] text-muted/80 text-center sm:text-left pt-1 italic">
+                                * Sem necessidade de pagamento imediato. O alinhamento de horários é feito diretamente com o profissional.
+                              </p>
+                            </div>
                           </div>
-                        ))}
-                      </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}

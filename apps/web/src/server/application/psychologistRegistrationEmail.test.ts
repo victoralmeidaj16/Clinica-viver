@@ -93,6 +93,23 @@ describe('e-mails do credenciamento de psicólogo', () => {
     expect(JSON.parse(String(init.body)).text).toContain(activationUrl);
   });
 
+  it('usa vivermaispsicoterapia@gmail.com como remetente padrão na ausência de variáveis específicas', async () => {
+    delete process.env.NFSE_EMAIL_FROM;
+    delete process.env.PSYCHOLOGIST_EMAIL_FROM;
+    delete process.env.PSYCHOLOGIST_EMAIL_REPLY_TO;
+    delete process.env.NFSE_EMAIL_REPLY_TO;
+
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(avisarCadastroRecebidoPorEmail(cadastro)).resolves.toEqual({ situacao: 'enviada' });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(String(init.body));
+    expect(body.from).toBe('Viver Mais Psicologia <vivermaispsicoterapia@gmail.com>');
+    expect(body.reply_to).toBe('vivermaispsicoterapia@gmail.com');
+  });
+
   it('preserva o cadastro quando o provedor não está configurado', async () => {
     delete process.env.RESEND_API_KEY;
     await expect(avisarCadastroRecebidoPorEmail(cadastro)).resolves.toEqual({

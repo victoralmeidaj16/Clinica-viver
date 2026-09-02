@@ -33,20 +33,15 @@ export interface EnderecoDoCep {
 
 export const ENDERECO_VAZIO: EnderecoDoCep = { logradouro: '', bairro: '', cidade: '', uf: '' };
 
-/**
- * Endereço a partir do CEP, como na vitrine.
- *
- * O resultado não vai para o servidor — a triagem grava só CEP e número. Ele
- * existe para quem digita conferir que acertou o CEP antes de salvar, que é
- * exatamente o erro difícil de perceber depois.
- */
+/** Endereço a partir do CEP, enviado ao cadastro clínico e à triagem manual. */
 export async function buscarEnderecoPorCep(cep: string): Promise<EnderecoDoCep | null> {
   const limpo = cep.replace(/\D/g, '');
   if (limpo.length !== 8) return null;
   try {
     const resposta = await fetch(`https://viacep.com.br/ws/${limpo}/json/`);
+    if ('ok' in resposta && !resposta.ok) return null;
     const dados = (await resposta.json()) as {
-      erro?: boolean; logradouro?: string; bairro?: string; localidade?: string; uf?: string;
+      erro?: boolean | string; logradouro?: string; bairro?: string; localidade?: string; uf?: string;
     };
     if (dados.erro) return null;
     return {

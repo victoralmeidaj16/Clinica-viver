@@ -67,4 +67,24 @@ describe('envio da NFS-e por e-mail', () => {
       paciente: { nome: 'Ana', email: 'ana@example.com' },
     })).rejects.toThrow('domínio remetente não verificado');
   });
+
+  it('usa vivermaispsicoterapia@gmail.com como remetente e reply-to padrão na ausência de NFSE_EMAIL_FROM', async () => {
+    delete process.env.NFSE_EMAIL_FROM;
+    delete process.env.NFSE_EMAIL_REPLY_TO;
+
+    const fetchMock = vi.fn().mockResolvedValue(new Response(
+      JSON.stringify({ id: 'email-456' }), { status: 200 }
+    ));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(enviarNfsePorEmail({
+      emissao,
+      paciente: { nome: 'Ana', email: 'ana@example.com' },
+    })).resolves.toEqual({ providerId: 'email-456' });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(String(init.body));
+    expect(body.from).toBe('Viver Mais Psicologia <vivermaispsicoterapia@gmail.com>');
+    expect(body.reply_to).toBe('vivermaispsicoterapia@gmail.com');
+  });
 });

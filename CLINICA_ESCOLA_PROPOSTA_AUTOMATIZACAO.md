@@ -59,8 +59,8 @@ Um de nossos psicólogos entrará em contato com você em até 24 horas para ali
 
 ---
 
-### 📌 Passo 7: Abatimento no Boleto & Cockpit de Gestão
-* **📉 Abatimento Automático:** No fechamento mensal, o boleto da mensalidade do aluno é gerado com a dedução dos 70% acumulados.
+### 📌 Passo 7: Registro de Créditos & Cockpit de Gestão
+* **📊 Acúmulo de Créditos:** O sistema registra e totaliza os 70% de cada atendimento em extrato auditável no perfil do aluno. O abatimento na mensalidade ou no montante total do curso é processado manualmente pelo financeiro para contemplar alunos com planos de pagamento flexíveis.
 * **🎛️ Cockpit em Tempo Real:** Tela de acompanhamento para Giuliana/Ester/Mari verem a fila, SLAs de 24h e o faturamento total da clínica.
 
 ---
@@ -77,10 +77,10 @@ Um de nossos psicólogos entrará em contato com você em até 24 horas para ali
 * **Opções de Pagamento:** O paciente abre o link e escolhe entre **Pix Copia e Cola / QrCode Dynamic** ou **Cartão de Crédito em até 12x**.
 * **Zero Envio de Comprovante:** Como a URL é vinculada diretamente à transação do BD, o pagamento liquidado via gateway (Asaas / Mercado Pago) baixa a cobrança instantaneamente via **Webhook**.
 
-### 3. 📉 Abatimento Automático na Mensalidade do Aluno
+### 3. 📊 Livro-Razão & Gestão de Créditos do Aluno
 * O sistema mantém um livro razão (ledger) digital de créditos para cada aluno.
 * **Cálculo:** `Crédito = Valor Pago x 70%`.
-* **Integração Financeira:** Na data de faturamento da faculdade/instituto, a API envia o saldo de desconto acumulado para o módulo de emissão de boletos, emitindo a mensalidade com o valor líquido de forma 100% automatizada.
+* **Controle Flexível:** O financeiro consulta o saldo de créditos no sistema e aplica o abatimento manualmente nos boletos ou deduz do montante final de alunos com planos de pagamento estendidos/flexíveis.
 
 ### 4. 🎛️ Painel de Controle e Gestão (Cockpit Clínica Escuela)
 * **Fila de Espera:** Visualização de pacientes aguardando atribuição de psicólogo.
@@ -98,5 +98,5 @@ Um de nossos psicólogos entrará em contato com você em até 24 horas para ali
 | **Prazo de Contato (24h)** | Controle visual e em papel pela gestão | Timer automático com alerta e transbordo para o próximo psicólogo | **100% Automático** |
 | **Cobrança do Paciente** | Psicólogo cobrava na conta pessoal ou Pix manual | Psicólogo repassa Link Único (`vivermais.com.br/p/XYZ`) | **Zero Chave Pessoal** |
 | **Envio de Comprovantes** | Psicólogo tirava print e mandava em planilha/form | **FIM DO COMPROVANTE.** Baixa automática via Webhook | **Eliminado 100%** |
-| **Desconto na Mensalidade** | Digitação manual no boleto até o 5º dia útil | Abatimento calculado e deduzido automático no boleto | **100% Automático** |
+| **Desconto na Mensalidade** | Controle em papel ou planilhas descentralizadas | Registro auditável de créditos (70%) no sistema + aplicação manual flexível pelo financeiro (mensalidade corrente ou montante final) | **100% Auditável e Flexível** |
 | **Emissão de Nota Fiscal** | Emissão manual no portal federal | Emissão automática via API integrada ao gateway | **100% Automático** |

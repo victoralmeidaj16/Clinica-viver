@@ -14,6 +14,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { formatBrazilPhone, maskBrazilPhoneInput, normalizeBrazilPhone } from '@/lib/brazilPhone';
+import { maskCrpInput } from '@/lib/crp';
 import { formatGender } from '@/lib/gender';
 import { LISTA_NECESSIDADES } from '@/components/forms/necessidades';
 import {
@@ -405,7 +406,7 @@ export default function MeuCadastroPage() {
             </div>
             <div>
               <label className="text-[10px] uppercase tracking-wider font-extrabold text-muted block mb-1.5">CRP</label>
-              <input required value={rascunho.crp} onChange={(e) => setRascunho({ ...rascunho, crp: e.target.value })} placeholder="Ex: CRP 07/12345" className={campoClasse} />
+              <input required value={rascunho.crp} onChange={(e) => setRascunho({ ...rascunho, crp: maskCrpInput(e.target.value) })} placeholder="Ex: 12/34567" maxLength={10} className={campoClasse} />
             </div>
             <div className="sm:col-span-2">
               <label className="text-[10px] uppercase tracking-wider font-extrabold text-muted block mb-1.5">E-mail profissional</label>

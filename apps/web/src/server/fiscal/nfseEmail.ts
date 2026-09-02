@@ -35,11 +35,21 @@ function valorEmReais(cents: number): string {
 
 function configuracaoEmail() {
   const apiKey = process.env.RESEND_API_KEY?.trim();
-  const from = process.env.NFSE_EMAIL_FROM?.trim();
+  const from = process.env.NFSE_EMAIL_FROM?.trim()
+    || process.env.RESEND_FROM?.trim()
+    || process.env.EMAIL_FROM?.trim()
+    || 'Viver Mais Psicologia <vivermaispsicoterapia@gmail.com>';
   if (!apiKey || !from) {
-    throw new Error('Configure RESEND_API_KEY e NFSE_EMAIL_FROM para enviar a NFS-e ao paciente.');
+    throw new Error('Configure RESEND_API_KEY para enviar a NFS-e ao paciente.');
   }
-  return { apiKey, from, replyTo: process.env.NFSE_EMAIL_REPLY_TO?.trim() || undefined };
+  return {
+    apiKey,
+    from,
+    replyTo: process.env.NFSE_EMAIL_REPLY_TO?.trim()
+      || process.env.RESEND_REPLY_TO?.trim()
+      || process.env.EMAIL_REPLY_TO?.trim()
+      || 'vivermaispsicoterapia@gmail.com',
+  };
 }
 
 /** Envia o documento fiscal apenas com dados presentes na própria emissão. */

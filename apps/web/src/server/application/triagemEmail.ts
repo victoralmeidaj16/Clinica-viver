@@ -35,14 +35,18 @@ function configuracaoEmail() {
   const apiKey = process.env.RESEND_API_KEY?.trim();
   const from = process.env.PSYCHOLOGIST_EMAIL_FROM?.trim()
     || process.env.NFSE_EMAIL_FROM?.trim()
-    || 'atendimento@vivermaispsicologia.com.br';
+    || process.env.RESEND_FROM?.trim()
+    || process.env.EMAIL_FROM?.trim()
+    || 'Viver Mais Psicologia <vivermaispsicoterapia@gmail.com>';
   if (!apiKey || !from) return null;
   return {
     apiKey,
     from,
     replyTo: process.env.PSYCHOLOGIST_EMAIL_REPLY_TO?.trim()
       || process.env.NFSE_EMAIL_REPLY_TO?.trim()
-      || undefined,
+      || process.env.RESEND_REPLY_TO?.trim()
+      || process.env.EMAIL_REPLY_TO?.trim()
+      || 'vivermaispsicoterapia@gmail.com',
   };
 }
 

@@ -17,8 +17,10 @@ O **Thats Life** é um ecossistema de software de saúde mental desenvolvido par
    * Síntese pós-sessão do psicólogo $\rightarrow$ Rascunho de Prontuário SOAP por IA $\rightarrow$ Edição e validação humana $\rightarrow$ Envio de recibo/cobrança.
    * O psicólogo insere a síntese clínica e a IA gera a minuta do SOAP com campos totalmente editáveis antes de salvar no prontuário oficial.
    * A linha do tempo clínica reúne evidências longitudinais com referência à fonte, permitindo memória verificável sem respostas inventadas.
-2. **Evolution API Nativa:**
-   * Envio automático de confirmações de agendamento, lembretes e links de cobrança Pix via WhatsApp sem depender de plataformas proprietárias infladas.
+2. **Evolution API Nativa & Notificações Inteligentes:**
+   * **Triagem (Disparo Duplo):** Ao preencher o formulário na vitrine, o paciente recebe acolhimento imediato com número de protocolo no WhatsApp (sem necessidade de confirmação manual). O psicólogo alocado recebe os dados da demanda e tem 24h de SLA para acionar o paciente e responder `CONTATO` ou `ENCAMINHAR` no WhatsApp.
+   * **Agendamento Confirmado:** Ao escolher o horário no link seguro (`/agendar/[token]`), a sessão é confirmada imediatamente no banco e o paciente e o psicólogo recebem simultaneamente o comprovante com data por extenso, horário e modalidade via WhatsApp.
+   * **Cobranças Pix & Lembretes:** Envio automático de cobranças e lembretes pré-sessão sem intermediários caros.
 3. **Módulo de Supervisão Clínica:**
    * Anonimização automática de casos por IA para envio e avaliação por professores e supervisores em clínicas-escola e institutos.
 

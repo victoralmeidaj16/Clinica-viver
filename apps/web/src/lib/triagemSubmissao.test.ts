@@ -125,6 +125,21 @@ describe('validação do formulário público de triagem', () => {
     });
   });
 
+  it('aceita o nome de campo UF usado pelo cadastro autenticado', () => {
+    const resultado = validarSubmissaoTriagem({
+      ...valido,
+      cep: endereco.cep,
+      logradouro: endereco.logradouro,
+      numeroResidencia: endereco.numeroResidencia,
+      complemento: endereco.complemento,
+      bairro: endereco.bairro,
+      cidade: endereco.cidade,
+      uf: 'sc',
+    });
+    expect(resultado.ok).toBe(true);
+    if (resultado.ok) expect(resultado.dados.estadoUf).toBe('SC');
+  });
+
   it('recusa endereço fiscal incompleto quando o CEP é informado', () => {
     expect(validarSubmissaoTriagem({ ...valido, ...endereco, bairro: '' }).ok).toBe(false);
     expect(validarSubmissaoTriagem({ ...valido, ...endereco, estadoUf: 'S' }).ok).toBe(false);

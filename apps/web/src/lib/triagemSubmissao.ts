@@ -189,7 +189,9 @@ export function validarSubmissaoTriagem(corpo: unknown): ResultadoValidacao {
   const complemento = texto(body.complemento, 120);
   const bairro = texto(body.bairro, 120);
   const cidade = texto(body.cidade, 120);
-  const estadoUf = texto(body.estadoUf, 2)?.toLocaleUpperCase('pt-BR');
+  // A vitrine chama o campo de `estadoUf`; o cadastro autenticado, de `uf`.
+  // Ambos passam pela mesma validação e chegam ao registro no formato canônico.
+  const estadoUf = texto(body.estadoUf ?? body.uf, 2)?.toLocaleUpperCase('pt-BR');
   const informouEndereco = Boolean(cep || logradouro || numeroResidencia || bairro || cidade || estadoUf);
   if (informouEndereco && (!cep || !logradouro || !numeroResidencia || !bairro || !cidade || !estadoUf)) {
     return recusa('Confirme o endereço completo: CEP, rua, número, bairro, cidade e UF.');

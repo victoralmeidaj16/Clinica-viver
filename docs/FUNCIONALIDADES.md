@@ -67,7 +67,7 @@ Sistema completo de emissão, chancela digital e validação pública de certifi
 - **Split 70/30 da Clínica-Escola:**
   - **30%:** Retidos para a receita operacional da Clínica Viver Mais.
   - **70%:** Creditados na conta/extrato do psicólogo/aluno (`/meu-financeiro`).
-- **Abatimento Automático em Mensalidade de Pós-Graduação:** O saldo acumulado pelo aluno através dos atendimentos é descontado diretamente na emissão do boleto da sua pós-graduação.
+- **Registro e Acúmulo de Créditos no Extrato (`/meu-financeiro`):** O sistema registra e totaliza os créditos acumulados de 70% de cada atendimento para controle do aluno e da instituição. O abatimento financeiro das mensalidades ou do montante do curso é processado manualmente pelo setor financeiro da instituição, acomodando planos de pagamento flexíveis e estendidos (onde o crédito é abatido do montante total/parcelas finais, e não necessariamente da mensalidade corrente).
 - **Vencimento Exato & Expiração de Cobranças:** Cobranças com data de vencimento configurável e expiração automática no gateway (Asaas).
 - **Emissão de NFS-e Nacional:** Emissão e faturamento automatizado de notas fiscais de serviço eletrônicas.
 - **Gestão de Convênios PJ & Projetos Corporativos (`/convenios`):** Controle de pacotes de sessões para empresas parceiras, datas de emissão de NF corporativa e faturamento consolidado.

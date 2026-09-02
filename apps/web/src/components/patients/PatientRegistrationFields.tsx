@@ -29,16 +29,14 @@ export function PatientRegistrationFields({ form, setForm, convenios, conveniosC
   const update = <K extends keyof PatientRegistrationForm>(key: K, value: PatientRegistrationForm[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
 
-  /**
-   * O endereço aparece assim que o CEP fecha oito dígitos.
-   *
-   * Só CEP e número chegam ao servidor: rua, bairro e cidade servem para quem
-   * está digitando conferir que não trocou um dígito — um CEP errado passa
-   * despercebido até alguém precisar do endereço.
-   */
+  /** O endereço aparece assim que o CEP fecha oito dígitos e segue editável. */
   const handleCepChange = async (valor: string) => {
     const mascarado = maskCep(valor);
-    update('cep', mascarado);
+    setForm((current) => ({
+      ...current,
+      cep: mascarado,
+      logradouro: '', complemento: '', bairro: '', cidade: '', uf: '',
+    }));
     if (mascarado.replace(/\D/g, '').length !== 8) {
       cepRequest.current += 1;
       setBuscandoCep(false);
@@ -48,13 +46,21 @@ export function PatientRegistrationFields({ form, setForm, convenios, conveniosC
     }
     const requestId = ++cepRequest.current;
     setBuscandoCep(true);
+    setCepConsultado(true);
+    setCepNaoEncontrado(false);
     const encontrado = await buscarEnderecoPorCep(mascarado);
     if (requestId !== cepRequest.current) return;
-    setForm((current) => ({
-      ...current,
-      logradouro: encontrado?.logradouro ?? '', bairro: encontrado?.bairro ?? '',
-      cidade: encontrado?.cidade ?? '', uf: encontrado?.uf ?? '',
-    }));
+    if (encontrado) {
+      // Quem começou a preencher manualmente durante a consulta não perde o
+      // que digitou quando a resposta chega.
+      setForm((current) => ({
+        ...current,
+        logradouro: current.logradouro || encontrado.logradouro,
+        bairro: current.bairro || encontrado.bairro,
+        cidade: current.cidade || encontrado.cidade,
+        uf: current.uf || encontrado.uf,
+      }));
+    }
     setCepConsultado(true);
     setCepNaoEncontrado(!encontrado);
     setBuscandoCep(false);
@@ -116,9 +122,13 @@ export function PatientRegistrationFields({ form, setForm, convenios, conveniosC
     </div>
     {cepConsultado && <div className="space-y-3 rounded-xl border border-line bg-canvas p-3">
       <div>
-        <p className="font-bold text-ink">Endereço do paciente</p>
+        <p className="font-bold text-ink">Endereço para cadastro e nota fiscal</p>
         <p className={`mt-0.5 text-[11px] font-semibold ${cepNaoEncontrado ? 'text-amber-700' : 'text-muted'}`}>
-          {cepNaoEncontrado ? 'Não foi possível localizar o CEP. Preencha todos os campos manualmente.' : 'Confira os dados preenchidos automaticamente antes de salvar.'}
+          {buscandoCep
+            ? 'Consultando o CEP… Você também pode preencher os campos manualmente.'
+            : cepNaoEncontrado
+              ? 'Não foi possível localizar o CEP. Preencha todos os campos manualmente.'
+              : 'Endereço localizado. Confira e edite os dados, se necessário, antes de salvar.'}
         </p>
       </div>
       <div className="grid gap-2 sm:grid-cols-2">

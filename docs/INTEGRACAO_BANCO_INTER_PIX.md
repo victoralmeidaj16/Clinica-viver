@@ -46,6 +46,14 @@ https://app.clinicavivermais.cloud/api/financeiro/inter/webhook?token=INTER_WEBH
 O callback usa `txid` para localizar a cobrança e `endToEndId` como chave
 idempotente. Reentregas do mesmo Pix não criam pagamentos duplicados.
 
+### Cenário pontual de homologação
+
+Na validação de produção de 2 de setembro de 2026, a sessão fictícia associada
+à cobrança Pix de teste foi posicionada em **02/09/2026, das 08:50 às 09:40**
+(`America/Sao_Paulo`). A data passada é intencional: permite exercitar o fluxo
+pós-sessão sem esperar pelo horário de um agendamento real. Este registro não é
+um seed reutilizável e não contém dados pessoais do paciente simulado.
+
 ## Homologação
 
 Comece com `INTER_ENVIRONMENT=sandbox`. Após validar emissão, leitura do QR,

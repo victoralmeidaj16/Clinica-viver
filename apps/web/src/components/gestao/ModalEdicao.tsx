@@ -28,6 +28,7 @@ import { processImageUpload } from '@/lib/imageUpload';
 import { GenderFields } from '@/components/forms/GenderFields';
 import { BrazilLocationFields } from '@/components/forms/BrazilLocationFields';
 import { maskBrazilPhoneInput, normalizeBrazilPhone } from '@/lib/brazilPhone';
+import { maskCrpInput } from '@/lib/crp';
 import type { GenderValue } from '@/lib/gender';
 import type { PsicologoItem } from './types';
 import {
@@ -300,8 +301,9 @@ export function ModalEdicao({
                     required
                     type="text"
                     value={crp}
-                    onChange={(e) => setCrp(e.target.value)}
+                    onChange={(e) => setCrp(maskCrpInput(e.target.value))}
                     placeholder="Ex: 06/123456"
+                    maxLength={10}
                     className={inputClass}
                   />
                 </div>

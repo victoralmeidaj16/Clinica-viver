@@ -8,6 +8,7 @@ import { TurnoPreferenceField } from '@/components/forms/TurnoPreferenceField';
 import { LISTA_NECESSIDADES } from '@/components/forms/necessidades';
 import { validateGender, type GenderValue } from '@/lib/gender';
 import { CAMPO_ARMADILHA } from '@/lib/triagemSubmissao';
+import { maskCpf, validCpf } from '@/lib/cpf';
 import { normalizarTurnoPreferencia, type TurnoPreferencia } from '@/lib/turnos';
 import PublicHeader from '@/components/layout/PublicHeader';
 import PublicFooter from '@/components/layout/PublicFooter';
@@ -245,14 +246,8 @@ export default function ViverMaisLandingPage() {
   }, [step]);
 
   // Máscara CPF: 000.000.000-00
-  const maskCPF = (val: string) => {
-    return val
-      .replace(/\D/g, '')
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
-      .substring(0, 14);
-  };
+  const maskCPF = (val: string) => maskCpf(val);
+
 
   // Máscara Telefone: (00) 00000-0000
   const maskPhone = (val: string) => {
@@ -540,6 +535,10 @@ export default function ViverMaisLandingPage() {
     }
     if (!form.logradouro.trim() || !form.bairro.trim() || !form.cidade.trim() || !form.estadoUf.trim()) {
       alert('Confirme o endereço completo: rua, bairro, cidade e UF.');
+      return;
+    }
+    if (!validCpf(form.cpf)) {
+      alert('Informe um CPF válido para continuar.');
       return;
     }
     if (selectedService !== 'ORIENTACAO_PARENTAL' && form.paraQuemE === 'Outro' && !form.paraQuemEOutro.trim()) {
@@ -1413,8 +1412,19 @@ export default function ViverMaisLandingPage() {
                     onChange={(e) => setForm({ ...form, cpf: maskCPF(e.target.value) })}
                     placeholder="000.000.000-00"
                     maxLength={14}
-                    className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
+                    className={`w-full border rounded-xl p-3 focus:outline-none transition-colors ${
+                      form.cpf.length === 14 && !validCpf(form.cpf)
+                        ? 'border-rose-400 bg-rose-50/40 text-rose-900 focus:border-rose-600'
+                        : form.cpf.length === 14 && validCpf(form.cpf)
+                          ? 'border-emerald-400 bg-emerald-50/30 text-slate-900 focus:border-emerald-600'
+                          : 'border-slate-300 focus:border-purple-600'
+                    }`}
                   />
+                  {form.cpf.length === 14 && !validCpf(form.cpf) && (
+                    <p className="mt-1 text-[11px] font-semibold text-rose-600">
+                      CPF inválido. Verifique os números digitados.
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">CEP <span className="text-rose-500">*</span></label>

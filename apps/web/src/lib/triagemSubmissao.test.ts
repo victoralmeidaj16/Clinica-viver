@@ -104,6 +104,9 @@ describe('validação do formulário público de triagem', () => {
 
   it('recusa CPF, CEP, e-mail e data de nascimento malformados', () => {
     expect(validarSubmissaoTriagem({ ...valido, cpf: '123' }).ok).toBe(false);
+    expect(validarSubmissaoTriagem({ ...valido, cpf: '111.111.111-11' }).ok).toBe(false);
+    expect(validarSubmissaoTriagem({ ...valido, cpf: '123.456.789-00' }).ok).toBe(false);
+    expect(validarSubmissaoTriagem({ ...valido, cpf: '529.982.247-25' }).ok).toBe(true);
     expect(validarSubmissaoTriagem({ ...valido, cep: '9' }).ok).toBe(false);
     expect(validarSubmissaoTriagem({ ...valido, email: 'ana@' }).ok).toBe(false);
     expect(validarSubmissaoTriagem({ ...valido, dataNascimento: '31/02/1990' }).ok).toBe(false);

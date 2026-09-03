@@ -16,8 +16,10 @@ interface FloatingWhatsAppButtonProps {
   mensagemPadrao?: string;
 }
 
+const NUMERO_PADRAO_CLINICA = process.env.NEXT_PUBLIC_WHATSAPP_CLINICA || '554898315675';
+
 export default function FloatingWhatsAppButton({
-  numeroTelefone = '5511999999999',
+  numeroTelefone = NUMERO_PADRAO_CLINICA,
   mensagemPadrao = 'Olá! Gostaria de tirar algumas dúvidas sobre os atendimentos na Clínica Viver Mais.',
 }: FloatingWhatsAppButtonProps) {
   const [mostrarTooltip, setMostrarTooltip] = useState(false);

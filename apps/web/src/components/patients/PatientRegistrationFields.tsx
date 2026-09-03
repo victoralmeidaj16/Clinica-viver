@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import { GenderFields } from '@/components/forms/GenderFields';
 import { TurnoPreferenceField } from '@/components/forms/TurnoPreferenceField';
 import { NecessidadesSelector, OPCOES_AVALIACAO_PSICOLOGICA } from '@/components/forms/necessidades';
-import { audiencesForService, buscarEnderecoPorCep, PATIENT_ORIGINS, PATIENT_SERVICES, maskCep, maskCpf, maskPhone, modalitiesForService, type PatientRegistrationForm } from './patientRegistration';
+import { audiencesForService, buscarEnderecoPorCep, PATIENT_ORIGINS, PATIENT_SERVICES, maskCep, maskCpf, maskPhone, modalitiesForService, validCpf, type PatientRegistrationForm } from './patientRegistration';
 
 interface Props {
   form: PatientRegistrationForm;
@@ -112,7 +112,20 @@ export function PatientRegistrationFields({ form, setForm, convenios, conveniosC
     </div>
     <GenderFields idPrefix="cadastro-interno-paciente" gender={form.genero} other={form.generoOutro} onGenderChange={(value) => update('genero', value)} onOtherChange={(value) => update('generoOutro', value)} />
     <div className="grid gap-3 sm:grid-cols-3">
-      <div><label className="mb-1 block font-bold text-ink">CPF *</label><input className={field} required value={form.cpf} onChange={(e) => update('cpf', maskCpf(e.target.value))} placeholder="000.000.000-00" /></div>
+      <div>
+        <label className="mb-1 block font-bold text-ink">CPF *</label>
+        <input
+          className={`${field} ${form.cpf.length === 14 && !validCpf(form.cpf) ? 'border-rose-400 bg-rose-50/40 text-rose-900 focus:border-rose-600' : ''}`}
+          required
+          maxLength={14}
+          value={form.cpf}
+          onChange={(e) => update('cpf', maskCpf(e.target.value))}
+          placeholder="000.000.000-00"
+        />
+        {form.cpf.length === 14 && !validCpf(form.cpf) && (
+          <p className="mt-1 text-[11px] font-semibold text-rose-600">CPF inválido.</p>
+        )}
+      </div>
       <div>
         <label className="mb-1 block font-bold text-ink">CEP *</label>
         <input className={field} required value={form.cep} onChange={(e) => void handleCepChange(e.target.value)} placeholder="00000-000" />

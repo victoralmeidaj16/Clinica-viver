@@ -33,19 +33,8 @@ export interface PatientRegistrationRecord extends PatientRegistrationDetails {
   lastRegistrationUpdate?: PatientRegistrationUpdate;
 }
 
-const CPF_WEIGHTS = [
-  [10, 9, 8, 7, 6, 5, 4, 3, 2],
-  [11, 10, 9, 8, 7, 6, 5, 4, 3, 2],
-] as const;
+import { validCpf } from './cpf';
 
-function validCpf(value: string): boolean {
-  if (!/^\d{11}$/.test(value) || /^(\d)\1{10}$/.test(value)) return false;
-  return CPF_WEIGHTS.every((weights, digitIndex) => {
-    const total = weights.reduce((sum, weight, index) => sum + Number(value[index]) * weight, 0);
-    const remainder = (total * 10) % 11;
-    return Number(value[9 + digitIndex]) === (remainder === 10 ? 0 : remainder);
-  });
-}
 
 function cleanText(value: unknown, max: number): string {
   return String(value ?? '').trim().replace(/\s+/g, ' ').slice(0, max);

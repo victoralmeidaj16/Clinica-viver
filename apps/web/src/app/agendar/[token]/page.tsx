@@ -16,6 +16,7 @@ import {
   UserCheck,
 } from 'lucide-react';
 import { PublicBookingCalendar } from '@/components/scheduling/PublicBookingCalendar';
+import { maskCpf, validCpf } from '@/lib/cpf';
 
 interface Props {
   params: Promise<{ token: string }>;
@@ -89,6 +90,10 @@ export default function AgendarPage({ params }: Props) {
 
   const identificar = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (!validCpf(cpf)) {
+      setError('Informe um CPF válido, com 11 dígitos.');
+      return;
+    }
     setLoading(true);
     setError(undefined);
     try {
@@ -252,11 +257,26 @@ export default function AgendarPage({ params }: Props) {
                 inputMode="numeric"
                 autoComplete="off"
                 value={cpf}
-                onChange={(e) => setCpf(e.target.value)}
+                maxLength={14}
+                onChange={(e) => {
+                  setCpf(maskCpf(e.target.value));
+                  if (error) setError(undefined);
+                }}
                 placeholder="000.000.000-00"
-                className="input py-3 pl-11 text-xs font-bold"
+                className={`input py-3 pl-11 text-xs font-bold transition-colors ${
+                  cpf.length === 14 && !validCpf(cpf)
+                    ? 'border-rose-400 bg-rose-50/40 text-rose-900 focus:border-rose-600'
+                    : cpf.length === 14 && validCpf(cpf)
+                      ? 'border-emerald-400 bg-emerald-50/30 text-ink focus:border-emerald-600'
+                      : ''
+                }`}
               />
             </div>
+            {cpf.length === 14 && !validCpf(cpf) && (
+              <span className="mt-1.5 block text-[11px] font-semibold text-rose-600">
+                CPF inválido. Confira os números digitados.
+              </span>
+            )}
           </label>
 
           <button

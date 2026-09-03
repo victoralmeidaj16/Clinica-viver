@@ -34,8 +34,8 @@ export class RecipientNotAllowedError extends Error {
 /**
  * Reduz o número à sua forma comparável: só dígitos, com o país explícito.
  *
- * O Brasil é o caso chato. `(48) 99685-6641`, `+55 48 99685-6641` e
- * `554896856641` são a mesma pessoa, e o WhatsApp historicamente descarta o
+ * O Brasil é o caso chato. `(48) 9831-5675`, `+55 48 9831-5675` e
+ * `554898315675` são a mesma pessoa, e o WhatsApp historicamente descarta o
  * nono dígito em números antigos de algumas regiões. Comparar texto cru faria
  * a trava deixar passar — ou barrar — pelo motivo errado.
  */
@@ -61,11 +61,11 @@ function variants(value: string): Set<string> {
   const country = normalized.slice(0, 2);
   const rest = normalized.slice(2);
   if (country === '55' && rest.length === 11 && rest[2] === '9') {
-    // 48 9 9685-6641 → 48 9685-6641
+    // 48 9 9831-5675 → 48 9831-5675
     forms.add(`55${rest.slice(0, 2)}${rest.slice(3)}`);
   }
   if (country === '55' && rest.length === 10) {
-    // 48 9685-6641 → 48 9 9685-6641
+    // 48 9831-5675 → 48 9 9831-5675
     forms.add(`55${rest.slice(0, 2)}9${rest.slice(2)}`);
   }
 

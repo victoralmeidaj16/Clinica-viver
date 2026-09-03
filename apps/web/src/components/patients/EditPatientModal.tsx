@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Loader2, MapPin, Save, ShieldCheck, UserRoundPen, X } from 'lucide-react';
 import { applicationRequest, commandHeaders } from '@/lib/applicationApi';
 import type { PatientRegistrationRecord } from '@/lib/patientRegistrationDetails';
-import { buscarEnderecoPorCep, maskCep, maskCpf, maskPhone } from './patientRegistration';
+import { buscarEnderecoPorCep, maskCep, maskCpf, maskPhone, validCpf } from './patientRegistration';
 
 interface Props {
   patientId: string;
@@ -69,7 +69,12 @@ export default function EditPatientModal({ patientId, patientName, onClose, onSa
   };
 
   const submit = async (event: React.FormEvent) => {
-    event.preventDefault(); setSaving(true); setError(undefined);
+    event.preventDefault();
+    if (!validCpf(form.cpf)) {
+      setError('Informe um CPF válido.');
+      return;
+    }
+    setSaving(true); setError(undefined);
     try {
       const updated = await applicationRequest<PatientRegistrationRecord>(`/patients/${encodeURIComponent(patientId)}`, {
         method: 'PATCH', headers: commandHeaders(), body: JSON.stringify({
@@ -101,7 +106,7 @@ export default function EditPatientModal({ patientId, patientName, onClose, onSa
           <label className="font-bold text-ink">Nome social<input className={input} value={form.socialName} onChange={(e) => update('socialName', e.target.value)} /></label>
           <label className="font-bold text-ink">WhatsApp / telefone *<input required className={input} value={form.phone} onChange={(e) => update('phone', maskPhone(e.target.value))} /></label>
           <label className="font-bold text-ink">E-mail *<input required type="email" className={input} value={form.email} onChange={(e) => update('email', e.target.value)} /></label>
-          <label className="font-bold text-ink">CPF *<input required className={input} value={form.cpf} onChange={(e) => update('cpf', maskCpf(e.target.value))} /></label>
+          <label className="font-bold text-ink">CPF *<input required maxLength={14} className={`${input} ${form.cpf.length === 14 && !validCpf(form.cpf) ? 'border-rose-400 bg-rose-50/40 text-rose-900 focus:border-rose-600' : ''}`} value={form.cpf} onChange={(e) => update('cpf', maskCpf(e.target.value))} /></label>
         </div>
         <fieldset className="space-y-3 rounded-2xl border border-psi-soft bg-psi-light/40 p-4"><legend className="px-2 font-black text-psi-deep"><span className="flex items-center gap-1.5"><MapPin className="h-4 w-4" /> Endereço completo</span></legend>
           <div className="grid gap-3 sm:grid-cols-3">

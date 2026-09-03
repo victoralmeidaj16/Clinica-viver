@@ -5,7 +5,7 @@ import { Save, UserPlus, X } from 'lucide-react';
 import { applicationRequest, commandHeaders } from '@/lib/applicationApi';
 import { validateGender } from '@/lib/gender';
 import { PatientRegistrationFields } from './PatientRegistrationFields';
-import { EMPTY_PATIENT_REGISTRATION, serviceName, type PatientRegistrationForm } from './patientRegistration';
+import { EMPTY_PATIENT_REGISTRATION, serviceName, validCpf, type PatientRegistrationForm } from './patientRegistration';
 
 interface Props {
   isOpen: boolean;
@@ -55,6 +55,7 @@ export default function NewPatientModal({ isOpen, onClose, onPatientCreated }: P
     if (form.whatsapp !== form.whatsappConfirmacao) return setError('Os números de telefone não coincidem.');
     if (!validateGender(form.genero, form.generoOutro)) return setError('Selecione o gênero e detalhe a opção “Outro”, se necessário.');
     if (!form.turno) return setError('Selecione o período de preferência.');
+    if (!validCpf(form.cpf)) return setError('Informe um CPF válido.');
 
     setSaving(true);
     setError(null);

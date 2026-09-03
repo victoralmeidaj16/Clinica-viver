@@ -1,4 +1,5 @@
 import { normalizeBrazilPhone } from './brazilPhone';
+import { validCpf } from './cpf';
 import { validateGender, type GenderValue } from './gender';
 import { normalizarTurnoPreferencia, type TurnoPreferencia } from './turnos';
 
@@ -174,7 +175,7 @@ export function validarSubmissaoTriagem(corpo: unknown): ResultadoValidacao {
 
   const cpfBruto = texto(body.cpf, 20);
   const cpf = cpfBruto ? cpfBruto.replace(/\D/g, '') : undefined;
-  if (cpf && cpf.length !== 11) {
+  if (cpf && !validCpf(cpf)) {
     return recusa('O CPF informado não parece válido.');
   }
 

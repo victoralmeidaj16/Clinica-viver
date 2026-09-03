@@ -117,6 +117,8 @@ export interface TriagemPacienteRecord {
   transbordos?: number;
   /** Quem já teve a chance neste lead, para o transbordo não voltar ao mesmo. */
   psicologosJaTentados?: readonly string[];
+  /** Como o psicólogo foi selecionado: escolha direta na vitrine ou rodízio inteligente. */
+  tipoAlocacao?: 'ESCOLHA_DIRETA' | 'RODIZIO';
 }
 
 /** Situação do psicólogo no credenciamento. `APROVADO` significa "no rodízio". */

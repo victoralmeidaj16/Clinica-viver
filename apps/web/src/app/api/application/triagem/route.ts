@@ -6,7 +6,10 @@ import {
 } from '@/server/persistence/captureRepository';
 import { alocarLead, alocarLeadEscolhido, classificarSla, horasDesdeAlocacao, varrerSla } from '@/server/application/viverMaisRodizio';
 import { avisarAlocacao, avisarTransbordo } from '@/server/application/viverMaisWhatsApp';
-import { avisarTriagemRecebidaPorEmail } from '@/server/application/triagemEmail';
+import {
+  avisarAlocacaoPsicologoPorEmail,
+  avisarTriagemRecebidaPorEmail,
+} from '@/server/application/triagemEmail';
 import { ehGestao, exigirGestao, NaoAutorizadoError } from '@/server/viverMaisGestaoAuth';
 import { rateLimited } from '@/server/http/publicRequest';
 import {
@@ -177,6 +180,11 @@ export async function POST(request: Request) {
     } else if (resultado.psicologo) {
       void avisarAlocacao(resultado.lead, resultado.psicologo);
       void avisarTriagemRecebidaPorEmail(resultado.lead, resultado.psicologo);
+      void avisarAlocacaoPsicologoPorEmail(
+        resultado.lead,
+        resultado.psicologo,
+        resultado.lead.tipoAlocacao ?? (dados.psicologoPreferidoId ? 'ESCOLHA_DIRETA' : 'RODIZIO')
+      );
     } else {
       console.warn(
         `[triagem] Lead ${novaTriagem.protocolo} sem profissional elegível; aguardando decisão da gestão.`

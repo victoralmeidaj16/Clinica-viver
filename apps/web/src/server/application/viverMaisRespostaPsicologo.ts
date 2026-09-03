@@ -12,6 +12,7 @@ import {
 } from './viverMaisRodizio';
 import { COMANDO_CONTATO, COMANDO_ENCAMINHAR, interpretarComando } from './viverMaisComandos';
 import { avisarCoordenacao, avisarTransbordo, responderPsicologo } from './viverMaisWhatsApp';
+import { avisarAlocacaoPsicologoPorEmail } from './triagemEmail';
 import { reconciliarPacientes } from './patientPromotion';
 import { normalizeBrazilPhone } from '@/lib/brazilPhone';
 
@@ -188,6 +189,7 @@ export async function processarRespostaDoPsicologo(
       nomeDeExibicao(psicologo),
       'encaminhamento_voluntario'
     );
+    void avisarAlocacaoPsicologoPorEmail(resultado.lead, resultado.psicologoNovo, 'RODIZIO');
     void responderPsicologo(
       psicologo,
       `Certo. O protocolo ${lead.protocolo} foi encaminhado ao próximo profissional da fila e saiu da sua lista.`,

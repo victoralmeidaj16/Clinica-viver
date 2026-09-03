@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { captureStateAsSnapshot, getCaptureRepository } from '@/server/persistence/captureRepository';
 import { varrerSla } from '@/server/application/viverMaisRodizio';
 import { avisarTransbordo } from '@/server/application/viverMaisWhatsApp';
+import { avisarAlocacaoPsicologoPorEmail } from '@/server/application/triagemEmail';
 import { exigirVarreduraAutorizada, NaoAutorizadoError } from '@/server/viverMaisGestaoAuth';
 import { reconciliarPacientes } from '@/server/application/patientPromotion';
 
@@ -49,6 +50,7 @@ export async function POST(request: Request) {
         transbordo.psicologoNovo,
         transbordo.psicologoAnteriorNome
       );
+      void avisarAlocacaoPsicologoPorEmail(transbordo.lead, transbordo.psicologoNovo, 'RODIZIO');
     }
     const pacientesPromovidos = await reconciliarPacientes(repositorio);
 

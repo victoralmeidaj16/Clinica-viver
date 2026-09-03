@@ -298,6 +298,7 @@ export function alocarLead(
     psicologoAlocadoId: escolhido.id,
     psicologoNome: nomeDeExibicao(escolhido),
     alocadoEm,
+    tipoAlocacao: 'RODIZIO',
     slaExpirado: false,
     transbordos: leadRecord.transbordos ?? 0,
     psicologosJaTentados: [...(leadRecord.psicologosJaTentados ?? []), escolhido.id],
@@ -336,6 +337,7 @@ export function alocarLeadEscolhido(
     psicologoAlocadoId: escolhido.id,
     psicologoNome: nomeDeExibicao(escolhido),
     alocadoEm,
+    tipoAlocacao: 'ESCOLHA_DIRETA',
     slaExpirado: false,
     transbordos: leadRecord.transbordos ?? 0,
     psicologosJaTentados: [...new Set([...(leadRecord.psicologosJaTentados ?? []), escolhido.id])],
@@ -494,6 +496,7 @@ export function varrerSla(
       psicologoAlocadoId: novo.id,
       psicologoNome: nomeDeExibicao(novo),
       alocadoEm,
+      tipoAlocacao: 'RODIZIO',
       slaExpirado: true,
       transbordos: (leadRecord.transbordos ?? 0) + 1,
       psicologosJaTentados: [...(leadRecord.psicologosJaTentados ?? []), novo.id],
@@ -654,6 +657,7 @@ export function encaminharParaProximo(
     psicologoAlocadoId: novo.id,
     psicologoNome: nomeDeExibicao(novo),
     alocadoEm,
+    tipoAlocacao: 'RODIZIO',
     // O relógio recomeça para quem acabou de receber: o prazo é de quem tem o
     // lead agora, não a sobra do prazo de quem devolveu.
     slaExpirado: false,

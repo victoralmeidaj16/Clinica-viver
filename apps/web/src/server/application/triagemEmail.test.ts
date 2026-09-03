@@ -4,7 +4,9 @@ vi.mock('server-only', () => ({}));
 
 import type { CadastroPsicologoRecord, TriagemPacienteRecord } from './persistence';
 import {
+  avisarAlocacaoPsicologoPorEmail,
   avisarTriagemRecebidaPorEmail,
+  conteudoAlocacaoPsicologo,
   conteudoTriagemRecebida,
 } from './triagemEmail';
 
@@ -99,4 +101,59 @@ describe('e-mails de confirmação de agendamento/triagem', () => {
       situacao: 'provedor_desconfigurado',
     });
   });
+
+  describe('notificação de alocação ao psicólogo', () => {
+    it('formata e-mail de escolha direta com badge, dados do paciente, prazo de 24h e botões de ação', () => {
+      const conteudo = conteudoAlocacaoPsicologo(lead, psicologo, 'ESCOLHA_DIRETA');
+
+      expect(conteudo.subject).toContain('Um paciente escolheu você na Vitrine');
+      expect(conteudo.subject).toContain('VM-123456');
+      expect(conteudo.text).toContain('ESCOLHA DIRETA');
+      expect(conteudo.text).toContain('24 horas');
+      expect(conteudo.text).toContain('João & Maria');
+      expect(conteudo.text).toContain('5548988887777');
+      expect(conteudo.text).toContain('confirmar-contato/triagem-123');
+      expect(conteudo.text).toContain('encaminhar-contato/triagem-123');
+
+      expect(conteudo.html).toContain('Paciente escolheu você diretamente');
+      expect(conteudo.html).toContain('Prazo de Ação: até 24 Horas');
+      expect(conteudo.html).toContain('João &amp; Maria');
+      expect(conteudo.html).toContain('Confirmar Primeiro Contato');
+      expect(conteudo.html).toContain('Encaminhar para a Fila');
+      expect(conteudo.html).toContain('wa.me/5548988887777');
+    });
+
+    it('formata e-mail de rodízio inteligente informando a seleção pelo sistema', () => {
+      const conteudo = conteudoAlocacaoPsicologo(lead, psicologo, 'RODIZIO');
+
+      expect(conteudo.subject).toContain('Você foi selecionado no Rodízio');
+      expect(conteudo.text).toContain('RODÍZIO INTELIGENTE');
+      expect(conteudo.text).toContain('24 horas');
+      expect(conteudo.html).toContain('Selecionado pelo Rodízio Inteligente');
+      expect(conteudo.html).toContain('transbordo automático');
+    });
+
+    it('envia e-mail ao psicólogo com idempotência e endereço correto', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      await expect(
+        avisarAlocacaoPsicologoPorEmail(lead, psicologo, 'ESCOLHA_DIRETA')
+      ).resolves.toEqual({ situacao: 'enviada' });
+
+      const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(new Headers(init.headers).get('Idempotency-Key')).toBe(
+        'triagem-alocacao-psi-triagem-123-psi-1'
+      );
+      expect(JSON.parse(String(init.body)).to).toEqual(['beatriz@example.com']);
+    });
+
+    it('recusa e-mail de psicólogo inválido sem falhar a operação', async () => {
+      const psicologoSemEmail = { ...psicologo, email: 'email_invalido' };
+      await expect(
+        avisarAlocacaoPsicologoPorEmail(lead, psicologoSemEmail, 'RODIZIO')
+      ).resolves.toEqual({ situacao: 'destinatario_invalido' });
+    });
+  });
 });
+

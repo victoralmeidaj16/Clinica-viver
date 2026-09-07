@@ -10,6 +10,7 @@ import { UpcomingSessions, type AgendamentoResumo } from '@/components/schedulin
 import { ProfessionalCalendarView } from '@/components/scheduling/ProfessionalCalendarView';
 import { ManualAppointmentDialog } from '@/components/scheduling/ManualAppointmentDialog';
 import type { PatientDirectoryEntry } from '@/server/application/patientDirectory';
+import { FocoDeNotificacao } from '@/components/layout/FocoDeNotificacao';
 
 interface AgendaOverview {
   professionalName: string;
@@ -130,6 +131,9 @@ export default function AgendaPage() {
           <CalendarPlus className="h-4 w-4" /> Agendar sessão
         </button>
       </div>
+
+      {/* Leva até a sessão citada pela notificação do sino. */}
+      <FocoDeNotificacao />
 
       {erro && (
         <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{erro}</div>

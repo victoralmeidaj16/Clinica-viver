@@ -21,6 +21,8 @@ import PatientDropoutModal from './PatientDropoutModal';
 import { ManualAppointmentDialog } from '@/components/scheduling/ManualAppointmentDialog';
 import { PatientListToolbar } from './PatientListToolbar';
 import EditPatientModal from './EditPatientModal';
+import { FocoDeNotificacao } from '@/components/layout/FocoDeNotificacao';
+import { focoPaciente, FOCO_SECAO } from '@/lib/focoNotificacao';
 
 interface PatientListProps {
   patients: readonly PatientDirectoryEntry[];
@@ -96,7 +98,14 @@ export default function PatientList({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-foco={FOCO_SECAO.listaPacientes}>
+      {/*
+        A busca é estado local: quem chega pelo sino com um termo digitado não
+        encontraria o paciente apontado. Limpar o filtro é o que faz o alvo
+        existir no DOM para ser realçado.
+      */}
+      <FocoDeNotificacao aoFocar={() => setSearchQuery('')} />
+
       <PatientListToolbar
         activePatients={pacientesAtivosCount}
         completedSessions={sessoesNoMesCount}
@@ -126,7 +135,11 @@ export default function PatientList({
       {/* Grid de Pacientes */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {filteredPatients.map((patient) => (
-          <div key={patient.id} className="card card-hover space-y-4 flex flex-col justify-between">
+          <div
+            key={patient.id}
+            data-foco={focoPaciente(patient.id)}
+            className="card card-hover space-y-4 flex flex-col justify-between"
+          >
             <div className="space-y-4">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">

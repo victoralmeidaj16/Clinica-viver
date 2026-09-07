@@ -3,6 +3,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, Bell, CheckCheck, CircleAlert, Info, Loader2 } from 'lucide-react';
+import { dispararFoco } from './FocoDeNotificacao';
+import { PARAM_FOCO } from '@/lib/focoNotificacao';
 
 /**
  * O sino do header, para gestão e psicólogo.
@@ -137,6 +139,13 @@ export default function NotificationsBell() {
     setAberto(false);
     if (!item.lida) void marcar({ chaves: [item.chave] });
     router.push(item.href);
+    // Clicar num aviso da página em que já se está não muda o endereço, e o
+    // realce da página de destino não voltaria a rodar — o clique pareceria
+    // não fazer nada. O aviso direto cobre esse caso.
+    const foco = new URL(item.href, window.location.origin).searchParams.get(PARAM_FOCO);
+    if (foco && window.location.search.includes(`${PARAM_FOCO}=${encodeURIComponent(foco)}`)) {
+      dispararFoco(foco);
+    }
   };
 
   const naoLidas = lista.naoLidas;

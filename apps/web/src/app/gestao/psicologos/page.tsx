@@ -17,6 +17,7 @@ import { ModalMotivo } from '@/components/gestao/ModalMotivo';
 import { ModalEdicao } from '@/components/gestao/ModalEdicao';
 import { ModalLimitePacientes } from '@/components/gestao/ModalLimitePacientes';
 import { ausenciaEmCurso } from '@/lib/ausenciaAgenda';
+import { FocoDeNotificacao } from '@/components/layout/FocoDeNotificacao';
 
 const FILTROS: Array<[FiltroStatus, string]> = [
   ['TODOS', 'Todos'],
@@ -236,6 +237,18 @@ export default function GestaoPsicologosPage() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
+      {/*
+        Busca e filtro de status são estado local: um profissional fora do
+        recorte atual não estaria no DOM para ser realçado. Zerar os dois é o
+        que garante que o clique no aviso sempre encontre a pessoa citada.
+      */}
+      <FocoDeNotificacao
+        aoFocar={() => {
+          setSearch('');
+          setStatusFilter('TODOS');
+        }}
+      />
+
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-xs">
         <div>
           <div className="flex items-center gap-2 text-purple-600 font-extrabold text-xs uppercase tracking-wider">

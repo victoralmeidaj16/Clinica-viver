@@ -205,6 +205,36 @@
   animation: vm-rise 0.75s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
+/*
+ * Realce do item apontado por uma notificação do sino.
+ *
+ * Quem clicou no aviso chega numa tela cheia de linhas parecidas e precisa
+ * achar a sua em um relance. O realce desaparece sozinho: passado o primeiro
+ * olhar, ele viraria ruído sobre uma linha que não tem mais nada de especial.
+ */
+@keyframes vm-foco {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0);
+  }
+  20%,
+  70% {
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.55);
+  }
+}
+.foco-notificacao {
+  border-radius: 1rem;
+  animation: vm-foco 3.6s ease-in-out 1;
+  scroll-margin-top: 6rem;
+  scroll-margin-bottom: 2rem;
+}
+/* Linha de tabela não aceita box-shadow em todos os navegadores; a cor de
+   fundo é o realce que sempre funciona ali. */
+tr.foco-notificacao {
+  border-radius: 0;
+  background-color: rgb(237 233 254 / 0.7);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .rise {
     animation-duration: 0.01ms;
@@ -212,6 +242,11 @@
   }
   .vitrine * {
     transition-duration: 0.01ms !important;
+  }
+  /* Sem pulso, mas o realce continua: é ele que localiza o item na tela. */
+  .foco-notificacao {
+    animation: none;
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.55);
   }
 }
 

@@ -5,6 +5,8 @@ import { Building2, CalendarDays, CheckCircle2, CreditCard, FileSpreadsheet, Pen
 import { applicationRequest } from '@/lib/applicationApi';
 import { reaisDeCentavos } from '@/lib/modalidadesPagamento';
 import { EditSessionModal, type SessionEditableData } from '@/components/scheduling/EditSessionModal';
+import { FocoDeNotificacao } from '@/components/layout/FocoDeNotificacao';
+import { focoPagamento } from '@/lib/focoNotificacao';
 
 interface Transaction {
   id: string;
@@ -167,6 +169,18 @@ export default function MeuFinanceiroPage() {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
+      {/*
+        O extrato é lido por competência. O aviso de pagamento traz o mês em
+        que ele entrou; sem trocar a competência antes de procurar a linha, o
+        clique abriria uma tabela que não contém o pagamento citado.
+      */}
+      <FocoDeNotificacao
+        aoFocar={(_foco, parametros) => {
+          const mesPedido = parametros.get('mes');
+          if (mesPedido && /^\d{4}-\d{2}$/.test(mesPedido)) setMes(mesPedido);
+        }}
+      />
+
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-ink flex items-center gap-2">
@@ -188,7 +202,7 @@ export default function MeuFinanceiroPage() {
           <div className="sm:ml-auto"><p className="text-xs text-muted">Crédito de {MES_POR_EXTENSO.format(new Date(`${mes}-01T12:00:00Z`))} (70%)</p><p className="text-2xl font-black text-emerald-600">{reaisDeCentavos(data?.professionalCreditCents ?? 0)}</p></div>
         </div>
         <div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr className="text-left text-muted border-b border-line"><th className="py-3">Data</th><th>Paciente</th><th>Pagamento</th><th>Crédito 70%</th><th>Forma</th></tr></thead>
-          <tbody>{data?.transactions.map((item) => <tr key={item.id} className="border-b border-line/70"><td className="py-3">{new Date(item.receivedAt).toLocaleDateString('pt-BR')}</td><td className="font-bold">{item.patientName}</td><td>{reaisDeCentavos(item.amountCents)}</td><td className="text-emerald-700 font-bold">{reaisDeCentavos(item.professionalCreditCents)}</td><td>{item.method}</td></tr>)}</tbody></table>
+          <tbody>{data?.transactions.map((item) => <tr key={item.id} data-foco={focoPagamento(item.id)} className="border-b border-line/70"><td className="py-3">{new Date(item.receivedAt).toLocaleDateString('pt-BR')}</td><td className="font-bold">{item.patientName}</td><td>{reaisDeCentavos(item.amountCents)}</td><td className="text-emerald-700 font-bold">{reaisDeCentavos(item.professionalCreditCents)}</td><td>{item.method}</td></tr>)}</tbody></table>
           {data?.transactions.length === 0 && <p className="text-center text-muted py-8">Nenhum pagamento conciliado neste mês.</p>}
         </div>
       </section>

@@ -5,6 +5,7 @@ import {
   CalendarClock, CalendarDays, CheckCircle2, Copy, CreditCard, Globe, Loader2, MapPin, Pencil, RefreshCw, XCircle,
 } from 'lucide-react';
 import { clinicDateTimeToIso } from '@/lib/manualAppointment';
+import { focoSessao } from '@/lib/focoNotificacao';
 import { RescheduleModal } from './RescheduleModal';
 import { EditSessionModal, type SessionEditableData } from './EditSessionModal';
 
@@ -168,7 +169,7 @@ export function UpcomingSessions({ agendamentos, onCancelar, onConfirmarRealizac
           const jaPassou = Number.isFinite(termino) && termino <= agora;
           const realizado = item.status === 'realizado' || Boolean(item.realizadoEm) || (!cancelado && jaPassou);
           return (
-            <li key={item.id} className="space-y-3 px-6 py-4">
+            <li key={item.id} data-foco={focoSessao(item.id)} className="space-y-3 px-6 py-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className={`text-sm font-extrabold ${cancelado ? 'text-muted line-through' : 'text-ink'}`}>

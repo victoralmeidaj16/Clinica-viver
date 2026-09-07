@@ -20,6 +20,7 @@ import { formatGender } from '@/lib/gender';
 import { PsicologoItem } from './types';
 import { SemaforoCredenciamento } from './SemaforoCredenciamento';
 import { BannerSolicitacaoAlteracaoGestao } from './BannerSolicitacaoAlteracaoGestao';
+import { focoPsicologo } from '@/lib/focoNotificacao';
 
 interface PsicologoCardProps {
   p: PsicologoItem;
@@ -74,7 +75,10 @@ export function PsicologoCard({
   const temSolicitacaoPendente = p.solicitacaoAlteracaoGestao?.status === 'PENDENTE';
 
   return (
-    <div className="p-3 sm:p-3.5 hover:bg-slate-50/80 transition-colors space-y-2.5">
+    <div
+      data-foco={focoPsicologo(p.id)}
+      className="p-3 sm:p-3.5 hover:bg-slate-50/80 transition-colors space-y-2.5"
+    >
       {/* Banner de Solicitação de Alteração da Gestão (se houver) */}
       {temSolicitacaoPendente && (
         <BannerSolicitacaoAlteracaoGestao

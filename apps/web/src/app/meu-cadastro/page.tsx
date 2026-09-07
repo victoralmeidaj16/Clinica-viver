@@ -30,6 +30,8 @@ import {
 import { BrazilLocationFields } from '@/components/forms/BrazilLocationFields';
 import { processImageUpload } from '@/lib/imageUpload';
 import { CardDefinidoPelaGestao } from '@/components/meu-cadastro/CardDefinidoPelaGestao';
+import { FocoDeNotificacao } from '@/components/layout/FocoDeNotificacao';
+import { FOCO_SECAO } from '@/lib/focoNotificacao';
 import { ModalTermosParceria } from '@/components/forms/ModalTermosParceria';
 import type { SolicitacaoGestaoFormValues } from '@/components/meu-cadastro/ModalSolicitacaoGestao';
 
@@ -323,6 +325,9 @@ export default function MeuCadastroPage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
+      {/* Leva ao card de status ou ao da prática, conforme o aviso clicado. */}
+      <FocoDeNotificacao />
+
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-[10px] uppercase tracking-[0.22em] font-extrabold text-psi-vibrant">Área profissional</p>
@@ -336,7 +341,10 @@ export default function MeuCadastroPage() {
         )}
       </div>
 
-      <div className={`rounded-3xl border p-5 flex items-start gap-4 ${colorClasses}`}>
+      <div
+        data-foco={FOCO_SECAO.statusCredenciamento}
+        className={`rounded-3xl border p-5 flex items-start gap-4 ${colorClasses}`}
+      >
         <StatusIcon className="w-6 h-6 shrink-0 mt-0.5" />
         <div>
           <p className="font-black">{info.label}</p>
@@ -540,7 +548,10 @@ export default function MeuCadastroPage() {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_0.7fr] gap-6">
           <div className="space-y-6">
-            <section className="bg-surface rounded-3xl border border-line shadow-card p-6">
+            <section
+              data-foco={FOCO_SECAO.minhaPratica}
+              className="bg-surface rounded-3xl border border-line shadow-card p-6"
+            >
               <div className="flex items-center gap-3 border-b border-line pb-4">
                 <ShieldCheck className="w-5 h-5 text-psi-vibrant" />
                 <h2 className="font-black text-ink">Minha prática</h2>

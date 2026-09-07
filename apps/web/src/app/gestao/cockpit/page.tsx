@@ -24,6 +24,8 @@ import { ModalEdicao } from '@/components/gestao/ModalEdicao';
 import type { PsicologoItem } from '@/components/gestao/types';
 import { TIPOS_ATENDIMENTO } from '@/components/forms/opcoesPsicologo';
 import { formatBrazilPhone } from '@/lib/brazilPhone';
+import { FocoDeNotificacao } from '@/components/layout/FocoDeNotificacao';
+import { focoCredenciamento, focoLead, PARAM_ABA } from '@/lib/focoNotificacao';
 import type { GenderValue } from '@/lib/gender';
 import {
   normalizarTurnoPreferencia,
@@ -329,8 +331,27 @@ export default function GestaoCockpitPage() {
   const slasEstourados = aguardandoContato.filter((item) => item.slaStatus === 'VERMELHO').length;
   const semProfissional = leads.filter((item) => item.status === 'PENDENTE_ATRIBUICAO').length;
 
+  /**
+   * O item apontado por uma notificação pode estar em qualquer das três abas e
+   * atrás de um filtro da fila. Abrir a aba certa e zerar os filtros é o que
+   * faz o alvo existir no DOM para o realce encontrar — sem isso, quem já
+   * estava nesta tela com uma busca digitada clicaria no aviso e não veria
+   * nada acontecer.
+   */
+  const irParaOFoco = (_foco: string, parametros: URLSearchParams) => {
+    const aba = parametros.get(PARAM_ABA);
+    if (aba === 'credenciamentos') setAbaAtiva('CREDENCIAMENTOS');
+    else if (aba === 'profissionais') setAbaAtiva('PROFISSIONAIS');
+    else if (aba === 'fila') setAbaAtiva('FILA');
+    setFiltroBusca('');
+    setFiltroModalidade('TODAS');
+    setFiltroTurno('TODOS');
+  };
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
+      <FocoDeNotificacao aoFocar={irParaOFoco} />
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -648,7 +669,7 @@ export default function GestaoCockpitPage() {
               </p>
             ) : (
               leadsFiltrados.map((item) => (
-                <article key={item.id} className="p-5 space-y-3">
+                <article key={item.id} data-foco={focoLead(item.id)} className="p-5 space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="font-extrabold text-sm text-ink truncate">{item.nomePaciente}</p>
@@ -735,7 +756,11 @@ export default function GestaoCockpitPage() {
                   </tr>
                 ) : (
                   leadsFiltrados.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                    <tr
+                      key={item.id}
+                      data-foco={focoLead(item.id)}
+                      className="hover:bg-slate-50/80 transition-colors"
+                    >
                       <td className="px-6 py-4">
                         <div className="font-extrabold text-ink">{item.nomePaciente}</div>
                         <div className="text-[10px] text-muted font-mono">{item.protocolo}</div>
@@ -834,7 +859,11 @@ export default function GestaoCockpitPage() {
                   </tr>
                 )}
                 {psicologosPendentes.map((psi) => (
-                  <tr key={psi.id} className="hover:bg-slate-50/80 transition-colors">
+                  <tr
+                    key={psi.id}
+                    data-foco={focoCredenciamento(psi.id)}
+                    className="hover:bg-slate-50/80 transition-colors"
+                  >
                     <td className="px-6 py-4">
                       <button
                         type="button"

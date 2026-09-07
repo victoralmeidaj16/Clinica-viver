@@ -6,6 +6,17 @@ import type { PagamentoRecebido } from '@/server/payments/paymentLinkRepository'
 import type { AgendamentoResumo } from '@/server/scheduling/agendaRepository';
 import type { AlteracaoPerfil } from '@/server/persistence/perfilAlteracoes';
 import { descreverMudancas } from '@/lib/perfilPsicologoDiff';
+import {
+  comFoco,
+  FOCO_SECAO,
+  focoCredenciamento,
+  focoLead,
+  focoPaciente,
+  focoPagamento,
+  focoPsicologo,
+  focoSessao,
+  PARAM_ABA,
+} from '@/lib/focoNotificacao';
 import { diasDeAusencia, periodoAusencia } from '@/lib/ausenciaAgenda';
 import { dataHoraSessao } from '@/lib/sessionReference';
 import {
@@ -46,7 +57,13 @@ export interface NotificacaoDerivada {
   /** ISO do evento que originou o aviso. Ordena a lista. */
   ocorridoEm: string;
   severidade: SeveridadeNotificacao;
-  /** Para onde o clique leva. */
+  /**
+   * Para onde o clique leva — página **e** item.
+   *
+   * O `foco` do endereço é o mesmo texto que a tela de destino escreve em
+   * `data-foco`, e é o que faz o clique cair na linha do paciente citado em
+   * vez do topo da lista. Ver `lib/focoNotificacao.ts`.
+   */
   href: string;
   /**
    * Situação ainda aberta (paciente sem contato, credenciamento na fila).
@@ -104,6 +121,32 @@ function severidadePorSla(alocadoEm: string | undefined, agora: Date): Severidad
   }
 }
 
+/**
+ * A fila da gestão é a aba inicial do cockpit, mas pedi-la explicitamente faz o
+ * endereço continuar valendo se a aba padrão mudar — e faz o clique voltar para
+ * a fila quando quem clica já estava numa das outras abas.
+ */
+function naFilaDaGestao(leadId: string): string {
+  return comFoco('/gestao/cockpit', focoLead(leadId), { [PARAM_ABA]: 'fila' });
+}
+
+/**
+ * Competência (`AAAA-MM`) do extrato em que o pagamento aparece.
+ *
+ * O mês é o da clínica, não o do servidor: um Pix recebido às 22h de 31/08 em
+ * São Paulo é agosto, e abrir setembro mostraria uma tabela sem ele.
+ */
+function competenciaDoExtrato(recebidoEm: string): string {
+  const partes = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+  }).formatToParts(new Date(recebidoEm));
+  const parte = (tipo: Intl.DateTimeFormatPartTypes) =>
+    partes.find((item) => item.type === tipo)?.value ?? '';
+  return `${parte('year')}-${parte('month')}`;
+}
+
 function resumoDoLead(lead: TriagemPacienteRecord): string {
   const partes = [lead.servico?.trim(), `turno da ${rotuloTurno(lead.turno)}`].filter(Boolean);
   return partes.join(' · ');
@@ -155,6 +198,11 @@ export function notificacoesDoPsicologo(
         descricao: `${lead.nomePaciente} — ${resumoDoLead(lead)}. Primeiro contato em até ${SLA_CONTATO_HORAS} h (${prazoRestante(lead.alocadoEm, agora)}).`,
         ocorridoEm: lead.alocadoEm,
         severidade: severidadePorSla(lead.alocadoEm, agora),
+        // Sem `foco`: o painel do profissional não tem uma fila de leads para
+        // apontar. O primeiro contato é feito pelo link que chega no WhatsApp,
+        // e inventar aqui uma âncora para uma seção que não existe daria um
+        // clique que rola até lugar nenhum. Enquanto essa tela não existir, o
+        // destino honesto é o painel.
         href: '/cockpit',
         pendente: true,
       });
@@ -169,7 +217,11 @@ export function notificacoesDoPsicologo(
         descricao: `${lead.nomePaciente} entrou na sua lista de pacientes ativos.`,
         ocorridoEm: lead.confirmadoEm,
         severidade: 'INFO',
-        href: '/pacientes',
+        // A promoção do lead em paciente pode ainda não ter acontecido; sem a
+        // referência, a lista inteira é o destino honesto.
+        href: lead.pacienteRef
+          ? comFoco('/pacientes', focoPaciente(lead.pacienteRef))
+          : comFoco('/pacientes', FOCO_SECAO.listaPacientes),
         pendente: false,
       });
       continue;
@@ -185,6 +237,9 @@ export function notificacoesDoPsicologo(
           : `${lead.nomePaciente} foi encaminhado a ${lead.psicologoNome ?? 'outro profissional'}.`,
         ocorridoEm: lead.alocadoEm,
         severidade: lead.slaExpirado ? 'ATENCAO' : 'INFO',
+        // Sem `foco`, pela mesma razão do aviso de atribuição — e aqui o lead
+        // saiu da fila deste profissional, então não haveria o que ele
+        // resolvesse na tela de destino.
         href: '/cockpit',
         pendente: false,
       });
@@ -218,7 +273,11 @@ export function notificacoesDePagamento(
     descricao: `${pagamento.patientName} pagou ${dinheiro.format(pagamento.amountCents / 100)} via ${rotuloForma(pagamento.method)}.`,
     ocorridoEm: pagamento.receivedAt,
     severidade: 'INFO',
-    href: '/meu-financeiro',
+    // O extrato é lido por competência: sem o mês do pagamento, um recebimento
+    // do mês passado abriria uma tabela que não o contém.
+    href: comFoco('/meu-financeiro', focoPagamento(pagamento.ref), {
+      mes: competenciaDoExtrato(pagamento.receivedAt),
+    }),
     pendente: false,
   }));
 }
@@ -241,7 +300,7 @@ export function notificacoesDeAgendamentos(
       descricao: `${agendamento.pacienteNome} — ${dataHoraSessao(agendamento.inicio)}.`,
       ocorridoEm: agendamento.criadoEm,
       severidade: 'INFO',
-      href: '/agenda',
+      href: comFoco('/agenda', focoSessao(agendamento.id)),
       pendente: false,
     });
 
@@ -256,7 +315,7 @@ export function notificacoesDeAgendamentos(
         descricao: `${agendamento.pacienteNome} — atendimento previsto para ${dataHoraSessao(agendamento.inicio)}.`,
         ocorridoEm: agendamento.fim,
         severidade: 'ATENCAO',
-        href: '/agenda',
+        href: comFoco('/agenda', focoSessao(agendamento.id)),
         pendente: true,
       });
     }
@@ -296,7 +355,7 @@ function notificacoesDoCadastro(cadastro: CadastroPsicologoRecord): NotificacaoD
       descricao: 'Você está no rodízio de encaminhamentos da clínica.',
       ocorridoEm: quando,
       severidade: 'INFO',
-      href: '/meu-cadastro',
+      href: comFoco('/meu-cadastro', FOCO_SECAO.statusCredenciamento),
       pendente: false,
     });
 
@@ -312,7 +371,8 @@ function notificacoesDoCadastro(cadastro: CadastroPsicologoRecord): NotificacaoD
           'Sem turnos e faixa de valor declarados, o rodízio não consegue indicar ninguém para você.',
         ocorridoEm: quando,
         severidade: 'ATENCAO',
-        href: '/meu-cadastro',
+        // O que falta preencher vive no card da prática, não no aviso de status.
+        href: comFoco('/meu-cadastro', FOCO_SECAO.minhaPratica),
         pendente: true,
       });
     }
@@ -327,7 +387,7 @@ function notificacoesDoCadastro(cadastro: CadastroPsicologoRecord): NotificacaoD
         descricao: `Você está com ${ativos} de ${limite} pacientes ativos e não receberá novos encaminhamentos até liberar uma vaga.`,
         ocorridoEm: quando,
         severidade: 'ATENCAO',
-        href: '/pacientes',
+        href: comFoco('/pacientes', FOCO_SECAO.listaPacientes),
         pendente: true,
       });
     }
@@ -343,7 +403,7 @@ function notificacoesDoCadastro(cadastro: CadastroPsicologoRecord): NotificacaoD
         : 'Procure a coordenação da clínica para entender os próximos passos.',
       ocorridoEm: quando,
       severidade: 'ATENCAO',
-      href: '/meu-cadastro',
+      href: comFoco('/meu-cadastro', FOCO_SECAO.statusCredenciamento),
       pendente: true,
     });
   }
@@ -358,7 +418,7 @@ function notificacoesDoCadastro(cadastro: CadastroPsicologoRecord): NotificacaoD
         : 'Novos pacientes não serão encaminhados a você enquanto a pausa durar.',
       ocorridoEm: quando,
       severidade: 'ATENCAO',
-      href: '/meu-cadastro',
+      href: comFoco('/meu-cadastro', FOCO_SECAO.statusCredenciamento),
       pendente: true,
     });
   }
@@ -386,7 +446,7 @@ export function notificacoesDaGestao(
         descricao: `${lead.nomePaciente} (${lead.protocolo}) — ${resumoDoLead(lead)}. Ninguém no rodízio atende a esses critérios.`,
         ocorridoEm: lead.criadoEm,
         severidade: 'CRITICO',
-        href: '/gestao/cockpit',
+        href: naFilaDaGestao(lead.id),
         pendente: true,
       });
       continue;
@@ -403,7 +463,7 @@ export function notificacoesDaGestao(
           descricao: `${lead.nomePaciente} (${lead.protocolo}) está com ${lead.psicologoNome ?? 'profissional não identificado'} e ${prazoRestante(lead.alocadoEm, agora)}.`,
           ocorridoEm: lead.alocadoEm,
           severidade: 'CRITICO',
-          href: '/gestao/cockpit',
+          href: naFilaDaGestao(lead.id),
           pendente: true,
         });
       } else if (sla === 'AMARELO') {
@@ -414,7 +474,7 @@ export function notificacoesDaGestao(
           descricao: `${lead.nomePaciente} (${lead.protocolo}) com ${lead.psicologoNome ?? 'profissional não identificado'} — ${prazoRestante(lead.alocadoEm, agora)}.`,
           ocorridoEm: lead.alocadoEm,
           severidade: 'ATENCAO',
-          href: '/gestao/cockpit',
+          href: naFilaDaGestao(lead.id),
           pendente: true,
         });
       }
@@ -427,7 +487,7 @@ export function notificacoesDaGestao(
           descricao: `${lead.nomePaciente} (${lead.protocolo}) passou para ${lead.psicologoNome ?? 'outro profissional'}.`,
           ocorridoEm: lead.alocadoEm,
           severidade: (lead.transbordos ?? 0) > 1 ? 'ATENCAO' : 'INFO',
-          href: '/gestao/cockpit',
+          href: naFilaDaGestao(lead.id),
           pendente: false,
         });
       }
@@ -442,7 +502,7 @@ export function notificacoesDaGestao(
         descricao: `${lead.psicologoNome ?? 'O profissional'} confirmou contato com ${lead.nomePaciente} (${lead.protocolo}).`,
         ocorridoEm: lead.confirmadoEm,
         severidade: 'INFO',
-        href: '/gestao/cockpit',
+        href: naFilaDaGestao(lead.id),
         pendente: false,
       });
     }
@@ -457,7 +517,11 @@ export function notificacoesDaGestao(
         descricao: `${nomeDeExibicao(cadastro)} (CRP ${cadastro.crp}) se candidatou pela vitrine.`,
         ocorridoEm: cadastro.criadoEm,
         severidade: 'ATENCAO',
-        href: '/gestao/cockpit',
+        // A candidatura mora na aba de credenciamentos, que não é a que o
+        // cockpit abre por padrão: o endereço precisa pedir a aba certa.
+        href: comFoco('/gestao/cockpit', focoCredenciamento(cadastro.id), {
+          [PARAM_ABA]: 'credenciamentos',
+        }),
         pendente: true,
       });
       continue;
@@ -475,7 +539,7 @@ export function notificacoesDaGestao(
         descricao: `${nomeDeExibicao(cadastro)} está aprovado, mas sem turno ou faixa de valor definidos — não recebe encaminhamento.`,
         ocorridoEm: cadastro.acessoCriadoEm ?? cadastro.criadoEm,
         severidade: 'ATENCAO',
-        href: '/gestao/psicologos',
+        href: comFoco('/gestao/psicologos', focoPsicologo(cadastro.id)),
         pendente: true,
       });
     }
@@ -493,7 +557,7 @@ export function notificacoesDaGestao(
         descricao: `${nomeDeExibicao(cadastro)} ${vigente ? 'está' : 'ficará'} indisponível ${periodoAusencia(ausencia)}${ausencia.motivo ? ` — ${ausencia.motivo}` : ''}. Não recebe encaminhamento nesse intervalo.`,
         ocorridoEm: ausencia.criadoEm,
         severidade: diasDeAusencia(ausencia) >= 2 ? 'ATENCAO' : 'INFO',
-        href: '/gestao/psicologos',
+        href: comFoco('/gestao/psicologos', focoPsicologo(cadastro.id)),
         // A gestão é informada, não convocada: marcar a própria folga é
         // decisão do profissional, e o rodízio já se ajustou sozinho. O que
         // exigiria ação — paciente sem quem atenda — tem aviso próprio.
@@ -530,7 +594,7 @@ export function notificacoesDePerfilAlterado(
       descricao: descreverMudancas(alteracao.mudancas),
       ocorridoEm: alteracao.alteradoEm,
       severidade: 'INFO',
-      href: '/gestao/psicologos',
+      href: comFoco('/gestao/psicologos', focoPsicologo(alteracao.cadastroRef)),
       // A gestão é informada, não convocada: o profissional já mudou o que era
       // dele por direito. Marcar como pendente manteria no sino, para sempre,
       // um aviso que ninguém tem o que resolver.

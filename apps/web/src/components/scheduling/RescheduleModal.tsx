@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Calendar, Clock, AlertCircle, Loader2, X, RefreshCw } from 'lucide-react';
 import type { AgendamentoResumo } from './UpcomingSessions';
 import { clinicDateTimeToIso } from '@/lib/manualAppointment';
@@ -18,38 +18,57 @@ const FORMATTER = new Intl.DateTimeFormat('pt-BR', {
   timeZone: 'America/Sao_Paulo',
 });
 
+/** Data, hora e duração do agendamento na hora da clínica, prontos para o formulário. */
+function camposIniciais(appointment: AgendamentoResumo) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Sao_Paulo',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    })
+      .formatToParts(new Date(appointment.inicio))
+      .map((p) => [p.type, p.value])
+  );
+  const dur = Math.round(
+    (new Date(appointment.fim).getTime() - new Date(appointment.inicio).getTime()) / 60_000
+  );
+  return {
+    data: `${parts.year}-${parts.month}-${parts.day}`,
+    hora: `${parts.hour}:${parts.minute}`,
+    duracaoMin: dur > 0 ? dur : 50,
+  };
+}
+
+/**
+ * O modal fechado desmonta o formulário; reabrir o remonta com os campos do
+ * agendamento. É o mesmo "resetar ao abrir" de antes, sem um efeito que
+ * escreve estado logo depois de renderizar.
+ */
 export function RescheduleModal({ appointment, isOpen, onClose, onConfirm }: Props) {
-  const [data, setData] = useState('');
-  const [hora, setHora] = useState('');
-  const [duracaoMin, setDuracaoMin] = useState(50);
+  if (!isOpen || !appointment) return null;
+  return <FormularioReagendamento appointment={appointment} onClose={onClose} onConfirm={onConfirm} />;
+}
+
+function FormularioReagendamento({
+  appointment,
+  onClose,
+  onConfirm,
+}: {
+  appointment: AgendamentoResumo;
+  onClose: () => void;
+  onConfirm: Props['onConfirm'];
+}) {
+  // Calculado uma vez por montagem: o formulário é a partir daqui do usuário.
+  const [iniciais] = useState(() => camposIniciais(appointment));
+  const [data, setData] = useState(iniciais.data);
+  const [hora, setHora] = useState(iniciais.hora);
+  const [duracaoMin, setDuracaoMin] = useState(iniciais.duracaoMin);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
-
-  useEffect(() => {
-    if (appointment && isOpen) {
-      const dateObj = new Date(appointment.inicio);
-      const parts = Object.fromEntries(
-        new Intl.DateTimeFormat('en-CA', {
-          timeZone: 'America/Sao_Paulo',
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          hourCycle: 'h23',
-        })
-          .formatToParts(dateObj)
-          .map((p) => [p.type, p.value])
-      );
-      setData(`${parts.year}-${parts.month}-${parts.day}`);
-      setHora(`${parts.hour}:${parts.minute}`);
-      const dur = Math.round((new Date(appointment.fim).getTime() - new Date(appointment.inicio).getTime()) / 60_000);
-      setDuracaoMin(dur > 0 ? dur : 50);
-      setError(undefined);
-    }
-  }, [appointment, isOpen]);
-
-  if (!isOpen || !appointment) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

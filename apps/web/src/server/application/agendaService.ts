@@ -17,6 +17,7 @@ import {
   rescheduleAppointmentProfessional,
   updateAppointmentDetails,
   type JanelaEditavel,
+  type ResultadoConfirmacaoRealizacao,
   type UpdateAppointmentInput,
 } from '@/server/scheduling/agendaRepository';
 import { avisarSessaoCancelada } from '@/server/scheduling/agendaAvisos';
@@ -194,12 +195,8 @@ export async function cancelAgendaAppointment(
   return { appointments: await listAppointments(organizationId, professionalId, desde) };
 }
 
-export async function confirmAgendaAppointmentCompleted(
-  context: RequestContext,
-  appointmentId: string
-) {
-  const { organizationId, professionalId } = perfilDaSessao(context);
-  const resultado = await completeAppointment(organizationId, professionalId, appointmentId);
+/** Traduz o resultado da conclusão em erro de aplicação; `already_completed` fica a cargo do chamador. */
+function exigirConclusao(resultado: ResultadoConfirmacaoRealizacao) {
   if (resultado === 'not_found') {
     throw new ApplicationError('NOT_FOUND', 'Agendamento não encontrado.', 404);
   }
@@ -214,6 +211,22 @@ export async function confirmAgendaAppointmentCompleted(
     throw new ApplicationError(
       'INVALID_APPOINTMENT_STATUS',
       'Somente uma sessão agendada ou confirmada pode ser marcada como realizada.',
+      409
+    );
+  }
+}
+
+export async function confirmAgendaAppointmentCompleted(
+  context: RequestContext,
+  appointmentId: string
+) {
+  const { organizationId, professionalId } = perfilDaSessao(context);
+  const resultado = await completeAppointment(organizationId, professionalId, appointmentId);
+  exigirConclusao(resultado);
+  if (resultado === 'already_completed') {
+    throw new ApplicationError(
+      'INVALID_APPOINTMENT_STATUS',
+      'Este atendimento já está marcado como realizado.',
       409
     );
   }
@@ -283,11 +296,15 @@ export async function editAgendaAppointment(
     }
   }
 
+  // Marcar como realizado não é uma edição de campo: passa pelo fluxo de
+  // conclusão, que valida o término e materializa a sessão clínica e a
+  // cobrança empresarial. Aqui a edição cuida só de horário e modalidade.
+  const querRealizar = input.status === 'realizado';
   const outcome = await updateAppointmentDetails(
     organizationId,
     professionalId,
     appointmentId,
-    input
+    querRealizar ? { ...input, status: undefined } : input
   );
 
   if (outcome === 'not_found') {
@@ -295,6 +312,26 @@ export async function editAgendaAppointment(
   }
   if (outcome === 'conflict') {
     throw new ApplicationError('SLOT_CONFLICT', 'Este horário já possui outro agendamento ou bloqueio.', 409);
+  }
+  if (outcome === 'completed_locked') {
+    throw new ApplicationError(
+      'APPOINTMENT_ALREADY_COMPLETED',
+      'Este atendimento já foi confirmado como realizado e gerou registro de sessão; use o cancelamento se precisar desfazê-lo.',
+      409
+    );
+  }
+  if (outcome === 'requires_completion') {
+    throw new ApplicationError(
+      'INVALID_APPOINTMENT_STATUS',
+      'A realização precisa ser confirmada pelo fluxo de conclusão do atendimento.',
+      409
+    );
+  }
+
+  if (querRealizar) {
+    const resultado = await completeAppointment(organizationId, professionalId, appointmentId);
+    exigirConclusao(resultado);
+    // `already_completed` aqui é apenas o formulário reenviando o status atual.
   }
 
   const desde = new Date(Date.now() - 90 * 24 * 60 * 60_000);

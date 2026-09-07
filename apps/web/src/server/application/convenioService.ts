@@ -199,11 +199,28 @@ export async function cancelConvenioInvoice(context: RequestContext, convenioId:
   if (!convenio || !fatura) throw new ApplicationError('NOT_FOUND', 'Convênio ou fatura não encontrado.', 404);
   if (fatura.status === 'paga') throw new ApplicationError('INVALID_INVOICE_STATE', 'Esta fatura já está paga e não pode ser cancelada.', 409);
 
+  // O cancelamento local só pode acontecer depois que o provedor confirmar a
+  // remoção: o adaptador já trata 404 como sucesso, então qualquer erro aqui é
+  // uma cobrança que continua viva no Asaas. Apagar a fatura mesmo assim
+  // liberaria as sessões para um segundo faturamento do mesmo atendimento.
   if (fatura.providerId) {
+    let removido: boolean;
     try {
-      await deleteAsaasPayment(fatura.providerId);
-    } catch {
-      // continua se o boleto já havia sido removido no provedor
+      removido = await deleteAsaasPayment(fatura.providerId);
+    } catch (cause) {
+      console.error('[convenios] Falha ao remover boleto no Asaas:', fatura.providerId, cause);
+      throw new ApplicationError(
+        'PROVIDER_CANCEL_FAILED',
+        'Não foi possível remover o boleto no Asaas; a fatura não foi cancelada. Tente novamente em instantes.',
+        502
+      );
+    }
+    if (!removido) {
+      throw new ApplicationError(
+        'PROVIDER_CANCEL_FAILED',
+        'O Asaas não confirmou a remoção do boleto; a fatura não foi cancelada.',
+        502
+      );
     }
   }
 

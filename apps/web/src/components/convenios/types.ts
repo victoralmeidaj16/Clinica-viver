@@ -12,7 +12,7 @@ export interface PacienteConvenioView {
 export interface SessaoConvenioView {
   chargeId: string; sessionId: string; patientId: string; pacienteNome: string;
   professionalId: string; psicologoNome: string; realizadaEm: string; valorCents: number;
-  status: string; faturaId?: string;
+  status: string; faturaId?: string; custeadoPelaEmpresa: boolean;
 }
 
 export interface FaturaConvenioView {

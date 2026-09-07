@@ -18,29 +18,36 @@ export function ModalTermosParceria({
   onAceitar,
   jaAceito = false,
 }: ModalTermosParceriaProps) {
-  const [rolouAteOFim, setRolouAteOFim] = useState(jaAceito);
+  // O estado guarda só o que o usuário fez nesta abertura; quem já aceitou
+  // antes é liberado por derivação, sem um efeito para sincronizar a prop.
+  const [leuNestaAbertura, setLeuNestaAbertura] = useState(false);
+  const rolouAteOFim = jaAceito || leuNestaAbertura;
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (isOpen) {
-      setRolouAteOFim(jaAceito);
-      // Se já estava aceito ou se o conteúdo couber sem scroll
-      setTimeout(() => {
-        if (scrollRef.current) {
-          const { scrollHeight, clientHeight } = scrollRef.current;
-          if (scrollHeight <= clientHeight + 20) {
-            setRolouAteOFim(true);
-          }
-        }
-      }, 100);
+    if (!isOpen) {
+      return;
     }
-  }, [isOpen, jaAceito]);
+    // Texto que cabe sem rolagem não tem como ser "rolado até o fim": mede-se
+    // depois da montagem e libera o aceite.
+    const timer = setTimeout(() => {
+      const el = scrollRef.current;
+      if (el && el.scrollHeight <= el.clientHeight + 20) {
+        setLeuNestaAbertura(true);
+      }
+    }, 100);
+    return () => {
+      clearTimeout(timer);
+      // Fechar recomeça a leitura na próxima abertura.
+      setLeuNestaAbertura(false);
+    };
+  }, [isOpen]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
     const tolerancia = 25;
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - tolerancia) {
-      setRolouAteOFim(true);
+      setLeuNestaAbertura(true);
     }
   };
 

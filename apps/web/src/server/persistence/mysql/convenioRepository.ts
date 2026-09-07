@@ -46,6 +46,8 @@ export interface SessaoConvenio {
   valorCents: number;
   status: string;
   faturaId?: string;
+  /** Custeio efetivo: override do paciente, senão a política do convênio. */
+  custeadoPelaEmpresa: boolean;
 }
 
 export interface FaturaConvenio {
@@ -196,9 +198,12 @@ export async function atualizarConvenio(organizationId: string, id: string, inpu
 }
 
 export async function pacientesDoConvenio(organizationId: string, convenioId: string, inicio?: string, fim?: string): Promise<PacienteConvenio[]> {
-  const params: unknown[] = [instituicaoId(), organizationId, convenioId];
   const periodo = inicio && fim ? 'AND fc.emitida_em >= ? AND fc.emitida_em < DATE_ADD(?, INTERVAL 1 DAY)' : '';
-  if (inicio && fim) params.push(inicio, fim);
+  // O recorte de período vive no LEFT JOIN, que aparece antes do WHERE: os
+  // parâmetros precisam seguir a ordem dos placeholders, não a ordem de leitura.
+  const params: unknown[] = periodo
+    ? [inicio, fim, instituicaoId(), organizationId, convenioId]
+    : [instituicaoId(), organizationId, convenioId];
   const [rows] = await getMysqlPool().query<RowDataPacket[]>(
     `SELECT p.ref_core, COALESCE(p.nome_social, p.nome) AS nome, p.status,
             p.custeado_pela_empresa, c.empresa_paga_sessoes,
@@ -233,9 +238,12 @@ export async function sessoesDoConvenio(organizationId: string, convenioId: stri
   const [rows] = await getMysqlPool().query<RowDataPacket[]>(
     `SELECT fc.ref_core, fc.sessao_ref, fc.paciente_ref, fc.profissional_ref,
             fc.emitida_em, fc.valor_centavos, fc.status, fc.fatura_convenio_ref,
-            COALESCE(p.nome_social, p.nome) AS paciente_nome, pr.nome AS psicologo_nome
+            COALESCE(p.nome_social, p.nome) AS paciente_nome, pr.nome AS psicologo_nome,
+            p.custeado_pela_empresa, c.empresa_paga_sessoes
        FROM financeiro_cobrancas fc
        JOIN clinica_pacientes p ON p.instituicao_id = fc.instituicao_id AND p.ref_core = fc.paciente_ref
+       JOIN clinica_convenios c ON c.instituicao_id = p.instituicao_id
+        AND c.organizacao_ref = fc.organizacao_ref AND c.ref_core = p.convenio_ref
        LEFT JOIN clinica_profissionais pr ON pr.instituicao_id = fc.instituicao_id AND pr.ref_core = fc.profissional_ref
       WHERE ${clauses.join(' AND ')} ORDER BY fc.emitida_em DESC`,
     params
@@ -246,6 +254,7 @@ export async function sessoesDoConvenio(organizationId: string, convenioId: stri
     psicologoNome: String(row.psicologo_nome ?? row.profissional_ref),
     realizadaEm: fromSqlTimestamp(row.emitida_em)!, valorCents: Number(row.valor_centavos),
     status: String(row.status), faturaId: row.fatura_convenio_ref ? String(row.fatura_convenio_ref) : undefined,
+    custeadoPelaEmpresa: resolveCusteio(row.custeado_pela_empresa, row.empresa_paga_sessoes),
   }));
 }
 
@@ -287,6 +296,10 @@ export async function fecharFatura(
       "fc.status IN ('pending','overdue')",
       'fc.emitida_em >= ?',
       'fc.emitida_em < DATE_ADD(?, INTERVAL 1 DAY)',
+      // A fatura empresarial cobra só o que a empresa custeia. Um paciente do
+      // convênio que paga a própria sessão continua com a cobrança individual;
+      // incluí-la no boleto cobraria o mesmo atendimento duas vezes.
+      'COALESCE(p.custeado_pela_empresa, c.empresa_paga_sessoes, 1) = 1',
     ];
     const queryParams: unknown[] = [
       instituicaoId(),
@@ -305,6 +318,8 @@ export async function fecharFatura(
       `SELECT fc.ref_core, fc.valor_centavos
          FROM financeiro_cobrancas fc
          JOIN clinica_pacientes p ON p.instituicao_id = fc.instituicao_id AND p.ref_core = fc.paciente_ref
+         JOIN clinica_convenios c ON c.instituicao_id = p.instituicao_id
+          AND c.organizacao_ref = fc.organizacao_ref AND c.ref_core = p.convenio_ref
         WHERE ${whereClauses.join(' AND ')}
         ORDER BY fc.emitida_em, fc.ref_core FOR UPDATE`,
       queryParams

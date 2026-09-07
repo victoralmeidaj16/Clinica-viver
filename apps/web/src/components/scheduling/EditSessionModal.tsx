@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Calendar,
   Clock,
@@ -38,54 +38,69 @@ const FORMATTER = new Intl.DateTimeFormat('pt-BR', {
   timeZone: 'America/Sao_Paulo',
 });
 
+/** Campos do formulário na hora da clínica, a partir da sessão selecionada. */
+function camposIniciais(session: SessionEditableData) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Sao_Paulo',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    })
+      .formatToParts(new Date(session.inicio))
+      .map((p) => [p.type, p.value])
+  );
+  const dur = session.fim
+    ? Math.round((new Date(session.fim).getTime() - new Date(session.inicio).getTime()) / 60_000)
+    : 50;
+  return {
+    data: `${parts.year}-${parts.month}-${parts.day}`,
+    hora: `${parts.hour}:${parts.minute}`,
+    duracaoMin: dur > 0 ? dur : 50,
+    modalidade: session.modalidade === 'presencial' ? ('presencial' as const) : ('online' as const),
+    status:
+      session.status === 'realizado' || session.status === 'completed'
+        ? ('realizado' as const)
+        : ('agendado' as const),
+  };
+}
+
+/**
+ * O modal fechado desmonta o formulário; reabrir o remonta já preenchido com a
+ * sessão. É o mesmo "resetar ao abrir" de antes, sem um efeito que escreve
+ * estado logo depois de renderizar.
+ */
 export function EditSessionModal({ session, isOpen, onClose, onSaved }: Props) {
-  const [data, setData] = useState('');
-  const [hora, setHora] = useState('');
-  const [duracaoMin, setDuracaoMin] = useState(50);
-  const [modalidade, setModalidade] = useState<'online' | 'presencial'>('online');
-  const [status, setStatus] = useState<'agendado' | 'realizado'>('agendado');
+  if (!isOpen || !session) return null;
+  return <FormularioEdicao session={session} onClose={onClose} onSaved={onSaved} />;
+}
+
+function FormularioEdicao({
+  session,
+  onClose,
+  onSaved,
+}: {
+  session: SessionEditableData;
+  onClose: () => void;
+  onSaved: Props['onSaved'];
+}) {
+  // Calculados uma vez por montagem: daqui em diante o formulário é do usuário.
+  const [iniciais] = useState(() => camposIniciais(session));
+  const [data, setData] = useState(iniciais.data);
+  const [hora, setHora] = useState(iniciais.hora);
+  const [duracaoMin, setDuracaoMin] = useState(iniciais.duracaoMin);
+  const [modalidade, setModalidade] = useState<'online' | 'presencial'>(iniciais.modalidade);
+  const [status, setStatus] = useState<'agendado' | 'realizado'>(iniciais.status);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
 
-  useEffect(() => {
-    if (session && isOpen) {
-      const dateObj = new Date(session.inicio);
-      const parts = Object.fromEntries(
-        new Intl.DateTimeFormat('en-CA', {
-          timeZone: 'America/Sao_Paulo',
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          hourCycle: 'h23',
-        })
-          .formatToParts(dateObj)
-          .map((p) => [p.type, p.value])
-      );
-      setData(`${parts.year}-${parts.month}-${parts.day}`);
-      setHora(`${parts.hour}:${parts.minute}`);
-
-      if (session.fim) {
-        const dur = Math.round(
-          (new Date(session.fim).getTime() - new Date(session.inicio).getTime()) / 60_000
-        );
-        setDuracaoMin(dur > 0 ? dur : 50);
-      } else {
-        setDuracaoMin(50);
-      }
-
-      setModalidade(session.modalidade === 'presencial' ? 'presencial' : 'online');
-      setStatus(
-        session.status === 'realizado' || session.status === 'completed'
-          ? 'realizado'
-          : 'agendado'
-      );
-      setError(undefined);
-    }
-  }, [session, isOpen]);
-
-  if (!isOpen || !session) return null;
+  // A lista deriva "realizado" de qualquer sessão já passada, mesmo sem
+  // confirmação. Só mandamos o status quando o usuário realmente o altera —
+  // do contrário, salvar um ajuste de horário confirmaria a realização sozinho.
+  const statusInicial = iniciais.status;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -116,7 +131,7 @@ export function EditSessionModal({ session, isOpen, onClose, onSaved }: Props) {
             startsAt: startsAtIso,
             endsAt: endsAtIso,
             modalidade,
-            status,
+            status: status === statusInicial ? undefined : status,
           }),
         }
       );

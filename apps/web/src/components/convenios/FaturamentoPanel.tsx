@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { CheckSquare, Download, FilePlus2, Loader2, Square } from 'lucide-react';
 import { applicationRequest, commandHeaders } from '@/lib/applicationApi';
-import type { ConvenioDetailView } from './types';
+import type { ConvenioDetailView, SessaoConvenioView } from './types';
 import { FaturaNfsePanel } from './FaturaNfsePanel';
 
 const localDate = (date: Date) =>
@@ -32,38 +32,53 @@ export function FaturamentoPanel({
   const [closing, setClosing] = useState(false);
   const [error, setError] = useState('');
 
+  // Só entra no boleto empresarial o atendimento que a empresa custeia. Quem
+  // paga a própria sessão já tem cobrança individual: incluí-la aqui cobraria
+  // o mesmo atendimento duas vezes.
   const sessoesAFaturar = useMemo(
-    () => detail.sessoes.filter((s) => !s.faturaId),
+    () => detail.sessoes.filter((s) => !s.faturaId && s.custeadoPelaEmpresa),
     [detail.sessoes]
   );
 
-  const [selectedChargeIds, setSelectedChargeIds] = useState<Set<string>>(
-    () => new Set(sessoesAFaturar.map((s) => s.chargeId))
+  const sessoesIndividuais = useMemo(
+    () => detail.sessoes.filter((s) => !s.faturaId && !s.custeadoPelaEmpresa).length,
+    [detail.sessoes]
   );
 
-  // Sincroniza seleção quando os atendimentos a faturar mudarem
-  useEffect(() => {
-    setSelectedChargeIds(new Set(sessoesAFaturar.map((s) => s.chargeId)));
-  }, [sessoesAFaturar]);
+  // A seleção é lembrada junto da lista que a originou. Quando os atendimentos
+  // a faturar mudam (outro período, outra fatura fechada), ela volta sozinha a
+  // "todos marcados" pela derivação — sem um efeito que renderiza duas vezes.
+  const [selecao, setSelecao] = useState<{
+    origem: SessaoConvenioView[];
+    ids: Set<string>;
+  } | null>(null);
+
+  const selectedChargeIds = useMemo(
+    () =>
+      selecao && selecao.origem === sessoesAFaturar
+        ? selecao.ids
+        : new Set(sessoesAFaturar.map((s) => s.chargeId)),
+    [selecao, sessoesAFaturar]
+  );
+
+  const definirSelecao = (ids: Set<string>) => setSelecao({ origem: sessoesAFaturar, ids });
 
   const toggleSession = (chargeId: string) => {
-    setSelectedChargeIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(chargeId)) {
-        next.delete(chargeId);
-      } else {
-        next.add(chargeId);
-      }
-      return next;
-    });
+    const next = new Set(selectedChargeIds);
+    if (next.has(chargeId)) {
+      next.delete(chargeId);
+    } else {
+      next.add(chargeId);
+    }
+    definirSelecao(next);
   };
 
   const selectAll = () => {
-    setSelectedChargeIds(new Set(sessoesAFaturar.map((s) => s.chargeId)));
+    definirSelecao(new Set(sessoesAFaturar.map((s) => s.chargeId)));
   };
 
   const deselectAll = () => {
-    setSelectedChargeIds(new Set());
+    definirSelecao(new Set());
   };
 
   const selectedCount = selectedChargeIds.size;
@@ -166,6 +181,15 @@ export function FaturamentoPanel({
             <p className="text-[11px] text-muted">
               Marque os atendimentos que serão cobrados nesta fatura e nota fiscal.
             </p>
+            {sessoesIndividuais > 0 && (
+              <p className="text-[11px] font-semibold text-amber-700">
+                {sessoesIndividuais}{' '}
+                {sessoesIndividuais === 1
+                  ? 'atendimento pago pelo próprio paciente ficou'
+                  : 'atendimentos pagos pelos próprios pacientes ficaram'}{' '}
+                fora desta fatura.
+              </p>
+            )}
           </div>
           {sessoesAFaturar.length > 0 && (
             <div className="flex items-center gap-2">

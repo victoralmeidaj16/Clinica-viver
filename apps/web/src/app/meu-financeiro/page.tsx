@@ -99,6 +99,15 @@ export default function MeuFinanceiroPage() {
   const [editingSession, setEditingSession] = useState<SessionEditableData>();
   const [pacientesMap, setPacientesMap] = useState<Map<string, { conveniado?: boolean; convenioNome?: string }>>(new Map());
 
+  // "Já passou" depende do relógio, que não pode ser lido durante a render.
+  // O instante fica no estado e avança de minuto em minuto, o que também faz a
+  // sessão virar realizada na tela assim que o horário termina.
+  const [agora, setAgora] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setAgora(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+
   const load = useCallback(() => {
     const { start, end } = periodoDoMes(mes);
     return applicationRequest<FinancialData>(
@@ -142,7 +151,7 @@ export default function MeuFinanceiroPage() {
 
   const handleEditSession = (item: Receivable) => {
     const sessionTime = Date.parse(item.startsAt || item.dueAt);
-    const jaPassou = Number.isFinite(sessionTime) && sessionTime <= Date.now();
+    const jaPassou = Number.isFinite(sessionTime) && sessionTime <= agora;
     const isCancelado = item.attendanceStatus === 'cancelado';
     const isRealizado = item.attendanceStatus === 'realizado' || (!isCancelado && jaPassou);
 
@@ -211,7 +220,7 @@ export default function MeuFinanceiroPage() {
                   pacientesMap.get(item.patientName.trim().toLowerCase());
 
                 const sessionTime = Date.parse(item.startsAt || item.dueAt);
-                const jaPassou = Number.isFinite(sessionTime) && sessionTime <= Date.now();
+                const jaPassou = Number.isFinite(sessionTime) && sessionTime <= agora;
                 const isCancelado = item.attendanceStatus === 'cancelado';
                 const isRealizado = item.attendanceStatus === 'realizado' || (!isCancelado && jaPassou);
 

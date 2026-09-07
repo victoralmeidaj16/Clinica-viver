@@ -13,8 +13,8 @@ describe('gerarRelatorioConvenioPdf', () => {
       empresaPagaSessoes: true, ativo: true, pacientes: 2, pacientesCusteados: 2,
       sessoesProvisionadas: 2, valorProvisionadoCents: 20_500,
     }, [
-      { chargeId: 'charge-1', sessionId: 'session-1', patientId: 'patient-1', pacienteNome: 'Paciente Um', professionalId: 'professional-1', psicologoNome: 'Dra. Helena', realizadaEm: '2026-08-05T17:00:00.000Z', valorCents: 7_500, status: 'pending' },
-      { chargeId: 'charge-2', sessionId: 'session-2', patientId: 'patient-2', pacienteNome: 'Paciente Dois', professionalId: 'professional-2', psicologoNome: 'Dr. Augusto', realizadaEm: '2026-08-12T20:00:00.000Z', valorCents: 13_000, status: 'paid', faturaId: 'invoice-1' },
+      { chargeId: 'charge-1', sessionId: 'session-1', patientId: 'patient-1', pacienteNome: 'Paciente Um', professionalId: 'professional-1', psicologoNome: 'Dra. Helena', realizadaEm: '2026-08-05T17:00:00.000Z', valorCents: 7_500, status: 'pending', custeadoPelaEmpresa: true },
+      { chargeId: 'charge-2', sessionId: 'session-2', patientId: 'patient-2', pacienteNome: 'Paciente Dois', professionalId: 'professional-2', psicologoNome: 'Dr. Augusto', realizadaEm: '2026-08-12T20:00:00.000Z', valorCents: 13_000, status: 'paid', faturaId: 'invoice-1', custeadoPelaEmpresa: true },
     ], { inicio: '2026-08-01', fim: '2026-08-31' });
 
     expect(pdf.subarray(0, 4).toString()).toBe('%PDF');

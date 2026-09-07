@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   CalendarClock, CalendarDays, CheckCircle2, Copy, CreditCard, Globe, Loader2, MapPin, Pencil, RefreshCw, XCircle,
 } from 'lucide-react';
@@ -51,6 +51,15 @@ export function UpcomingSessions({ agendamentos, onCancelar, onConfirmarRealizac
   const [vencimentoData, setVencimentoData] = useState('');
   const [vencimentoHora, setVencimentoHora] = useState('');
   const [salvandoVencimento, setSalvandoVencimento] = useState(false);
+
+  // "Já passou" depende do relógio, que não pode ser lido durante a render.
+  // O instante fica no estado e avança de minuto em minuto, o que também faz a
+  // sessão virar realizada na tela assim que o horário termina.
+  const [agora, setAgora] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setAgora(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
 
   const abrirVencimento = (item: AgendamentoResumo) => {
     const iso = item.vencimentoCobrancaEm ?? item.inicio;
@@ -155,7 +164,8 @@ export function UpcomingSessions({ agendamentos, onCancelar, onConfirmarRealizac
       <ul className="divide-y divide-line">
         {agendamentos.map((item) => {
           const cancelado = item.status === 'cancelado';
-          const jaPassou = Number.isFinite(Date.parse(item.fim || item.inicio)) && Date.parse(item.fim || item.inicio) <= Date.now();
+          const termino = Date.parse(item.fim || item.inicio);
+          const jaPassou = Number.isFinite(termino) && termino <= agora;
           const realizado = item.status === 'realizado' || Boolean(item.realizadoEm) || (!cancelado && jaPassou);
           return (
             <li key={item.id} className="space-y-3 px-6 py-4">

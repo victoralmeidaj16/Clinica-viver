@@ -458,6 +458,7 @@ export async function listAppointments(
 
 export type ResultadoConfirmacaoRealizacao =
   | 'completed'
+  | 'already_completed'
   | 'too_early'
   | 'not_found'
   | 'invalid_status';
@@ -501,6 +502,10 @@ export async function completeAppointment(
     if (!appointment) {
       await connection.rollback();
       return 'not_found';
+    }
+    if (String(appointment.status) === 'realizado') {
+      await connection.rollback();
+      return 'already_completed';
     }
     if (!['agendado', 'confirmado'].includes(String(appointment.status))) {
       await connection.rollback();
@@ -670,7 +675,7 @@ export async function rescheduleAppointmentProfessional(
 
     await connection.execute(
       `UPDATE financeiro_cobrancas
-          SET vencimento_em = ?, atualizado_em = CURRENT_TIMESTAMP(3)
+          SET vence_em = ?, atualizado_em = CURRENT_TIMESTAMP(3)
         WHERE instituicao_id = ? AND sessao_ref IN (?, ?) AND status IN ('pending', 'overdue')`,
       [novoInicio, instituicaoId(), agendamento.id, agendamento.ref_core]
     );
@@ -692,12 +697,21 @@ export interface UpdateAppointmentInput {
   status?: 'agendado' | 'confirmado' | 'realizado' | 'cancelado';
 }
 
+export type ResultadoEdicaoAgendamento =
+  | 'ok'
+  | 'not_found'
+  | 'conflict'
+  /** Marcar como realizado exige o fluxo de conclusão, que cria a sessão clínica. */
+  | 'requires_completion'
+  /** Um atendimento já concluído não volta atrás por edição de status. */
+  | 'completed_locked';
+
 export async function updateAppointmentDetails(
   organizationId: string,
   professionalId: string,
   appointmentId: string,
   input: UpdateAppointmentInput
-): Promise<'ok' | 'not_found' | 'conflict'> {
+): Promise<ResultadoEdicaoAgendamento> {
   if (!isMysqlConfigured()) {
     return 'ok';
   }
@@ -719,6 +733,19 @@ export async function updateAppointmentDetails(
     if (!agendamento) {
       await connection.rollback();
       return 'not_found';
+    }
+
+    // A conclusão de um atendimento não é uma troca de status: ela cria a
+    // sessão clínica que alimenta indicadores e faturamento, e só vale depois
+    // do fim previsto. Essa transição pertence a `completeAppointment`.
+    if (input.status === 'realizado') {
+      await connection.rollback();
+      return 'requires_completion';
+    }
+    if (input.status && input.status !== String(agendamento.status)
+        && String(agendamento.status) === 'realizado') {
+      await connection.rollback();
+      return 'completed_locked';
     }
 
     let novoInicio = agendamento.inicio ? new Date(agendamento.inicio) : null;
@@ -763,7 +790,7 @@ export async function updateAppointmentDetails(
     }
 
     const updates: string[] = ['versao = versao + 1', 'atualizado_em = CURRENT_TIMESTAMP(3)'];
-    const values: any[] = [];
+    const values: (string | number | Date)[] = [];
 
     if (input.startsAt && novoInicio && novoFim) {
       updates.push('inicio = ?', 'fim = ?', 'duracao_min = ?');
@@ -778,9 +805,7 @@ export async function updateAppointmentDetails(
     if (input.status) {
       updates.push('status = ?');
       values.push(input.status);
-      if (input.status === 'realizado') {
-        updates.push('realizado_em = COALESCE(realizado_em, CURRENT_TIMESTAMP(3))');
-      } else if (input.status === 'agendado') {
+      if (input.status === 'agendado') {
         updates.push('realizado_em = NULL');
       }
     }
@@ -795,7 +820,7 @@ export async function updateAppointmentDetails(
     if (input.startsAt && novoInicio) {
       await connection.execute(
         `UPDATE financeiro_cobrancas
-            SET vencimento_em = ?, atualizado_em = CURRENT_TIMESTAMP(3)
+            SET vence_em = ?, atualizado_em = CURRENT_TIMESTAMP(3)
           WHERE instituicao_id = ? AND sessao_ref IN (?, ?) AND status IN ('pending', 'overdue')`,
         [novoInicio, instituicaoId(), agendamento.id, agendamento.ref_core]
       );
@@ -1256,7 +1281,7 @@ export async function rescheduleAppointmentPublic(
 
     await connection.execute(
       `UPDATE financeiro_cobrancas
-          SET vencimento_em = ?, atualizado_em = CURRENT_TIMESTAMP(3)
+          SET vence_em = ?, atualizado_em = CURRENT_TIMESTAMP(3)
         WHERE instituicao_id = ? AND sessao_ref IN (?, ?) AND status IN ('pending', 'overdue')`,
       [novoInicio, instituicaoId(), agendamento.id, agendamento.ref_core]
     );

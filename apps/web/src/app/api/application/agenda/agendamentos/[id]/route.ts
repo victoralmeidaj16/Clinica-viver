@@ -7,6 +7,15 @@ import {
   updateAgendaAppointmentChargeDue,
 } from '@/server/application/agendaService';
 import { failure, readJson, success } from '@/server/application/http';
+import type { UpdateAppointmentInput } from '@/server/scheduling/agendaRepository';
+
+const MODALIDADES = ['online', 'presencial', 'telefone'] as const;
+const STATUS = ['agendado', 'confirmado', 'realizado', 'cancelado'] as const;
+
+/** Aceita só os valores que o domínio conhece; o resto vira ausência de mudança. */
+function opcao<T extends string>(value: unknown, permitidos: readonly T[]): T | undefined {
+  return permitidos.find((permitido) => permitido === value);
+}
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -31,8 +40,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         await editAgendaAppointment(context, id, {
           startsAt: body.startsAt ? String(body.startsAt) : undefined,
           endsAt: body.endsAt ? String(body.endsAt) : undefined,
-          modalidade: body.modalidade as any,
-          status: body.status as any,
+          modalidade: opcao<UpdateAppointmentInput['modalidade'] & string>(body.modalidade, MODALIDADES),
+          status: opcao<UpdateAppointmentInput['status'] & string>(body.status, STATUS),
         })
       );
     }

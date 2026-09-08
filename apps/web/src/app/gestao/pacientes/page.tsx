@@ -133,10 +133,11 @@ export default function GestaoPacientesPage() {
           : { id: patient.patientId, professionalId, motivo: reason }),
       }
     );
-    const body = await response.json();
+    const body = await response.json().catch(() => null);
     if (!response.ok) {
       throw new Error(
-        typeof body.error === 'string' ? body.error : body.error?.message ?? 'Falha ao reatribuir paciente.'
+        (body && (typeof body.error === 'string' ? body.error : body.error?.message)) ||
+        `Falha ao reatribuir paciente (HTTP ${response.status}).`
       );
     }
     await load();
@@ -148,8 +149,13 @@ export default function GestaoPacientesPage() {
       method: 'PUT', headers: { 'Content-Type': 'application/json', ...commandHeaders() },
       body: JSON.stringify({ convenioId, custeadoPelaEmpresa }),
     });
-    const body = await response.json();
-    if (!response.ok) throw new Error(body.error?.message ?? 'Falha ao atualizar convênio.');
+    const body = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(
+        (body && (typeof body.error === 'string' ? body.error : body.error?.message)) ||
+        `Falha ao atualizar convênio (HTTP ${response.status}).`
+      );
+    }
     await load();
   };
 

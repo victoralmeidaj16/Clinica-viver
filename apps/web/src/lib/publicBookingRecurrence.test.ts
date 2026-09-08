@@ -1,5 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import { commonBookingTimes, recurringAvailableDates } from './publicBookingRecurrence';
+import {
+  bookingStartsPayload,
+  commonBookingTimes,
+  recurringAvailableDates,
+} from './publicBookingRecurrence';
+
+describe('bookingStartsPayload', () => {
+  it('usa o contrato unitário compatível quando há uma única sessão', () => {
+    expect(bookingStartsPayload(['2026-09-28T20:00:00.000Z'])).toEqual({
+      inicio: '2026-09-28T20:00:00.000Z',
+    });
+  });
+
+  it('preserva o contrato em lote para não agendar uma recorrência parcialmente', () => {
+    expect(bookingStartsPayload([
+      '2026-09-21T20:00:00.000Z',
+      '2026-09-28T20:00:00.000Z',
+    ])).toEqual({
+      inicios: [
+        '2026-09-21T20:00:00.000Z',
+        '2026-09-28T20:00:00.000Z',
+      ],
+    });
+  });
+});
 
 describe('recorrência no agendamento público', () => {
   const available = ['2026-09-08', '2026-09-15', '2026-09-22', '2026-09-29', '2026-10-06'];

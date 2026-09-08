@@ -18,7 +18,12 @@ import { PublicBookingCalendar } from '@/components/scheduling/PublicBookingCale
 import { PublicBookingFrequencyField } from '@/components/scheduling/PublicBookingFrequencyField';
 import { BookedSessionsPayment } from '@/components/scheduling/BookedSessionsPayment';
 import { maskCpf, validCpf } from '@/lib/cpf';
-import { commonBookingTimes, recurringAvailableDates, type PublicBookingFrequency } from '@/lib/publicBookingRecurrence';
+import {
+  bookingStartsPayload,
+  commonBookingTimes,
+  recurringAvailableDates,
+  type PublicBookingFrequency,
+} from '@/lib/publicBookingRecurrence';
 
 interface Props {
   params: Promise<{ token: string }>;
@@ -162,9 +167,10 @@ export default function AgendarPage({ params }: Props) {
     try {
       const isReagendando = Boolean(modoReagendar && agenda?.agendamentoAtual);
       const url = isReagendando ? '/api/agenda/reagendar' : '/api/agenda/agendar';
+      const inicios = horario.inicios ?? [horario.inicio];
       const payload = isReagendando
         ? { token, cpf, appointmentId: agenda?.agendamentoAtual?.id, inicio: horario.inicio }
-        : { token, cpf, inicios: horario.inicios ?? [horario.inicio] };
+        : { token, cpf, ...bookingStartsPayload(inicios) };
 
       const response = await fetch(url, {
         method: 'POST',

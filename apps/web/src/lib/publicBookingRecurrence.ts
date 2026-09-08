@@ -1,5 +1,21 @@
 export type PublicBookingFrequency = 'once' | 'weekly' | 'biweekly' | 'custom';
 
+/**
+ * Mantém a reserva unitária compatível com o contrato anterior da API.
+ *
+ * Frontend e backend são publicados em infraestruturas diferentes (Vercel e
+ * VPS). Durante a janela entre os dois deploys, enviar uma lista com um único
+ * item faria o backend anterior procurar `inicio` e responder "Horário
+ * inválido". Reservas recorrentes continuam usando o contrato novo e, assim,
+ * nunca são reduzidas silenciosamente a apenas uma sessão pelo backend antigo.
+ */
+export function bookingStartsPayload(inicios: readonly string[]):
+  { inicio: string } | { inicios: string[] } {
+  return inicios.length === 1
+    ? { inicio: inicios[0] }
+    : { inicios: [...inicios] };
+}
+
 function civilDay(value: string): number {
   const [year, month, day] = value.split('-').map(Number);
   return Date.UTC(year, month - 1, day) / 86_400_000;

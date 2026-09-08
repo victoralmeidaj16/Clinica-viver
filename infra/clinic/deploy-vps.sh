@@ -17,11 +17,17 @@ fi
 version="$(git rev-parse HEAD)"
 
 # Não copie segredos locais, dependências, artefatos ou os metadados do clone.
+#
+# Estas exclusões também protegem contra o `--delete`: o que existe só na VPS e
+# não tem contrapartida no repositório seria apagado a cada publicação. É o caso
+# de `secrets/`, `output/` e `backups/` — este último guarda os dumps do MySQL
+# de produção, incluindo o anterior ao corte para produção real.
 rsync -az --delete \
   --exclude '.git/' \
   --exclude '.env' \
   --exclude '.env.*' \
   --exclude 'secrets/' \
+  --exclude 'backups/' \
   --exclude 'node_modules/' \
   --exclude '.next/' \
   --exclude '.demo-state/' \

@@ -45,6 +45,7 @@ export interface PatientDirectoryEntry {
   lastRegistrationUpdate?: PatientRegistrationUpdate;
   conveniado?: boolean;
   convenioNome?: string;
+  demanda?: string;
 }
 
 function contactSource(identities: unknown): PatientContactCapable | null {
@@ -152,6 +153,12 @@ export async function listPatientDirectory(context: RequestContext): Promise<rea
       || updatePossuiConvenio
     );
 
+    const demandas = [
+      ...(lead?.necessidadesPaciente ?? []),
+      ...(lead?.necessidadesOutro ? [lead.necessidadesOutro] : []),
+    ].filter(Boolean).join(', ');
+    const demanda = demandas || lead?.servico || undefined;
+
     return {
       id: patient.id,
       displayName: patient.displayName,
@@ -169,6 +176,7 @@ export async function listPatientDirectory(context: RequestContext): Promise<rea
       lastRegistrationUpdate: contactMap[patient.id]?.lastRegistrationUpdate,
       conveniado,
       convenioNome,
+      demanda,
     };
   });
 }

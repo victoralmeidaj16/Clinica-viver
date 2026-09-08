@@ -336,9 +336,8 @@ function ClinicalTimelineContent() {
               <span className="text-[10px] font-black uppercase tracking-wider text-psi-vibrant flex items-center gap-1">
                 <ClipboardList className="w-3.5 h-3.5" /> Demanda &amp; Queixa Principal
               </span>
-              <p className="text-xs font-semibold text-slate-800 leading-relaxed">
-                {selectedPatient.demanda ||
-                  'Paciente em acompanhamento psicoterapêutico recorrente. Demanda principal focado em regulação emocional, ansiedade e desenvolvimento pessoal.'}
+              <p className={`text-xs font-semibold leading-relaxed ${selectedPatient.demanda ? 'text-slate-800' : 'text-muted italic'}`}>
+                {selectedPatient.demanda || 'Não informada'}
               </p>
             </div>
           </div>

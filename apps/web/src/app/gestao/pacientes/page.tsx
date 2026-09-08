@@ -121,13 +121,24 @@ export default function GestaoPacientesPage() {
   // continuaria exibindo o paciente como estava antes do registro.
   const selectedPatient = selected ? patients.find((patient) => patient.id === selected.id) ?? selected : null;
 
-  const reassign = async (patientId: string, professionalId: string, reason: string) => {
-    const response = await fetch('/api/application/patients', {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: patientId, professionalId, motivo: reason }),
-    });
+  const reassign = async (patient: ManagedPatient, professionalId: string, reason: string) => {
+    const isLead = !patient.patientId && Boolean(patient.leadId);
+    const response = await fetch(
+      isLead ? '/api/application/gestao/pacientes' : '/api/application/patients',
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...(isLead ? commandHeaders() : {}) },
+        body: JSON.stringify(isLead
+          ? { leadId: patient.leadId, professionalId, motivo: reason }
+          : { id: patient.patientId, professionalId, motivo: reason }),
+      }
+    );
     const body = await response.json();
-    if (!response.ok) throw new Error(body.error?.message ?? 'Falha ao reatribuir paciente.');
+    if (!response.ok) {
+      throw new Error(
+        typeof body.error === 'string' ? body.error : body.error?.message ?? 'Falha ao reatribuir paciente.'
+      );
+    }
     await load();
     setSelected(null);
   };
@@ -163,7 +174,7 @@ export default function GestaoPacientesPage() {
           </div>
           <div className="grid grid-cols-3 gap-2 sm:gap-3 xl:grid-cols-5">
             <Kpi label="Ativos" value={active} icon={UsersRound} tone="text-psi-vibrant" />
-            <Kpi label="SLA +24h" value={overdue} icon={Clock3} tone="text-amber-300" />
+            <Kpi label="Prazo vencido" value={overdue} icon={Clock3} tone="text-amber-300" />
             <Kpi label="Sem alocação" value={unassigned} icon={UserRoundX} tone="text-rose-300" />
             <Kpi label="Desistências" value={dropouts.length} icon={UserX} tone="text-rose-300" />
             <Kpi
@@ -263,7 +274,7 @@ export default function GestaoPacientesPage() {
           </label>
 
           <div className="flex gap-2">
-            <Toggle active={slaOnly} onClick={() => setSlaOnly(!slaOnly)}>SLA estourado</Toggle>
+            <Toggle active={slaOnly} onClick={() => setSlaOnly(!slaOnly)}>Prazo vencido</Toggle>
             <Toggle active={unassignedOnly} onClick={() => setUnassignedOnly(!unassignedOnly)}>Sem alocação</Toggle>
           </div>
         </div>

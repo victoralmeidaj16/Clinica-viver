@@ -360,7 +360,7 @@ export async function avisarTransbordo(
   lead: TriagemPacienteRecord,
   psicologo: CadastroPsicologoRecord,
   psicologoAnteriorNome?: string,
-  motivo: 'sla_vencido' | 'encaminhamento_voluntario' = 'sla_vencido'
+  motivo: 'sla_vencido' | 'encaminhamento_voluntario' | 'reatribuicao_gestao' = 'sla_vencido'
 ): Promise<ResultadoEnvio[]> {
   const resultados = [
     await enviarTexto(
@@ -380,8 +380,10 @@ export async function avisarTransbordo(
   const anterior = psicologoAnteriorNome?.trim() || 'profissional anterior';
   const textoCoordenacao = [
     motivo === 'sla_vencido'
-      ? 'Alerta operacional — SLA de primeiro contato vencido.'
-      : 'Alerta operacional — profissional respondeu ENCAMINHAR.',
+      ? 'Alerta operacional — prazo para o primeiro contato vencido.'
+      : motivo === 'encaminhamento_voluntario'
+        ? 'Alerta operacional — profissional respondeu ENCAMINHAR.'
+        : 'Alerta operacional — responsável reatribuído pela gestão.',
     `Protocolo: ${lead.protocolo}`,
     `Transbordo: ${anterior} → ${nomeDeExibicao(psicologo)}`,
     `Transbordos realizados: ${lead.transbordos ?? 0}`,

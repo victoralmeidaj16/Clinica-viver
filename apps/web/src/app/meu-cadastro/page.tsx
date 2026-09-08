@@ -634,7 +634,7 @@ export default function MeuCadastroPage() {
                   <span>Credenciamento em Conformidade Ética e Contratual</span>
                 </div>
                 <p className="text-xs text-muted leading-relaxed">
-                  Seu cadastro opera sob as diretrizes de SLA de contato em 24h, autonomia de agenda com comunicação prévia de pausas, sigilo profissional conforme o CFP e conformidade com a LGPD.
+                  Seu cadastro opera sob o prazo de 24h para o primeiro contato, autonomia de agenda com comunicação prévia de pausas, sigilo profissional conforme o CFP e conformidade com a LGPD.
                 </p>
               </div>
             </section>

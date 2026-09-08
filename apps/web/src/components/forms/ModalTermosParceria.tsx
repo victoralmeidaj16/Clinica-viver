@@ -114,7 +114,7 @@ export function ModalTermosParceria({
           </section>
 
           <section className="space-y-2">
-            <h4 className="font-black text-sm text-slate-900">3. Compromisso de SLA e Primeiro Contato (24 Horas)</h4>
+            <h4 className="font-black text-sm text-slate-900">3. Compromisso com o Prazo do Primeiro Contato (24 Horas)</h4>
             <p>
               Ao receber a notificação de um novo encaminhamento via WhatsApp/plataforma, o(a) psicólogo(a) compromete-se
               a realizar o primeiro contato com o paciente dentro do prazo máximo de <strong>24 (vinte e quatro) horas</strong>.

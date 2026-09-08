@@ -358,7 +358,7 @@ export default function GestaoCockpitPage() {
           <span className="chip-accent text-[11px] mb-1">Cockpit da Gestão — Giuliana & Diretoria</span>
           <h1 className="text-2xl font-black text-ink flex items-center gap-2">
             <Shield className="w-6 h-6 text-psi-vibrant" />
-            Fila Inteligente & Monitoramento de SLA 24h
+            Fila Inteligente & Prazo para Contato (24h)
           </h1>
           <p className="text-xs text-muted">
             Acompanhe a distribuição circular de novos pacientes, alertas de estouro de prazo e transbordo em tempo real.
@@ -539,7 +539,7 @@ export default function GestaoCockpitPage() {
 
         <div className="bg-surface p-5 rounded-3xl border border-line shadow-card flex items-center justify-between">
           <div>
-            <span className="text-xs font-bold text-muted">SLA estourado (&gt; 24h)</span>
+            <span className="text-xs font-bold text-muted">Prazo para contato vencido (&gt; 24h)</span>
             <h3 className="text-2xl font-black text-rose-600 mt-1">
               {slasEstourados} {slasEstourados === 1 ? 'lead' : 'leads'}
             </h3>
@@ -563,7 +563,7 @@ export default function GestaoCockpitPage() {
           }`}
         >
           <Clock className="w-4 h-4" />
-          Fila de Triagem & SLA 24h
+          Fila de Triagem & Prazo de Contato
         </button>
 
         <button
@@ -603,7 +603,7 @@ export default function GestaoCockpitPage() {
         <div className="bg-surface rounded-3xl border border-line shadow-card overflow-hidden space-y-4">
           <div className="p-5 sm:p-6 border-b border-line flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <h3 className="font-extrabold text-base text-ink">Monitoramento da Fila de Atribuição (SLA 24h)</h3>
+              <h3 className="font-extrabold text-base text-ink">Monitoramento da Fila de Atribuição (prazo de 24h)</h3>
               <p className="text-xs text-muted">Leads em andamento e contagem regressiva para confirmação via WhatsApp</p>
             </div>
 
@@ -735,7 +735,7 @@ export default function GestaoCockpitPage() {
                   <th className="px-6 py-4">Modalidade / Turno</th>
                   <th className="px-6 py-4">Psicólogo Alocado</th>
                   <th className="px-6 py-4">Tempo Decorrido</th>
-                  <th className="px-6 py-4">SLA Status</th>
+                  <th className="px-6 py-4">Prazo para contato</th>
                   <th className="px-6 py-4 text-right">Ação</th>
                 </tr>
               </thead>

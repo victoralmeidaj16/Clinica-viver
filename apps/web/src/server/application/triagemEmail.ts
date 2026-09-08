@@ -245,7 +245,7 @@ export function conteudoAlocacaoPsicologo(
       ? 'Você recebeu uma nova solicitação de atendimento por ESCOLHA DIRETA na Vitrine da Clínica Viver Mais Psicologia.'
       : 'Você foi selecionado no RODÍZIO INTELIGENTE de atendimentos da Clínica Viver Mais Psicologia.',
     '',
-    '⏰ ATENÇÃO AO PRAZO DE 24 HORAS (SLA):',
+    '⏰ ATENÇÃO AO PRAZO PARA CONTATO (24 HORAS):',
     '• Você tem o prazo de até 24 horas para realizar o primeiro contato com o paciente via WhatsApp ou ligação.',
     '• Caso não possa atender esta solicitação no momento, encaminhe-a imediatamente para que o paciente seja direcionado ao próximo psicólogo da fila.',
     '• Se o prazo de 24 horas expirar sem confirmação, o paciente será encaminhado automaticamente a outro profissional credenciado.',
@@ -425,4 +425,3 @@ export async function avisarAlocacaoPsicologoPorEmail(
     return { situacao: 'falha' };
   }
 }
-

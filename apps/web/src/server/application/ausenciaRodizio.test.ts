@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 
 import { emptySnapshot, type CadastroPsicologoRecord, type TriagemPacienteRecord } from './persistence';
-import { alocarLeadEscolhido, ausenciaVigente, paraPsicologoPerfil } from './viverMaisRodizio';
+import { alocarLeadEscolhido, ausenciaVigente, paraPsicologoPerfil, reatribuirLeadPelaGestao } from './viverMaisRodizio';
 
 /** Férias de 10/09 a 24/09 no fuso da clínica; o fim gravado é exclusivo. */
 const FERIAS = {
@@ -124,5 +124,43 @@ describe('escolha explícita no catálogo', () => {
     const resultado = alocarLeadEscolhido(snapshot, lead, 'psi-2');
     expect(resultado.psicologo).toBeUndefined();
     expect(resultado.lead.psicologoAlocadoId).toBeUndefined();
+  });
+});
+
+describe('reatribuição administrativa antes da confirmação', () => {
+  const lead: TriagemPacienteRecord = {
+    id: 'lead-gestao', protocolo: 'VM-654321', nomePaciente: 'Maria', telefone: '5511999999999',
+    convenioSelecionado: 'Nenhum', origem: 'Vitrine', turno: 'MANHA', modalidade: 'SOCIAL',
+    status: 'AGUARDANDO_CONTATO', criadoEm: '2026-09-01T10:00:00.000Z',
+    psicologoAlocadoId: 'psi-1', psicologoNome: 'Profissional anterior',
+    alocadoEm: '2026-09-01T11:00:00.000Z',
+  };
+
+  it('troca o responsável sem exigir confirmação do profissional anterior', () => {
+    const snapshot = {
+      ...emptySnapshot(), triagensPacientes: [lead],
+      cadastrosPsicologos: [
+        cadastro({ id: 'psi-1', profissionalRef: 'prof-1' }),
+        cadastro({ id: 'psi-2', profissionalRef: 'prof-2', nomeCompleto: 'Nova profissional' }),
+      ],
+    };
+    const agora = new Date('2026-09-08T15:00:00.000Z');
+    const resultado = reatribuirLeadPelaGestao(snapshot, lead.id, 'prof-2', agora);
+
+    expect(resultado.situacao).toBe('reatribuido');
+    if (resultado.situacao !== 'reatribuido') return;
+    expect(resultado.lead.psicologoAlocadoId).toBe('psi-2');
+    expect(resultado.lead.status).toBe('AGUARDANDO_CONTATO');
+    expect(resultado.lead.confirmadoEm).toBeUndefined();
+    expect(resultado.lead.alocadoEm).toBe(agora.toISOString());
+  });
+
+  it('não altera por este fluxo uma triagem que já virou paciente', () => {
+    const confirmado = { ...lead, status: 'CONTATO_CONFIRMADO' as const, pacienteRef: 'pac-1' };
+    const snapshot = {
+      ...emptySnapshot(), triagensPacientes: [confirmado],
+      cadastrosPsicologos: [cadastro({ id: 'psi-2', profissionalRef: 'prof-2' })],
+    };
+    expect(reatribuirLeadPelaGestao(snapshot, confirmado.id, 'prof-2').situacao).toBe('lead_ja_confirmado');
   });
 });

@@ -11,7 +11,7 @@ interface Props {
   psychologists: readonly ManagedPsychologist[];
   convenios: readonly ManagedConvenio[];
   onClose: () => void;
-  onReassign: (patientId: string, professionalId: string, reason: string) => Promise<void>;
+  onReassign: (patient: ManagedPatient, professionalId: string, reason: string) => Promise<void>;
   /** Recarrega a fila depois de registrar a saída ou o reengajamento. */
   onDropoutChange: () => Promise<void>;
   onConvenioChange: (patientId: string, convenioId: string | null, custeadoPelaEmpresa: boolean | null) => Promise<void>;
@@ -34,10 +34,10 @@ export default function PatientManagementDrawer({ patient, psychologists, conven
   if (!patient) return null;
 
   const submit = async () => {
-    if (!patient.patientId || !professionalId || !reason.trim()) return;
+    if ((!patient.patientId && !patient.leadId) || !professionalId || !reason.trim()) return;
     setSaving(true);
     setError('');
-    try { await onReassign(patient.patientId, professionalId, reason.trim()); }
+    try { await onReassign(patient, professionalId, reason.trim()); }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Falha ao reatribuir paciente.'); }
     finally { setSaving(false); }
   };
@@ -138,9 +138,9 @@ export default function PatientManagementDrawer({ patient, psychologists, conven
               <UserRoundCog className="h-4 w-4 text-psi-vibrant" />
               <h3 className="text-sm font-black text-ink">Reatribuir psicólogo</h3>
             </div>
-            {!patient.patientId ? (
+            {!patient.patientId && !patient.leadId ? (
               <p className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-3 text-xs font-semibold text-amber-800">
-                A reatribuição fica disponível depois que o contato é confirmado e o lead vira paciente.
+                Não foi possível identificar a triagem ou o cadastro deste paciente para reatribuição.
               </p>
             ) : (
               <div className="space-y-3">

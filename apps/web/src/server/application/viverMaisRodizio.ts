@@ -57,6 +57,10 @@ export interface ResultadoAlocacao {
   psicologo?: CadastroPsicologoRecord;
 }
 
+export type ResultadoReatribuicaoGestao =
+  | { situacao: 'reatribuido'; snapshot: PersistedSnapshot; lead: TriagemPacienteRecord; psicologo: CadastroPsicologoRecord; psicologoAnteriorNome?: string }
+  | { situacao: 'lead_nao_encontrado' | 'psicologo_indisponivel' | 'lead_ja_confirmado'; snapshot: PersistedSnapshot };
+
 /**
  * Traduz o turno como a vitrine o coleta para o vocabulário do motor.
  *
@@ -398,6 +402,53 @@ export function alocarLeadParaPsicologo(
   };
   const next = registrarRecebimento(substituirLead(atual, atualizado), psicologo.id, confirmadoEm);
   return { snapshot: recalcularPacientesAtivos(next), lead: atualizado, psicologo };
+}
+
+/**
+ * Troca administrativa do responsável enquanto a solicitação ainda aguarda o
+ * primeiro contato. É uma decisão explícita da gestão, portanto não depende
+ * de o profissional anterior confirmar ou devolver o lead ao rodízio.
+ */
+export function reatribuirLeadPelaGestao(
+  snapshot: PersistedSnapshot,
+  leadId: string,
+  profissionalRef: string,
+  agora: Date = new Date()
+): ResultadoReatribuicaoGestao {
+  const atual = recalcularPacientesAtivos(snapshot);
+  const lead = (atual.triagensPacientes ?? []).find((item) => item.id === leadId);
+  if (!lead) return { situacao: 'lead_nao_encontrado', snapshot: atual };
+  if (lead.pacienteRef || lead.status === 'CONTATO_CONFIRMADO') {
+    return { situacao: 'lead_ja_confirmado', snapshot: atual };
+  }
+
+  const psicologo = (atual.cadastrosPsicologos ?? []).find(
+    (item) => item.profissionalRef === profissionalRef && item.status === 'APROVADO'
+  );
+  if (!psicologo) return { situacao: 'psicologo_indisponivel', snapshot: atual };
+
+  const alocadoEm = agora.toISOString();
+  const mudouResponsavel = lead.psicologoAlocadoId !== psicologo.id;
+  const atualizado: TriagemPacienteRecord = {
+    ...lead,
+    status: 'AGUARDANDO_CONTATO',
+    psicologoAlocadoId: psicologo.id,
+    psicologoNome: nomeDeExibicao(psicologo),
+    alocadoEm,
+    confirmadoEm: undefined,
+    tipoAlocacao: 'RODIZIO',
+    slaExpirado: false,
+    transbordos: (lead.transbordos ?? 0) + (mudouResponsavel && lead.psicologoAlocadoId ? 1 : 0),
+    psicologosJaTentados: [...new Set([...(lead.psicologosJaTentados ?? []), psicologo.id])],
+  };
+  const next = registrarRecebimento(substituirLead(atual, atualizado), psicologo.id, alocadoEm);
+  return {
+    situacao: 'reatribuido',
+    snapshot: recalcularPacientesAtivos(next),
+    lead: atualizado,
+    psicologo,
+    psicologoAnteriorNome: lead.psicologoNome,
+  };
 }
 
 /** Horas decorridas desde a alocação. `null` quando o lead nunca foi alocado. */

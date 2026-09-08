@@ -79,7 +79,7 @@ export default function MonthlyIndicatorsPage() {
           <h1 className="flex items-center gap-2 text-2xl font-black text-ink">
             <BarChart3 className="h-6 w-6 text-psi-vibrant" /> Indicadores mensais da clínica
           </h1>
-          <p className="mt-1 text-xs text-muted">Leads, SLA, sessões e auditoria calculados a partir das fontes oficiais.</p>
+          <p className="mt-1 text-xs text-muted">Leads, prazos para contato, sessões e auditoria calculados a partir das fontes oficiais.</p>
         </div>
         <div className="flex flex-wrap items-end gap-2">
           <label className="text-[10px] font-black uppercase tracking-wider text-muted">
@@ -149,7 +149,7 @@ export default function MonthlyIndicatorsPage() {
               <p className="mt-3 text-[10px] text-muted">Fotografia atual: {report.filaAtual.pendentesAtribuicao} pendentes de atribuição e {report.filaAtual.aguardandoContato} aguardando contato.</p>
             </MonthlyIndicatorCard>
 
-            <MonthlyIndicatorCard number={2} title="SLA de 24 horas" icon={Clock}
+            <MonthlyIndicatorCard number={2} title="Prazo para contato (24 horas)" icon={Clock}
               value={report.sla24h.percentual === null ? 'Sem casos avaliáveis' : `${report.sla24h.percentual}% cumprido`}
               detail={`${report.sla24h.cumpridos} cumpridos · ${report.sla24h.violados} violações`}
               info="Mede o tempo entre a alocação e a confirmação do lead. O percentual considera apenas casos concluídos ou violados.">

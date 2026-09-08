@@ -23,7 +23,7 @@ function variation(value: number | null): string {
 export function openMonthlyIndicatorsReport(data: MonthlyIndicators, generatedAt: string): void {
   const cards = [
     ['1. Fila atual de leads', `${data.filaAtual.total} aguardando`, `${data.filaAtual.alocados} alocados · ${data.filaAtual.semProfissional} sem profissional`],
-    ['2. SLA de 24 horas', data.sla24h.percentual === null ? 'Sem casos avaliáveis' : `${data.sla24h.percentual}% cumprido`, `${data.sla24h.cumpridos} cumpridos · ${data.sla24h.violados} violações · ${data.sla24h.emAndamento} em andamento`],
+    ['2. Prazo para contato (24 horas)', data.sla24h.percentual === null ? 'Sem casos avaliáveis' : `${data.sla24h.percentual}% cumprido`, `${data.sla24h.cumpridos} cumpridos · ${data.sla24h.violados} violações · ${data.sla24h.emAndamento} em andamento`],
     ['3. Gênero dos novos leads', distribution(data.leadsDoMes.genero), `Amostra: ${data.leadsDoMes.total} leads`],
     ['4. Faixa etária dos novos leads', distribution(data.leadsDoMes.faixaEtaria), `Amostra: ${data.leadsDoMes.total} leads`],
     ['5. Origem dos novos leads', distribution(data.leadsDoMes.origens), `Amostra: ${data.leadsDoMes.total} leads`],

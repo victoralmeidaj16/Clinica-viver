@@ -11,7 +11,9 @@ import { isMysqlConfigured, getMysqlPool } from '@/server/oci/runtime';
 import { instituicaoId } from '@/server/persistence/mysql/mappers';
 import type { RowDataPacket } from 'mysql2/promise';
 import { listarConvenios } from '@/server/persistence/mysql/convenioRepository';
-import { listarPsicologosCompativeis } from '@/server/application/viverMaisRodizio';
+import { listarPsicologosCompativeis, reatribuirLeadPelaGestao } from '@/server/application/viverMaisRodizio';
+import { avisarTransbordo } from '@/server/application/viverMaisWhatsApp';
+import { avisarAlocacaoPsicologoPorEmail } from '@/server/application/triagemEmail';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -229,5 +231,67 @@ export async function GET() {
     }
     console.error('Erro ao montar diretório unificado de pacientes:', error);
     return NextResponse.json({ success: false, error: 'Falha ao carregar pacientes.' }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    await exigirGestao();
+    const body = await request.json() as Record<string, unknown>;
+    const leadId = String(body.leadId ?? '').trim();
+    const professionalId = String(body.professionalId ?? '').trim();
+    const motivo = String(body.motivo ?? '').trim();
+    if (!leadId || !professionalId || !motivo) {
+      return NextResponse.json(
+        { success: false, error: 'Triagem, novo psicólogo e motivo da reatribuição são obrigatórios.' },
+        { status: 400 }
+      );
+    }
+
+    const resultado = await getCaptureRepository().mutate((state) => {
+      const handled = reatribuirLeadPelaGestao(
+        captureStateAsSnapshot(state),
+        leadId,
+        professionalId
+      );
+      return {
+        next: {
+          triagensPacientes: handled.snapshot.triagensPacientes ?? [],
+          cadastrosPsicologos: handled.snapshot.cadastrosPsicologos ?? [],
+        },
+        result: handled,
+      };
+    });
+
+    if (resultado.situacao === 'lead_nao_encontrado') {
+      return NextResponse.json({ success: false, error: 'Triagem não encontrada.' }, { status: 404 });
+    }
+    if (resultado.situacao === 'psicologo_indisponivel') {
+      return NextResponse.json({ success: false, error: 'O novo psicólogo não existe ou não está aprovado.' }, { status: 400 });
+    }
+    if (resultado.situacao === 'lead_ja_confirmado') {
+      return NextResponse.json(
+        { success: false, error: 'O contato já foi confirmado; recarregue a página para reatribuir o paciente.' },
+        { status: 409 }
+      );
+    }
+    if (resultado.situacao !== 'reatribuido') {
+      return NextResponse.json({ success: false, error: 'Falha ao reatribuir psicólogo.' }, { status: 500 });
+    }
+
+    void avisarTransbordo(
+      resultado.lead,
+      resultado.psicologo,
+      resultado.psicologoAnteriorNome,
+      'reatribuicao_gestao'
+    );
+    void avisarAlocacaoPsicologoPorEmail(resultado.lead, resultado.psicologo, 'RODIZIO');
+    return NextResponse.json({ success: true, data: resultado.lead });
+  } catch (error) {
+    if (error instanceof NaoAutorizadoError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: error.status });
+    }
+    console.error('Erro ao reatribuir triagem pela gestão:', error);
+    return NextResponse.json({ success: false, error: 'Falha ao reatribuir psicólogo.' }, { status: 500 });
   }
 }

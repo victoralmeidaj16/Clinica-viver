@@ -35,7 +35,7 @@ const psicologoItems = [
 const gestaoItems = [
   { label: 'Gestão de Psicólogos', href: '/gestao/psicologos', icon: UserCheck },
   { label: 'Gestão de Pacientes', href: '/gestao/pacientes', icon: Users },
-  { label: 'Cockpit da Clínica (SLA)', href: '/gestao/cockpit', icon: Shield },
+  { label: 'Cockpit da Clínica (Prazos)', href: '/gestao/cockpit', icon: Shield },
   { label: 'Financeiro & Repasses', href: '/gestao/financeiro', icon: CreditCard },
   { label: 'Site / Vitrine de Serviços', href: '/vitrine', icon: Sparkles },
   { label: '11 Indicadores Mensais', href: '/relatorios', icon: BarChart3 },

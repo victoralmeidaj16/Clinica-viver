@@ -323,7 +323,7 @@ export default function ViverMaisLandingPage() {
       titulo: 'Psicoterapia de Casal',
       descricao: 'Voltada para casais que desejam melhorar a comunicação, compreender conflitos e trabalhar questões relacionadas à vida e à dinâmica do relacionamento.',
       duracao: '1h30min',
-      imagem: 'https://images.unsplash.com/photo-1516589178581-6cd7833ae3b2?auto=format&fit=crop&w=800&q=80',
+      imagem: '/psicoterapia_casal.jpg',
       opcoes: [
         { tipo: 'CASAL_SOCIAL', label: 'Agendamento Acessível (Casal)', preco: 'R$ 150,00' },
         { tipo: 'CASAL_PARTICULAR', label: 'Agendamento Particular (Casal)', preco: 'R$ 260,00' }
@@ -333,7 +333,7 @@ export default function ViverMaisLandingPage() {
       titulo: 'Avaliação Psicológica e Avaliação Neuropsicológica',
       descricao: 'É um processo realizado para investigar possíveis diagnósticos e compreender aspectos cognitivos, emocionais e comportamentais. Geralmente é solicitada por médicos ou outros profissionais da saúde para auxiliar na definição de um diagnóstico ou conduta. A quantidade de sessões varia conforme a demanda.',
       duracao: 'variável conforme testes e manejo do profissional',
-      imagem: 'https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&w=800&q=80',
+      imagem: '/avaliacao_psicologica.jpg',
       opcoes: [
         { tipo: 'SOCIAL', label: 'Agendamento Acessível', preco: 'R$ 100,00' },
         { tipo: 'PARTICULAR', label: 'Agendamento Particular', preco: 'R$ 150,00' }
@@ -343,7 +343,7 @@ export default function ViverMaisLandingPage() {
       titulo: 'Orientação Profissional/Vocacional',
       descricao: 'Auxilia na escolha ou replanejamento da carreira, considerando interesses, habilidades e objetivos profissionais.',
       duracao: '50min',
-      imagem: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=800&q=80',
+      imagem: '/orientacao_profissional.jpg',
       opcoes: [
         { tipo: 'SOCIAL', label: 'Agendamento Acessível', preco: 'R$ 75,00' },
         { tipo: 'PARTICULAR', label: 'Agendamento Particular', preco: 'R$ 130,00' }
@@ -353,7 +353,7 @@ export default function ViverMaisLandingPage() {
       titulo: 'Orientação Parental',
       descricao: 'Oferece suporte aos pais e responsáveis, auxiliando na compreensão das necessidades emocionais e comportamentais dos filhos, além de orientar sobre estratégias para lidar com os desafios do desenvolvimento e da educação.',
       duracao: '50min',
-      imagem: 'https://images.unsplash.com/photo-1543269865-cbf427effbad?auto=format&fit=crop&w=800&q=80',
+      imagem: '/orientacao_parental.jpg',
       opcoes: [
         { tipo: 'SOCIAL', label: 'Agendamento Acessível', preco: 'R$ 75,00' },
         { tipo: 'PARTICULAR', label: 'Agendamento Particular', preco: 'R$ 130,00' }
@@ -952,8 +952,8 @@ export default function ViverMaisLandingPage() {
               </div>
               <div className="lg:col-span-5">
                 <img
-                  src="/psychologist_team.png"
-                  alt="Equipe de Psicólogos Viver Mais"
+                  src="/equipe_viver_mais.jpg"
+                  alt="Equipe de Psicólogos Clínica Viver Mais"
                   className="rounded-2xl border border-line shadow-md w-full h-56 object-cover"
                 />
               </div>

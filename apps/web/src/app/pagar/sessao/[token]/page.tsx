@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { reaisDeCentavos } from '@/lib/modalidadesPagamento';
 import { dataHoraSessao } from '@/lib/sessionReference';
+import { BookedSessionsPayment } from '@/components/scheduling/BookedSessionsPayment';
 
 interface Profile {
   professionalName: string;
@@ -37,6 +38,7 @@ export default function SessionPaymentPage({ params }: { params: Promise<{ token
   const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [payableSessions, setPayableSessions] = useState<Array<{ inicio: string; linkPagamento: string }>>();
 
   useEffect(() => {
     fetch(`/api/pagamento/sessao/${encodeURIComponent(token)}`, { cache: 'no-store' })
@@ -54,6 +56,16 @@ export default function SessionPaymentPage({ params }: { params: Promise<{ token
     setLoading(true);
     setError(undefined);
     try {
+      const listResponse = await fetch('/api/pagamento/sessoes/listar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, cpf }),
+      });
+      const listBody = await listResponse.json();
+      if (!listResponse.ok) throw new Error(listBody.error || 'Não foi possível consultar as sessões.');
+      if (listBody.sessions.length > 1) {
+        setPayableSessions(listBody.sessions);
+        return;
+      }
       const response = await fetch('/api/pagamento/sessao/gerar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -95,6 +107,19 @@ export default function SessionPaymentPage({ params }: { params: Promise<{ token
             Esta sessão é custeada por {profile.companyName ?? 'sua empresa'}. A clínica fará o faturamento diretamente com ela.
           </p>
         </section>
+      </div>
+    );
+  }
+
+  if (payableSessions && payableSessions.length > 1) {
+    return (
+      <div className="space-y-5">
+        <section className="card-contrast overflow-hidden rounded-3xl p-6 text-white">
+          <p className="text-[10px] font-black uppercase tracking-[.22em] text-psi-vibrant">Suas sessões em aberto</p>
+          <h1 className="mt-2 text-xl font-black">{profile.professionalName}</h1>
+          <p className="mt-2 text-xs font-semibold text-psi-soft">Escolha quais sessões deseja quitar neste momento.</p>
+        </section>
+        <section className="card"><BookedSessionsPayment sessions={payableSessions} cpf={cpf.replace(/\D/g, '')} /></section>
       </div>
     );
   }

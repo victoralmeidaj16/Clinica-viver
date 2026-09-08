@@ -2,6 +2,7 @@ import 'server-only';
 
 import { randomUUID } from 'node:crypto';
 import type { RowDataPacket } from 'mysql2';
+import type { PoolConnection } from 'mysql2/promise';
 import { getMysqlPool } from '@/server/oci/runtime';
 import {
   fromSqlTimestamp,
@@ -11,6 +12,7 @@ import {
 } from '@/server/persistence/mysql/mappers';
 import { descricaoFiscalDaSessao } from '@/lib/sessionReference';
 import type { InterPixCharge } from '@/server/adapters/interPixAdapter';
+import { allocatePaymentAcrossCharges } from '@/lib/paymentAllocation';
 
 export type PaymentModality = 'social' | 'particular';
 
@@ -18,6 +20,7 @@ export interface ReservedCheckout {
   id: string;
   externalReference: string;
   chargeId: string;
+  organizationId: string;
   patientId: string;
   patientName: string;
   patientCpf: string;
@@ -43,6 +46,12 @@ export interface SessionPaymentProfile {
   dueAt: string;
 }
 
+export interface PayablePatientSession {
+  inicio: string;
+  linkPagamento: string;
+  amountCents: number;
+}
+
 export interface CompanyFundedReservation {
   fundedByCompany: true;
   companyName?: string;
@@ -51,6 +60,11 @@ export interface CompanyFundedReservation {
 export interface ExpiredReservation { expired: true; dueAt: string; }
 
 export type ChargeReservation = ReservedCheckout | CompanyFundedReservation | ExpiredReservation;
+
+export interface BatchCheckout extends ReservedCheckout {
+  chargeIds: string[];
+  sessionStarts: string[];
+}
 
 export function isCompanyFundedReservation(value: ChargeReservation): value is CompanyFundedReservation {
   return 'fundedByCompany' in value && value.fundedByCompany === true;
@@ -111,6 +125,40 @@ export async function getSessionPaymentProfile(
     companyName: row.convenio_nome ? String(row.convenio_nome) : undefined,
     dueAt: fromSqlTimestamp(String(row.vence_em))!,
   };
+}
+
+/** Outras sessões abertas do mesmo vínculo, reveladas somente após confirmar o CPF. */
+export async function listPayablePatientSessions(input: {
+  token: string;
+  cpf: string;
+}): Promise<PayablePatientSession[]> {
+  const [rows] = await getMysqlPool().query<RowDataPacket[]>(
+    `SELECT DISTINCT future.inicio, future.token_pagamento_sessao, future.valor_centavos,
+            COALESCE(c.status, 'pending') AS cobranca_status
+       FROM clinica_agendamentos anchor
+       JOIN clinica_pacientes pa ON pa.id = anchor.paciente_id
+       JOIN clinica_agendamentos future
+         ON future.instituicao_id = anchor.instituicao_id
+        AND future.paciente_id = anchor.paciente_id
+        AND future.profissional_id = anchor.profissional_id
+       LEFT JOIN financeiro_cobrancas c
+         ON c.instituicao_id = future.instituicao_id AND c.sessao_ref = future.ref_core
+      WHERE anchor.instituicao_id = ? AND anchor.token_pagamento_sessao = ? AND anchor.status <> 'cancelado'
+        AND (REPLACE(REPLACE(REPLACE(COALESCE(pa.documento, ''), '.', ''), '-', ''), ' ', '') = ?
+          OR EXISTS (SELECT 1 FROM clinica_triagens_pacientes t
+            JOIN clinica_organizacoes o ON o.id = anchor.organizacao_id
+            WHERE t.instituicao_id = anchor.instituicao_id AND t.organizacao_ref = o.ref_core
+              AND t.paciente_ref = pa.ref_core
+              AND REPLACE(REPLACE(REPLACE(COALESCE(t.cpf, ''), '.', ''), '-', ''), ' ', '') = ?))
+        AND future.status IN ('agendado', 'confirmado') AND future.inicio >= UTC_TIMESTAMP(3)
+        AND future.token_pagamento_sessao IS NOT NULL
+        AND (c.status IS NULL OR c.status IN ('draft', 'pending'))
+      ORDER BY future.inicio LIMIT 10`,
+    [instituicaoId(), input.token, input.cpf, input.cpf]
+  );
+  return rows.map((row) => ({ inicio: new Date(row.inicio).toISOString(),
+    linkPagamento: `/pagar/sessao/${String(row.token_pagamento_sessao)}`,
+    amountCents: Number(row.valor_centavos) }));
 }
 
 /**
@@ -270,6 +318,7 @@ export async function reserveAppointmentCharge(input: {
       id: checkoutId,
       externalReference,
       chargeId: chargeRef,
+      organizationId: String(appointment.organizacao_ref),
       patientId: String(appointment.paciente_ref),
       patientName: String(appointment.paciente_nome),
       patientCpf: String(appointment.paciente_cpf).replace(/\D/g, ''),
@@ -293,6 +342,76 @@ export async function reserveAppointmentCharge(input: {
   } finally {
     connection.release();
   }
+}
+
+/** Monta um checkout único sem perder a alocação de cada sessão no razão financeiro. */
+export async function reserveAppointmentChargeBatch(input: {
+  tokens: readonly string[];
+  cpf: string;
+}): Promise<BatchCheckout> {
+  const tokens = [...new Set(input.tokens)];
+  if (tokens.length < 2 || tokens.length > 10) throw new Error('Selecione entre 2 e 10 sessões.');
+  const reservations: ReservedCheckout[] = [];
+  for (const token of tokens) {
+    const reservation = await reserveAppointmentCharge({ token, cpf: input.cpf });
+    if (!reservation || isCompanyFundedReservation(reservation)) throw new Error('Uma das sessões não possui cobrança individual.');
+    if (isExpiredReservation(reservation)) throw new Error('O prazo de uma das cobranças selecionadas terminou.');
+    if (reservation.providerPaymentId) throw new Error('Uma das sessões já possui um pagamento iniciado.');
+    reservations.push(reservation);
+  }
+  const first = reservations[0];
+  if (reservations.slice(1).some((item) => item.provider)) throw new Error('Uma das sessões já possui um pagamento iniciado.');
+  if (reservations.some((item) => item.patientId !== first.patientId || item.organizationId !== first.organizationId)) {
+    throw new Error('As sessões precisam pertencer ao mesmo paciente e à mesma clínica.');
+  }
+  const amountCents = reservations.reduce((sum, item) => sum + item.amountCents, 0);
+  const dueAt = reservations.map((item) => item.dueAt).sort()[0];
+  const connection = await getMysqlPool().getConnection();
+  try {
+    await connection.beginTransaction();
+    const [existingMappings] = await connection.query<RowDataPacket[]>(
+      `SELECT referencia_externa FROM financeiro_checkout_cobrancas
+        WHERE instituicao_id = ? AND cobranca_ref IN (?) FOR UPDATE`,
+      [instituicaoId(), reservations.map((item) => item.chargeId)]
+    );
+    if (existingMappings.some((row) => String(row.referencia_externa) !== first.externalReference)) {
+      throw new Error('Uma das sessões já está incluída em outro pagamento agrupado.');
+    }
+    for (const item of reservations) {
+      await connection.execute(
+        `INSERT INTO financeiro_checkout_cobrancas
+           (instituicao_id, referencia_externa, cobranca_ref, valor_centavos)
+         VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE valor_centavos = VALUES(valor_centavos)`,
+        [instituicaoId(), first.externalReference, item.chargeId, item.amountCents]
+      );
+    }
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally { connection.release(); }
+  return {
+    ...first,
+    amountCents,
+    dueAt,
+    chargeIds: reservations.map((item) => item.chargeId),
+    sessionStarts: reservations.map((item) => item.sessionStart!).sort(),
+    description: `${reservations.length} sessões de Psicoterapia - ${first.professionalName}`,
+  };
+}
+
+export async function bindBatchProviderPayment(
+  checkout: BatchCheckout,
+  providerPaymentId: string,
+  provider: 'asaas' | 'inter'
+): Promise<void> {
+  await getMysqlPool().execute(
+    `UPDATE financeiro_checkouts_asaas
+        SET provedor_pagamento_ref = ?, provedor = ?, status = 'pending', erro_codigo = NULL
+      WHERE instituicao_id = ? AND referencia_externa = ?`,
+    [providerPaymentId, provider, instituicaoId(), checkout.externalReference]
+  );
 }
 
 export interface PagamentoRecebido {
@@ -403,6 +522,21 @@ export async function claimCheckoutProvider(
   }
 }
 
+async function providerCharges(connection: PoolConnection, providerPaymentId: string): Promise<RowDataPacket[]> {
+  const [rows] = await connection.query<RowDataPacket[]>(
+    `SELECT DISTINCT c.organizacao_ref, c.ref_core, c.valor_centavos
+       FROM financeiro_cobrancas c
+       LEFT JOIN financeiro_checkout_cobrancas m
+         ON m.instituicao_id = c.instituicao_id AND m.cobranca_ref = c.ref_core
+       LEFT JOIN financeiro_checkouts_asaas x
+         ON x.instituicao_id = m.instituicao_id AND x.referencia_externa = m.referencia_externa
+      WHERE c.instituicao_id = ? AND (c.provedor_ref = ? OR x.provedor_pagamento_ref = ?)
+      ORDER BY c.ref_core FOR UPDATE`,
+    [instituicaoId(), providerPaymentId, providerPaymentId]
+  );
+  return rows;
+}
+
 export async function reconcileInterPix(input: {
   eventId: string;
   txid: string;
@@ -413,14 +547,8 @@ export async function reconcileInterPix(input: {
   const connection = await getMysqlPool().getConnection();
   try {
     await connection.beginTransaction();
-    const [chargeRows] = await connection.query<RowDataPacket[]>(
-      `SELECT organizacao_ref, ref_core, valor_centavos
-         FROM financeiro_cobrancas
-        WHERE instituicao_id = ? AND provedor_ref = ? LIMIT 1 FOR UPDATE`,
-      [instituicaoId(), input.txid]
-    );
-    const charge = chargeRows[0];
-    if (!charge) { await connection.rollback(); return 'unknown'; }
+    const chargeRows = await providerCharges(connection, input.txid);
+    if (chargeRows.length === 0) { await connection.rollback(); return 'unknown'; }
     const [existing] = await connection.query<RowDataPacket[]>(
       `SELECT id FROM financeiro_webhooks_inter
         WHERE instituicao_id = ? AND evento_ref = ? LIMIT 1`,
@@ -434,30 +562,32 @@ export async function reconcileInterPix(input: {
       [rowId('inter_event', input.eventId), instituicaoId(), input.eventId,
         input.txid, input.endToEndId]
     );
-    const paymentRef = `inter-${input.endToEndId}`;
+    const allocations = allocatePaymentAcrossCharges(input.amountCents, chargeRows.map((charge) => ({
+      reference: String(charge.ref_core), amountCents: Number(charge.valor_centavos),
+    })));
+    for (const allocation of allocations) {
+      const charge = chargeRows.find((row) => String(row.ref_core) === allocation.reference)!;
+      const paymentRef = `inter-${input.endToEndId}-${charge.ref_core}`;
+      const transactionRef = chargeRows.length === 1 ? input.endToEndId : `${input.endToEndId}:${charge.ref_core}`;
+      await connection.execute(
+        `INSERT INTO financeiro_pagamentos
+           (id, instituicao_id, organizacao_ref, ref_core, cobranca_ref, recebido_em,
+            valor_centavos, forma, status, provedor, provedor_transacao_ref)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'pix', 'confirmed', 'inter', ?)
+         ON DUPLICATE KEY UPDATE recebido_em = VALUES(recebido_em), valor_centavos = VALUES(valor_centavos), status = 'confirmed'`,
+        [rowId('pagamento', paymentRef), instituicaoId(), charge.organizacao_ref, paymentRef,
+          charge.ref_core, toSqlTimestamp(input.receivedAt), allocation.amountCents, transactionRef]
+      );
+      await connection.execute(
+        `UPDATE financeiro_cobrancas SET status = ?, forma_pagamento = 'pix', atualizado_em = CURRENT_TIMESTAMP(3)
+          WHERE instituicao_id = ? AND ref_core = ?`,
+        [allocation.fullyPaid ? 'paid' : 'partially_paid', instituicaoId(), charge.ref_core]
+      );
+    }
     await connection.execute(
-      `INSERT INTO financeiro_pagamentos
-         (id, instituicao_id, organizacao_ref, ref_core, cobranca_ref, recebido_em,
-          valor_centavos, forma, status, provedor, provedor_transacao_ref)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'pix', 'confirmed', 'inter', ?)
-       ON DUPLICATE KEY UPDATE recebido_em = VALUES(recebido_em),
-         valor_centavos = VALUES(valor_centavos), forma = 'pix', status = 'confirmed'`,
-      [rowId('pagamento', paymentRef), instituicaoId(), charge.organizacao_ref,
-        paymentRef, charge.ref_core, toSqlTimestamp(input.receivedAt),
-        input.amountCents, input.endToEndId]
-    );
-    const nextStatus = input.amountCents >= Number(charge.valor_centavos)
-      ? 'paid' : 'partially_paid';
-    await connection.execute(
-      `UPDATE financeiro_cobrancas SET status = ?, forma_pagamento = 'pix',
-          atualizado_em = CURRENT_TIMESTAMP(3)
-        WHERE instituicao_id = ? AND ref_core = ?`,
-      [nextStatus, instituicaoId(), charge.ref_core]
-    );
-    await connection.execute(
-      `UPDATE financeiro_checkouts_asaas SET status = 'paid'
+      `UPDATE financeiro_checkouts_asaas SET status = ?
         WHERE instituicao_id = ? AND provedor = 'inter' AND provedor_pagamento_ref = ?`,
-      [instituicaoId(), input.txid]
+      [input.amountCents >= chargeRows.reduce((sum, row) => sum + Number(row.valor_centavos), 0) ? 'paid' : 'pending', instituicaoId(), input.txid]
     );
     await connection.commit();
     return 'processed';
@@ -501,14 +631,8 @@ export async function reconcileAsaasPayment(input: {
   const connection = await getMysqlPool().getConnection();
   try {
     await connection.beginTransaction();
-    const [chargeRows] = await connection.query<RowDataPacket[]>(
-      `SELECT organizacao_ref, ref_core, valor_centavos
-         FROM financeiro_cobrancas
-        WHERE instituicao_id = ? AND provedor_ref = ? LIMIT 1 FOR UPDATE`,
-      [instituicaoId(), input.paymentId]
-    );
-    const charge = chargeRows[0];
-    if (!charge) {
+    const chargeRows = await providerCharges(connection, input.paymentId);
+    if (chargeRows.length === 0) {
       await connection.rollback();
       return 'unknown';
     }
@@ -528,33 +652,35 @@ export async function reconcileAsaasPayment(input: {
       [rowId('asaas_event', input.eventId), instituicaoId(), input.eventId,
         input.eventType, input.paymentId]
     );
-    const paymentRef = `asaas-${input.paymentId}`;
     const paymentMethod = input.billingType === 'PIX'
       ? 'pix'
       : input.billingType === 'CREDIT_CARD' ? 'card' : 'other';
+    const allocations = allocatePaymentAcrossCharges(input.amountCents, chargeRows.map((charge) => ({
+      reference: String(charge.ref_core), amountCents: Number(charge.valor_centavos),
+    })));
+    for (const allocation of allocations) {
+      const charge = chargeRows.find((row) => String(row.ref_core) === allocation.reference)!;
+      const paymentRef = `asaas-${input.paymentId}-${charge.ref_core}`;
+      const transactionRef = chargeRows.length === 1 ? input.paymentId : `${input.paymentId}:${charge.ref_core}`;
+      await connection.execute(
+        `INSERT INTO financeiro_pagamentos
+           (id, instituicao_id, organizacao_ref, ref_core, cobranca_ref, recebido_em,
+            valor_centavos, forma, status, provedor, provedor_transacao_ref)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', 'asaas', ?)
+         ON DUPLICATE KEY UPDATE recebido_em = VALUES(recebido_em), valor_centavos = VALUES(valor_centavos), forma = VALUES(forma), status = 'confirmed'`,
+        [rowId('pagamento', paymentRef), instituicaoId(), charge.organizacao_ref, paymentRef,
+          charge.ref_core, toSqlTimestamp(input.receivedAt), allocation.amountCents, paymentMethod, transactionRef]
+      );
+      await connection.execute(
+        `UPDATE financeiro_cobrancas SET status = ?, forma_pagamento = ?, atualizado_em = CURRENT_TIMESTAMP(3)
+          WHERE instituicao_id = ? AND ref_core = ?`,
+        [allocation.fullyPaid ? 'paid' : 'partially_paid', paymentMethod, instituicaoId(), charge.ref_core]
+      );
+    }
     await connection.execute(
-      `INSERT INTO financeiro_pagamentos
-         (id, instituicao_id, organizacao_ref, ref_core, cobranca_ref, recebido_em,
-          valor_centavos, forma, status, provedor, provedor_transacao_ref)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', 'asaas', ?)
-       ON DUPLICATE KEY UPDATE recebido_em = VALUES(recebido_em),
-         valor_centavos = VALUES(valor_centavos), forma = VALUES(forma), status = 'confirmed'`,
-      [rowId('pagamento', paymentRef), instituicaoId(), charge.organizacao_ref,
-        paymentRef, charge.ref_core, toSqlTimestamp(input.receivedAt), input.amountCents,
-        paymentMethod, input.paymentId]
-    );
-    const nextStatus = input.amountCents >= Number(charge.valor_centavos)
-      ? 'paid'
-      : 'partially_paid';
-    await connection.execute(
-      `UPDATE financeiro_cobrancas SET status = ?, forma_pagamento = ?, atualizado_em = CURRENT_TIMESTAMP(3)
-        WHERE instituicao_id = ? AND ref_core = ?`,
-      [nextStatus, paymentMethod, instituicaoId(), charge.ref_core]
-    );
-    await connection.execute(
-      `UPDATE financeiro_checkouts_asaas SET status = 'paid'
+      `UPDATE financeiro_checkouts_asaas SET status = ?
         WHERE instituicao_id = ? AND provedor_pagamento_ref = ?`,
-      [instituicaoId(), input.paymentId]
+      [input.amountCents >= chargeRows.reduce((sum, row) => sum + Number(row.valor_centavos), 0) ? 'paid' : 'pending', instituicaoId(), input.paymentId]
     );
     await connection.commit();
     return 'processed';

@@ -9,6 +9,7 @@ interface Props {
   /** `YYYY-MM-DD` que têm ao menos um horário livre. */
   diasDisponiveis: readonly string[];
   diaSelecionado?: string;
+  diasSelecionados?: readonly string[];
   onSelecionar: (dia: string) => void;
 }
 
@@ -39,9 +40,10 @@ function deslocarMes(mes: string, passo: number): string {
  * cheios como se fossem clicáveis daria ao paciente um caminho que termina em
  * uma lista de horários vazia.
  */
-export function PublicBookingCalendar({ diasDisponiveis, diaSelecionado, onSelecionar }: Props) {
+export function PublicBookingCalendar({ diasDisponiveis, diaSelecionado, diasSelecionados, onSelecionar }: Props) {
   const [mes, setMes] = useState(() => mesInicial(diasDisponiveis));
   const disponiveis = useMemo(() => new Set(diasDisponiveis), [diasDisponiveis]);
+  const selecionados = useMemo(() => new Set(diasSelecionados ?? (diaSelecionado ? [diaSelecionado] : [])), [diaSelecionado, diasSelecionados]);
 
   const celulas = useMemo(() => {
     const [ano, numero] = mes.split('-').map(Number);
@@ -90,7 +92,8 @@ export function PublicBookingCalendar({ diasDisponiveis, diaSelecionado, onSelec
         {celulas.map((dia, indice) => {
           if (!dia) return <span key={`vazio-${indice}`} />;
           const livre = disponiveis.has(dia);
-          const ativo = dia === diaSelecionado;
+          const ativo = selecionados.has(dia);
+          const primeiro = dia === diaSelecionado;
           return (
             <button
               key={dia}
@@ -100,7 +103,7 @@ export function PublicBookingCalendar({ diasDisponiveis, diaSelecionado, onSelec
               aria-pressed={ativo}
               className={`aspect-square rounded-xl text-xs font-bold transition-all ${
                 ativo
-                  ? 'bg-psi-vibrant text-white shadow-lg shadow-psi-vibrant/30 scale-105'
+                  ? `bg-psi-vibrant text-white shadow-lg shadow-psi-vibrant/30 ${primeiro ? 'scale-105 ring-2 ring-white ring-offset-2 ring-offset-psi-vibrant' : ''}`
                   : livre
                     ? 'bg-surface text-psi-deep hover:bg-psi-vibrant hover:text-white border border-psi-vibrant/30 font-bold'
                     : 'text-muted/50'
@@ -113,7 +116,7 @@ export function PublicBookingCalendar({ diasDisponiveis, diaSelecionado, onSelec
       </div>
 
       <p className="text-[11px] text-muted text-center">
-        Apenas os dias destacados têm horários livres.
+        Apenas os dias destacados têm horários livres. Os dias preenchidos serão reservados.
       </p>
     </div>
   );

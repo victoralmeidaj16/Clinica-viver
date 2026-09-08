@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { rateLimited, validCpf } from '@/server/http/publicRequest';
 import {
-  bookAppointment,
+  bookAppointments,
   getContatosDaSessao,
   identifyPatient,
 } from '@/server/scheduling/agendaRepository';
@@ -29,15 +29,17 @@ export async function POST(request: Request) {
     const body = (await request.json()) as Record<string, unknown>;
     const token = String(body.token ?? '').trim();
     const cpf = String(body.cpf ?? '').replace(/\D/g, '');
-    const inicio = String(body.inicio ?? '');
+    const inicios = Array.isArray(body.inicios)
+      ? [...new Set(body.inicios.map(String))]
+      : [String(body.inicio ?? '')];
     if (!/^[a-f0-9]{32}$/.test(token)) {
       return NextResponse.json({ error: 'Link de agendamento inválido.' }, { status: 404 });
     }
     if (!validCpf(cpf)) {
       return NextResponse.json({ error: 'Informe um CPF válido.' }, { status: 400 });
     }
-    if (!Number.isFinite(Date.parse(inicio))) {
-      return NextResponse.json({ error: 'Horário inválido.' }, { status: 400 });
+    if (inicios.length === 0 || inicios.length > 10 || inicios.some((inicio) => !Number.isFinite(Date.parse(inicio)))) {
+      return NextResponse.json({ error: 'Selecione entre 1 e 10 horários válidos.' }, { status: 400 });
     }
 
     const paciente = await identifyPatient(token, cpf);
@@ -48,7 +50,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const resultado = await bookAppointment(paciente, inicio);
+    const resultado = await bookAppointments(paciente, inicios);
     if (!resultado.ok) {
       return NextResponse.json(
         {
@@ -62,26 +64,26 @@ export async function POST(request: Request) {
     // A cobrança é consequência do agendamento já confirmado. A função contém
     // qualquer falha e nunca transforma indisponibilidade financeira em erro
     // para o paciente que acabou de reservar o horário.
-    await garantirCobrancaDaSessao(resultado.agendamentoId);
-
-    // O aviso é aguardado, e não solto com `void`, porque esta rota roda em
-    // função serverless: resposta enviada é processo elegível para congelar, e
-    // uma promessa pendente ali vira mensagem que ninguém recebe. O envio já
-    // engole os próprios erros — a sessão gravada não depende dele.
-    try {
-      const contatos = await getContatosDaSessao(resultado.agendamentoId);
-      if (contatos) await avisarSessaoMarcada(contatos);
-    } catch (erro) {
-      console.error('[agenda] Sessão marcada, mas o aviso falhou:', erro);
+    for (const agendamento of resultado.agendamentos) {
+      await garantirCobrancaDaSessao(agendamento.agendamentoId);
+      try {
+        const contatos = await getContatosDaSessao(agendamento.agendamentoId);
+        if (contatos) await avisarSessaoMarcada(contatos);
+      } catch (erro) {
+        console.error('[agenda] Sessão marcada, mas o aviso falhou:', erro);
+      }
     }
+
+    const first = resultado.agendamentos[0];
 
     return NextResponse.json(
       {
         success: true,
-        inicio: resultado.inicio,
-        fim: resultado.fim,
-        modalidade: resultado.modalidade,
-        linkPagamento: resultado.linkPagamento,
+        inicio: first.inicio,
+        fim: first.fim,
+        modalidade: first.modalidade,
+        linkPagamento: first.linkPagamento,
+        sessoes: resultado.agendamentos,
         pacienteNome: paciente.nome,
         professionalName: paciente.professionalName,
       },

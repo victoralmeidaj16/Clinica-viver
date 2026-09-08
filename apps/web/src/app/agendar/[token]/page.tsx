@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useEffect, useRef, useState } from 'react';
+import { use, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   ArrowRight,
@@ -11,12 +11,14 @@ import {
   CreditCard,
   FileText,
   Loader2,
-  Phone,
   RefreshCw,
   UserCheck,
 } from 'lucide-react';
 import { PublicBookingCalendar } from '@/components/scheduling/PublicBookingCalendar';
+import { PublicBookingFrequencyField } from '@/components/scheduling/PublicBookingFrequencyField';
+import { BookedSessionsPayment } from '@/components/scheduling/BookedSessionsPayment';
 import { maskCpf, validCpf } from '@/lib/cpf';
+import { commonBookingTimes, recurringAvailableDates, type PublicBookingFrequency } from '@/lib/publicBookingRecurrence';
 
 interface Props {
   params: Promise<{ token: string }>;
@@ -52,6 +54,7 @@ interface Confirmado {
   modalidade: string;
   linkPagamento: string;
   reagendado?: boolean;
+  sessoes?: Array<{ inicio: string; fim: string; modalidade: string; linkPagamento: string }>;
 }
 
 function rotuloDia(dia: string): string {
@@ -69,6 +72,8 @@ export default function AgendarPage({ params }: Props) {
   const [cpf, setCpf] = useState('');
   const [agenda, setAgenda] = useState<Agenda>();
   const [diaSelecionado, setDiaSelecionado] = useState<string>();
+  const [diasSelecionados, setDiasSelecionados] = useState<string[]>([]);
+  const [frequencia, setFrequencia] = useState<PublicBookingFrequency>('once');
   const [confirmado, setConfirmado] = useState<Confirmado>();
   const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(true);
@@ -106,6 +111,7 @@ export default function AgendarPage({ params }: Props) {
       if (!response.ok) throw new Error(body.error || 'Não foi possível carregar os horários.');
       setAgenda(body);
       setDiaSelecionado(undefined);
+      setDiasSelecionados([]);
       setModoReagendar(false);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Não foi possível carregar os horários.');
@@ -116,6 +122,17 @@ export default function AgendarPage({ params }: Props) {
 
   const selecionarDia = (dia: string) => {
     setDiaSelecionado(dia);
+    if (modoReagendar) {
+      setDiasSelecionados([dia]);
+    } else if (frequencia === 'custom') {
+      setDiasSelecionados((current) => current[0] && current[0].slice(0, 7) !== dia.slice(0, 7)
+        ? [dia]
+        : current.includes(dia)
+          ? current.length === 1 ? current : current.filter((item) => item !== dia)
+          : [...current, dia].sort());
+    } else {
+      setDiasSelecionados(recurringAvailableDates(dia, agenda?.dias.map((item) => item.dia) ?? [], frequencia));
+    }
     window.requestAnimationFrame(() =>
       passoHorario.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     );
@@ -124,6 +141,7 @@ export default function AgendarPage({ params }: Props) {
   const iniciarReagendamento = () => {
     setModoReagendar(true);
     setDiaSelecionado(undefined);
+    setDiasSelecionados([]);
     window.requestAnimationFrame(() =>
       passoCalendario.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     );
@@ -138,15 +156,15 @@ export default function AgendarPage({ params }: Props) {
     if (response.ok) setAgenda(await response.json());
   };
 
-  const agendar = async (horario: Horario) => {
-    setSalvando(horario.inicio);
+  const agendar = async (horario: Horario & { inicios?: string[] }) => {
+    setSalvando(horario.inicio ?? horario.inicios?.[0]);
     setError(undefined);
     try {
       const isReagendando = Boolean(modoReagendar && agenda?.agendamentoAtual);
       const url = isReagendando ? '/api/agenda/reagendar' : '/api/agenda/agendar';
       const payload = isReagendando
         ? { token, cpf, appointmentId: agenda?.agendamentoAtual?.id, inicio: horario.inicio }
-        : { token, cpf, inicio: horario.inicio };
+        : { token, cpf, inicios: horario.inicios ?? [horario.inicio] };
 
       const response = await fetch(url, {
         method: 'POST',
@@ -166,6 +184,19 @@ export default function AgendarPage({ params }: Props) {
     }
   };
 
+  const mudarFrequencia = (value: PublicBookingFrequency) => {
+    setFrequencia(value);
+    if (!diaSelecionado) return;
+    setDiasSelecionados(value === 'custom'
+      ? [diaSelecionado]
+      : recurringAvailableDates(diaSelecionado, agenda?.dias.map((item) => item.dia) ?? [], value));
+  };
+
+  const horariosComuns = useMemo(() => commonBookingTimes(
+    diasSelecionados,
+    agenda?.dias ?? []
+  ), [agenda?.dias, diasSelecionados]);
+
   if (loading && !professionalName) {
     return (
       <div className="py-20 flex justify-center">
@@ -181,8 +212,6 @@ export default function AgendarPage({ params }: Props) {
       </div>
     );
   }
-
-  const horariosDoDia = agenda?.dias.find((item) => item.dia === diaSelecionado)?.horarios ?? [];
 
   return (
     <div className="space-y-6 max-w-xl mx-auto py-6 px-4">
@@ -205,7 +234,9 @@ export default function AgendarPage({ params }: Props) {
           <div className="chip-accent text-xs">
             <CalendarCheck className="w-4 h-4" /> {confirmado.reagendado ? 'Sessão Reagendada com Sucesso' : 'Sessão Agendada com Sucesso'}
           </div>
-          <p className="text-2xl text-ink font-black capitalize">{rotuloDia(confirmado.inicio.slice(0, 10))}</p>
+          <p className="text-2xl text-ink font-black capitalize">
+            {confirmado.sessoes && confirmado.sessoes.length > 1 ? `${confirmado.sessoes.length} sessões reservadas` : rotuloDia(confirmado.inicio.slice(0, 10))}
+          </p>
           <p className="text-lg text-psi-deep font-bold">
             {new Date(confirmado.inicio).toLocaleTimeString('pt-BR', {
               hour: '2-digit',
@@ -218,15 +249,7 @@ export default function AgendarPage({ params }: Props) {
           <p className="text-xs text-muted">
             {professionalName} já recebeu a confirmação do seu horário.
           </p>
-          <a
-            href={confirmado.linkPagamento}
-            className="btn-accent mx-auto w-full justify-center py-3 text-sm"
-          >
-            <CreditCard className="h-4 w-4" /> Pagamento desta sessão
-          </a>
-          <p className="text-[11px] text-muted">
-            Este link pertence somente ao horário acima e poderá ser usado novamente para consultar a mesma cobrança.
-          </p>
+          <BookedSessionsPayment sessions={confirmado.sessoes ?? [confirmado]} cpf={cpf.replace(/\D/g, '')} />
         </section>
       ) : !agenda ? (
         <form
@@ -380,6 +403,8 @@ export default function AgendarPage({ params }: Props) {
               </div>
             </div>
 
+            {!modoReagendar && <PublicBookingFrequencyField value={frequencia} onChange={mudarFrequencia} />}
+
             {agenda.dias.length === 0 ? (
               <p className="rounded-2xl border border-line bg-soft/50 p-4 text-xs text-muted">
                 Não há horários livres nas próximas semanas. Fale com {professionalName} pelo WhatsApp.
@@ -388,6 +413,7 @@ export default function AgendarPage({ params }: Props) {
               <PublicBookingCalendar
                 diasDisponiveis={agenda.dias.map((item) => item.dia)}
                 diaSelecionado={diaSelecionado}
+                diasSelecionados={diasSelecionados}
                 onSelecionar={selecionarDia}
               />
             )}
@@ -402,10 +428,10 @@ export default function AgendarPage({ params }: Props) {
                 <Clock className="w-5 h-5 text-psi-vibrant" /> {modoReagendar ? 'Escolha o Novo Horário' : 'Escolha o Horário'}
               </h2>
               <label className="text-xs font-bold text-ink block">
-                Dia Selecionado
+                {diasSelecionados.length > 1 ? 'Datas selecionadas' : 'Dia selecionado'}
                 <input
                   readOnly
-                  value={rotuloDia(diaSelecionado)}
+                  value={diasSelecionados.length > 1 ? diasSelecionados.map((dia) => dia.slice(8, 10)).join(', ') : rotuloDia(diaSelecionado)}
                   className="mt-1 w-full rounded-2xl border border-psi-vibrant/30 bg-psi-soft/60 py-2.5 px-4 text-psi-darkest font-bold capitalize text-xs"
                 />
               </label>
@@ -416,23 +442,24 @@ export default function AgendarPage({ params }: Props) {
                 </div>
               )}
 
+              {horariosComuns.length === 0 && <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-900">Não há um mesmo horário livre em todas as datas selecionadas. Remova uma data ou use a frequência personalizada.</p>}
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                {horariosDoDia.map((horario) => (
+                {horariosComuns.map((horario) => (
                   <button
-                    key={horario.inicio}
+                    key={`${horario.hora}-${horario.modalidade}`}
                     type="button"
                     disabled={Boolean(salvando)}
-                    onClick={() => void agendar(horario)}
+                    onClick={() => void agendar({ ...horario, inicio: horario.inicios[0] })}
                     className="rounded-2xl border border-psi-vibrant/30 bg-surface py-3 text-xs font-black text-psi-deep hover:bg-psi-vibrant hover:text-white hover:border-psi-vibrant transition-all disabled:opacity-40"
                   >
-                    {salvando === horario.inicio ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : (
+                    {salvando === horario.inicios[0] ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : (
                       modoReagendar ? `Mudar para ${horario.hora}` : horario.hora
                     )}
                   </button>
                 ))}
               </div>
 
-              {horariosDoDia.length === 0 && (
+              {horariosComuns.length === 0 && (
                 <p className="text-xs text-muted">
                   Os horários deste dia acabaram de ser ocupados. Escolha outro dia acima.
                 </p>

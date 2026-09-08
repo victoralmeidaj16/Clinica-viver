@@ -1069,6 +1069,10 @@ export type ResultadoAgendamento =
   | { ok: true; agendamentoId: string; inicio: string; fim: string; modalidade: string; linkPagamento: string }
   | { ok: false; motivo: 'INDISPONIVEL' | 'DUPLICADO' };
 
+export type ResultadoAgendamentos =
+  | { ok: true; agendamentos: Array<Extract<ResultadoAgendamento, { ok: true }>> }
+  | { ok: false; motivo: 'INDISPONIVEL' | 'DUPLICADO' };
+
 /**
  * Marca a sessão no horário escolhido.
  *
@@ -1078,16 +1082,21 @@ export type ResultadoAgendamento =
  * INSERT. O erro de chave duplicada volta como horário indisponível, não como
  * falha do servidor.
  */
-export async function bookAppointment(
+export async function bookAppointments(
   paciente: PacienteIdentificado,
-  inicioIso: string,
+  inicioIsos: readonly string[],
   agora: Date = new Date()
-): Promise<ResultadoAgendamento> {
-  const inicio = new Date(inicioIso);
-  const janelaFim = new Date(inicio.getTime() + 24 * 60 * 60_000);
+): Promise<ResultadoAgendamentos> {
+  const uniqueStarts = [...new Set(inicioIsos)].sort();
+  if (uniqueStarts.length === 0 || uniqueStarts.length > 10) return { ok: false, motivo: 'INDISPONIVEL' };
+  const parsedStarts = uniqueStarts.map((value) => new Date(value));
+  if (parsedStarts.some((value) => !Number.isFinite(value.getTime()))) return { ok: false, motivo: 'INDISPONIVEL' };
+  const inicio = parsedStarts[0];
+  const janelaFim = new Date(parsedStarts.at(-1)!.getTime() + 24 * 60 * 60_000);
   const slots = await listAvailableSlots(paciente, inicio, janelaFim, agora);
-  const slot = slots.find((item) => item.inicio === inicio.toISOString());
-  if (!slot) return { ok: false, motivo: 'INDISPONIVEL' };
+  const requestedSlots = uniqueStarts.map((value) => slots.find((item) => item.inicio === new Date(value).toISOString()));
+  if (requestedSlots.some((slot) => !slot)) return { ok: false, motivo: 'INDISPONIVEL' };
+  const selectedSlots = requestedSlots as Slot[];
 
   const connection = await getMysqlPool().getConnection();
   try {
@@ -1100,78 +1109,51 @@ export async function bookAppointment(
       [instituicaoId(), paciente.professionalRowId]
     );
 
-    const [conflitos] = await connection.query<RowDataPacket[]>(
-      `SELECT a.id FROM clinica_agendamentos a
-        WHERE a.instituicao_id = ? AND a.profissional_id = ? AND a.status <> 'cancelado'
-          AND a.inicio < ? AND COALESCE(a.fim, DATE_ADD(a.inicio, INTERVAL a.duracao_min MINUTE)) > ?
-        FOR UPDATE`,
-      [
-        instituicaoId(),
-        paciente.professionalRowId,
-        new Date(slot.fim),
-        new Date(slot.inicio),
-      ]
-    );
-    if (conflitos.length > 0) {
-      await connection.rollback();
-      return { ok: false, motivo: 'INDISPONIVEL' };
+    for (const slot of selectedSlots) {
+      const params = [instituicaoId(), paciente.professionalRowId, new Date(slot.fim), new Date(slot.inicio)];
+      const [conflitos] = await connection.query<RowDataPacket[]>(
+        `SELECT a.id FROM clinica_agendamentos a
+          WHERE a.instituicao_id = ? AND a.profissional_id = ? AND a.status <> 'cancelado'
+            AND a.inicio < ? AND COALESCE(a.fim, DATE_ADD(a.inicio, INTERVAL a.duracao_min MINUTE)) > ? FOR UPDATE`,
+        params
+      );
+      const [bloqueios] = await connection.query<RowDataPacket[]>(
+        `SELECT b.id FROM clinica_agenda_bloqueios b
+          WHERE b.instituicao_id = ? AND b.profissional_id = ? AND b.inicio < ? AND b.fim > ? FOR UPDATE`,
+        params
+      );
+      if (conflitos.length > 0 || bloqueios.length > 0) {
+        await connection.rollback();
+        return { ok: false, motivo: 'INDISPONIVEL' };
+      }
     }
 
-    // A leitura inicial dos slots acontece antes da transação. Revalidar os
-    // bloqueios sob o mesmo mutex do profissional fecha a corrida entre um
-    // paciente agendando e o psicólogo bloqueando um compromisso externo.
-    const [bloqueios] = await connection.query<RowDataPacket[]>(
-      `SELECT b.id FROM clinica_agenda_bloqueios b
-        WHERE b.instituicao_id = ? AND b.profissional_id = ?
-          AND b.inicio < ? AND b.fim > ?
-        FOR UPDATE`,
-      [instituicaoId(), paciente.professionalRowId, new Date(slot.fim), new Date(slot.inicio)]
-    );
-    if (bloqueios.length > 0) {
-      await connection.rollback();
-      return { ok: false, motivo: 'INDISPONIVEL' };
-    }
-
-    const referencia = `agenda-link-${randomUUID()}`;
-    const agendamentoId = rowId('agendamento', referencia);
-    const tokenPagamento = randomUUID().replaceAll('-', '');
     const [orgRows] = await connection.query<RowDataPacket[]>(
       'SELECT id FROM clinica_organizacoes WHERE ref_core = ? LIMIT 1',
       [paciente.organizationId]
     );
-    await connection.execute(
-      `INSERT INTO clinica_agendamentos
-         (id, instituicao_id, ref_core, organizacao_id, paciente_id, profissional_id,
-          inicio, fim, timezone, duracao_min, modalidade, status, origem_criacao,
-          origem_ref, token_pagamento_sessao, valor_centavos, versao, criado_em, atualizado_em)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'agendado', 'portal', ?, ?, ?, 1,
-               CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3))`,
-      [
-        agendamentoId,
-        instituicaoId(),
-        referencia,
-        orgRows[0]?.id ?? null,
-        paciente.patientRowId,
-        paciente.professionalRowId,
-        new Date(slot.inicio),
-        new Date(slot.fim),
-        FUSO_CLINICA,
-        Math.round((Date.parse(slot.fim) - Date.parse(slot.inicio)) / 60_000),
-        slot.modalidade,
-        referencia,
-        tokenPagamento,
-        paciente.sessionAmountCents,
-      ]
-    );
+    const agendamentos: Array<Extract<ResultadoAgendamento, { ok: true }>> = [];
+    for (const slot of selectedSlots) {
+      const referencia = `agenda-link-${randomUUID()}`;
+      const agendamentoId = rowId('agendamento', referencia);
+      const tokenPagamento = randomUUID().replaceAll('-', '');
+      await connection.execute(
+        `INSERT INTO clinica_agendamentos
+           (id, instituicao_id, ref_core, organizacao_id, paciente_id, profissional_id,
+            inicio, fim, timezone, duracao_min, modalidade, status, origem_criacao,
+            origem_ref, token_pagamento_sessao, valor_centavos, versao, criado_em, atualizado_em)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'agendado', 'portal', ?, ?, ?, 1,
+                 CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3))`,
+        [agendamentoId, instituicaoId(), referencia, orgRows[0]?.id ?? null,
+          paciente.patientRowId, paciente.professionalRowId, new Date(slot.inicio), new Date(slot.fim),
+          FUSO_CLINICA, Math.round((Date.parse(slot.fim) - Date.parse(slot.inicio)) / 60_000),
+          slot.modalidade, referencia, tokenPagamento, paciente.sessionAmountCents]
+      );
+      agendamentos.push({ ok: true, agendamentoId, inicio: slot.inicio, fim: slot.fim,
+        modalidade: slot.modalidade, linkPagamento: `/pagar/sessao/${tokenPagamento}` });
+    }
     await connection.commit();
-    return {
-      ok: true,
-      agendamentoId,
-      inicio: slot.inicio,
-      fim: slot.fim,
-      modalidade: slot.modalidade,
-      linkPagamento: `/pagar/sessao/${tokenPagamento}`,
-    };
+    return { ok: true, agendamentos };
   } catch (error) {
     await connection.rollback();
     if ((error as { code?: string }).code === 'ER_DUP_ENTRY') {
@@ -1181,6 +1163,15 @@ export async function bookAppointment(
   } finally {
     connection.release();
   }
+}
+
+export async function bookAppointment(
+  paciente: PacienteIdentificado,
+  inicioIso: string,
+  agora: Date = new Date()
+): Promise<ResultadoAgendamento> {
+  const result = await bookAppointments(paciente, [inicioIso], agora);
+  return result.ok ? result.agendamentos[0] : result;
 }
 
 export interface ActivePatientAppointment {

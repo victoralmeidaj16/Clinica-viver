@@ -180,6 +180,7 @@ function dadosDoPaciente(lead: TriagemPacienteRecord): string[] {
   const linhas: string[] = [];
   const idade = lead.idade?.toString().trim();
 
+  linhas.push(`Nome completo: ${lead.nomePaciente}`);
   linhas.push(`WhatsApp do paciente: ${formatBrazilPhone(lead.telefone) || lead.telefone}`);
   if (idade) linhas.push(`Idade: ${idade}`);
   const genero = formatGender(lead.genero, lead.generoOutro);
@@ -199,8 +200,6 @@ function dadosDoPaciente(lead: TriagemPacienteRecord): string[] {
   ];
   if (demandas.length > 0) linhas.push(`Demandas informadas: ${demandas.join(', ')}`);
 
-  linhas.push(`Origem: ${lead.origem}`);
-  linhas.push(`Protocolo: ${lead.protocolo}`);
   return linhas;
 }
 

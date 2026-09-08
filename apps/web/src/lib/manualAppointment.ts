@@ -1,6 +1,7 @@
 import { FUSO_CLINICA } from './sessionReference';
 
 export type ManualAppointmentMode = 'video' | 'in_person' | 'phone';
+export type AppointmentFrequency = 'weekly' | 'biweekly' | 'custom';
 
 const LOCAL_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const LOCAL_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -63,6 +64,48 @@ export function getServiceDuration(serviceKey: string): number {
   return service ? service.durationMinutes : 50;
 }
 
+function addCivilDays(date: string, days: number): string {
+  if (!LOCAL_DATE.test(date)) throw new Error('Informe uma data válida.');
+  const [year, month, day] = date.split('-').map(Number);
+  const value = new Date(Date.UTC(year, month - 1, day + days));
+  return value.toISOString().slice(0, 10);
+}
+
+/** Gera as ocorrências a partir da primeira data, sem ultrapassar o mês civil escolhido. */
+export function monthlyRecurrenceDates(
+  firstDate: string,
+  frequency: AppointmentFrequency,
+  customIntervalDays = 7
+): string[] {
+  const intervalDays = frequency === 'weekly' ? 7 : frequency === 'biweekly' ? 14 : customIntervalDays;
+  if (!Number.isInteger(intervalDays) || intervalDays < 1 || intervalDays > 30) {
+    throw new Error('O intervalo personalizado deve ficar entre 1 e 30 dias.');
+  }
+  if (!LOCAL_DATE.test(firstDate)) throw new Error('Informe uma data válida.');
+
+  const month = firstDate.slice(0, 7);
+  const dates: string[] = [];
+  for (let offset = 0; ; offset += intervalDays) {
+    const occurrence = addCivilDays(firstDate, offset);
+    if (!occurrence.startsWith(month)) break;
+    dates.push(occurrence);
+  }
+  return dates;
+}
+
+export function civilDaysBetween(firstDate: string, nextDate: string): number {
+  const parse = (value: string) => {
+    if (!LOCAL_DATE.test(value)) throw new Error('Informe uma data válida.');
+    const [year, month, day] = value.split('-').map(Number);
+    return Date.UTC(year, month - 1, day);
+  };
+  return Math.round((parse(nextDate) - parse(firstDate)) / 86_400_000);
+}
+
+export function shiftCivilDate(date: string, days: number): string {
+  return addCivilDays(date, days);
+}
+
 export function manualAppointmentTimes(input: {
   date: string;
   time: string;
@@ -77,4 +120,3 @@ export function manualAppointmentTimes(input: {
     endsAt: new Date(Date.parse(startsAt) + input.durationMinutes * 60_000).toISOString(),
   };
 }
-

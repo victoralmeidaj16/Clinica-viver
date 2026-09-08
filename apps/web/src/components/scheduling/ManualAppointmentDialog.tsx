@@ -12,12 +12,17 @@ import {
   X,
 } from 'lucide-react';
 import { applicationRequest, commandHeaders } from '@/lib/applicationApi';
+import { AppointmentFrequencyField } from './AppointmentFrequencyField';
 import {
   CLINICAL_SERVICES,
+  civilDaysBetween,
   getServiceDuration,
   clinicDateTimeToIso,
   manualAppointmentTimes,
+  monthlyRecurrenceDates,
+  shiftCivilDate,
   todayAtClinic,
+  type AppointmentFrequency,
   type ManualAppointmentMode,
 } from '@/lib/manualAppointment';
 import { FUSO_CLINICA } from '@/lib/sessionReference';
@@ -54,6 +59,8 @@ export function ManualAppointmentDialog({ patients, initialPatientId, onClose, o
   const [serviceKey, setServiceKey] = useState<string>('PSICOTERAPIA');
   const [date, setDate] = useState(() => todayAtClinic());
   const [time, setTime] = useState('14:00');
+  const [frequency, setFrequency] = useState<AppointmentFrequency>('weekly');
+  const [customIntervalDays, setCustomIntervalDays] = useState(10);
   const [mode, setMode] = useState<ManualAppointmentMode>('video');
   const [chargeDueDate, setChargeDueDate] = useState(() => todayAtClinic());
   const [chargeDueTime, setChargeDueTime] = useState('14:00');
@@ -63,6 +70,8 @@ export function ManualAppointmentDialog({ patients, initialPatientId, onClose, o
 
   const durationMinutes = getServiceDuration(serviceKey);
   const selectedService = CLINICAL_SERVICES.find((s) => s.key === serviceKey) ?? CLINICAL_SERVICES[0];
+  const safeCustomInterval = Number.isInteger(customIntervalDays) && customIntervalDays >= 1 && customIntervalDays <= 30 ? customIntervalDays : 1;
+  const recurrenceDates = useMemo(() => monthlyRecurrenceDates(date, frequency, safeCustomInterval), [date, frequency, safeCustomInterval]);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -72,29 +81,27 @@ export function ManualAppointmentDialog({ patients, initialPatientId, onClose, o
       return;
     }
     setSaving(true);
+    let createdCount = 0;
     try {
-      const { startsAt, endsAt } = manualAppointmentTimes({ date, time, durationMinutes });
-      const chargeDueAt = clinicDateTimeToIso(chargeDueDate, chargeDueTime);
-      await applicationRequest('/appointments', {
-        method: 'POST',
-        headers: commandHeaders(),
-        body: JSON.stringify({
-          id: `appointment-manual-${crypto.randomUUID()}`,
-          patientId,
-          startsAt,
-          endsAt,
-          timezone: FUSO_CLINICA,
-          mode,
-          createdAt: new Date().toISOString(),
-          chargeDueAt,
-        }),
-      });
-      setMessage({ kind: 'success', text: 'Sessão adicionada à agenda e ao sino do profissional.' });
+      for (const occurrenceDate of recurrenceDates) {
+        const { startsAt, endsAt } = manualAppointmentTimes({ date: occurrenceDate, time, durationMinutes });
+        const dayOffset = civilDaysBetween(date, occurrenceDate);
+        const occurrenceDueDate = shiftCivilDate(chargeDueDate, dayOffset);
+        await applicationRequest('/appointments', {
+          method: 'POST', headers: commandHeaders(),
+          body: JSON.stringify({ id: `appointment-manual-${crypto.randomUUID()}`, patientId, startsAt, endsAt,
+            timezone: FUSO_CLINICA, mode, createdAt: new Date().toISOString(),
+            chargeDueAt: clinicDateTimeToIso(occurrenceDueDate, chargeDueTime) }),
+        });
+        createdCount += 1;
+      }
+      setMessage({ kind: 'success', text: `${createdCount} ${createdCount === 1 ? 'sessão adicionada' : 'sessões adicionadas'} à agenda com sucesso.` });
       await onScheduled?.();
     } catch (error) {
+      if (createdCount > 0) await onScheduled?.();
       setMessage({
         kind: 'error',
-        text: error instanceof Error ? error.message : 'Não foi possível criar o agendamento.',
+        text: `${createdCount > 0 ? `${createdCount} sessão(ões) foram criadas. ` : ''}${error instanceof Error ? error.message : 'Não foi possível criar o agendamento.'}`,
       });
     } finally {
       setSaving(false);
@@ -183,6 +190,16 @@ export function ManualAppointmentDialog({ patients, initialPatientId, onClose, o
             </label>
           </div>
 
+          <AppointmentFrequencyField
+            value={frequency}
+            customIntervalDays={customIntervalDays}
+            dates={recurrenceDates}
+            time={time}
+            disabled={saving || message?.kind === 'success'}
+            onChange={setFrequency}
+            onCustomIntervalChange={setCustomIntervalDays}
+          />
+
           <fieldset disabled={saving || message?.kind === 'success'} className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
             <legend className="px-2 text-xs font-black text-amber-950">Vencimento da cobrança</legend>
             <p className="mb-3 text-[11px] text-amber-800">O link e o Pix serão encerrados neste horário exato.</p>
@@ -209,7 +226,7 @@ export function ManualAppointmentDialog({ patients, initialPatientId, onClose, o
           </fieldset>
 
           <p className="rounded-2xl border border-psi-soft bg-psi-light/60 px-4 py-3 text-[11px] leading-relaxed text-psi-deep">
-            O horário será registrado em Brasília com duração de <strong>{durationMinutes} min</strong> ({selectedService.label}). Receberá link exclusivo de pagamento e aparecerá nas notificações do sino.
+            Os horários serão registrados em Brasília com duração de <strong>{durationMinutes} min</strong> ({selectedService.label}). Cada sessão receberá sua própria cobrança e aparecerá nas notificações do sino.
           </p>
 
           <div className="flex gap-2 pt-1">
@@ -218,7 +235,7 @@ export function ManualAppointmentDialog({ patients, initialPatientId, onClose, o
             </button>
             {message?.kind !== 'success' && (
               <button type="submit" disabled={saving || eligible.length === 0} className="btn-accent flex-1 justify-center py-3 text-xs disabled:opacity-50">
-                {saving ? <><Loader2 className="h-4 w-4 animate-spin" /> Salvando…</> : <><CalendarPlus className="h-4 w-4" /> Agendar sessão</>}
+                {saving ? <><Loader2 className="h-4 w-4 animate-spin" /> Salvando…</> : <><CalendarPlus className="h-4 w-4" /> Agendar {recurrenceDates.length} {recurrenceDates.length === 1 ? 'sessão' : 'sessões'}</>}
               </button>
             )}
           </div>
@@ -227,4 +244,3 @@ export function ManualAppointmentDialog({ patients, initialPatientId, onClose, o
     </div>
   );
 }
-

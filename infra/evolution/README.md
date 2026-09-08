@@ -112,7 +112,7 @@ na query (`?token=`) ou no cabeçalho `x-evolution-token`. Sem
 padrão é falhar fechado.
 
 Sobre `messages.upsert`: é por ele que o psicólogo responde à mensagem de
-alocação. `CONTATO` registra o primeiro contato (o mesmo efeito do link
+alocação. `CONFIRMAR` registra o primeiro contato (o mesmo efeito do link
 assinado); `ENCAMINHAR` devolve o paciente à fila e aciona o próximo
 profissional que atende aos critérios, pulando quem já teve a chance naquele
 lead. Qualquer outro texto recebe de volta a instrução com as duas palavras.
@@ -124,7 +124,7 @@ Quem consome cada evento:
 | `connection.update` | `lib/whatsapp/sessao.ts` | grava o estado e alerta na primeira queda |
 | `qrcode.updated` | `lib/whatsapp/sessao.ts` | marca pareamento pendente; o QR nunca é gravado |
 | `send.message`, `messages.update` | `lib/whatsapp/mensagens.ts` | atualiza `clinica_mensagens` sem regredir status |
-| `messages.upsert` | `app/api/clinica/whatsapp/webhook` | lê as respostas `CONTATO` e `ENCAMINHAR` do psicólogo e detecta opt-out |
+| `messages.upsert` | `app/api/clinica/whatsapp/webhook` | lê as respostas `CONFIRMAR` e `ENCAMINHAR` do psicólogo e detecta opt-out |
 
 Duas dependências ainda abertas, ambas conhecidas:
 

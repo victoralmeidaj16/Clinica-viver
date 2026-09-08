@@ -10,7 +10,7 @@ import {
   type ConfirmacaoResult,
   type ResultadoEncaminhamento,
 } from './viverMaisRodizio';
-import { COMANDO_CONTATO, COMANDO_ENCAMINHAR, interpretarComando } from './viverMaisComandos';
+import { COMANDO_CONFIRMAR, COMANDO_ENCAMINHAR, interpretarComando } from './viverMaisComandos';
 import { avisarCoordenacao, avisarTransbordo, responderPsicologo } from './viverMaisWhatsApp';
 import { avisarAlocacaoPsicologoPorEmail } from './triagemEmail';
 import { reconciliarPacientes } from './patientPromotion';
@@ -74,7 +74,7 @@ function textoAjuda(psicologo: CadastroPsicologoRecord, lead: TriagemPacienteRec
   return [
     `${nomeDeExibicao(psicologo)}, não entendi a resposta sobre o protocolo ${lead.protocolo}.`,
     '',
-    `Responda *${COMANDO_CONTATO}* se já falou com o paciente.`,
+    `Responda *${COMANDO_CONFIRMAR}* se já falou com o paciente.`,
     `Responda *${COMANDO_ENCAMINHAR}* se não for atender — o paciente vai para o próximo profissional da fila.`,
   ].join('\n');
 }
@@ -115,7 +115,7 @@ export async function processarRespostaDoPsicologo(
 
   const base = { psicologoId: psicologo.id, leadId: lead.id, protocolo: lead.protocolo };
 
-  if (comando === 'CONTATO') {
+  if (comando === 'CONFIRMAR') {
     const resultado = await repositorio.mutate<ConfirmacaoResult>((state) => {
       const tratado = confirmarContato(captureStateAsSnapshot(state), lead.id, psicologo.id);
       return {

@@ -9,7 +9,7 @@ import type { CadastroPsicologoRecord, TriagemPacienteRecord } from './persisten
 import { formatBrazilPhone, normalizeBrazilPhone } from '@/lib/brazilPhone';
 import { formatGender } from '@/lib/gender';
 import { nomeDeExibicao, normalizarTurno, SLA_CONTATO_HORAS } from './viverMaisRodizio';
-import { COMANDO_CONTATO, COMANDO_ENCAMINHAR } from './viverMaisComandos';
+import { COMANDO_CONFIRMAR, COMANDO_ENCAMINHAR } from './viverMaisComandos';
 
 /**
  * Avisos de WhatsApp da triagem — o "disparo duplo" do fluxo de captação.
@@ -237,7 +237,7 @@ function rotuloModalidadeLead(modalidade: string | undefined): string {
 /**
  * Mensagem ao profissional que recebeu o lead.
  *
- * Pede resposta no próprio chat — `CONTATO` ou `ENCAMINHAR` — porque é o gesto
+ * Pede resposta no próprio chat — `CONFIRMAR` ou `ENCAMINHAR` — porque é o gesto
  * mais barato de todos: quem está no WhatsApp responde ali, sem abrir link nem
  * lembrar de senha. O link de confirmação continua junto para quem prefere
  * clicar, e os dois caminhos gravam exatamente a mesma coisa.
@@ -253,7 +253,7 @@ export function textoParaPsicologo(
     '',
     `O primeiro contato precisa ser feito em até ${SLA_CONTATO_HORAS}h. Responda aqui mesmo:`,
     '',
-    `*${COMANDO_CONTATO}* — quando você já tiver falado com o paciente.`,
+    `*${COMANDO_CONFIRMAR}* — quando você já tiver falado com o paciente.`,
     `*${COMANDO_ENCAMINHAR}* — se não for atender, e o paciente vai para o próximo profissional da fila que atende os critérios.`,
     '',
     'Se preferir, confirme pelo link:',
@@ -288,7 +288,7 @@ export function textoParaPaciente(lead: TriagemPacienteRecord): string {
 /**
  * Resposta ao próprio profissional, no fio da conversa dele.
  *
- * Existe porque o WhatsApp virou canal de mão dupla: quem responde `CONTATO` ou
+ * Existe porque o WhatsApp virou canal de mão dupla: quem responde `CONFIRMAR` ou
  * `ENCAMINHAR` precisa saber se a clínica registrou. Silêncio depois de uma
  * resposta é o que faz a pessoa mandar de novo — e duplicar comando é como se
  * perde um paciente para o profissional errado.

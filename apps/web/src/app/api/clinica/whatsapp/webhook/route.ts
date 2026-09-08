@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
  * Webhook da Evolution API.
  *
  * Hoje serve a um único fluxo: a resposta que o psicólogo manda depois de
- * receber um paciente — `CONTATO` para confirmar que já falou com ele,
+ * receber um paciente — `CONFIRMAR` para confirmar que já falou com ele,
  * `ENCAMINHAR` para devolvê-lo à fila. Os dois caminhos passam exatamente pelas
  * funções que o link de confirmação e a varredura de SLA usam, para não existir
  * uma segunda regra de rodízio vivendo aqui dentro.

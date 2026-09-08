@@ -34,10 +34,10 @@ describe('e-mails do credenciamento de psicólogo', () => {
     delete process.env.PSYCHOLOGIST_EMAIL_REPLY_TO;
   });
 
-  it('explica a análise de até 24 horas no primeiro e-mail', () => {
+  it('confirma o recebimento do cadastro no primeiro e-mail', () => {
     const conteudo = conteudoCadastroRecebido('Ana & Silva');
-    expect(conteudo.text).toContain('Em até 24 horas');
-    expect(conteudo.text).toContain('link seguro para cadastrar sua senha');
+    expect(conteudo.text).toContain('Recebemos seu cadastro profissional');
+    expect(conteudo.text).not.toContain('Em até 24 horas');
     expect(conteudo.html).toContain('Ana &amp; Silva');
     expect(conteudo.html).toContain('logo-viver-mais.png');
     expect(conteudo.html).toContain('Seu cadastro chegou até nós');

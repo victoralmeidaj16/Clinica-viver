@@ -65,8 +65,6 @@ export function conteudoCadastroRecebido(nome: string): ConteudoEmail {
       'Seja bem-vindo(a) à Viver Mais Psicologia.',
       'Recebemos seu cadastro profissional e seu perfil já está sendo analisado pela nossa gestão.',
       '',
-      'Em até 24 horas, você receberá outro e-mail com o resultado da análise. Em caso de aprovação, ele trará as instruções de acesso ao portal e o link seguro para cadastrar sua senha.',
-      '',
       'Nenhuma ação é necessária neste momento.',
       '',
       'Equipe Viver Mais Psicologia',
@@ -79,7 +77,6 @@ export function conteudoCadastroRecebido(nome: string): ConteudoEmail {
       paragrafos: [
         'Seja bem-vindo(a) à Viver Mais Psicologia.',
         'Recebemos seu cadastro profissional e seu perfil já está sendo analisado com cuidado pela nossa gestão.',
-        'Em até <strong style="color:#43265e;">24 horas</strong>, você receberá outro e-mail com o resultado. Em caso de aprovação, enviaremos as instruções de acesso ao portal e o link seguro para cadastrar sua senha.',
         '<strong style="color:#2a2028;">Nenhuma ação é necessária neste momento.</strong>',
       ],
     }),

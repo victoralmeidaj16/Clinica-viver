@@ -16,6 +16,11 @@ export function proxy(request: NextRequest) {
     '/api/financeiro/',
     '/api/certificados/',
     '/api/public/certificados/',
+    // A lista de convênios da vitrine lê o MySQL, e MySQL só existe na VPS.
+    // Fora desta lista a rota executava na Vercel, onde `isMysqlConfigured()`
+    // é falso: o formulário do paciente respondia 503 e caía no aviso "a lista
+    // não carregou", com o banco cheio de convênios do outro lado.
+    '/api/convenios/',
   ].some((prefix) => pathname.startsWith(prefix));
 
   if (process.env.VERCEL && persistentApi) {

@@ -147,7 +147,9 @@ export default function ViverMaisLandingPage() {
     estadoUf: '',
     possuiConvenio: 'NAO',
     convenioSelecionado: '',
-    origem: 'Facebook',
+    // Sem valor inicial: um canal pré-selecionado é respondido por omissão e
+    // contamina a única medida de origem que a clínica tem.
+    origem: '',
     turno: '' as TurnoPreferencia | '',
     paraQuemE: '',
     paraQuemEOutro: '',
@@ -1587,10 +1589,12 @@ export default function ViverMaisLandingPage() {
               <div>
                 <label className="font-bold text-slate-700 block mb-1">Como ficou sabendo da clínica? <span className="text-rose-500">*</span></label>
                 <select
+                  required
                   value={form.origem}
                   onChange={(e) => setForm({ ...form, origem: e.target.value })}
                   className="w-full border border-slate-300 bg-white rounded-xl p-3 focus:outline-none focus:border-purple-600"
                 >
+                  <option value="">Selecione</option>
                   <option value="Facebook">Facebook</option>
                   <option value="Instagram">Instagram</option>
                   <option value="Google">Google</option>

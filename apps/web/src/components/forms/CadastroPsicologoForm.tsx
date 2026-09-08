@@ -68,7 +68,7 @@ export function CadastroPsicologoForm({
     whatsapp: '',
     email: '',
     fotoUrl: '',
-    modalidadeAtendimento: 'AMBOS',
+    modalidadeAtendimento: 'ONLINE',
     atendimentoPreferencia: 'AMBOS' as 'PARTICULAR' | 'SOCIAL' | 'AMBOS',
     estadoUf: '',
     cidade: '',
@@ -266,33 +266,6 @@ export function CadastroPsicologoForm({
           )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="font-bold text-slate-700 block mb-1">Registro CRP <span className="text-rose-500">*</span></label>
-            <input
-              type="text"
-              required
-              value={formPsicologo.crp}
-              onChange={(e) => setFormPsicologo({ ...formPsicologo, crp: maskCrpInput(e.target.value) })}
-              placeholder="Ex: 12/34567"
-              maxLength={10}
-              className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
-            />
-          </div>
-          <div>
-            <label className="font-bold text-slate-700 block mb-1">Turma Viver Mais <span className="text-rose-500">*</span></label>
-            <select
-              value={formPsicologo.turmaViverMais}
-              onChange={(e) => setFormPsicologo({ ...formPsicologo, turmaViverMais: e.target.value })}
-              className="w-full border border-slate-300 bg-white rounded-xl p-3 focus:outline-none focus:border-purple-600 font-bold"
-            >
-              {TURMAS_VIVER_MAIS.map((turma) => (
-                <option key={turma} value={turma}>Turma {turma}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
         {/* Pós-Graduação Principal Viver Mais */}
         <div>
           <label className="font-bold text-slate-700 block mb-1">Pós-Graduação na Viver Mais Psicologia <span className="text-rose-500">*</span></label>
@@ -305,9 +278,39 @@ export function CadastroPsicologoForm({
               <option key={pos} value={pos}>{pos}</option>
             ))}
           </select>
+        </div>
 
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="font-bold text-slate-700 block mb-1">Turma Viver Mais <span className="text-rose-500">*</span></label>
+            <select
+              value={formPsicologo.turmaViverMais}
+              onChange={(e) => setFormPsicologo({ ...formPsicologo, turmaViverMais: e.target.value })}
+              className="w-full border border-slate-300 bg-white rounded-xl p-3 focus:outline-none focus:border-purple-600 font-bold"
+            >
+              {TURMAS_VIVER_MAIS.map((turma) => (
+                <option key={turma} value={turma}>Turma {turma}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="font-bold text-slate-700 block mb-1">Registro CRP <span className="text-rose-500">*</span></label>
+            <input
+              type="text"
+              required
+              value={formPsicologo.crp}
+              onChange={(e) => setFormPsicologo({ ...formPsicologo, crp: maskCrpInput(e.target.value) })}
+              placeholder="Ex: 12/34567"
+              maxLength={10}
+              className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
+            />
+          </div>
+        </div>
+
+        {/* Segunda Pós-Graduação Viver Mais */}
+        <div>
           {/* Checkbox para Segunda Pós-Graduação */}
-          <div className="mt-3">
+          <div>
             <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 select-none">
               <input
                 type="checkbox"

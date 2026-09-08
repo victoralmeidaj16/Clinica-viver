@@ -3,14 +3,17 @@
 import { useState } from 'react';
 import { Building2, CalendarCheck2, Mail, Pencil, ShieldCheck, UsersRound, X } from 'lucide-react';
 import type { ConvenioDetailView } from './types';
+import type { PeriodoFaturamento } from './periodo';
 import { FaturamentoPanel } from './FaturamentoPanel';
 
 const money = (cents: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
 const date = (iso: string) => new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeZone: 'America/Sao_Paulo' }).format(new Date(iso));
 
-export function ConvenioDetailDrawer({ detail, loading, onClose, onEdit, onRefresh }: {
+export function ConvenioDetailDrawer({ detail, loading, periodo, onPeriodoChange, onClose, onEdit, onRefresh }: {
   detail?: ConvenioDetailView; loading: boolean; onClose: () => void; onEdit: () => void;
-  onRefresh: (period?: { inicio: string; fim: string }) => Promise<void>;
+  periodo: PeriodoFaturamento;
+  onPeriodoChange: (periodo: PeriodoFaturamento) => void;
+  onRefresh: (period?: PeriodoFaturamento) => Promise<void>;
 }) {
   const [tab, setTab] = useState<'pacientes' | 'sessoes'>('pacientes');
   return (
@@ -33,7 +36,7 @@ export function ConvenioDetailDrawer({ detail, loading, onClose, onEdit, onRefre
             </section>
             <div className="flex rounded-xl bg-psi-soft/50 p-1">{(['pacientes', 'sessoes'] as const).map((item) => <button key={item} type="button" onClick={() => setTab(item)} className={`flex-1 rounded-lg px-3 py-2 text-xs font-black capitalize transition ${tab === item ? 'bg-white text-psi-deep shadow-sm' : 'text-muted'}`}>{item}</button>)}</div>
             {tab === 'pacientes' ? <div className="overflow-hidden rounded-2xl border border-psi-soft"><table className="w-full text-left text-xs"><thead className="bg-slate-50 text-[9px] font-black uppercase tracking-wider text-muted"><tr><th className="px-4 py-3">Paciente</th><th className="px-4 py-3">Psicólogo</th><th className="px-4 py-3 text-right">Sessões</th></tr></thead><tbody className="divide-y divide-psi-soft/60">{detail.pacientes.map((item) => <tr key={item.id}><td className="px-4 py-3"><p className="font-black text-ink">{item.nome}</p><p className={`text-[10px] font-bold ${item.custeadoPelaEmpresa ? 'text-emerald-700' : 'text-muted'}`}>{item.custeadoPelaEmpresa ? 'Custeado pela empresa' : 'Pagamento individual'}</p></td><td className="px-4 py-3 text-muted">{item.psicologoNome ?? '-'}</td><td className="px-4 py-3 text-right font-black text-ink">{item.sessoesNoPeriodo}</td></tr>)}</tbody></table>{detail.pacientes.length === 0 && <p className="p-8 text-center text-xs text-muted">Nenhum paciente vinculado.</p>}</div> : <div className="space-y-2">{detail.sessoes.map((item) => <article key={item.chargeId} className="grid grid-cols-[1fr_auto] gap-3 rounded-2xl border border-psi-soft bg-white p-4"><div><p className="text-sm font-black text-ink">{item.pacienteNome}</p><p className="text-[10px] text-muted">{date(item.realizadaEm)} · {item.psicologoNome}</p></div><div className="text-right"><p className="text-sm font-black text-psi-deep">{money(item.valorCents)}</p><span className={`inline-flex rounded-full border px-2 py-0.5 text-[9px] font-extrabold uppercase ${item.faturaId ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>{item.faturaId ? 'Faturada' : 'A faturar'}</span></div></article>)}{detail.sessoes.length === 0 && <p className="p-8 text-center text-xs text-muted">Nenhum atendimento no período.</p>}</div>}
-            {(detail.convenio.empresaPagaSessoes || detail.convenio.pacientesCusteados > 0) && <FaturamentoPanel detail={detail} onRefresh={onRefresh} />}
+            {(detail.convenio.empresaPagaSessoes || detail.convenio.pacientesCusteados > 0) && <FaturamentoPanel detail={detail} periodo={periodo} onPeriodoChange={onPeriodoChange} onRefresh={onRefresh} />}
           </div>
         </>}
       </div>

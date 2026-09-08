@@ -49,10 +49,15 @@ describe('editAgendaAppointment', () => {
       status: 'realizado',
     });
 
-    expect(updateAppointmentDetails).toHaveBeenCalledWith('org-1', 'pro-1', 'apt-1', {
-      startsAt: '2026-09-01T12:00:00.000Z',
-      status: undefined,
-    });
+    expect(updateAppointmentDetails).toHaveBeenCalledWith(
+      'org-1',
+      'pro-1',
+      'apt-1',
+      { startsAt: '2026-09-01T12:00:00.000Z', status: undefined },
+      // A edição avisa que vai concluir, para a validação do término acontecer
+      // dentro da mesma transação que grava o horário.
+      { concluirDepois: true }
+    );
     expect(completeAppointment).toHaveBeenCalledWith('org-1', 'pro-1', 'apt-1');
   });
 

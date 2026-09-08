@@ -304,7 +304,8 @@ export async function editAgendaAppointment(
     organizationId,
     professionalId,
     appointmentId,
-    querRealizar ? { ...input, status: undefined } : input
+    querRealizar ? { ...input, status: undefined } : input,
+    { concluirDepois: querRealizar }
   );
 
   if (outcome === 'not_found') {
@@ -324,6 +325,23 @@ export async function editAgendaAppointment(
     throw new ApplicationError(
       'INVALID_APPOINTMENT_STATUS',
       'A realização precisa ser confirmada pelo fluxo de conclusão do atendimento.',
+      409
+    );
+  }
+  // Recusas da conclusão chegam aqui antes de qualquer gravação: a edição foi
+  // desfeita junto com a validação, então nada de horário ou modalidade ficou
+  // salvo por trás da mensagem de erro.
+  if (outcome === 'not_finished') {
+    throw new ApplicationError(
+      'APPOINTMENT_NOT_FINISHED',
+      'A realização só pode ser confirmada depois do horário previsto para o término.',
+      409
+    );
+  }
+  if (outcome === 'invalid_status') {
+    throw new ApplicationError(
+      'INVALID_APPOINTMENT_STATUS',
+      'Somente uma sessão agendada ou confirmada pode ser marcada como realizada.',
       409
     );
   }

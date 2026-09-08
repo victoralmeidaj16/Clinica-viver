@@ -167,7 +167,12 @@ export function UpcomingSessions({ agendamentos, onCancelar, onConfirmarRealizac
           const cancelado = item.status === 'cancelado';
           const termino = Date.parse(item.fim || item.inicio);
           const jaPassou = Number.isFinite(termino) && termino <= agora;
-          const realizado = item.status === 'realizado' || Boolean(item.realizadoEm) || (!cancelado && jaPassou);
+          // O horário ter passado não é a mesma coisa que o atendimento ter
+          // sido confirmado: enquanto a confirmação estiver disponível, a
+          // sessão clínica e a cobrança empresarial ainda não existem.
+          const aguardandoConfirmacao = !cancelado && item.podeConfirmarRealizacao;
+          const realizado = !cancelado && !aguardandoConfirmacao
+            && (item.status === 'realizado' || Boolean(item.realizadoEm) || jaPassou);
           return (
             <li key={item.id} data-foco={focoSessao(item.id)} className="space-y-3 px-6 py-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -186,11 +191,17 @@ export function UpcomingSessions({ agendamentos, onCancelar, onConfirmarRealizac
               </div>
               {cancelado ? (
                 <span className="text-[11px] font-extrabold text-rose-600">CANCELADA</span>
-              ) : realizado ? (
+              ) : realizado || aguardandoConfirmacao ? (
                 <div className="flex items-center gap-2">
-                  <span className="flex items-center gap-1 text-[11px] font-extrabold text-emerald-700 mr-1">
-                    <CheckCircle2 className="h-4 w-4" /> REALIZADA
-                  </span>
+                  {aguardandoConfirmacao ? (
+                    <span className="flex items-center gap-1 text-[11px] font-extrabold text-amber-700 mr-1">
+                      <CalendarClock className="h-4 w-4" /> AGUARDANDO CONFIRMAÇÃO
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-[11px] font-extrabold text-emerald-700 mr-1">
+                      <CheckCircle2 className="h-4 w-4" /> REALIZADA
+                    </span>
+                  )}
                   <button
                     type="button"
                     onClick={() =>

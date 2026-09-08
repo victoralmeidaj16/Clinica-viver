@@ -4,10 +4,8 @@ import { useMemo, useState } from 'react';
 import { CheckSquare, Download, FilePlus2, Loader2, Square } from 'lucide-react';
 import { applicationRequest, commandHeaders } from '@/lib/applicationApi';
 import type { ConvenioDetailView, SessaoConvenioView } from './types';
+import type { PeriodoFaturamento } from './periodo';
 import { FaturaNfsePanel } from './FaturaNfsePanel';
-
-const localDate = (date: Date) =>
-  `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, '0')}-${`${date.getDate()}`.padStart(2, '0')}`;
 
 const money = (cents: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
@@ -21,14 +19,20 @@ const dateFmt = (iso: string) =>
 
 export function FaturamentoPanel({
   detail,
+  periodo,
+  onPeriodoChange,
   onRefresh,
 }: {
   detail: ConvenioDetailView;
-  onRefresh: (period?: { inicio: string; fim: string }) => Promise<void>;
+  periodo: PeriodoFaturamento;
+  onPeriodoChange: (periodo: PeriodoFaturamento) => void;
+  onRefresh: (period?: PeriodoFaturamento) => Promise<void>;
 }) {
-  const today = new Date();
-  const [inicio, setInicio] = useState(() => localDate(new Date(today.getFullYear(), today.getMonth(), 1)));
-  const [fim, setFim] = useState(() => localDate(today));
+  // O período é do pai: este painel some da árvore enquanto o detalhe recarrega,
+  // e um estado local voltaria ao mês corrente bem no meio de "Aplicar período".
+  const { inicio, fim } = periodo;
+  const setInicio = (valor: string) => onPeriodoChange({ inicio: valor, fim });
+  const setFim = (valor: string) => onPeriodoChange({ inicio, fim: valor });
   const [closing, setClosing] = useState(false);
   const [error, setError] = useState('');
 

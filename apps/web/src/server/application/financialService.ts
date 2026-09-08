@@ -136,20 +136,10 @@ export async function getMyFinancialData(
   if (isMysqlConfigured()) {
     try {
       const pool = getMysqlPool();
-      // Auto-sincroniza agendamentos passados para status 'realizado'
-      await pool.execute(
-        `UPDATE clinica_agendamentos a
-           JOIN clinica_profissionais p ON p.id = a.profissional_id
-           JOIN clinica_organizacoes o ON o.id = p.organizacao_id
-            SET a.status = 'realizado',
-                a.realizado_em = COALESCE(a.realizado_em, COALESCE(a.fim, DATE_ADD(a.inicio, INTERVAL a.duracao_min MINUTE))),
-                a.versao = a.versao + 1,
-                a.atualizado_em = CURRENT_TIMESTAMP(3)
-          WHERE a.instituicao_id = ? AND o.ref_core = ? AND p.ref_core = ?
-            AND a.status IN ('agendado', 'confirmado')
-            AND COALESCE(a.fim, DATE_ADD(a.inicio, INTERVAL a.duracao_min MINUTE)) <= NOW()`,
-        [instituicaoId(), organizationId, professionalId]
-      ).catch(() => {});
+      // Aqui não há sincronização de status: abrir o financeiro não conclui
+      // atendimento. O "realizado" desta tela é derivado do horário logo
+      // abaixo, e a conclusão de verdade — com sessão clínica e cobrança
+      // empresarial — continua sendo do fluxo da agenda.
 
       // Convênios dos pacientes da clínica
       const [patientRows] = await pool.query<RowDataPacket[]>(

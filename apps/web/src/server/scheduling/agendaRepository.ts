@@ -376,24 +376,15 @@ export async function listAppointments(
   desde: Date,
   agora: Date = new Date()
 ): Promise<AgendamentoResumo[]> {
+  // Listar não conclui atendimento. A transição para `realizado` pertence a
+  // `completeAppointment`, que cria a sessão clínica dos indicadores e provisiona
+  // a cobrança empresarial; um UPDATE aqui trocava só o status e deixava o
+  // atendimento parecendo concluído sem nada disso ter acontecido.
   const connection = await getMysqlPool().getConnection();
   try {
-    await connection.execute(
-      `UPDATE clinica_agendamentos a
-         JOIN clinica_profissionais p ON p.id = a.profissional_id
-         JOIN clinica_organizacoes o ON o.id = p.organizacao_id
-          SET a.status = 'realizado',
-              a.realizado_em = COALESCE(a.realizado_em, COALESCE(a.fim, DATE_ADD(a.inicio, INTERVAL a.duracao_min MINUTE))),
-              a.versao = a.versao + 1,
-              a.atualizado_em = CURRENT_TIMESTAMP(3)
-        WHERE a.instituicao_id = ? AND o.ref_core = ? AND p.ref_core = ?
-          AND a.status IN ('agendado', 'confirmado')
-          AND COALESCE(a.fim, DATE_ADD(a.inicio, INTERVAL a.duracao_min MINUTE)) <= NOW()`,
-      [instituicaoId(), organizationId, professionalId]
-    ).catch(() => {});
-
     const [rows] = await connection.query<RowDataPacket[]>(
       `SELECT a.id, a.inicio, a.fim, a.duracao_min, a.modalidade, a.status,
+              a.sessao_clinica_ref,
               a.origem_criacao, a.criado_em, a.realizado_em, a.token_pagamento_sessao,
               COALESCE(pa.nome_social, pa.nome) AS paciente_nome,
               conv.nome AS convenio_nome,
@@ -428,10 +419,10 @@ export async function listAppointments(
       const fim = new Date(
         row.fim ?? new Date(row.inicio).getTime() + Number(row.duracao_min) * 60_000
       );
-      const rawStatus = String(row.status);
-      const jaOcorreu = fim.getTime() <= agora.getTime();
-      const status = rawStatus === 'cancelado' ? 'cancelado' :
-                     (rawStatus === 'realizado' || jaOcorreu) ? 'realizado' : rawStatus;
+      // O status devolvido é o que está gravado. Colapsar "já passou" em
+      // "realizado" aqui escondia da interface justamente os atendimentos que
+      // ainda esperam a confirmação do psicólogo.
+      const status = String(row.status);
 
       return {
         id: String(row.id),
@@ -442,13 +433,13 @@ export async function listAppointments(
         status,
         origem: String(row.origem_criacao),
         criadoEm: new Date(row.criado_em).toISOString(),
-        realizadoEm: row.realizado_em ? new Date(row.realizado_em).toISOString() : (jaOcorreu ? fim.toISOString() : undefined),
+        realizadoEm: row.realizado_em ? new Date(row.realizado_em).toISOString() : undefined,
         linkPagamento: `/pagar/sessao/${String(row.token_pagamento_sessao)}`,
         pagamentoStatus: row.pagamento_status ? String(row.pagamento_status) : undefined,
         vencimentoCobrancaEm: row.vencimento_cobranca_em ? new Date(row.vencimento_cobranca_em).toISOString() : undefined,
         custeadoPelaEmpresa: Boolean(row.custeado_pela_empresa),
         convenioNome: row.convenio_nome ? String(row.convenio_nome) : undefined,
-        podeConfirmarRealizacao: podeConfirmarRealizacao(status, fim, agora),
+        podeConfirmarRealizacao: podeConfirmarRealizacao(status, fim, agora, !row.sessao_clinica_ref),
       };
     });
   } finally {
@@ -503,11 +494,15 @@ export async function completeAppointment(
       await connection.rollback();
       return 'not_found';
     }
-    if (String(appointment.status) === 'realizado') {
+    const statusAtual = String(appointment.status);
+    // Um atendimento gravado como realizado mas sem sessão clínica é resquício
+    // da sincronização automática que trocava o status na listagem. Ele ainda
+    // precisa da materialização, então segue pelo fluxo em vez de sair aqui.
+    if (statusAtual === 'realizado' && appointment.sessao_clinica_ref) {
       await connection.rollback();
       return 'already_completed';
     }
-    if (!['agendado', 'confirmado'].includes(String(appointment.status))) {
+    if (!['agendado', 'confirmado', 'realizado'].includes(statusAtual)) {
       await connection.rollback();
       return 'invalid_status';
     }
@@ -704,13 +699,31 @@ export type ResultadoEdicaoAgendamento =
   /** Marcar como realizado exige o fluxo de conclusão, que cria a sessão clínica. */
   | 'requires_completion'
   /** Um atendimento já concluído não volta atrás por edição de status. */
-  | 'completed_locked';
+  | 'completed_locked'
+  /** A conclusão pedida junto da edição não vale antes do fim do atendimento. */
+  | 'not_finished'
+  /** O atendimento está num status que a conclusão não aceita. */
+  | 'invalid_status';
+
+export interface UpdateAppointmentOptions {
+  /**
+   * O chamador vai concluir o atendimento logo depois desta edição.
+   *
+   * As condições da conclusão são verificadas aqui, dentro da mesma transação
+   * que grava horário e modalidade: sem isso, uma edição para um horário futuro
+   * era commitada e só então a conclusão recusava, deixando a interface avisando
+   * falha sobre uma alteração que já tinha sido persistida.
+   */
+  concluirDepois?: boolean;
+}
 
 export async function updateAppointmentDetails(
   organizationId: string,
   professionalId: string,
   appointmentId: string,
-  input: UpdateAppointmentInput
+  input: UpdateAppointmentInput,
+  opcoes: UpdateAppointmentOptions = {},
+  agora: Date = new Date()
 ): Promise<ResultadoEdicaoAgendamento> {
   if (!isMysqlConfigured()) {
     return 'ok';
@@ -786,6 +799,20 @@ export async function updateAppointmentDetails(
       if (bloqueios.length > 0) {
         await connection.rollback();
         return 'conflict';
+      }
+    }
+
+    if (opcoes.concluirDepois) {
+      if (!['agendado', 'confirmado', 'realizado'].includes(String(agendamento.status))) {
+        await connection.rollback();
+        return 'invalid_status';
+      }
+      const fimEfetivo = novoFim ?? (novoInicio
+        ? new Date(novoInicio.getTime() + novoDuracao * 60_000)
+        : null);
+      if (!fimEfetivo || fimEfetivo.getTime() > agora.getTime()) {
+        await connection.rollback();
+        return 'not_finished';
       }
     }
 

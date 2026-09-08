@@ -34,6 +34,10 @@ export async function garantirCobrancaDaSessao(
   agendamentoId: string,
   dueAt?: string
 ): Promise<ChargeOutcome> {
+  // `agendamentoId` chega das duas formas: a referência do agregado, usada pelo
+  // fluxo administrativo, e a chave física da linha, devolvida pelo agendamento
+  // do link público e pela listagem da agenda. Procurar só por uma delas fazia a
+  // cobrança nunca ser criada para metade dos chamadores.
   let connection: PoolConnection | undefined;
   try {
     connection = await getMysqlPool().getConnection();
@@ -52,9 +56,10 @@ export async function garantirCobrancaDaSessao(
          LEFT JOIN clinica_convenios conv
            ON conv.instituicao_id = pa.instituicao_id
           AND conv.organizacao_ref = o.ref_core AND conv.ref_core = pa.convenio_ref
-        WHERE a.instituicao_id = ? AND a.ref_core = ? AND a.status <> 'cancelado'
+        WHERE a.instituicao_id = ? AND (a.ref_core = ? OR a.id = ?)
+          AND a.status <> 'cancelado'
         LIMIT 1 FOR UPDATE`,
-      [instituicaoId(), agendamentoId]
+      [instituicaoId(), agendamentoId, agendamentoId]
     );
     const appointment = rows[0];
     if (!appointment) {
@@ -291,9 +296,9 @@ export async function cancelarCobrancaDaSessao(
               o.ref_core AS organizacao_ref
          FROM clinica_agendamentos a
          JOIN clinica_organizacoes o ON o.id = a.organizacao_id
-        WHERE a.instituicao_id = ? AND a.ref_core = ?
+        WHERE a.instituicao_id = ? AND (a.ref_core = ? OR a.id = ?)
         LIMIT 1 FOR UPDATE`,
-      [instituicaoId(), agendamentoId]
+      [instituicaoId(), agendamentoId, agendamentoId]
     );
     const appointment = rows[0];
     if (!appointment) {

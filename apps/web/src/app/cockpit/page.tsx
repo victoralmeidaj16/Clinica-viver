@@ -88,7 +88,7 @@ export default function CockpitPage() {
     }
   };
 
-  // Lembrete de Sessão em 1-Clique via WhatsApp
+  // Lembrete de Sessão via WhatsApp
   const handleEnviarLembreteWhatsApp = (app: AppointmentSummary) => {
     const paciente = patients.find((p) => p.id === app.patientId);
     const telefone = paciente?.phone?.replace(/\D/g, '') || '';
@@ -231,7 +231,7 @@ export default function CockpitPage() {
         </div>
       </div>
 
-      {/* CARD DE PRÓXIMAS SESSÕES DA SEMANA + LEMBRETE 1-CLIQUE WHATSAPP */}
+      {/* CARD DE PRÓXIMAS SESSÕES DA SEMANA + LEMBRETE WHATSAPP */}
       <div className="bg-surface rounded-3xl p-6 border border-line shadow-card space-y-4">
         <div className="flex items-center justify-between border-b border-line pb-3">
           <div className="flex items-center gap-2">

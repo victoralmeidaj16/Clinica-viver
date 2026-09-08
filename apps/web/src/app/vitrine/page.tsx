@@ -313,7 +313,7 @@ export default function ViverMaisLandingPage() {
       titulo: 'Psicoterapia Individual',
       descricao: 'É a modalidade mais conhecida de acompanhamento psicológico. Nela são trabalhadas diferentes demandas, como ansiedade, estresse, depressão, dificuldades nos relacionamentos, luto, autoestima, autoconhecimento, entre outras, sempre respeitando as necessidades de cada pessoa.',
       duracao: '50min',
-      imagem: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=800&q=80',
+      imagem: '/psicoterapia_individual.jpg',
       opcoes: [
         { tipo: 'SOCIAL', label: 'Agendamento Acessível', preco: 'R$ 75,00' },
         { tipo: 'PARTICULAR', label: 'Agendamento Particular', preco: 'R$ 130,00' }
@@ -761,12 +761,12 @@ export default function ViverMaisLandingPage() {
       <main id="modalidades" className="max-w-6xl mx-auto px-6 py-8">
         {step === 'SERVICOS' && (
           <div id="servicos-cards" className="space-y-16 animate-in fade-in slide-in-from-bottom-4 duration-300">
-            {/* Escolha Seu Serviço & Agende em 1-Clique - Menu Sanfona (Accordion) */}
+            {/* Escolha Seu Serviço & Agende - Menu Sanfona (Accordion) */}
             <div id="secao-escolha-servico" className="scroll-mt-28 space-y-8">
               <div className="text-center max-w-2xl mx-auto space-y-2">
-                <span className="chip-accent text-[11px]">Agendamento em 1-Clique</span>
+                <span className="chip-accent text-[11px]">Agendamento</span>
                 <h3 className="text-2xl sm:text-3xl font-black text-ink">
-                  Escolha Seu Serviço &amp; Agende em 1-Clique
+                  Escolha Seu Serviço &amp; Agende
                 </h3>
                 <p className="text-xs sm:text-sm text-muted">
                   Valores transparentes, cuidado ético e encaminhamento descomplicado para o seu momento de vida
@@ -879,14 +879,11 @@ export default function ViverMaisLandingPage() {
                               </div>
                             </div>
 
-                            {/* Coluna Direita: Cards de Modalidade & Agendamento em 1-Clique */}
+                            {/* Coluna Direita: Cards de Modalidade & Agendamento */}
                             <div className="lg:col-span-6 space-y-3">
                               <div className="flex items-center justify-between pb-1">
                                 <span className="text-xs font-black uppercase tracking-wider text-ink">
                                   Selecione a Modalidade &amp; Agende:
-                                </span>
-                                <span className="text-[11px] font-bold text-psi-vibrant">
-                                  1-Clique
                                 </span>
                               </div>
 
@@ -912,7 +909,7 @@ export default function ViverMaisLandingPage() {
                                     onClick={() => handleSelectServiceAndPrice(servicoKey, opcao.tipo)}
                                     className="shrink-0 bg-psi-deep hover:bg-psi-darkest text-white font-extrabold text-xs px-5 py-2.5 rounded-xl transition-all shadow-sm active:scale-95 flex items-center justify-center gap-2"
                                   >
-                                    <span>Agendar em 1-Clique</span>
+                                    <span>Agendar</span>
                                     <ArrowRight className="w-3.5 h-3.5" />
                                   </button>
                                 </div>

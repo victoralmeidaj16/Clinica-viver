@@ -309,7 +309,7 @@ export default function GestaoPsicologosPage() {
                 {solicitacoesPendentes} psicólogo{solicitacoesPendentes > 1 ? 's têm' : ' tem'} solicitação de alteração pendente em &ldquo;Definido pela Gestão&rdquo;
               </p>
               <p className="text-[11px] text-purple-800">
-                Revise os novos serviços ou dados acadêmicos solicitados e aprove com 1 clique.
+                Revise os novos serviços ou dados acadêmicos solicitados e realize a aprovação.
               </p>
             </div>
           </div>

@@ -639,7 +639,7 @@ export function VitrineCarrossel({
               </div>
             </div>
 
-            {/* Chips de Demandas Frequentes para Filtro em 1-Clique */}
+            {/* Chips de Demandas Frequentes para Filtros Rápidos */}
             <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-line/60">
               <span className="text-[10px] font-extrabold uppercase tracking-wider text-muted flex items-center gap-1 shrink-0">
                 <Filter className="w-3 h-3 text-psi-vibrant" /> Filtros rápidos:

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
+import { normalizarPublicoAlvo } from '@thats-life/core';
 import { VitrineCarrossel, PsicologoVitrineItem } from '@/components/vitrineCarrossel';
 import { GenderFields } from '@/components/forms/GenderFields';
 import { CadastroPsicologoForm } from '@/components/forms/CadastroPsicologoForm';
@@ -26,6 +27,7 @@ import {
   Building2,
   Send,
   ChevronDown,
+  PhoneCall,
 } from 'lucide-react';
 
 type ServicoKey =
@@ -36,6 +38,14 @@ type ServicoKey =
   | 'ORIENTACAO_PARENTAL';
 
 type ModalidadeKey = 'SOCIAL' | 'PARTICULAR' | 'CASAL_SOCIAL' | 'CASAL_PARTICULAR';
+
+type PreferenciaGeneroPsicologo = 'SEM_PREFERENCIA' | 'FEMININO' | 'MASCULINO';
+
+const PREFERENCIAS_GENERO_PSICOLOGO: ReadonlyArray<{ value: PreferenciaGeneroPsicologo; label: string }> = [
+  { value: 'SEM_PREFERENCIA', label: 'Sem preferência' },
+  { value: 'FEMININO', label: 'Psicóloga' },
+  { value: 'MASCULINO', label: 'Psicólogo' },
+];
 
 interface OpcaoPreco {
   tipo: ModalidadeKey;
@@ -65,7 +75,7 @@ const PASSOS_AGENDAMENTO: PassoJornada[] = [
     resumo: 'Escolha a modalidade',
     detalhes: [
       'Selecione entre Psicoterapia Individual, Psicoterapia de Casal, Avaliação Psicológica e Neuropsicológica, Orientação Profissional/Vocacional ou Orientação Parental.',
-      'Depois escolha entre o agendamento Acessível ou Particular — os valores de cada serviço aparecem logo abaixo.',
+      'Depois escolha entre o agendamento Acessível/Social ou Particular — os valores de cada serviço aparecem logo abaixo.',
     ],
   },
   {
@@ -151,6 +161,9 @@ export default function ViverMaisLandingPage() {
     // contamina a única medida de origem que a clínica tem.
     origem: '',
     turno: '' as TurnoPreferencia | '',
+    // Pré-selecionado de propósito: sem preferência é a resposta neutra, e
+    // deixar em branco obrigaria o paciente a declarar algo que não pediu.
+    preferenciaGeneroPsicologo: 'SEM_PREFERENCIA' as PreferenciaGeneroPsicologo,
     paraQuemE: '',
     paraQuemEOutro: '',
     especificarNecessidades: false,
@@ -317,7 +330,7 @@ export default function ViverMaisLandingPage() {
       duracao: '50min',
       imagem: '/psicoterapia_individual.jpg',
       opcoes: [
-        { tipo: 'SOCIAL', label: 'Agendamento Acessível', preco: 'R$ 75,00' },
+        { tipo: 'SOCIAL', label: 'Agendamento Acessível/Social', preco: 'R$ 75,00' },
         { tipo: 'PARTICULAR', label: 'Agendamento Particular', preco: 'R$ 130,00' }
       ]
     },
@@ -327,7 +340,7 @@ export default function ViverMaisLandingPage() {
       duracao: '1h30min',
       imagem: '/psicoterapia_casal.jpg',
       opcoes: [
-        { tipo: 'CASAL_SOCIAL', label: 'Agendamento Acessível (Casal)', preco: 'R$ 150,00' },
+        { tipo: 'CASAL_SOCIAL', label: 'Agendamento Acessível/Social (Casal)', preco: 'R$ 150,00' },
         { tipo: 'CASAL_PARTICULAR', label: 'Agendamento Particular (Casal)', preco: 'R$ 260,00' }
       ]
     },
@@ -337,7 +350,7 @@ export default function ViverMaisLandingPage() {
       duracao: 'variável conforme testes e manejo do profissional',
       imagem: '/avaliacao_psicologica.jpg',
       opcoes: [
-        { tipo: 'SOCIAL', label: 'Agendamento Acessível', preco: 'R$ 100,00' },
+        { tipo: 'SOCIAL', label: 'Agendamento Acessível/Social', preco: 'R$ 100,00' },
         { tipo: 'PARTICULAR', label: 'Agendamento Particular', preco: 'R$ 150,00' }
       ]
     },
@@ -347,7 +360,7 @@ export default function ViverMaisLandingPage() {
       duracao: '50min',
       imagem: '/orientacao_profissional.jpg',
       opcoes: [
-        { tipo: 'SOCIAL', label: 'Agendamento Acessível', preco: 'R$ 75,00' },
+        { tipo: 'SOCIAL', label: 'Agendamento Acessível/Social', preco: 'R$ 75,00' },
         { tipo: 'PARTICULAR', label: 'Agendamento Particular', preco: 'R$ 130,00' }
       ]
     },
@@ -357,7 +370,7 @@ export default function ViverMaisLandingPage() {
       duracao: '50min',
       imagem: '/orientacao_parental.jpg',
       opcoes: [
-        { tipo: 'SOCIAL', label: 'Agendamento Acessível', preco: 'R$ 75,00' },
+        { tipo: 'SOCIAL', label: 'Agendamento Acessível/Social', preco: 'R$ 75,00' },
         { tipo: 'PARTICULAR', label: 'Agendamento Particular', preco: 'R$ 130,00' }
       ]
     }
@@ -441,7 +454,7 @@ export default function ViverMaisLandingPage() {
     const paraQuem = form.paraQuemE === 'Outro' ? form.paraQuemEOutro.trim() : form.paraQuemE;
     const informouNecessidade = form.necessidadesPaciente.length > 0 || Boolean(form.necessidadesOutro.trim());
     if (!paraQuem || !informouNecessidade || !form.turno) {
-      alert('Responda às três perguntas para continuar.');
+      alert('Responda às perguntas obrigatórias para continuar.');
       return;
     }
     setForm((prev) => ({ ...prev, especificarNecessidades: true }));
@@ -461,10 +474,7 @@ export default function ViverMaisLandingPage() {
     if (!form.turno) return [];
 
     const turnoNormalizado = normalizarTurnoPreferencia(form.turno);
-    const paraQuemNorm = (form.paraQuemE === 'Outro' ? form.paraQuemEOutro : form.paraQuemE)
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '');
+    const paraQuemNorm = normalizarPublicoAlvo(form.paraQuemE === 'Outro' ? form.paraQuemEOutro : form.paraQuemE);
 
     const candidatos = psicologosCredenciados.filter((psi) => {
       if (psi.disponivelParaNovosPacientes === false) return false;
@@ -478,6 +488,17 @@ export default function ViverMaisLandingPage() {
       const atendeTurno = psi.turnosDisponiveis?.some((t) => normalizarTurnoPreferencia(t) === turnoNormalizado);
       if (!atendeTurno) return false;
 
+      // Preferência de gênero recorta a lista em vez de só pontuar: quem pediu
+      // uma psicóloga não deveria receber um homem na recomendação. Quem não se
+      // declarou homem ou mulher fica de fora quando há preferência declarada,
+      // porque não há como afirmar que atende ao pedido.
+      if (
+        form.preferenciaGeneroPsicologo !== 'SEM_PREFERENCIA' &&
+        psi.generoProfissional !== form.preferenciaGeneroPsicologo
+      ) {
+        return false;
+      }
+
       return true;
     });
 
@@ -488,7 +509,7 @@ export default function ViverMaisLandingPage() {
       // Match público alvo
       if (paraQuemNorm && psi.publicoAlvo?.length) {
         const matchPublico = psi.publicoAlvo.some((pa) => {
-          const normPa = pa.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          const normPa = normalizarPublicoAlvo(pa);
           return normPa.includes(paraQuemNorm) || paraQuemNorm.includes(normPa);
         });
         if (matchPublico) score += 3;
@@ -511,7 +532,7 @@ export default function ViverMaisLandingPage() {
 
     pontuados.sort((a, b) => b.score - a.score);
     return pontuados.slice(0, 3).map((item) => item.psi);
-  }, [psicologosCredenciados, form.turno, form.paraQuemE, form.paraQuemEOutro, form.necessidadesPaciente, selectedService, selectedModalidade]);
+  }, [psicologosCredenciados, form.turno, form.paraQuemE, form.paraQuemEOutro, form.necessidadesPaciente, form.preferenciaGeneroPsicologo, selectedService, selectedModalidade]);
 
   const profissionaisCompativeis = psicologosCredenciados.filter((psi) => {
     if (psi.disponivelParaNovosPacientes === false) return false;
@@ -658,21 +679,6 @@ export default function ViverMaisLandingPage() {
                   <p className="text-sm sm:text-base text-purple-100/90 leading-relaxed max-w-xl font-normal">
                     A partir das suas preferências e demandas, direcionamos você ao psicólogo ideal conforme a modalidade de atendimento (online ou presencial) e disponibilidade da nossa equipe, sempre com cuidado, acolhimento e resguardo ético.
                   </p>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-                    <div className="rounded-xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm">
-                      <p className="text-[10px] font-extrabold uppercase text-psi-vibrant">Acessível</p>
-                      <p className="mt-0.5 text-xs font-bold text-white">A partir de R$ 75</p>
-                    </div>
-                    <div className="rounded-xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm">
-                      <p className="text-[10px] font-extrabold uppercase text-psi-vibrant">Modalidades</p>
-                      <p className="mt-0.5 text-xs font-bold text-white">Online & Presencial</p>
-                    </div>
-                    <div className="rounded-xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm">
-                      <p className="text-[10px] font-extrabold uppercase text-psi-vibrant">Agilidade</p>
-                      <p className="mt-0.5 text-xs font-bold text-white">Retorno em até 24h</p>
-                    </div>
-                  </div>
 
                   <div className="pt-2 flex flex-wrap items-center gap-4">
                     <a
@@ -830,7 +836,6 @@ export default function ViverMaisLandingPage() {
                         {/* Lado Direito: Preço de referência e Chevron */}
                         <div className="flex items-center gap-3 shrink-0">
                           <div className="hidden sm:flex flex-col items-end">
-                            <span className="text-[10px] uppercase font-bold text-muted">A partir de</span>
                             <span className="text-xs sm:text-sm font-black text-psi-deep">{precoMinimo}</span>
                           </div>
                           <div
@@ -943,14 +948,6 @@ export default function ViverMaisLandingPage() {
                 <p className="text-xs sm:text-sm text-muted leading-relaxed">
                   A psicoterapia é um espaço de escuta técnica e acolhimento, conduzido por profissionais devidamente registrados no Conselho Regional de Psicologia (CRP). Isso significa que todos os psicólogos da Clínica Viver Mais possuem registro profissional ativo e estão habilitados a exercer a profissão, seguindo as normas éticas e técnicas da profissão, garantindo responsabilidade e segurança em todo o processo.
                 </p>
-                <div className="flex flex-wrap gap-2 pt-2">
-                  <span className="bg-psi-soft text-psi-darkest font-extrabold text-[11px] px-3 py-1 rounded-full border border-psi-soft">
-                    Modalidade Acessível (R$ 75,00)
-                  </span>
-                  <span className="bg-psi-soft text-psi-darkest font-extrabold text-[11px] px-3 py-1 rounded-full border border-psi-soft">
-                    Modalidade Particular (R$ 130,00)
-                  </span>
-                </div>
               </div>
               <div className="lg:col-span-5">
                 <img
@@ -992,6 +989,29 @@ export default function ViverMaisLandingPage() {
                 </div>
               </div>
             </div>
+
+            {/* Banner de Apoio Emocional / CVV */}
+            <div className="bg-purple-950/90 border border-purple-800/40 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-purple-200 shadow-md">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-900/80 text-purple-300 flex items-center justify-center shrink-0 border border-purple-700/50">
+                  <PhoneCall className="w-5 h-5 text-pink-400" />
+                </div>
+                <div>
+                  <h4 className="text-xs sm:text-sm font-bold text-white leading-tight">
+                    Precisa de ajuda imediata ou apoio emocional?
+                  </h4>
+                  <p className="text-[11px] text-purple-300/80 mt-0.5">
+                    Em caso de crise ou urgência, ligue para o <strong>CVV (Centro de Valorização da Vida) no 188</strong> ou procure um pronto atendimento.
+                  </p>
+                </div>
+              </div>
+              <a
+                href="tel:188"
+                className="text-xs font-black bg-pink-600 hover:bg-pink-500 text-white px-4 py-2 rounded-xl transition-all shadow-md shrink-0 flex items-center gap-1.5 self-stretch sm:self-auto justify-center active:scale-95"
+              >
+                Ligue 188 (Grátis)
+              </a>
+            </div>
           </div>
         )}
 
@@ -1030,7 +1050,6 @@ export default function ViverMaisLandingPage() {
                 }}
                 className="group relative overflow-hidden rounded-3xl border border-psi-vibrant bg-psi-darkest p-7 text-left text-white shadow-lift transition-all hover:-translate-y-1"
               >
-                <span className="absolute right-5 top-5 rounded-full bg-emerald-400 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-950">Recomendado</span>
                 <span className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-psi-soft">
                   <Sparkles className="h-5 w-5" />
                 </span>
@@ -1050,7 +1069,7 @@ export default function ViverMaisLandingPage() {
           <section className="mx-auto max-w-2xl rounded-3xl border border-line bg-surface p-6 shadow-lift sm:p-8 animate-in fade-in duration-300">
             <div className="mb-7 flex items-start justify-between gap-4 border-b border-line pb-5">
               <div>
-                <span className="text-[10px] font-black uppercase tracking-widest text-psi-vibrant">Recomendação inteligente · 3 perguntas</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-psi-vibrant">Recomendação inteligente · 4 perguntas</span>
                 <h3 className="mt-1 text-2xl font-black text-ink">Conte só o necessário</h3>
                 <p className="mt-1 text-xs text-muted">Nenhum dado pessoal será pedido nesta etapa.</p>
               </div>
@@ -1127,8 +1146,33 @@ export default function ViverMaisLandingPage() {
                 </label>
               </fieldset>
 
+              <fieldset className="space-y-3">
+                <legend className="text-sm font-black text-ink">3. Você prefere ser atendido por psicólogo ou psicóloga?</legend>
+                <p className="text-[11px] text-muted">Sem preferência mantém toda a equipe compatível na recomendação.</p>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  {PREFERENCIAS_GENERO_PSICOLOGO.map((opcao) => {
+                    const selecionada = form.preferenciaGeneroPsicologo === opcao.value;
+                    return (
+                      <button
+                        key={opcao.value}
+                        type="button"
+                        aria-pressed={selecionada}
+                        onClick={() => setForm((prev) => ({ ...prev, preferenciaGeneroPsicologo: opcao.value }))}
+                        className={`rounded-xl border p-3 text-left text-xs font-bold transition-all ${
+                          selecionada
+                            ? 'border-psi-vibrant bg-psi-soft text-psi-darkest'
+                            : 'border-line bg-white text-muted hover:border-psi-soft hover:text-ink'
+                        }`}
+                      >
+                        {opcao.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </fieldset>
+
               <div className="space-y-2">
-                <span className="text-sm font-black text-ink">3. Qual período você prefere? <span className="text-rose-500">*</span></span>
+                <span className="text-sm font-black text-ink">4. Qual período você prefere? <span className="text-rose-500">*</span></span>
                 <TurnoPreferenceField value={form.turno} onChange={(turno) => setForm((prev) => ({ ...prev, turno }))} />
               </div>
 
@@ -1178,7 +1222,7 @@ export default function ViverMaisLandingPage() {
                   <div className="space-y-1 text-center sm:text-left">
                     <h4 className="text-sm font-black text-purple-950">Prefere não escolher um nome específico?</h4>
                     <p className="text-xs text-purple-800/80">
-                      Nosso sistema alocará o primeiro psicólogo compatível disponível da fila para entrar em contato com você em até 24h.
+                      Nosso sistema escolherá o primeiro psicólogo compatível disponível da fila para entrar em contato com você em até 24h.
                     </p>
                   </div>
                   <button
@@ -1189,7 +1233,7 @@ export default function ViverMaisLandingPage() {
                     }}
                     className="bg-purple-700 hover:bg-purple-800 text-white font-extrabold text-xs px-5 py-3 rounded-2xl transition-all shadow-md shadow-purple-700/20 whitespace-nowrap shrink-0"
                   >
-                    Alocar Automaticamente <ArrowRight className="w-4 h-4 inline-block ml-1" />
+                    Escolher Automaticamente <ArrowRight className="w-4 h-4 inline-block ml-1" />
                   </button>
                 </div>
               </div>
@@ -1200,8 +1244,14 @@ export default function ViverMaisLandingPage() {
                 </div>
                 <h4 className="text-lg font-black text-ink">Nenhum profissional com agenda imediata específica</h4>
                 <p className="text-xs text-muted max-w-md mx-auto">
-                  Não se preocupe! Conclua seus dados de contato e nossa equipe alocará o próximo profissional compatível da fila para acolher o seu caso.
+                  Não se preocupe! Conclua seus dados de contato e nossa equipe escolherá o próximo profissional compatível da fila para acolher o seu caso.
                 </p>
+                {form.preferenciaGeneroPsicologo !== 'SEM_PREFERENCIA' && (
+                  <p className="mx-auto max-w-md text-xs font-bold text-amber-900">
+                    Você pediu atendimento com {form.preferenciaGeneroPsicologo === 'FEMININO' ? 'psicóloga' : 'psicólogo'}.
+                    Volte às perguntas e marque “sem preferência” para ver toda a equipe disponível neste período.
+                  </p>
+                )}
                 <button
                   type="button"
                   onClick={() => {
@@ -1526,9 +1576,9 @@ export default function ViverMaisLandingPage() {
                 </fieldset>
               )}
 
-              {/* Você é conveniado com alguma empresa parceira? */}
+              {/* Você tem vínculo com alguma empresa parceira? */}
               <div className="space-y-2">
-                <label className="font-bold text-slate-700 block">Você é conveniado com alguma empresa parceira? <span className="text-rose-500">*</span></label>
+                <label className="font-bold text-slate-700 block">Você tem vínculo com alguma empresa parceira? <span className="text-rose-500">*</span></label>
                 <div className="flex items-center gap-4">
                   <label className="flex items-center gap-1.5 cursor-pointer">
                     <input
@@ -1555,10 +1605,10 @@ export default function ViverMaisLandingPage() {
                 </div>
               </div>
 
-              {/* Dropdown condicional de Convênio */}
+              {/* Dropdown condicional da empresa parceira */}
               {form.possuiConvenio === 'SIM' && (
                 <div className="animate-in fade-in duration-200">
-                  <label className="font-bold text-slate-700 block mb-1">Selecione seu convênio <span className="text-rose-500">*</span></label>
+                  <label className="font-bold text-slate-700 block mb-1">Selecione a empresa parceira <span className="text-rose-500">*</span></label>
                   {conveniosError ? (
                     <>
                       <input
@@ -1578,7 +1628,7 @@ export default function ViverMaisLandingPage() {
                       onChange={(e) => setForm({ ...form, convenioSelecionado: e.target.value })}
                       className="w-full border border-slate-300 bg-white rounded-xl p-3 focus:outline-none focus:border-purple-600 disabled:opacity-60"
                     >
-                      <option value="">{conveniosLoading ? 'Carregando convênios…' : 'Selecione seu convênio'}</option>
+                      <option value="">{conveniosLoading ? 'Carregando parceiros…' : 'Selecione a empresa parceira'}</option>
                       {conveniosDisponiveis.map((c) => <option key={c} value={c}>{c}</option>)}
                     </select>
                   )}

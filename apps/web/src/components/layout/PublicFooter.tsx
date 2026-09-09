@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldCheck, PhoneCall, Heart, Sparkles } from 'lucide-react';
+import { ShieldCheck, Heart, Sparkles } from 'lucide-react';
 
 interface PublicFooterProps {
   onIrParaAgendar?: () => void;
@@ -11,29 +11,6 @@ export default function PublicFooter({ onIrParaAgendar }: PublicFooterProps) {
   return (
     <footer className="bg-slate-900 text-slate-300 border-t border-slate-800 pt-12 pb-8 px-4 sm:px-6 mt-16 transition-colors">
       <div className="max-w-6xl mx-auto space-y-10">
-        {/* Banner de Apoio Emocional / CVV */}
-        <div className="bg-purple-950/60 border border-purple-800/40 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-purple-200">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-900/80 text-purple-300 flex items-center justify-center shrink-0 border border-purple-700/50">
-              <PhoneCall className="w-5 h-5 text-pink-400" />
-            </div>
-            <div>
-              <h2 className="text-xs sm:text-sm font-bold text-white leading-tight">
-                Precisa de ajuda imediata ou apoio emocional?
-              </h2>
-              <p className="text-[11px] text-purple-300/80 mt-0.5">
-                Em caso de crise ou urgência, ligue para o <strong>CVV (Centro de Valorização da Vida) no 188</strong> ou procure um pronto atendimento.
-              </p>
-            </div>
-          </div>
-          <a
-            href="tel:188"
-            className="text-xs font-black bg-pink-600 hover:bg-pink-500 text-white px-4 py-2 rounded-xl transition-all shadow-md shrink-0 flex items-center gap-1.5 self-stretch sm:self-auto justify-center"
-          >
-            Ligue 188 (Grátis)
-          </a>
-        </div>
-
         {/* Grid de Conteúdo do Rodapé */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Coluna 1: Marca & Missão */}

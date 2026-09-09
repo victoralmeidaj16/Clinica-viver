@@ -6,7 +6,7 @@ export type SecaoVitrine = 'SERVICOS' | 'PROFISSIONAIS' | 'DUVIDAS';
  */
 export const SECOES_VITRINE = [
   { id: 'SERVICOS', label: 'Escolha Seu Serviço', ancora: 'secao-escolha-servico' },
-  { id: 'PROFISSIONAIS', label: 'Conheça Nossos Profissionais', ancora: 'secao-profissionais' },
+  { id: 'PROFISSIONAIS', label: 'Conheça Nossos Psicólogos', ancora: 'secao-profissionais' },
   { id: 'DUVIDAS', label: 'Dúvidas Frequentes', ancora: 'secao-duvidas' },
 ] as const satisfies readonly { id: SecaoVitrine; label: string; ancora: string }[];
 

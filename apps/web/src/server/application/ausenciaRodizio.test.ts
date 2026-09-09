@@ -115,6 +115,25 @@ describe('escolha explícita no catálogo', () => {
     expect(resultado.lead.psicologoAlocadoId).toBe('psi-2');
   });
 
+  it('aceita Homem para o público Homens cadastrado pelo profissional', () => {
+    const paciente = { ...lead, paraQuemE: 'Homem' };
+    const snapshot = {
+      ...emptySnapshot(),
+      triagensPacientes: [paciente],
+      cadastrosPsicologos: [elegivel('psi-victor', {
+        publicoAlvo: ['Adolescente', 'Homens'],
+        turnosDisponiveis: ['MANHA', 'TARDE', 'NOITE'],
+        modalidadesAtendidas: ['ACESSIVEL_SOCIAL', 'SOCIAL', 'PARTICULAR'],
+      })],
+    };
+    const resultado = alocarLeadEscolhido(snapshot, paciente, 'psi-victor', ANTES);
+    expect(resultado.psicologo?.id).toBe('psi-victor');
+    expect(resultado.lead.tipoAlocacao).toBe('ESCOLHA_DIRETA');
+    expect(resultado.lead.status).toBe('AGUARDANDO_CONTATO');
+    expect(alocarLeadEscolhido(snapshot, { ...paciente, paraQuemE: 'Mulher' }, 'psi-victor', ANTES).psicologo)
+      .toBeUndefined();
+  });
+
   it('não substitui silenciosamente uma escolha que ficou indisponível', () => {
     const snapshot = {
       ...emptySnapshot(),

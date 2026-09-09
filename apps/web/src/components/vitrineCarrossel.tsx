@@ -9,9 +9,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Sparkles,
-  ShieldCheck,
   Users,
   Clock,
+  GraduationCap,
+  MapPin,
+  Video,
 } from 'lucide-react';
 
 export interface PsicologoVitrineItem {
@@ -28,6 +30,10 @@ export interface PsicologoVitrineItem {
   servicosHabilitados: string[];
   turnosDisponiveis?: string[];
   modalidadesAtendidas?: string[];
+  /** ONLINE, PRESENCIAL ou AMBOS — define se a cidade do profissional aparece no card. */
+  modalidadeAtendimento?: string;
+  /** Só vem preenchido para quem se declarou homem ou mulher; alimenta a preferência do paciente. */
+  generoProfissional?: 'MASCULINO' | 'FEMININO';
   publicoAlvo?: string[];
   necessidadesAtendidas?: string[];
   disponivelParaNovosPacientes?: boolean;
@@ -109,6 +115,21 @@ const ROTULOS_SERVICO: Record<string, string> = {
   ORIENTACAO_PARENTAL: 'Orientação Parental',
 };
 
+/**
+ * A cidade só interessa a quem pode ser atendido lá: quem atende apenas online
+ * exibe a tag "Online", quem atende os dois formatos exibe as duas informações.
+ * Cadastro sem modalidade preenchida mantém o comportamento antigo (só cidade).
+ */
+function localizacaoDoCard(psi: PsicologoVitrineItem): { online: boolean; cidade: string | null } {
+  const modalidade = psi.modalidadeAtendimento?.trim().toLocaleUpperCase('pt-BR');
+  const cidade = [psi.cidade, psi.estadoUf].filter(Boolean).join(' - ') || null;
+
+  return {
+    online: modalidade === 'ONLINE' || modalidade === 'AMBOS',
+    cidade: modalidade === 'ONLINE' ? null : cidade,
+  };
+}
+
 interface CardPsicologoLinhaProps {
   psi: PsicologoVitrineItem;
   selecionado: boolean;
@@ -122,7 +143,7 @@ interface CardPsicologoLinhaProps {
  */
 function CardPsicologoLinha({ psi, selecionado, onSelecionar }: CardPsicologoLinhaProps) {
   const nomeExibicao = psi.nomeSocial?.trim() || psi.nome;
-  const local = [psi.cidade, psi.estadoUf].filter(Boolean).join(' - ');
+  const { online, cidade } = localizacaoDoCard(psi);
   const turnos = [...new Set(psi.turnosDisponiveis?.map((turno) => ROTULOS_TURNO[turno] ?? turno) ?? [])];
   const servicos = psi.servicosHabilitados?.map((servico) => ROTULOS_SERVICO[servico] ?? servico) ?? [];
 
@@ -146,19 +167,26 @@ function CardPsicologoLinha({ psi, selecionado, onSelecionar }: CardPsicologoLin
           <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
             <div className="min-w-0">
               <h4 className="text-lg font-black text-psi-deep sm:text-xl">{nomeExibicao}</h4>
-              {psi.posGraduacaoViverMais && (
-                <p className="mt-0.5 text-xs text-muted sm:text-sm">{psi.posGraduacaoViverMais}</p>
-              )}
               <div className="mt-1 flex flex-wrap items-center gap-2">
-                <span className="font-mono text-xs font-bold text-psi-vibrant">CRP {psi.crp}</span>
-                <span className="inline-flex items-center rounded-md border border-emerald-100 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">
-                  <ShieldCheck className="mr-0.5 h-2.5 w-2.5" /> Ativo
-                </span>
+                <span className="font-mono text-xs font-bold text-psi-vibrant">CRP {psi.crp.replace(/^CRP\s*/i, '')}</span>
               </div>
             </div>
 
-            {local && (
-              <span className="shrink-0 text-xs font-bold text-psi-deep sm:text-sm">{local}</span>
+            {(online || cidade) && (
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                {online && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-800">
+                    <Video className="h-3.5 w-3.5" />
+                    Online
+                  </span>
+                )}
+                {cidade && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-psi-soft bg-purple-50 px-2.5 py-1 text-[11px] font-bold text-psi-deep">
+                    <MapPin className="h-3.5 w-3.5" />
+                    {cidade}
+                  </span>
+                )}
+              </div>
             )}
           </div>
 
@@ -174,6 +202,13 @@ function CardPsicologoLinha({ psi, selecionado, onSelecionar }: CardPsicologoLin
               <div className="flex flex-wrap items-start gap-2 text-xs">
                 <Search className="mt-0.5 h-4 w-4 shrink-0 text-psi-vibrant" />
                 <span className="text-ink">{psi.necessidadesAtendidas?.join(', ')}</span>
+              </div>
+            )}
+
+            {psi.posGraduacaoViverMais && (
+              <div className="flex flex-wrap items-start gap-2 text-xs">
+                <GraduationCap className="mt-0.5 h-4 w-4 shrink-0 text-psi-vibrant" />
+                <span className="text-ink">{psi.posGraduacaoViverMais}</span>
               </div>
             )}
 
@@ -220,6 +255,7 @@ interface CardPsicologoProps {
 }
 
 function CardPsicologo({ psi, selecionado, onSelecionar, className = '' }: CardPsicologoProps) {
+  const [expandirFoco, setExpandirFoco] = useState(false);
   const nomeExibicao = psi.nomeSocial?.trim() || psi.nome;
 
   return (
@@ -241,10 +277,7 @@ function CardPsicologo({ psi, selecionado, onSelecionar, className = '' }: CardP
             </h4>
             <div className="flex items-center gap-1.5 mt-0.5">
               <span className="text-xs font-mono font-bold text-psi-vibrant">
-                {psi.crp}
-              </span>
-              <span className="inline-flex items-center text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-100">
-                <ShieldCheck className="w-2.5 h-2.5 mr-0.5" /> Ativo
+                CRP {psi.crp.replace(/^CRP\s*/i, '')}
               </span>
             </div>
           </div>
@@ -288,19 +321,31 @@ function CardPsicologo({ psi, selecionado, onSelecionar, className = '' }: CardP
             <span className="text-[10px] font-extrabold uppercase tracking-wider text-muted block">
               Foco de atuação clínica
             </span>
-            <div className="flex flex-wrap gap-1">
-              {psi.necessidadesAtendidas.slice(0, 3).map((demanda, idx) => (
+            <div className="flex flex-wrap gap-1 items-center">
+              {(expandirFoco
+                ? psi.necessidadesAtendidas
+                : psi.necessidadesAtendidas.slice(0, 3)
+              ).map((demanda, idx) => (
                 <span
                   key={idx}
-                  className="bg-purple-50 text-purple-900 text-[10px] font-bold px-2 py-0.5 rounded-md border border-purple-100"
+                  className="bg-purple-50 text-purple-900 text-[10px] font-bold px-2 py-0.5 rounded-md border border-purple-100 animate-in fade-in duration-150"
                 >
                   {demanda}
                 </span>
               ))}
               {psi.necessidadesAtendidas.length > 3 && (
-                <span className="text-[10px] text-muted font-bold self-center px-1">
-                  +{psi.necessidadesAtendidas.length - 3}
-                </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setExpandirFoco((prev) => !prev);
+                  }}
+                  className="text-[10px] text-psi-deep hover:text-white font-extrabold self-center px-1.5 py-0.5 rounded-md bg-purple-100/80 hover:bg-psi-deep transition-all cursor-pointer border border-purple-200 active:scale-95"
+                  title={expandirFoco ? 'Recolher tags' : 'Mostrar demais tags de foco de atuação'}
+                  aria-label={expandirFoco ? 'Recolher focos de atuação clínica' : `Mostrar mais ${psi.necessidadesAtendidas.length - 3} focos de atuação clínica`}
+                >
+                  {expandirFoco ? '− menos' : `+${psi.necessidadesAtendidas.length - 3}`}
+                </button>
               )}
             </div>
           </div>
@@ -348,7 +393,7 @@ export function VitrineCarrossel({
   psicologos,
   onSelecionar,
   selecionadoId,
-  titulo = 'Conheça Nossos Profissionais',
+  titulo = 'Conheça Nossos Psicólogos',
   subtitulo = 'Profissionais especializados e com registro ativo no CRP',
   mostrarFiltros = false,
   layout = 'carrossel',

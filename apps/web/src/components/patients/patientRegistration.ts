@@ -65,8 +65,8 @@ export const PATIENT_SERVICES = [
   ['ORIENTACAO_PARENTAL', 'Orientação Parental'],
 ] as const;
 export const PATIENT_MODALITIES = [
-  ['SOCIAL', 'Agendamento Acessível'], ['PARTICULAR', 'Agendamento Particular'],
-  ['CASAL_SOCIAL', 'Agendamento Acessível (Casal)'], ['CASAL_PARTICULAR', 'Agendamento Particular (Casal)'],
+  ['SOCIAL', 'Agendamento Acessível/Social'], ['PARTICULAR', 'Agendamento Particular'],
+  ['CASAL_SOCIAL', 'Agendamento Acessível/Social (Casal)'], ['CASAL_PARTICULAR', 'Agendamento Particular (Casal)'],
 ] as const;
 
 export function serviceName(key: string): string {

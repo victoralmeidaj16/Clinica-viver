@@ -1,5 +1,11 @@
 import { LeadTriagem, PsicologoPerfil, ModalidadeAtendimento, TurnoAtendimento } from './viverMaisTypes';
 
+/** O credenciamento usa “Homens”; a triagem usa “Homem”. */
+export function normalizarPublicoAlvo(valor: string): string {
+  return valor.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\bhomens\b/g, 'homem');
+}
+
 export interface MatchingResult {
   sucesso: boolean;
   leadAtualizado: LeadTriagem;
@@ -42,9 +48,9 @@ export function selecionarPsicologoRoundRobin(
       }
     }
     if (paraQuemE && p.publicoAlvo && p.publicoAlvo.length > 0) {
-      const normTarget = paraQuemE.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const normTarget = normalizarPublicoAlvo(paraQuemE);
       const matches = p.publicoAlvo.some((pa) => {
-        const normPa = pa.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const normPa = normalizarPublicoAlvo(pa);
         if (normPa === normTarget || normPa.includes(normTarget) || normTarget.includes(normPa)) return true;
         if (normTarget.includes("homem") && (normPa.includes("homem") || normPa.includes("adulto"))) return true;
         if (normTarget.includes("mulher") && (normPa.includes("mulher") || normPa.includes("adulto"))) return true;

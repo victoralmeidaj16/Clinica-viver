@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blocosDaData, slotsDaData } from './agendaCalendarModel';
+import { blocosDaData, dataPorExtenso, slotsDaData } from './agendaCalendarModel';
 
 describe('agendaCalendarModel', () => {
   it('gera os horários recorrentes para uma data específica', () => {
@@ -19,4 +19,13 @@ describe('agendaCalendarModel', () => {
     expect(blocosDaData(blocos, '2026-08-25')).toHaveLength(1);
     expect(blocosDaData(blocos, '2026-08-26')).toHaveLength(0);
   });
+
+  it('formata data por extenso em português', () => {
+    const formatado = dataPorExtenso('2026-09-16');
+    expect(formatado.toLowerCase()).toContain('quarta');
+    expect(formatado.toLowerCase()).toContain('16');
+    expect(formatado.toLowerCase()).toContain('setembro');
+  });
 });
+
+

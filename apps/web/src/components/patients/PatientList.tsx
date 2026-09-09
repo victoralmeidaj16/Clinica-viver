@@ -3,26 +3,13 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { PatientDirectoryEntry } from '@/server/application/patientDirectory';
-import {
-  Phone,
-  Calendar,
-  Clock,
-  ArrowRight,
-  CheckCircle2,
-  PauseCircle,
-  Send,
-  CalendarPlus,
-  FileText,
-  UserX,
-  Pencil,
-  Building2,
-} from 'lucide-react';
 import PatientDropoutModal from './PatientDropoutModal';
 import { ManualAppointmentDialog } from '@/components/scheduling/ManualAppointmentDialog';
 import { PatientListToolbar } from './PatientListToolbar';
 import EditPatientModal from './EditPatientModal';
+import { PatientCard } from './PatientCard';
 import { FocoDeNotificacao } from '@/components/layout/FocoDeNotificacao';
-import { focoPaciente, FOCO_SECAO } from '@/lib/focoNotificacao';
+import { FOCO_SECAO } from '@/lib/focoNotificacao';
 
 interface PatientListProps {
   patients: readonly PatientDirectoryEntry[];
@@ -30,24 +17,6 @@ interface PatientListProps {
   onOpenNewPatientModal: () => void;
   onPatientUpdated?: () => void;
   canRegisterDropout?: boolean;
-}
-
-const STATUS_LABEL: Record<PatientDirectoryEntry['status'], string> = {
-  active: 'Ativo',
-  paused: 'Em Pausa',
-  discharged: 'Alta',
-};
-
-function formatNextAppointment(iso?: string): string {
-  if (!iso) return 'A agendar';
-  return new Date(iso).toLocaleString('pt-BR', {
-    timeZone: 'America/Sao_Paulo',
-    weekday: 'short',
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }
 
 export default function PatientList({
@@ -99,11 +68,6 @@ export default function PatientList({
 
   return (
     <div className="space-y-6" data-foco={FOCO_SECAO.listaPacientes}>
-      {/*
-        A busca é estado local: quem chega pelo sino com um termo digitado não
-        encontraria o paciente apontado. Limpar o filtro é o que faz o alvo
-        existir no DOM para ser realçado.
-      */}
       <FocoDeNotificacao aoFocar={() => setSearchQuery('')} />
 
       <PatientListToolbar
@@ -132,126 +96,19 @@ export default function PatientList({
         </div>
       )}
 
-      {/* Grid de Pacientes */}
+      {/* Grid de Pacientes com Cards Modulares e Minimalistas */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {filteredPatients.map((patient) => (
-          <div
+          <PatientCard
             key={patient.id}
-            data-foco={focoPaciente(patient.id)}
-            className="card card-hover space-y-4 flex flex-col justify-between"
-          >
-            <div className="space-y-4">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-2xl bg-primary/10 text-primary font-bold flex items-center justify-center text-base border border-primary/20">
-                    {patient.displayName.charAt(0)}
-                  </div>
-                  <div
-                    onClick={() => router.push(`/linha-do-tempo?patientId=${patient.id}`)}
-                    className="cursor-pointer group/patient"
-                  >
-                    <h3 className="font-extrabold text-sm text-ink group-hover/patient:text-psi-vibrant transition-colors">{patient.displayName}</h3>
-                    {patient.phone && (
-                      <p className="text-xs text-muted flex items-center gap-1">
-                        <Phone className="w-3 h-3" />
-                        {patient.phone}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                  {patient.conveniado && (
-                    <span
-                      className="chip text-[11px] font-extrabold bg-purple-100 text-purple-800 border-purple-200 flex items-center gap-1"
-                      title={patient.convenioNome ? `Convênio: ${patient.convenioNome}` : 'Paciente Conveniado'}
-                    >
-                      <Building2 className="w-3 h-3 text-purple-700 shrink-0" />
-                      <span>{patient.convenioNome ? `Convênio: ${patient.convenioNome}` : 'Conveniado'}</span>
-                    </span>
-                  )}
-                  <span
-                    className={`chip text-[11px] ${
-                      patient.status === 'active'
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                        : 'bg-amber-50 text-amber-700 border-amber-200'
-                    }`}
-                  >
-                    {patient.status === 'active' ? (
-                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                    ) : (
-                      <PauseCircle className="w-3 h-3 text-amber-600" />
-                    )}
-                    {patient.dropoutRegistered ? 'Desistente' : STATUS_LABEL[patient.status]}
-                  </span>
-                </div>
-              </div>
-
-              {/* Metadados da Agenda */}
-              <div className="flex items-center justify-between text-xs text-muted pt-1 border-t border-line">
-                <div className="flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 text-primary" />
-                  <span>Próxima: {formatNextAppointment(patient.nextAppointmentAt)}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-accent" />
-                  <span>{patient.completedSessions} Sessões</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Ações Rápidas (3 Botões) */}
-            <div className="space-y-2 pt-2 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setPatientForEdit(patient)}
-                className="w-full rounded-xl border border-psi-vibrant/25 bg-psi-vibrant/5 p-2 text-[11px] font-bold text-psi-deep transition hover:bg-psi-vibrant/10"
-              >
-                <span className="flex items-center justify-center gap-1.5"><Pencil className="h-3.5 w-3.5" /> Editar dados do paciente</span>
-              </button>
-              <button
-                onClick={() => router.push(`/linha-do-tempo?patientId=${patient.id}`)}
-                className="w-full btn-outline text-xs py-2.5 justify-center gap-2 group"
-              >
-                <FileText className="w-3.5 h-3.5 text-psi-vibrant group-hover:scale-110 transition-transform" />
-                <span>Ver Prontuário do Paciente</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => {
-                    setPatientForSchedule(patient);
-                  }}
-                  className="rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 p-2 text-[11px] font-bold text-slate-700 flex items-center justify-center gap-1.5 transition-colors"
-                >
-                  <CalendarPlus className="w-3.5 h-3.5 text-psi-vibrant" />
-                  <span>Agendar Horário</span>
-                </button>
-
-                <button
-                  onClick={() => abrirWhatsAppAgenda(patient)}
-                  className="rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 p-2 text-[11px] font-bold text-emerald-800 flex items-center justify-center gap-1.5 transition-colors"
-                >
-                  <Send className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Enviar Agenda</span>
-                </button>
-              </div>
-
-              {canRegisterDropout && !patient.dropoutRegistered && patient.status !== 'discharged' && (
-                <button
-                  type="button"
-                  onClick={() => setPatientForDropout(patient)}
-                  className="w-full rounded-xl border border-rose-200 bg-rose-50 p-2 text-[11px] font-bold text-rose-700 transition-colors hover:bg-rose-100"
-                >
-                  <span className="flex items-center justify-center gap-1.5">
-                    <UserX className="h-3.5 w-3.5" />
-                    Registrar desistência
-                  </span>
-                </button>
-              )}
-            </div>
-          </div>
+            patient={patient}
+            onSelectTimeline={(id) => router.push(`/linha-do-tempo?patientId=${id}`)}
+            onEdit={setPatientForEdit}
+            onSchedule={setPatientForSchedule}
+            onSendAgenda={abrirWhatsAppAgenda}
+            onDropout={setPatientForDropout}
+            canRegisterDropout={canRegisterDropout}
+          />
         ))}
       </div>
 

@@ -14,9 +14,14 @@ import {
   AlertCircle,
   User,
   MessageCircle,
+  Loader2,
 } from 'lucide-react';
 import { applicationRequest } from '@/lib/applicationApi';
 import NewPatientModal from '@/components/patients/NewPatientModal';
+import { ProfessionalCalendarView } from '@/components/scheduling/ProfessionalCalendarView';
+import type { BloqueioAgenda, NovoBloqueioAgenda } from '@/components/scheduling/AgendaBlocks';
+import type { JanelaEditavel } from '@/components/scheduling/AvailabilityEditor';
+import type { AgendamentoResumo } from '@/components/scheduling/UpcomingSessions';
 
 interface PatientOption {
   id: string;
@@ -37,6 +42,14 @@ interface AppointmentSummary {
   prontuarioPreenchido?: boolean;
 }
 
+interface AgendaOverview {
+  professionalName: string;
+  agendaToken: string;
+  availability: JanelaEditavel[];
+  blocks: BloqueioAgenda[];
+  appointments: AgendamentoResumo[];
+}
+
 export default function CockpitPage() {
   const router = useRouter();
 
@@ -44,6 +57,7 @@ export default function CockpitPage() {
   const [patients, setPatients] = useState<PatientOption[]>([]);
   const [appointments, setAppointments] = useState<AppointmentSummary[]>([]);
   const [agendaToken, setAgendaToken] = useState<string>('');
+  const [agendaDados, setAgendaDados] = useState<AgendaOverview>();
   const [selectedPatientForTimeline, setSelectedPatientForTimeline] = useState<string>('');
 
   // Estados de Modal e Cópia
@@ -61,10 +75,13 @@ export default function CockpitPage() {
       })
       .catch(() => {});
 
-    // Carrega Token da Agenda
-    applicationRequest<{ agendaToken?: string }>('/agenda')
+    // Carrega Visão Geral da Agenda e Calendário
+    applicationRequest<AgendaOverview>('/agenda')
       .then((res) => {
-        if (res?.agendaToken) setAgendaToken(res.agendaToken);
+        if (res) {
+          setAgendaDados(res);
+          if (res.agendaToken) setAgendaToken(res.agendaToken);
+        }
       })
       .catch(() => {});
 
@@ -75,6 +92,22 @@ export default function CockpitPage() {
       })
       .catch(() => {});
   }, []);
+
+  const adicionarBloqueio = async (input: NovoBloqueioAgenda) => {
+    const resposta = await applicationRequest<{ blocks: BloqueioAgenda[] }>('/agenda/bloqueios', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+    setAgendaDados((atual) => (atual ? { ...atual, blocks: resposta.blocks } : atual));
+  };
+
+  const removerBloqueio = async (id: string) => {
+    const resposta = await applicationRequest<{ blocks: BloqueioAgenda[] }>(
+      `/agenda/bloqueios/${encodeURIComponent(id)}`,
+      { method: 'DELETE' }
+    );
+    setAgendaDados((atual) => (atual ? { ...atual, blocks: resposta.blocks } : atual));
+  };
 
   const publicAgendaUrl = agendaToken
     ? `${typeof window !== 'undefined' ? window.location.origin : 'https://clinica-viver-web.vercel.app'}/agendar/${agendaToken}`
@@ -142,26 +175,29 @@ export default function CockpitPage() {
         </div>
       </div>
 
-      {/* GRID DE CARDS PRINCIPAIS DO MEU PAINEL */}
+      {/* GRID DE CARDS PRINCIPAIS DO MEU PAINEL (ESTILO ROXO / ROXO ESCURO) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {/* CARD 1: ACESSO RÁPIDO AO PRONTUÁRIO DO PACIENTE */}
-        <div className="bg-surface rounded-3xl p-5 border border-line shadow-card flex flex-col justify-between space-y-4">
-          <div className="space-y-1">
-            <span className="text-[10px] font-black uppercase tracking-wider text-psi-vibrant">
+        <div className="rounded-3xl p-5 sm:p-6 bg-gradient-to-br from-primary via-primary-dark to-purple-900 text-white shadow-xl border border-white/10 flex flex-col justify-between space-y-4">
+          <div className="space-y-1.5">
+            <span className="chip border-white/20 bg-white/10 text-[10px] font-black uppercase tracking-wider text-white">
               Prontuários Clínicos
             </span>
-            <h3 className="font-extrabold text-base text-ink flex items-center gap-2">
+            <h3 className="font-extrabold text-base sm:text-lg text-white flex items-center gap-2">
               <FileText className="w-5 h-5 text-psi-vibrant" /> Prontuário Rápido
             </h3>
+            <p className="text-xs text-white/80">
+              Acesse a linha do tempo clínica e registre novas evoluções do paciente.
+            </p>
           </div>
 
-          <div className="space-y-3 bg-canvas p-3.5 rounded-2xl border border-line my-auto">
-            <label className="text-xs font-bold text-ink block">
+          <div className="space-y-3 bg-white/10 backdrop-blur-xs p-4 rounded-2xl border border-white/15 my-auto">
+            <label className="text-xs font-bold text-white/90 block">
               Selecione o Paciente:
               <select
                 value={selectedPatientForTimeline}
                 onChange={(e) => setSelectedPatientForTimeline(e.target.value)}
-                className="input mt-1 py-2 text-xs font-bold w-full"
+                className="mt-1 py-2 px-3 text-xs font-bold w-full rounded-xl bg-white/15 border border-white/25 text-white focus:outline-none focus:ring-2 focus:ring-psi-vibrant [&>option]:bg-psi-darkest [&>option]:text-white"
               >
                 {patients.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -176,7 +212,7 @@ export default function CockpitPage() {
               type="button"
               disabled={!selectedPatientForTimeline}
               onClick={() => router.push(`/linha-do-tempo?patientId=${selectedPatientForTimeline}`)}
-              className="w-full bg-psi-vibrant hover:bg-psi-vibrant/90 text-white font-extrabold text-xs py-2.5 rounded-xl shadow-md flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+              className="w-full btn-accent py-2.5 text-xs shadow-md disabled:opacity-50"
             >
               <FileText className="w-4 h-4" />
               <span>Abrir / Lançar Prontuário</span>
@@ -185,31 +221,34 @@ export default function CockpitPage() {
         </div>
 
         {/* CARD 2: COMPARTILHAR LINK PÚBLICO DA AGENDA */}
-        <div className="bg-surface rounded-3xl p-5 border border-line shadow-card flex flex-col justify-between space-y-4">
-          <div className="space-y-1">
-            <span className="text-[10px] font-black uppercase tracking-wider text-psi-vibrant">
+        <div className="rounded-3xl p-5 sm:p-6 bg-gradient-to-br from-primary via-primary-dark to-purple-900 text-white shadow-xl border border-white/10 flex flex-col justify-between space-y-4">
+          <div className="space-y-1.5">
+            <span className="chip border-white/20 bg-white/10 text-[10px] font-black uppercase tracking-wider text-white">
               Divulgação &amp; Agendamento
             </span>
-            <h3 className="font-extrabold text-base text-ink flex items-center gap-2">
+            <h3 className="font-extrabold text-base sm:text-lg text-white flex items-center gap-2">
               <Share2 className="w-5 h-5 text-psi-vibrant" /> Link da Sua Agenda
             </h3>
+            <p className="text-xs text-white/80">
+              Divulgue seu link direto para que seus pacientes agendem nos horários livres.
+            </p>
           </div>
 
-          <div className="space-y-2 bg-slate-50 p-3.5 rounded-2xl border border-slate-200 my-auto">
-            <p className="text-[11px] text-muted">
+          <div className="space-y-2.5 bg-white/10 backdrop-blur-xs p-4 rounded-2xl border border-white/15 my-auto">
+            <p className="text-[11px] text-white/80">
               Envie este link direto para seus pacientes agendarem nos seus horários livres:
             </p>
             <input
               type="text"
               readOnly
               value={publicAgendaUrl || 'Carregando seu link exclusivo…'}
-              className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[11px] font-mono text-slate-800 truncate"
+              className="w-full bg-white/15 border border-white/25 rounded-xl px-3 py-2 text-[11px] font-mono text-white placeholder:text-white/60 truncate focus:outline-none focus:ring-2 focus:ring-psi-vibrant"
             />
             <div className="grid grid-cols-2 gap-2 pt-1">
               <button
                 type="button"
                 onClick={handleCopyAgendaLink}
-                className="bg-psi-vibrant hover:bg-psi-vibrant/90 text-white font-extrabold text-xs py-2 rounded-xl flex items-center justify-center gap-1 transition-all"
+                className="btn-accent py-2 text-xs shadow-md"
               >
                 {copiedAgendaLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                 <span>{copiedAgendaLink ? 'Copiado!' : 'Copiar Link'}</span>
@@ -220,7 +259,7 @@ export default function CockpitPage() {
                   href={`https://wa.me/?text=${encodeURIComponent(`Olá! Agende sua consulta comigo na Viver Mais Psicologia pelo link: ${publicAgendaUrl}`)}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs py-2 rounded-xl flex items-center justify-center gap-1 transition-all"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-[0.98]"
                 >
                   <Send className="w-3.5 h-3.5" />
                   <span>Enviar Wpp</span>
@@ -230,6 +269,22 @@ export default function CockpitPage() {
           </div>
         </div>
       </div>
+
+      {/* CALENDÁRIO INTERATIVO DO PSICÓLOGO */}
+      {agendaDados ? (
+        <ProfessionalCalendarView
+          availability={agendaDados.availability}
+          blocks={agendaDados.blocks}
+          appointments={agendaDados.appointments}
+          onAdicionarBloqueio={adicionarBloqueio}
+          onRemoverBloqueio={removerBloqueio}
+        />
+      ) : (
+        <div className="rounded-3xl border border-line bg-surface p-10 text-center">
+          <Loader2 className="mx-auto h-6 w-6 animate-spin text-psi-vibrant" />
+          <p className="mt-2 text-xs font-bold text-muted">Carregando calendário do profissional…</p>
+        </div>
+      )}
 
       {/* CARD DE PRÓXIMAS SESSÕES DA SEMANA + LEMBRETE WHATSAPP */}
       <div className="bg-surface rounded-3xl p-6 border border-line shadow-card space-y-4">

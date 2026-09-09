@@ -1,136 +1,242 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { CalendarOff, Clock3, LockKeyhole, Plus, Unlock, User } from 'lucide-react';
+import { CalendarIcon, ChevronDown, ChevronUp, X } from 'lucide-react';
 import type { BloqueioAgenda, NovoBloqueioAgenda } from './AgendaBlocks';
 import type { JanelaEditavel } from './AvailabilityEditor';
 import type { AgendamentoResumo } from './UpcomingSessions';
-import { TimeBlockForm } from './TimeBlockForm';
-import {
-  blocosDaData, colide, dataPorExtenso, horaLocal, sessoesDaData, slotsDaData, type SlotDoDia,
-} from './agendaCalendarModel';
+import { BatchBlockConfirmationBar } from './BatchBlockConfirmationBar';
+import { SelectedDayAccordion } from './SelectedDayAccordion';
+import type { SlotDoDia } from './agendaCalendarModel';
 
 interface Props {
-  data: string;
-  janelas: readonly JanelaEditavel[];
+  datas: readonly string[];
+  availability: readonly JanelaEditavel[];
   bloqueios: readonly BloqueioAgenda[];
   agendamentos: readonly AgendamentoResumo[];
   onAdicionar: (input: NovoBloqueioAgenda) => Promise<void>;
   onRemover: (id: string) => Promise<void>;
-  abrirFormulario?: boolean;
+  onRemoverData: (data: string) => void;
+  onLimparTodasDatas: () => void;
 }
 
-export function DaySchedulePanel({ data, janelas, bloqueios, agendamentos, onAdicionar, onRemover, abrirFormulario }: Props) {
-  const [agora] = useState(() => Date.now());
-  const [selecionado, setSelecionado] = useState<SlotDoDia | 'personalizado' | undefined>(abrirFormulario ? 'personalizado' : undefined);
-  const [erro, setErro] = useState<string>();
-  const [bloqueandoDia, setBloqueandoDia] = useState(false);
-  const slots = useMemo(() => slotsDaData(data, janelas), [data, janelas]);
-  const blocos = useMemo(() => blocosDaData(bloqueios, data), [bloqueios, data]);
-  const sessoes = useMemo(() => sessoesDaData(agendamentos, data), [agendamentos, data]);
+interface ItemSlotSelecionado {
+  data: string;
+  horaInicio: string;
+  horaFim: string;
+}
 
-  const bloquearDia = async () => {
+export function DaySchedulePanel({
+  datas,
+  availability,
+  bloqueios,
+  agendamentos,
+  onAdicionar,
+  onRemover,
+  onRemoverData,
+  onLimparTodasDatas,
+}: Props) {
+  // Começa vazio: todos os dias selecionados aparecem MAXIMIZADOS por padrão!
+  const [diasRecolhidos, setDiasRecolhidos] = useState<Set<string>>(new Set());
+  const [horariosSelecionados, setHorariosSelecionados] = useState<Map<string, ItemSlotSelecionado>>(new Map());
+  const [motivoLote, setMotivoLote] = useState('');
+  const [executandoLote, setExecutandoLote] = useState(false);
+  const [feedback, setFeedback] = useState<{ tipo: 'ok' | 'erro'; texto: string }>();
+
+  const datasOrdenadas = useMemo(() => [...datas].sort(), [datas]);
+  const chavesSelecionadasSet = useMemo(() => new Set(horariosSelecionados.keys()), [horariosSelecionados]);
+
+  const diasComHorariosSelecionados = useMemo(() => {
+    const conjunto = new Set<string>();
+    for (const item of horariosSelecionados.values()) conjunto.add(item.data);
+    return conjunto.size;
+  }, [horariosSelecionados]);
+
+  const alternarRecolhido = (data: string) => {
+    setDiasRecolhidos((atual) => {
+      const proximo = new Set(atual);
+      if (proximo.has(data)) proximo.delete(data);
+      else proximo.add(data);
+      return proximo;
+    });
+  };
+
+  const alternarSlot = (data: string, slot: SlotDoDia) => {
+    setFeedback(undefined);
+    const chave = `${data}_${slot.horaInicio}`;
+    setHorariosSelecionados((atual) => {
+      const proximo = new Map(atual);
+      if (proximo.has(chave)) proximo.delete(chave);
+      else proximo.set(chave, { data, horaInicio: slot.horaInicio, horaFim: slot.horaFim });
+      return proximo;
+    });
+  };
+
+  const selecionarTodosLivres = (data: string, slotsLivres: SlotDoDia[]) => {
+    setFeedback(undefined);
+    setHorariosSelecionados((atual) => {
+      const proximo = new Map(atual);
+      for (const slot of slotsLivres) {
+        proximo.set(`${data}_${slot.horaInicio}`, {
+          data,
+          horaInicio: slot.horaInicio,
+          horaFim: slot.horaFim,
+        });
+      }
+      return proximo;
+    });
+  };
+
+  const desmarcarTodosDia = (data: string) => {
+    setFeedback(undefined);
+    setHorariosSelecionados((atual) => {
+      const proximo = new Map(atual);
+      for (const chave of atual.keys()) {
+        if (chave.startsWith(`${data}_`)) proximo.delete(chave);
+      }
+      return proximo;
+    });
+  };
+
+  const bloquearDia = async (data: string) => {
+    setFeedback(undefined);
+    await onAdicionar({
+      tipo: 'dia',
+      inicioDia: data,
+      fimDia: data,
+      motivo: 'Bloqueio do dia via calendário',
+    });
+    setFeedback({ tipo: 'ok', texto: 'Dia bloqueado com sucesso.' });
+  };
+
+  const bloquearHorariosSelecionados = async () => {
+    if (horariosSelecionados.size === 0) return;
+    setExecutandoLote(true);
+    setFeedback(undefined);
+    let concluidos = 0;
     try {
-      setBloqueandoDia(true);
-      setErro(undefined);
-      await onAdicionar({ tipo: 'dia', inicioDia: data, fimDia: data, motivo: 'Bloqueio pontual via calendário' });
+      for (const item of Array.from(horariosSelecionados.values())) {
+        await onAdicionar({
+          tipo: 'horario',
+          data: item.data,
+          horaInicio: item.horaInicio,
+          horaFim: item.horaFim,
+          motivo: motivoLote.trim() || 'Bloqueio de horário via calendário',
+        });
+        concluidos += 1;
+      }
+      setFeedback({
+        tipo: 'ok',
+        texto: `${concluidos} ${concluidos === 1 ? 'horário bloqueado' : 'horários bloqueados'} com sucesso.`,
+      });
+      setHorariosSelecionados(new Map());
+      setMotivoLote('');
     } catch (causa) {
-      setErro(causa instanceof Error ? causa.message : 'Não foi possível bloquear o dia.');
+      const detalhe = causa instanceof Error ? causa.message : 'Não foi possível bloquear os horários.';
+      setFeedback({
+        tipo: 'erro',
+        texto: concluidos > 0 ? `${concluidos} bloqueados antes da interrupção. ${detalhe}` : detalhe,
+      });
     } finally {
-      setBloqueandoDia(false);
+      setExecutandoLote(false);
     }
   };
 
+  if (datas.length === 0) {
+    return (
+      <div className="space-y-3 py-12 text-center">
+        <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-psi-vibrant/10 text-psi-vibrant">
+          <CalendarIcon className="h-6 w-6" />
+        </span>
+        <h3 className="text-sm font-black text-ink">Nenhum dia selecionado</h3>
+        <p className="mx-auto max-w-xs text-xs text-muted">
+          Clique em uma ou mais datas no calendário para visualizar os horários e fechar períodos da sua agenda.
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-5 animate-in fade-in duration-200">
-      <div className="border-b border-line pb-3">
-        <p className="text-[10px] font-black uppercase tracking-[.16em] text-psi-vibrant">Agenda do dia</p>
-        <h4 className="mt-1 text-base font-black capitalize text-ink">{dataPorExtenso(data)}</h4>
-        <p className="mt-1 text-[11px] text-muted">Clique em um horário livre para criar uma exceção.</p>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        <button type="button" onClick={() => setSelecionado('personalizado')} className="btn-primary px-3 py-2 text-xs"><Plus className="h-4 w-4" /> Bloquear horário</button>
-        <button type="button" onClick={() => void bloquearDia()} disabled={bloqueandoDia} className="btn-outline px-3 py-2 text-xs text-rose-700"><CalendarOff className="h-4 w-4" /> {bloqueandoDia ? 'Bloqueando…' : 'Bloquear dia inteiro'}</button>
-      </div>
-
-      {selecionado && (
-        <TimeBlockForm
-          key={selecionado === 'personalizado' ? 'personalizado' : selecionado.inicio}
-          data={data}
-          horaInicio={selecionado === 'personalizado' ? undefined : selecionado.horaInicio}
-          horaFim={selecionado === 'personalizado' ? undefined : selecionado.horaFim}
-          onAdicionar={onAdicionar}
-          onCancelar={() => setSelecionado(undefined)}
-        />
-      )}
-      {erro && <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-[11px] font-bold text-rose-700">{erro}</p>}
-
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <h5 className="flex items-center gap-1.5 text-xs font-extrabold text-ink"><Clock3 className="h-4 w-4 text-psi-vibrant" /> Horários do dia</h5>
-          <span className="text-[10px] font-bold text-muted">{slots.length} na grade</span>
+    <div className="space-y-4 animate-in fade-in duration-200">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-3">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[.16em] text-psi-vibrant">Agenda do dia</p>
+          <h4 className="mt-0.5 text-base font-black text-ink">
+            {datas.length} {datas.length === 1 ? 'dia selecionado' : 'dias selecionados'}
+          </h4>
         </div>
-        {slots.length === 0 ? (
-          <p className="rounded-xl border border-line bg-white p-4 text-center text-xs text-muted">Este dia não possui disponibilidade recorrente.</p>
-        ) : (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3">
-            {slots.map((slot) => {
-              const sessao = sessoes.find((item) => colide(slot.inicio, slot.fim, item));
-              const bloqueio = blocos.find((item) => colide(slot.inicio, slot.fim, item));
-              const encerrado = Date.parse(slot.fim) <= agora;
-              const ocupado = Boolean(sessao || bloqueio || encerrado);
-              return (
-                <button
-                  key={slot.inicio}
-                  type="button"
-                  disabled={ocupado}
-                  onClick={() => setSelecionado(slot)}
-                  title={sessao ? `Sessão com ${sessao.pacienteNome}` : bloqueio?.motivo ?? (encerrado ? 'Horário encerrado' : 'Bloquear este horário')}
-                  className={`rounded-xl border px-3 py-2.5 text-left transition ${
-                    sessao ? 'border-emerald-200 bg-emerald-50 text-emerald-900' :
-                    bloqueio ? 'border-amber-200 bg-amber-50 text-amber-900' : encerrado ? 'border-slate-100 bg-slate-50 text-slate-400' :
-                    'border-line bg-white text-ink hover:border-amber-400 hover:bg-amber-50'
-                  }`}
-                >
-                  <span className="flex items-center justify-between text-xs font-extrabold">
-                    {slot.horaInicio}<span>{ocupado ? <LockKeyhole className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5 text-amber-600" />}</span>
-                  </span>
-                  <span className="mt-0.5 block truncate text-[9px] font-semibold opacity-75">{sessao ? 'Sessão marcada' : bloqueio ? 'Bloqueado' : encerrado ? 'Encerrado' : `Livre até ${slot.horaFim}`}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
+
+        <div className="flex items-center gap-1.5 text-[11px] font-bold">
+          <button
+            type="button"
+            onClick={() => setDiasRecolhidos(new Set())}
+            className="flex items-center gap-1 rounded-lg px-2 py-1 text-slate-600 transition hover:bg-slate-100"
+          >
+            <ChevronDown className="h-3.5 w-3.5" /> Expandir
+          </button>
+          <button
+            type="button"
+            onClick={() => setDiasRecolhidos(new Set(datas))}
+            className="flex items-center gap-1 rounded-lg px-2 py-1 text-slate-600 transition hover:bg-slate-100"
+          >
+            <ChevronUp className="h-3.5 w-3.5" /> Recolher
+          </button>
+          <button
+            type="button"
+            onClick={onLimparTodasDatas}
+            className="flex items-center gap-1 rounded-lg px-2 py-1 text-rose-600 transition hover:bg-rose-50"
+          >
+            <X className="h-3.5 w-3.5" /> Limpar
+          </button>
+        </div>
       </div>
 
-      {blocos.length > 0 && (
-        <div className="space-y-2">
-          <h5 className="flex items-center gap-1.5 text-xs font-extrabold text-ink"><LockKeyhole className="h-4 w-4 text-amber-600" /> Bloqueios nesta data</h5>
-          {blocos.map((bloqueio) => (
-            <div key={bloqueio.id} className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
-              <div className="min-w-0">
-                <p className="text-xs font-extrabold text-amber-950">{
-                  horaLocal(bloqueio.inicio) === '00:00' && horaLocal(bloqueio.fim) === '00:00'
-                    ? 'Dia inteiro'
-                    : `${horaLocal(bloqueio.inicio)}–${horaLocal(bloqueio.fim)}`
-                }</p>
-                <p className="truncate text-[10px] text-amber-800">{bloqueio.motivo || 'Indisponível'}</p>
-              </div>
-              <button type="button" onClick={() => void onRemover(bloqueio.id)} className="flex shrink-0 items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-bold text-amber-900 hover:bg-amber-100"><Unlock className="h-3.5 w-3.5" /> Liberar</button>
-            </div>
-          ))}
+      {feedback && (
+        <div
+          role="status"
+          className={`rounded-xl border p-3 text-xs font-bold ${
+            feedback.tipo === 'ok'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+              : 'border-rose-200 bg-rose-50 text-rose-800'
+          }`}
+        >
+          {feedback.texto}
         </div>
       )}
 
-      <div className="space-y-2">
-        <h5 className="flex items-center gap-1.5 text-xs font-extrabold text-ink"><User className="h-4 w-4 text-psi-vibrant" /> Sessões da clínica ({sessoes.length})</h5>
-        {sessoes.length === 0 ? <p className="rounded-xl border border-line bg-white p-3 text-center text-[11px] text-muted">Nenhuma sessão marcada nesta data.</p> : sessoes.map((sessao) => (
-          <div key={sessao.id} className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs">
-            <span className="font-extrabold text-emerald-950">{sessao.pacienteNome}</span>
-            <span className="font-bold text-emerald-800">{horaLocal(sessao.inicio)}</span>
-          </div>
-        ))}
+      <BatchBlockConfirmationBar
+        totalHorarios={horariosSelecionados.size}
+        totalDias={diasComHorariosSelecionados}
+        motivo={motivoLote}
+        executando={executandoLote}
+        onMotivoChange={setMotivoLote}
+        onConfirmar={() => void bloquearHorariosSelecionados()}
+        onDesmarcarTodos={() => setHorariosSelecionados(new Map())}
+      />
+
+      <div className="space-y-3">
+        {datasOrdenadas.map((data) => {
+          const diaSemana = new Date(`${data}T12:00:00Z`).getUTCDay();
+          const janelas = availability.filter((j) => j.diaSemana === diaSemana);
+          return (
+            <SelectedDayAccordion
+              key={data}
+              data={data}
+              janelas={janelas}
+              bloqueios={bloqueios}
+              agendamentos={agendamentos}
+              recolhido={diasRecolhidos.has(data)}
+              horariosSelecionados={chavesSelecionadasSet}
+              onAlternarRecolhido={alternarRecolhido}
+              onAlternarSlot={alternarSlot}
+              onSelecionarTodosLivres={selecionarTodosLivres}
+              onDesmarcarTodosDia={desmarcarTodosDia}
+              onBloquearDia={bloquearDia}
+              onRemoverBloqueio={onRemover}
+              onRemoverData={onRemoverData}
+            />
+          );
+        })}
       </div>
     </div>
   );

@@ -57,19 +57,16 @@ export default function FloatingWhatsAppButton({
           target="_blank"
           rel="noopener noreferrer"
           onMouseEnter={() => setMostrarTooltip(true)}
-          className="flex items-center gap-2.5 bg-[#25D366] hover:bg-[#20bd5a] text-white px-4 py-3 rounded-full shadow-lg shadow-green-600/30 transition-all transform hover:scale-105 active:scale-95 group focus:outline-none focus:ring-4 focus:ring-green-400/40"
+          className="flex items-center justify-center w-14 h-14 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-full shadow-lg shadow-green-600/30 transition-all transform hover:scale-110 active:scale-95 group focus:outline-none focus:ring-4 focus:ring-green-400/40"
           aria-label="Falar com a Clínica Viver Mais no WhatsApp"
         >
-          <div className="relative">
-            <WhatsAppIcon className="h-6 w-6" />
+          <div className="relative flex items-center justify-center">
+            <WhatsAppIcon className="h-7 w-7" />
             <span className="absolute -top-1 -right-1 flex h-3 w-3">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
               <span className="relative inline-flex rounded-full h-3 w-3 bg-white" />
             </span>
           </div>
-          <span className="hidden sm:inline font-black text-xs tracking-tight">
-            Fale Conosco
-          </span>
         </a>
       </div>
     </aside>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { CalendarOff, Plus, Trash2 } from 'lucide-react';
 
 export interface BloqueioAgenda {
@@ -11,8 +11,8 @@ export interface BloqueioAgenda {
 }
 
 export type NovoBloqueioAgenda =
-  | { tipo: 'dia'; inicioDia: string; fimDia: string; motivo: string }
-  | { tipo: 'horario'; data: string; horaInicio: string; horaFim: string; motivo: string };
+  | { tipo: 'dia'; inicioDia: string; fimDia: string; motivo?: string }
+  | { tipo: 'horario'; data: string; horaInicio: string; horaFim: string; motivo?: string };
 
 interface Props {
   bloqueios: readonly BloqueioAgenda[];
@@ -43,11 +43,27 @@ export function AgendaBlocks({ bloqueios, onAdicionar, onRemover }: Props) {
   const [erro, setErro] = useState<string>();
   const [salvando, setSalvando] = useState(false);
 
+  const totalDias = useMemo(() => {
+    if (!inicioDia) return 0;
+    const fim = fimDia || inicioDia;
+    const tInicio = Date.parse(`${inicioDia}T12:00:00Z`);
+    const tFim = Date.parse(`${fim}T12:00:00Z`);
+    if (isNaN(tInicio) || isNaN(tFim) || tFim < tInicio) return 0;
+    return Math.round((tFim - tInicio) / (24 * 60 * 60 * 1000)) + 1;
+  }, [inicioDia, fimDia]);
+
+  const precisaMotivo = totalDias > 5;
+
   const adicionar = async (evento: React.FormEvent) => {
     evento.preventDefault();
     setSalvando(true); setErro(undefined);
     try {
-      await onAdicionar({ tipo: 'dia', inicioDia, fimDia: fimDia || inicioDia, motivo });
+      await onAdicionar({
+        tipo: 'dia',
+        inicioDia,
+        fimDia: fimDia || inicioDia,
+        motivo: precisaMotivo && motivo.trim() ? motivo.trim() : undefined,
+      });
       setInicioDia(''); setFimDia(''); setMotivo('');
     } catch (causa) {
       setErro(causa instanceof Error ? causa.message : 'Não foi possível bloquear o período.');
@@ -74,9 +90,12 @@ export function AgendaBlocks({ bloqueios, onAdicionar, onRemover }: Props) {
         <label className="text-[11px] font-bold text-ink">Até
           <input type="date" value={fimDia} min={inicioDia} onChange={(e) => setFimDia(e.target.value)} className="input mt-1 py-2 text-xs" />
         </label>
-        <label className="text-[11px] font-bold text-ink flex-1 min-w-[180px]">Motivo (opcional)
-          <input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Férias, congresso…" className="input mt-1 py-2 text-xs" />
-        </label>
+        {precisaMotivo && (
+          <label className="text-[11px] font-bold text-ink flex-1 min-w-[180px] animate-in fade-in duration-150">
+            Motivo do bloqueio ({totalDias} dias)
+            <input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Férias, congresso, licença…" className="input mt-1 py-2 text-xs" />
+          </label>
+        )}
         <button type="submit" disabled={salvando} className="btn-primary text-xs">
           <Plus className="w-4 h-4" /> Bloquear
         </button>

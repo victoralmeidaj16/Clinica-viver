@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock3, X } from 'lucide-react';
 import type { BloqueioAgenda, NovoBloqueioAgenda } from './AgendaBlocks';
 import type { JanelaEditavel } from './AvailabilityEditor';
@@ -24,10 +24,19 @@ export function ProfessionalCalendarView({
   onAdicionarBloqueio,
   onRemoverBloqueio,
 }: Props) {
-  const agora = new Date();
-  const [ano, setAno] = useState(agora.getFullYear());
-  const [mes, setMes] = useState(agora.getMonth());
-  const [selecionados, setSelecionados] = useState<string[]>([]);
+  const [hoje, setHoje] = useState(() => dataLocal(Date.now()));
+  const [ano, setAno] = useState(() => Number(hoje.slice(0, 4)));
+  const [mes, setMes] = useState(() => Number(hoje.slice(5, 7)) - 1);
+  const [selecionados, setSelecionados] = useState<string[]>(() => [hoje]);
+
+  useEffect(() => {
+    const dataAtual = dataLocal(Date.now());
+    setHoje(dataAtual);
+    setAno(Number(dataAtual.slice(0, 4)));
+    setMes(Number(dataAtual.slice(5, 7)) - 1);
+    setSelecionados((atual) => (atual.length === 0 ? [dataAtual] : atual));
+  }, []);
+
   const celulas = useMemo(() => monthCells(ano, mes), [ano, mes]);
   const diasDisponiveis = useMemo(
     () => new Set(availability.map((janela) => janela.diaSemana)),
@@ -56,10 +65,11 @@ export function ProfessionalCalendarView({
   };
 
   const abrirHoje = () => {
-    const hoje = dataLocal(Date.now());
-    setAno(Number(hoje.slice(0, 4)));
-    setMes(Number(hoje.slice(5, 7)) - 1);
-    setSelecionados((atual) => (atual.includes(hoje) ? atual : [...atual, hoje]));
+    const dataAtual = dataLocal(Date.now());
+    setHoje(dataAtual);
+    setAno(Number(dataAtual.slice(0, 4)));
+    setMes(Number(dataAtual.slice(5, 7)) - 1);
+    setSelecionados((atual) => (atual.includes(dataAtual) ? atual : [...atual, dataAtual]));
   };
 
   return (
@@ -152,6 +162,7 @@ export function ProfessionalCalendarView({
             bloqueios={blocks}
             agendamentos={appointments}
             selecionados={selecionados}
+            hoje={hoje}
             onSelecionar={selecionar}
           />
         </div>

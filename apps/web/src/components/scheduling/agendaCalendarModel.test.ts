@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blocosDaData, dataPorExtenso, slotsDaData } from './agendaCalendarModel';
+import { blocosDaData, dataLocal, dataPorExtenso, slotsDaData } from './agendaCalendarModel';
 
 describe('agendaCalendarModel', () => {
   it('gera os horários recorrentes para uma data específica', () => {
@@ -25,6 +25,13 @@ describe('agendaCalendarModel', () => {
     expect(formatado.toLowerCase()).toContain('quarta');
     expect(formatado.toLowerCase()).toContain('16');
     expect(formatado.toLowerCase()).toContain('setembro');
+  });
+
+  it('formata data local no fuso de São Paulo (YYYY-MM-DD)', () => {
+    // 2026-09-10 02:00 UTC ainda é 2026-09-09 às 23:00 em São Paulo (-03:00)
+    expect(dataLocal('2026-09-10T02:00:00.000Z')).toBe('2026-09-09');
+    // 2026-09-10 03:00 UTC é exatamente 2026-09-10 às 00:00 em São Paulo
+    expect(dataLocal('2026-09-10T03:00:00.000Z')).toBe('2026-09-10');
   });
 });
 

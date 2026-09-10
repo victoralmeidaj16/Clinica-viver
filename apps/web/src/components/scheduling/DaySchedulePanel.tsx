@@ -39,7 +39,6 @@ export function DaySchedulePanel({
   // Começa vazio: todos os dias selecionados aparecem MAXIMIZADOS por padrão!
   const [diasRecolhidos, setDiasRecolhidos] = useState<Set<string>>(new Set());
   const [horariosSelecionados, setHorariosSelecionados] = useState<Map<string, ItemSlotSelecionado>>(new Map());
-  const [motivoLote, setMotivoLote] = useState('');
   const [executandoLote, setExecutandoLote] = useState(false);
   const [feedback, setFeedback] = useState<{ tipo: 'ok' | 'erro'; texto: string }>();
 
@@ -104,7 +103,6 @@ export function DaySchedulePanel({
       tipo: 'dia',
       inicioDia: data,
       fimDia: data,
-      motivo: 'Bloqueio do dia via calendário',
     });
     setFeedback({ tipo: 'ok', texto: 'Dia bloqueado com sucesso.' });
   };
@@ -121,7 +119,6 @@ export function DaySchedulePanel({
           data: item.data,
           horaInicio: item.horaInicio,
           horaFim: item.horaFim,
-          motivo: motivoLote.trim() || 'Bloqueio de horário via calendário',
         });
         concluidos += 1;
       }
@@ -130,7 +127,6 @@ export function DaySchedulePanel({
         texto: `${concluidos} ${concluidos === 1 ? 'horário bloqueado' : 'horários bloqueados'} com sucesso.`,
       });
       setHorariosSelecionados(new Map());
-      setMotivoLote('');
     } catch (causa) {
       const detalhe = causa instanceof Error ? causa.message : 'Não foi possível bloquear os horários.';
       setFeedback({
@@ -207,9 +203,7 @@ export function DaySchedulePanel({
       <BatchBlockConfirmationBar
         totalHorarios={horariosSelecionados.size}
         totalDias={diasComHorariosSelecionados}
-        motivo={motivoLote}
         executando={executandoLote}
-        onMotivoChange={setMotivoLote}
         onConfirmar={() => void bloquearHorariosSelecionados()}
         onDesmarcarTodos={() => setHorariosSelecionados(new Map())}
       />

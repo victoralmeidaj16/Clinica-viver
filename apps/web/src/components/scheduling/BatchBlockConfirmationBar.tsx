@@ -5,9 +5,9 @@ import { CheckCircle2, Clock3, Loader2 } from 'lucide-react';
 interface Props {
   totalHorarios: number;
   totalDias: number;
-  motivo: string;
+  motivo?: string;
   executando: boolean;
-  onMotivoChange: (valor: string) => void;
+  onMotivoChange?: (valor: string) => void;
   onConfirmar: () => void;
   onDesmarcarTodos: () => void;
 }
@@ -15,9 +15,7 @@ interface Props {
 export function BatchBlockConfirmationBar({
   totalHorarios,
   totalDias,
-  motivo,
   executando,
-  onMotivoChange,
   onConfirmar,
   onDesmarcarTodos,
 }: Props) {
@@ -39,14 +37,7 @@ export function BatchBlockConfirmationBar({
         </button>
       </div>
 
-      <div className="mt-3 space-y-2.5">
-        <input
-          type="text"
-          value={motivo}
-          onChange={(e) => onMotivoChange(e.target.value)}
-          placeholder="Motivo do bloqueio (opcional: reunião, consulta, etc.)"
-          className="input py-2 text-xs"
-        />
+      <div className="mt-3">
         <button
           type="button"
           disabled={executando}

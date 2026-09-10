@@ -19,6 +19,7 @@ import type { AgendamentoResumo } from './UpcomingSessions';
 import {
   blocosDaData,
   colide,
+  dataLocal,
   dataPorExtenso,
   horaLocal,
   sessoesDaData,
@@ -106,9 +107,16 @@ export function SelectedDayAccordion({
             {recolhido ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
           </span>
           <div className="min-w-0">
-            <h4 className="truncate text-xs font-black capitalize text-ink">
-              {dataPorExtenso(data)}
-            </h4>
+            <div className="flex items-center gap-2">
+              <h4 className="truncate text-xs font-black capitalize text-ink">
+                {dataPorExtenso(data)}
+              </h4>
+              {data === dataLocal(Date.now()) && (
+                <span className="shrink-0 rounded-md bg-psi-vibrant/10 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-psi-vibrant">
+                  Hoje
+                </span>
+              )}
+            </div>
             <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10px]">
               {selecionadosNesteDia.length > 0 && (
                 <span className="rounded-full bg-psi-vibrant px-2 py-0.2 font-extrabold text-white">

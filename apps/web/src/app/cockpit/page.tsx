@@ -175,29 +175,26 @@ export default function CockpitPage() {
         </div>
       </div>
 
-      {/* GRID DE CARDS PRINCIPAIS DO MEU PAINEL (ESTILO ROXO / ROXO ESCURO) */}
+      {/* GRID DE CARDS PRINCIPAIS DO MEU PAINEL (ROXO CLARO / VIBRANTE) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {/* CARD 1: ACESSO RÁPIDO AO PRONTUÁRIO DO PACIENTE */}
-        <div className="rounded-3xl p-5 sm:p-6 bg-gradient-to-br from-primary via-primary-dark to-purple-900 text-white shadow-xl border border-white/10 flex flex-col justify-between space-y-4">
-          <div className="space-y-1.5">
-            <span className="chip border-white/20 bg-white/10 text-[10px] font-black uppercase tracking-wider text-white">
-              Prontuários Clínicos
-            </span>
+        <div className="rounded-3xl p-5 sm:p-6 bg-gradient-to-br from-[#8553AE] via-[#74439C] to-[#623689] text-white shadow-lg border border-white/15 flex flex-col justify-between space-y-4">
+          <div className="space-y-1">
             <h3 className="font-extrabold text-base sm:text-lg text-white flex items-center gap-2">
-              <FileText className="w-5 h-5 text-psi-vibrant" /> Prontuário Rápido
+              <FileText className="w-5 h-5 text-white" /> Prontuário Rápido
             </h3>
-            <p className="text-xs text-white/80">
+            <p className="text-xs text-white/85">
               Acesse a linha do tempo clínica e registre novas evoluções do paciente.
             </p>
           </div>
 
-          <div className="space-y-3 bg-white/10 backdrop-blur-xs p-4 rounded-2xl border border-white/15 my-auto">
-            <label className="text-xs font-bold text-white/90 block">
+          <div className="space-y-3">
+            <label className="text-xs font-bold text-white/95 block">
               Selecione o Paciente:
               <select
                 value={selectedPatientForTimeline}
                 onChange={(e) => setSelectedPatientForTimeline(e.target.value)}
-                className="mt-1 py-2 px-3 text-xs font-bold w-full rounded-xl bg-white/15 border border-white/25 text-white focus:outline-none focus:ring-2 focus:ring-psi-vibrant [&>option]:bg-psi-darkest [&>option]:text-white"
+                className="mt-1.5 py-2.5 px-3 text-xs font-bold w-full rounded-xl bg-white/20 border border-white/30 text-white focus:outline-none focus:ring-2 focus:ring-white/40 [&>option]:bg-psi-darkest [&>option]:text-white"
               >
                 {patients.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -221,30 +218,27 @@ export default function CockpitPage() {
         </div>
 
         {/* CARD 2: COMPARTILHAR LINK PÚBLICO DA AGENDA */}
-        <div className="rounded-3xl p-5 sm:p-6 bg-gradient-to-br from-primary via-primary-dark to-purple-900 text-white shadow-xl border border-white/10 flex flex-col justify-between space-y-4">
-          <div className="space-y-1.5">
-            <span className="chip border-white/20 bg-white/10 text-[10px] font-black uppercase tracking-wider text-white">
-              Divulgação &amp; Agendamento
-            </span>
+        <div className="rounded-3xl p-5 sm:p-6 bg-gradient-to-br from-[#8553AE] via-[#74439C] to-[#623689] text-white shadow-lg border border-white/15 flex flex-col justify-between space-y-4">
+          <div className="space-y-1">
             <h3 className="font-extrabold text-base sm:text-lg text-white flex items-center gap-2">
-              <Share2 className="w-5 h-5 text-psi-vibrant" /> Link da Sua Agenda
+              <Share2 className="w-5 h-5 text-white" /> Link da Sua Agenda
             </h3>
-            <p className="text-xs text-white/80">
+            <p className="text-xs text-white/85">
               Divulgue seu link direto para que seus pacientes agendem nos horários livres.
             </p>
           </div>
 
-          <div className="space-y-2.5 bg-white/10 backdrop-blur-xs p-4 rounded-2xl border border-white/15 my-auto">
-            <p className="text-[11px] text-white/80">
+          <div className="space-y-2.5">
+            <p className="text-[11px] text-white/90 font-medium">
               Envie este link direto para seus pacientes agendarem nos seus horários livres:
             </p>
             <input
               type="text"
               readOnly
               value={publicAgendaUrl || 'Carregando seu link exclusivo…'}
-              className="w-full bg-white/15 border border-white/25 rounded-xl px-3 py-2 text-[11px] font-mono text-white placeholder:text-white/60 truncate focus:outline-none focus:ring-2 focus:ring-psi-vibrant"
+              className="w-full bg-white/20 border border-white/30 rounded-xl px-3 py-2 text-[11px] font-mono text-white placeholder:text-white/60 truncate focus:outline-none focus:ring-2 focus:ring-white/40"
             />
-            <div className="grid grid-cols-2 gap-2 pt-1">
+            <div className="grid grid-cols-2 gap-2 pt-0.5">
               <button
                 type="button"
                 onClick={handleCopyAgendaLink}

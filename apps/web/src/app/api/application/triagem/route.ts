@@ -179,13 +179,23 @@ export async function POST(request: Request) {
     if (resultado.situacao === 'reenvio') {
       console.info(`[triagem] Reenvio do mesmo telefone; devolvido o protocolo ${resultado.lead.protocolo}.`);
     } else if (resultado.psicologo) {
-      void avisarAlocacao(resultado.lead, resultado.psicologo);
-      void avisarTriagemRecebidaPorEmail(resultado.lead, resultado.psicologo);
-      void avisarAlocacaoPsicologoPorEmail(
-        resultado.lead,
-        resultado.psicologo,
-        resultado.lead.tipoAlocacao ?? (dados.psicologoPreferidoId ? 'ESCOLHA_DIRETA' : 'RODIZIO')
-      );
+      // A resposta só é enviada depois que os disparos terminam. Em runtime
+      // serverless, deixar estas promises soltas permite que a função seja
+      // encerrada assim que o HTTP termina — o lead fica gravado, mas o
+      // psicólogo não recebe o WhatsApp.
+      const notificacoes = await Promise.allSettled([
+        avisarAlocacao(resultado.lead, resultado.psicologo),
+        avisarTriagemRecebidaPorEmail(resultado.lead, resultado.psicologo),
+        avisarAlocacaoPsicologoPorEmail(
+          resultado.lead,
+          resultado.psicologo,
+          resultado.lead.tipoAlocacao ?? (dados.psicologoPreferidoId ? 'ESCOLHA_DIRETA' : 'RODIZIO')
+        ),
+      ]);
+      const rejeitadas = notificacoes.filter((item) => item.status === 'rejected');
+      if (rejeitadas.length > 0) {
+        console.warn(`[triagem] ${rejeitadas.length} notificação(ões) falharam após o lead ser gravado.`);
+      }
     } else {
       console.warn(
         `[triagem] Lead ${novaTriagem.protocolo} sem profissional elegível; aguardando decisão da gestão.`

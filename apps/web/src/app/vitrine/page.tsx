@@ -85,7 +85,7 @@ const PASSOS_AGENDAMENTO: PassoJornada[] = [
     ],
   },
   {
-    titulo: 'Profissional',
+    titulo: 'Psicólogo',
     resumo: 'Encontre seu psicólogo',
     detalhes: [
       'Veja quem atende o serviço escolhido, com formação, foco de atuação clínica e períodos disponíveis, e escolha quem você preferir.',
@@ -618,7 +618,7 @@ export default function ViverMaisLandingPage() {
                     Cuidado Psicológico Pensado para Você
                   </h2>
                   <p className="text-sm sm:text-base text-purple-100/90 leading-relaxed max-w-xl font-normal">
-                    Encontre a modalidade de atendimento que faz sentido para você. Escolha o profissional da sua preferência ou, se preferir, conte com a nossa equipe para fazer o direcionamento.
+                    Encontre a modalidade de atendimento que faz sentido para você. Escolha o psicólogo da sua preferência ou, se preferir, conte com a nossa equipe para fazer o direcionamento.
                   </p>
 
                   <div className="pt-2 flex flex-wrap items-center gap-4">
@@ -654,7 +654,7 @@ export default function ViverMaisLandingPage() {
           <div className="rounded-3xl border border-line bg-surface p-6 shadow-card sm:p-8">
             <div className="mx-auto max-w-2xl space-y-2 text-center">
               <span className="chip-accent text-[11px]">
-                {isPsicologo ? 'Jornada do Profissional' : 'Jornada Descomplicada'}
+                {isPsicologo ? 'Jornada do Psicólogo' : 'Jornada Descomplicada'}
               </span>
               <h3 className="text-xl font-black text-ink sm:text-2xl">
                 {isPsicologo
@@ -882,7 +882,7 @@ export default function ViverMaisLandingPage() {
                 </h3>
                 <div className="space-y-3 text-xs sm:text-sm text-muted leading-relaxed">
                   <p>
-                    Na Viver Mais, você encontra diferentes modalidades de atendimento psicológico, realizadas por profissionais com registro ativo no Conselho Regional de Psicologia (CRP). Cada atendimento é conduzido com responsabilidade, acolhimento e respeito às normas éticas e técnicas da profissão, considerando as necessidades de cada pessoa.
+                    Na Viver Mais, você encontra diferentes modalidades de atendimento psicológico, realizadas por psicólogos com registro ativo no Conselho Regional de Psicologia (CRP). Cada atendimento é conduzido com responsabilidade, acolhimento e respeito às normas éticas e técnicas da profissão, considerando as necessidades de cada pessoa.
                   </p>
                   <p>
                     Tudo isso para que você se sinta acolhido(a) e seguro(a) em cada etapa desse processo.
@@ -977,9 +977,9 @@ export default function ViverMaisLandingPage() {
                 <span className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-psi-soft text-psi-deep group-hover:bg-psi-deep group-hover:text-white">
                   <User className="h-5 w-5" />
                 </span>
-                <h4 className="text-lg font-black text-ink">Escolher o profissional</h4>
+                <h4 className="text-lg font-black text-ink">Escolher o psicólogo</h4>
                 <p className="mt-2 text-xs leading-relaxed text-muted">Conheça os psicólogos disponíveis, veja os períodos de atendimento e escolha quem você prefere.</p>
-                <span className="mt-5 flex items-center gap-2 text-xs font-black text-psi-deep">Ver profissionais <ArrowRight className="h-4 w-4" /></span>
+                <span className="mt-5 flex items-center gap-2 text-xs font-black text-psi-deep">Ver psicólogos <ArrowRight className="h-4 w-4" /></span>
               </button>
 
               <button
@@ -994,7 +994,7 @@ export default function ViverMaisLandingPage() {
                   <Sparkles className="h-5 w-5" />
                 </span>
                 <h4 className="text-lg font-black">Escolha conforme minhas necessidades</h4>
-                <p className="mt-2 text-xs leading-relaxed text-purple-100/80">Responda somente quatro perguntas. O sistema filtra a equipe e encaminha o primeiro profissional compatível da fila.</p>
+                <p className="mt-2 text-xs leading-relaxed text-purple-100/80">Responda somente quatro perguntas. O sistema filtra a equipe e encaminha o primeiro psicólogo compatível da fila.</p>
                 <span className="mt-5 flex items-center gap-2 text-xs font-black text-psi-soft">Começar recomendação <ArrowRight className="h-4 w-4" /></span>
               </button>
             </div>
@@ -1128,8 +1128,8 @@ export default function ViverMaisLandingPage() {
             <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
               <div>
                 <span className="text-[10px] font-black uppercase tracking-widest text-psi-vibrant">Catálogo compatível</span>
-                <h3 className="mt-1 text-2xl font-black text-ink">Escolha seu profissional</h3>
-                <p className="mt-1 text-xs text-muted">Primeiro informe o período desejado. Depois mostraremos somente os profissionais compatíveis.</p>
+                <h3 className="mt-1 text-2xl font-black text-ink">Escolha seu psicólogo</h3>
+                <p className="mt-1 text-xs text-muted">Primeiro informe o período desejado. Depois mostraremos somente os psicólogos compatíveis.</p>
               </div>
               <button type="button" onClick={() => setStep('CAMINHO')} className="text-xs font-bold text-muted hover:text-ink">Voltar</button>
             </div>
@@ -1152,8 +1152,8 @@ export default function ViverMaisLandingPage() {
                 <VitrineCarrossel
                   psicologos={profissionaisCompativeis}
                   selecionadoId={psicologoEscolhido?.id}
-                  titulo={`Profissionais disponíveis no período da ${form.turno === 'MANHA' ? 'manhã' : form.turno === 'TARDE' ? 'tarde' : 'noite'}`}
-                  subtitulo="Clique no profissional com quem você mais se identificar para continuar"
+                  titulo={`Psicólogos disponíveis no período da ${form.turno === 'MANHA' ? 'manhã' : form.turno === 'TARDE' ? 'tarde' : 'noite'}`}
+                  subtitulo="Clique no psicólogo com quem você mais se identificar para continuar"
                   layout="lista"
                   onSelecionar={(psicologo) => {
                     setPsicologoEscolhido(psicologo);
@@ -1162,7 +1162,7 @@ export default function ViverMaisLandingPage() {
                 />
               ) : (
                 <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 text-sm font-semibold text-amber-900">
-                  Nenhum profissional está disponível no período escolhido para esta combinação. Selecione outro período ou volte e use a recomendação inteligente para entrar na fila de atendimento.
+                  Nenhum psicólogo está disponível no período escolhido para esta combinação. Selecione outro período ou volte e use a recomendação inteligente para entrar na fila de atendimento.
                 </div>
               )
             )}
@@ -1182,7 +1182,7 @@ export default function ViverMaisLandingPage() {
                 </h3>
                 <p className="mt-1 text-[11px] text-slate-500">
                   {caminho === 'MATCH'
-                    ? 'Suas respostas foram salvas. Complete seus dados de contato e encaminharemos você ao primeiro profissional compatível da fila, que fará o contato em até 24h.'
+                    ? 'Suas respostas foram salvas. Complete seus dados de contato e encaminharemos você ao primeiro psicólogo compatível da fila, que fará o contato em até 24h.'
                     : `Você escolheu ${psicologoEscolhido?.nomeSocial || psicologoEscolhido?.nome}. Complete seus dados para enviar a solicitação.`}
                 </p>
               </div>

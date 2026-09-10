@@ -52,6 +52,8 @@ interface VitrineCarrosselProps {
   layout?: 'carrossel' | 'lista';
   /** Desliza o carrossel sozinho. Usado na vitrine, onde os cards so apresentam a equipe. */
   autoDeslizar?: boolean;
+  /** Exibe tags de modalidade (online, presencial, cidade). Falso por padrão no carrossel da vitrine inicial. */
+  exibirTagsModalidade?: boolean;
 }
 
 function FotoOuIniciais({
@@ -289,7 +291,7 @@ function CardPsicologoLinha({ psi, selecionado, onSelecionar }: CardPsicologoLin
                   : 'bg-psi-deep text-white hover:bg-psi-darkest'
               }`}
             >
-              {selecionado ? 'Profissional Escolhido ✓' : 'Escolher este profissional'}
+              {selecionado ? 'Psicólogo Escolhido ✓' : 'Escolher este psicólogo'}
             </button>
           )}
         </div>
@@ -303,9 +305,16 @@ interface CardPsicologoProps {
   selecionado: boolean;
   onSelecionar?: (psicologo: PsicologoVitrineItem) => void;
   className?: string;
+  exibirTagsModalidade?: boolean;
 }
 
-function CardPsicologo({ psi, selecionado, onSelecionar, className = '' }: CardPsicologoProps) {
+function CardPsicologo({
+  psi,
+  selecionado,
+  onSelecionar,
+  className = '',
+  exibirTagsModalidade = false,
+}: CardPsicologoProps) {
   const [expandirFoco, setExpandirFoco] = useState(false);
   const nomeExibicao = psi.nomeSocial?.trim() || psi.nome;
   const { online, presencial, cidade } = localizacaoDoCard(psi);
@@ -331,19 +340,19 @@ function CardPsicologo({ psi, selecionado, onSelecionar, className = '' }: CardP
               <span className="text-xs font-mono font-bold text-psi-vibrant">
                 CRP {psi.crp.replace(/^CRP\s*/i, '')}
               </span>
-              {online && (
+              {exibirTagsModalidade && online && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-emerald-100 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
                   <Video className="h-3 w-3" />
                   Online
                 </span>
               )}
-              {presencial && (
+              {exibirTagsModalidade && presencial && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-800">
                   <Building2 className="h-3 w-3" />
                   Presencial
                 </span>
               )}
-              {cidade && (
+              {exibirTagsModalidade && cidade && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-psi-soft bg-purple-50 px-2 py-0.5 text-[10px] font-bold text-psi-deep">
                   <MapPin className="h-3 w-3" />
                   {cidade}
@@ -451,7 +460,7 @@ function CardPsicologo({ psi, selecionado, onSelecionar, className = '' }: CardP
                 : 'bg-psi-deep text-white hover:bg-psi-darkest'
             }`}
           >
-            {selecionado ? 'Profissional Escolhido ✓' : 'Escolher este profissional'}
+            {selecionado ? 'Psicólogo Escolhido ✓' : 'Escolher este psicólogo'}
           </button>
         </div>
       )}
@@ -464,10 +473,11 @@ export function VitrineCarrossel({
   onSelecionar,
   selecionadoId,
   titulo = 'Conheça Nossos Psicólogos',
-  subtitulo = 'Profissionais especializados e com registro ativo no CRP',
+  subtitulo = 'Psicólogos especializados e com registro ativo no CRP',
   mostrarFiltros = false,
   layout = 'carrossel',
   autoDeslizar = false,
+  exibirTagsModalidade = false,
 }: VitrineCarrosselProps) {
   const [buscaNome, setBuscaNome] = useState('');
   const [demandaSelecionada, setDemandaSelecionada] = useState<string>('');
@@ -668,7 +678,7 @@ export function VitrineCarrossel({
 
           <div className="flex items-center gap-3 self-start sm:ml-auto sm:self-auto">
             <span className="text-xs font-bold text-psi-deep bg-psi-soft/80 px-3 py-1.5 rounded-xl border border-psi-soft">
-              {psicologosFiltrados.length} {psicologosFiltrados.length === 1 ? 'profissional' : 'profissionais'}
+              {psicologosFiltrados.length} {psicologosFiltrados.length === 1 ? 'psicólogo' : 'psicólogos'}
             </span>
 
             {/* Botões de Rolagem Horizontal */}
@@ -678,7 +688,7 @@ export function VitrineCarrossel({
                   type="button"
                   onClick={rolarParaEsquerda}
                   disabled={!canScrollLeft}
-                  aria-label="Rolar profissionais para a esquerda"
+                  aria-label="Rolar psicólogos para a esquerda"
                   className="w-8 h-8 rounded-xl flex items-center justify-center text-ink hover:bg-psi-soft disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                 >
                   <ChevronLeft className="w-4 h-4" />
@@ -687,7 +697,7 @@ export function VitrineCarrossel({
                   type="button"
                   onClick={rolarParaDireita}
                   disabled={!canScrollRight}
-                  aria-label="Rolar profissionais para a direita"
+                  aria-label="Rolar psicólogos para a direita"
                   className="w-8 h-8 rounded-xl flex items-center justify-center text-ink hover:bg-psi-soft disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                 >
                   <ChevronRight className="w-4 h-4" />
@@ -799,8 +809,8 @@ export function VitrineCarrossel({
           </div>
           <h4 className="text-base font-black text-ink">
             {temFiltroAtivo
-              ? 'Nenhum profissional encontrado para estes filtros'
-              : 'Nenhum profissional disponível no momento'}
+              ? 'Nenhum psicólogo encontrado para estes filtros'
+              : 'Nenhum psicólogo disponível no momento'}
           </h4>
           <p className="text-xs text-muted max-w-md mx-auto">
             {temFiltroAtivo
@@ -813,7 +823,7 @@ export function VitrineCarrossel({
               onClick={limparFiltros}
               className="bg-psi-deep hover:bg-psi-darkest text-white text-xs font-extrabold px-4 py-2 rounded-xl transition-all"
             >
-              Ver todos os profissionais
+              Ver todos os psicólogos
             </button>
           )}
         </div>
@@ -876,6 +886,7 @@ export function VitrineCarrossel({
                 psi={psi}
                 selecionado={selecionadoId === psi.id}
                 onSelecionar={onSelecionar}
+                exibirTagsModalidade={exibirTagsModalidade}
                 className={`w-[300px] sm:w-[330px] md:w-[350px] shrink-0 ${autoDeslizar ? '' : 'snap-start'}`}
               />
             ))}

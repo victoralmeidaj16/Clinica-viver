@@ -57,7 +57,7 @@ export function conteudoTriagemRecebida(
   lead: TriagemPacienteRecord,
   psicologo?: CadastroPsicologoRecord
 ): ConteudoEmail {
-  const nomePaciente = lead.nomePaciente || 'Paciente';
+  const nomePaciente = lead.nomeSocial?.trim() || lead.nomePaciente || 'Paciente';
   const nomePacienteSeguro = escaparHtml(nomePaciente);
   const protocoloSeguro = escaparHtml(lead.protocolo);
   const servicoSeguro = escaparHtml(lead.servico || 'Psicoterapia');
@@ -212,7 +212,9 @@ export function conteudoAlocacaoPsicologo(
   tipoAlocacao: TipoAlocacaoLead = lead.tipoAlocacao ?? 'RODIZIO'
 ): ConteudoEmail {
   const nomePsicologo = psicologo.nomeSocial?.trim() || psicologo.nomeCompleto.trim();
-  const nomePaciente = lead.nomePaciente || 'Paciente';
+  const nomePaciente = lead.nomeSocial?.trim()
+    ? `${lead.nomeSocial.trim()} (${lead.nomePaciente})`
+    : (lead.nomePaciente || 'Paciente');
   const nomePsicologoSeguro = escaparHtml(nomePsicologo);
   const nomePacienteSeguro = escaparHtml(nomePaciente);
   const protocoloSeguro = escaparHtml(lead.protocolo);

@@ -5,7 +5,7 @@ vi.mock('@/server/viverMaisConfirmToken', () => ({
   gerarTokenConfirmacao: vi.fn(() => 'token-mock-123'),
 }));
 
-import { textoParaPsicologo } from './viverMaisWhatsApp';
+import { textoParaPsicologo, textoParaPaciente } from './viverMaisWhatsApp';
 import type { CadastroPsicologoRecord, TriagemPacienteRecord } from './persistence';
 
 describe('mensagens de WhatsApp para o psicólogo', () => {
@@ -53,5 +53,19 @@ describe('mensagens de WhatsApp para o psicólogo', () => {
     expect(texto).not.toContain('Protocolo:');
     expect(texto).not.toContain('PROT-999');
     expect(texto).not.toContain('Vitrine Principal');
+  });
+
+  it('usa o nome social na mensagem de confirmação ao paciente quando presente', () => {
+    const comSocial: TriagemPacienteRecord = {
+      ...leadStub,
+      nomeSocial: 'Joaquina Silva',
+    };
+    const msg = textoParaPaciente(comSocial);
+    expect(msg).toContain('Olá, Joaquina Silva! Recebemos sua solicitação de agendamento.');
+  });
+
+  it('usa o nome de registro quando não houver nome social', () => {
+    const msg = textoParaPaciente(leadStub);
+    expect(msg).toContain('Olá, Maria Joaquina da Silva! Recebemos sua solicitação de agendamento.');
   });
 });

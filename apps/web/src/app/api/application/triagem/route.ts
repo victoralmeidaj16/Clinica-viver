@@ -87,6 +87,7 @@ export async function POST(request: Request) {
       id: `triagem-${Date.now()}`,
       protocolo: `VM-${Math.floor(100000 + Math.random() * 900000)}`,
       nomePaciente: dados.nome,
+      nomeSocial: dados.nomeSocial,
       telefone: dados.telefone,
       dataNascimento: dados.dataNascimento,
       idade: dados.idade,

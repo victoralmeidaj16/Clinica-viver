@@ -76,6 +76,7 @@ const LINK = /https?:\/\/|www\.|\.[a-z]{2,}\/|<\s*a\s|\[url/i;
 
 export interface DadosTriagem {
   nome: string;
+  nomeSocial?: string;
   /**
    * Telefone como a pessoa digitou, apenas aparado.
    *
@@ -169,6 +170,11 @@ export function validarSubmissaoTriagem(corpo: unknown): ResultadoValidacao {
     return recusa('Não foi possível validar o envio do formulário.');
   }
 
+  const nomeSocial = texto(body.nomeSocial, 120);
+  if (nomeSocial && LINK.test(nomeSocial)) {
+    return recusa('Não foi possível validar o envio do formulário.');
+  }
+
   const telefoneDigitado = texto(body.whatsapp, 32);
   if (!telefoneDigitado || !normalizeBrazilPhone(telefoneDigitado)) {
     return recusa('Informe um WhatsApp válido, com DDD.');
@@ -248,6 +254,7 @@ export function validarSubmissaoTriagem(corpo: unknown): ResultadoValidacao {
     ok: true,
     dados: {
       nome,
+      nomeSocial,
       telefone: telefoneDigitado,
       genero: genero.gender,
       generoOutro: genero.other,

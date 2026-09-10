@@ -60,6 +60,19 @@ describe('e-mails de confirmação de agendamento/triagem', () => {
     expect(conteudo.html).toContain('188');
   });
 
+  it('utiliza o nome social do paciente se o mesmo tiver informado', () => {
+    const leadComNomeSocial: TriagemPacienteRecord = {
+      ...lead,
+      nomePaciente: 'Carlos Eduardo Ferreira',
+      nomeSocial: 'Eduarda Ferreira',
+    };
+    const conteudo = conteudoTriagemRecebida(leadComNomeSocial, psicologo);
+    expect(conteudo.text).toContain('Olá, Eduarda Ferreira!');
+    expect(conteudo.text).not.toContain('Olá, Carlos Eduardo Ferreira!');
+    expect(conteudo.html).toContain('Olá, <strong>Eduarda Ferreira</strong>!');
+    expect(conteudo.html).not.toContain('Olá, <strong>Carlos Eduardo Ferreira</strong>!');
+  });
+
   it('envia e-mail com chave de idempotência e destinatário normalizado', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);

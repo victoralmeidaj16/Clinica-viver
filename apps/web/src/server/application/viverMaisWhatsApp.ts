@@ -180,7 +180,12 @@ function dadosDoPaciente(lead: TriagemPacienteRecord): string[] {
   const linhas: string[] = [];
   const idade = lead.idade?.toString().trim();
 
-  linhas.push(`Nome completo: ${lead.nomePaciente}`);
+  if (lead.nomeSocial?.trim()) {
+    linhas.push(`Nome social: ${lead.nomeSocial.trim()}`);
+    linhas.push(`Nome civil: ${lead.nomePaciente}`);
+  } else {
+    linhas.push(`Nome completo: ${lead.nomePaciente}`);
+  }
   linhas.push(`WhatsApp do paciente: ${formatBrazilPhone(lead.telefone) || lead.telefone}`);
   if (idade) linhas.push(`Idade: ${idade}`);
   const genero = formatGender(lead.genero, lead.generoOutro);
@@ -278,10 +283,11 @@ export function textoParaPsicologo(
  * quanto tempo esperar — não para adiantar nada sobre o atendimento.
  */
 export function textoParaPaciente(lead: TriagemPacienteRecord): string {
+  const nomePaciente = lead.nomeSocial?.trim() || lead.nomePaciente;
   return [
     '🤖 *Mensagem automática da Clínica Viver Mais Psicologia*',
     '',
-    `Olá, ${lead.nomePaciente}! Recebemos sua solicitação de agendamento.`,
+    `Olá, ${nomePaciente}! Recebemos sua solicitação de agendamento.`,
     '',
     `*Protocolo:* ${lead.protocolo}`,
     `*Serviço:* ${lead.servico || 'Psicoterapia'}`,

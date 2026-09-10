@@ -453,12 +453,12 @@ export default function ViverMaisLandingPage() {
 
   const continuarMatch = () => {
     const paraQuem = form.paraQuemE === 'Outro' ? form.paraQuemEOutro.trim() : form.paraQuemE;
-    const informouNecessidade = form.necessidadesPaciente.length > 0 || Boolean(form.necessidadesOutro.trim());
-    if (!paraQuem || !informouNecessidade || !form.turno) {
+    if (!paraQuem || !form.turno) {
       alert('Responda às perguntas obrigatórias para continuar.');
       return;
     }
-    setForm((prev) => ({ ...prev, especificarNecessidades: true }));
+    const temNecessidade = form.necessidadesPaciente.length > 0 || Boolean(form.necessidadesOutro.trim());
+    setForm((prev) => ({ ...prev, especificarNecessidades: temNecessidade }));
     // Neste caminho quem indica é o rodízio, não o paciente: as respostas viram
     // critério de fila no servidor e nenhum nome é oferecido aqui. Zerar a
     // escolha protege contra resíduo de uma passagem anterior pelo catálogo.
@@ -516,6 +516,7 @@ export default function ViverMaisLandingPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
+          nomeSocial: temNomeSocialPaciente && form.nomeSocial.trim() ? form.nomeSocial.trim() : undefined,
           [CAMPO_ARMADILHA]: armadilha,
           paraQuemE: form.paraQuemE === 'Outro' && form.paraQuemEOutro.trim() ? `Outro: ${form.paraQuemEOutro.trim()}` : form.paraQuemE,
           servico: selectedService ? precos[selectedService]?.titulo : '',
@@ -1042,7 +1043,7 @@ export default function ViverMaisLandingPage() {
               </div>
 
               <fieldset className="space-y-3">
-                <legend className="text-sm font-black text-ink">2. Qual é a sua queixa ou necessidade? <span className="text-rose-500">*</span></legend>
+                <legend className="text-sm font-black text-ink">2. Qual é a sua queixa ou necessidade? <span className="font-normal text-muted text-xs">(opcional)</span></legend>
                 <p className="text-[11px] text-muted">Selecione uma ou mais opções.</p>
                 <div className="grid max-h-72 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
                   {LISTA_NECESSIDADES.map((necessidade) => {

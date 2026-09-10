@@ -45,6 +45,17 @@ describe('validação do formulário público de triagem', () => {
     if (resultado.ok) expect(resultado.dados.psicologoPreferidoId).toBe('psi-123');
   });
 
+  it('aceita e preserva o nome social quando informado', () => {
+    const resultado = validarSubmissaoTriagem({ ...valido, nomeSocial: '  Clara Lima  ' });
+    expect(resultado.ok).toBe(true);
+    if (resultado.ok) expect(resultado.dados.nomeSocial).toBe('Clara Lima');
+  });
+
+  it('recusa nome social que contenha link ou url', () => {
+    const resultado = validarSubmissaoTriagem({ ...valido, nomeSocial: 'Visite https://spam.com' });
+    expect(resultado.ok).toBe(false);
+  });
+
   it.each(['MANHA', 'TARDE', 'NOITE'] as const)('aceita e preserva o turno canônico %s', (turno) => {
     const resultado = validarSubmissaoTriagem({ ...valido, turno });
     expect(resultado.ok).toBe(true);

@@ -94,7 +94,7 @@ export async function promoverLeadEmPaciente(
       // O protocolo é o que a pessoa recebeu por WhatsApp e é por ele que ela se
       // identifica ao ligar para a clínica.
       externalReference: lead.protocolo,
-      displayName: lead.nomePaciente,
+      displayName: lead.nomeSocial?.trim() || lead.nomePaciente,
       primaryProfessionalId: professionalId,
       assignedProfessionalIds: [professionalId],
       createdAt: lead.confirmadoEm ?? new Date().toISOString(),
@@ -110,6 +110,7 @@ export async function promoverLeadEmPaciente(
       phone: lead.telefone,
       email: lead.email,
       legalName: lead.nomePaciente,
+      socialName: lead.nomeSocial?.trim() || undefined,
       documento: lead.cpf,
       cep: lead.cep,
       logradouro: lead.logradouro,

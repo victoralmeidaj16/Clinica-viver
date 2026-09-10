@@ -1,3 +1,5 @@
+import type { GeneroProfissional } from '@thats-life/core';
+
 export const GENDER_VALUES = [
   'MASCULINO',
   'FEMININO',
@@ -21,6 +23,21 @@ export function normalizeGender(value: unknown): GenderValue | null {
     return 'NAO_BINARIO';
   }
   return GENDER_VALUES.includes(normalized as GenderValue) ? (normalized as GenderValue) : null;
+}
+
+/**
+ * O gênero do profissional reduzido ao que a preferência do paciente sabe
+ * comparar — "prefiro uma psicóloga" só distingue duas respostas.
+ *
+ * Qualquer outra declaração vira `undefined`, e não um terceiro valor: quem
+ * chama precisa decidir sabendo que não dá para afirmar que o pedido foi
+ * atendido, em vez de comparar contra um rótulo que a pergunta não oferece.
+ * Vale tanto para a vitrine, que usa isso para exibir, quanto para o rodízio,
+ * que usa para indicar — daí morar aqui, e não em cada ponta.
+ */
+export function generoProfissional(genero: string | undefined): GeneroProfissional | undefined {
+  const normalizado = normalizeGender(genero);
+  return normalizado === 'MASCULINO' || normalizado === 'FEMININO' ? normalizado : undefined;
 }
 
 export function validateGender(value: unknown, other: unknown): { gender: GenderValue; other?: string } | null {

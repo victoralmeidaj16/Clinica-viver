@@ -145,8 +145,7 @@ describe('Domínio Clínica Viver Mais Psicologia (Core Engine & Regras Giuliana
         [psicoterapeuta, avaliador],
         'TARDE',
         'ACESSIVEL_SOCIAL',
-        undefined,
-        'AVALIACAO'
+        { servicoDesejado: 'AVALIACAO' }
       );
 
       expect(escolhido?.id).toBe('psi-b');
@@ -155,13 +154,9 @@ describe('Domínio Clínica Viver Mais Psicologia (Core Engine & Regras Giuliana
     it('mantém no rodízio quem não declarou serviços, porque a lista vazia é ausência de restrição', () => {
       const semDeclaracao = perfilBase({ id: 'psi-a', servicosHabilitados: [] });
 
-      const escolhido = selecionarPsicologoRoundRobin(
-        [semDeclaracao],
-        'TARDE',
-        'ACESSIVEL_SOCIAL',
-        undefined,
-        'AVALIACAO'
-      );
+      const escolhido = selecionarPsicologoRoundRobin([semDeclaracao], 'TARDE', 'ACESSIVEL_SOCIAL', {
+        servicoDesejado: 'AVALIACAO',
+      });
 
       expect(escolhido?.id).toBe('psi-a');
     });
@@ -211,6 +206,76 @@ describe('Domínio Clínica Viver Mais Psicologia (Core Engine & Regras Giuliana
         .toBe('psi-estreante');
       expect(selecionarPsicologoRoundRobin([estreante, veterano], 'TARDE', 'ACESSIVEL_SOCIAL')?.id)
         .toBe('psi-estreante');
+    });
+
+    /**
+     * O pedido do paciente vence a ordem da fila. É o único critério que pode
+     * fazer alguém "furar" a vez de quem esperou mais — e é intencional: a
+     * pessoa disse com quem quer se abrir.
+     */
+    describe('preferência de gênero do profissional', () => {
+      const psicologo = perfilBase({
+        id: 'psi-homem',
+        genero: 'MASCULINO',
+        ultimoLeadRecebidoEm: undefined,
+      });
+      const psicologa = perfilBase({
+        id: 'psi-mulher',
+        genero: 'FEMININO',
+        ultimoLeadRecebidoEm: '2026-09-01T10:00:00.000Z',
+      });
+
+      it('escolhe quem atende à preferência mesmo estando atrás na fila', () => {
+        const escolhido = selecionarPsicologoRoundRobin(
+          [psicologo, psicologa],
+          'TARDE',
+          'ACESSIVEL_SOCIAL',
+          { preferenciaGeneroPsicologo: 'FEMININO' }
+        );
+
+        expect(escolhido?.id).toBe('psi-mulher');
+      });
+
+      it('sem preferência declarada, volta a valer só a ordem da fila', () => {
+        const semPreferencia = selecionarPsicologoRoundRobin(
+          [psicologo, psicologa],
+          'TARDE',
+          'ACESSIVEL_SOCIAL',
+          { preferenciaGeneroPsicologo: 'SEM_PREFERENCIA' }
+        );
+        const semOCampo = selecionarPsicologoRoundRobin(
+          [psicologo, psicologa],
+          'TARDE',
+          'ACESSIVEL_SOCIAL'
+        );
+
+        expect(semPreferencia?.id).toBe('psi-homem');
+        expect(semOCampo?.id).toBe('psi-homem');
+      });
+
+      /**
+       * Falha fechada: sem ninguém do gênero pedido, o lead fica pendente para
+       * a gestão em vez de ir para alguém que contraria o pedido.
+       */
+      it('devolve null quando ninguém atende à preferência', () => {
+        expect(
+          selecionarPsicologoRoundRobin([psicologo], 'TARDE', 'ACESSIVEL_SOCIAL', {
+            preferenciaGeneroPsicologo: 'FEMININO',
+          })
+        ).toBeNull();
+      });
+
+      it('deixa de fora quem não declarou gênero enquanto há preferência', () => {
+        const semGenero = perfilBase({ id: 'psi-sem-genero', genero: undefined });
+
+        expect(
+          selecionarPsicologoRoundRobin([semGenero], 'TARDE', 'ACESSIVEL_SOCIAL', {
+            preferenciaGeneroPsicologo: 'FEMININO',
+          })
+        ).toBeNull();
+        expect(selecionarPsicologoRoundRobin([semGenero], 'TARDE', 'ACESSIVEL_SOCIAL')?.id)
+          .toBe('psi-sem-genero');
+      });
     });
   });
 

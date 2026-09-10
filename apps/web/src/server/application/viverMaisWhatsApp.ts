@@ -190,6 +190,14 @@ function dadosDoPaciente(lead: TriagemPacienteRecord): string[] {
   if (lead.opcaoAvaliacaoPsicologica) linhas.push(`Tipo de avaliação: ${lead.opcaoAvaliacaoPsicologica}`);
   linhas.push(`Modalidade: ${rotuloModalidadeLead(lead.modalidade)}`);
   linhas.push(`Turno de preferência: ${rotuloTurnoLead(lead.turno)}`);
+  // Só aparece quando houve pedido. É o que explica por que este lead chegou a
+  // esta pessoa e não à próxima da fila — e o que a gestão precisa respeitar se
+  // o caso for devolvido.
+  if (lead.preferenciaGeneroPsicologo === 'FEMININO') {
+    linhas.push('Pediu ser atendido(a) por: psicóloga');
+  } else if (lead.preferenciaGeneroPsicologo === 'MASCULINO') {
+    linhas.push('Pediu ser atendido(a) por: psicólogo');
+  }
   if (lead.possuiConvenio === 'SIM' && lead.convenioSelecionado && lead.convenioSelecionado !== 'Nenhum') {
     linhas.push(`Convênio: ${lead.convenioSelecionado}`);
   }

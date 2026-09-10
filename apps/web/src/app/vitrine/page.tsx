@@ -1,7 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useMemo } from 'react';
-import { normalizarPublicoAlvo } from '@thats-life/core';
+import React, { useEffect, useState } from 'react';
 import { VitrineCarrossel, PsicologoVitrineItem } from '@/components/vitrineCarrossel';
 import { GenderFields } from '@/components/forms/GenderFields';
 import { CadastroPsicologoForm } from '@/components/forms/CadastroPsicologoForm';
@@ -82,7 +81,7 @@ const PASSOS_AGENDAMENTO: PassoJornada[] = [
     titulo: 'Preferência',
     resumo: 'Defina como escolher',
     detalhes: [
-      'Escolha diretamente no catálogo ou responda três perguntas para receber uma recomendação compatível.',
+      'Escolha diretamente o(a) profissional ou deixe que nosso sistema indique automaticamente um(a) psicólogo(a) compatível com o que você procura.',
     ],
   },
   {
@@ -326,7 +325,8 @@ export default function ViverMaisLandingPage() {
   const precos: Record<ServicoKey, ServicoVitrine> = {
     PSICOTERAPIA: {
       titulo: 'Psicoterapia Individual',
-      descricao: 'É a modalidade mais conhecida de acompanhamento psicológico. Nela são trabalhadas diferentes demandas, como ansiedade, estresse, depressão, dificuldades nos relacionamentos, luto, autoestima, autoconhecimento, entre outras, sempre respeitando as necessidades de cada pessoa.',
+      descricao:
+        'Um espaço de escuta e cuidado psicológico, pensado para acolher diferentes momentos e demandas da vida. A psicoterapia pode ajudar no enfrentamento de questões como ansiedade, estresse, luto, dificuldades nos relacionamentos, autoestima, autoconhecimento e outras situações que estejam afetando seu bem-estar.\n\nCada processo é único e construído de acordo com as necessidades e possibilidades de cada pessoa.',
       duracao: '50min',
       imagem: '/psicoterapia_individual.jpg',
       opcoes: [
@@ -336,7 +336,8 @@ export default function ViverMaisLandingPage() {
     },
     PSICOTERAPIA_CASAL: {
       titulo: 'Psicoterapia de Casal',
-      descricao: 'Voltada para casais que desejam melhorar a comunicação, compreender conflitos e trabalhar questões relacionadas à vida e à dinâmica do relacionamento.',
+      descricao:
+        'Um espaço de escuta e cuidado para casais que desejam compreender melhor sua relação, conversar sobre questões que estão vivendo e lidar com conflitos, mudanças ou diferentes desafios da vida a dois.',
       duracao: '1h30min',
       imagem: '/psicoterapia_casal.jpg',
       opcoes: [
@@ -458,7 +459,11 @@ export default function ViverMaisLandingPage() {
       return;
     }
     setForm((prev) => ({ ...prev, especificarNecessidades: true }));
-    setStep('MATCH_RECOMENDACOES');
+    // Neste caminho quem indica é o rodízio, não o paciente: as respostas viram
+    // critério de fila no servidor e nenhum nome é oferecido aqui. Zerar a
+    // escolha protege contra resíduo de uma passagem anterior pelo catálogo.
+    setPsicologoEscolhido(null);
+    setStep('FORMULARIO');
   };
 
   const psicologoAtendeModalidade = (modalidades: readonly string[] | undefined, modalidadeDesejada: ModalidadeKey | null) => {
@@ -469,70 +474,6 @@ export default function ViverMaisLandingPage() {
     }
     return modalidades.some((m) => m === 'SOCIAL' || m === 'CASAL_SOCIAL' || m === 'ACESSIVEL_SOCIAL');
   };
-
-  const psicologosRecomendadosMatch = useMemo(() => {
-    if (!form.turno) return [];
-
-    const turnoNormalizado = normalizarTurnoPreferencia(form.turno);
-    const paraQuemNorm = normalizarPublicoAlvo(form.paraQuemE === 'Outro' ? form.paraQuemEOutro : form.paraQuemE);
-
-    const candidatos = psicologosCredenciados.filter((psi) => {
-      if (psi.disponivelParaNovosPacientes === false) return false;
-      if (selectedService && psi.servicosHabilitados.length > 0 && !psi.servicosHabilitados.includes(selectedService)) {
-        return false;
-      }
-      const atendeModalidade = psicologoAtendeModalidade(psi.modalidadesAtendidas, selectedModalidade);
-      if (!atendeModalidade) return false;
-
-      // Turno precisa coincidir
-      const atendeTurno = psi.turnosDisponiveis?.some((t) => normalizarTurnoPreferencia(t) === turnoNormalizado);
-      if (!atendeTurno) return false;
-
-      // Preferência de gênero recorta a lista em vez de só pontuar: quem pediu
-      // uma psicóloga não deveria receber um homem na recomendação. Quem não se
-      // declarou homem ou mulher fica de fora quando há preferência declarada,
-      // porque não há como afirmar que atende ao pedido.
-      if (
-        form.preferenciaGeneroPsicologo !== 'SEM_PREFERENCIA' &&
-        psi.generoProfissional !== form.preferenciaGeneroPsicologo
-      ) {
-        return false;
-      }
-
-      return true;
-    });
-
-    // Pontuar candidatos por match de público e necessidades
-    const pontuados = candidatos.map((psi) => {
-      let score = 1; // base por bater turno e modalidade
-
-      // Match público alvo
-      if (paraQuemNorm && psi.publicoAlvo?.length) {
-        const matchPublico = psi.publicoAlvo.some((pa) => {
-          const normPa = normalizarPublicoAlvo(pa);
-          return normPa.includes(paraQuemNorm) || paraQuemNorm.includes(normPa);
-        });
-        if (matchPublico) score += 3;
-      }
-
-      // Match demandas/necessidades
-      if (form.necessidadesPaciente.length > 0 && psi.necessidadesAtendidas?.length) {
-        const normAtendidas = psi.necessidadesAtendidas.map((n) =>
-          n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-        );
-        const matchesCount = form.necessidadesPaciente.filter((nec) => {
-          const normNec = nec.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-          return normAtendidas.some((a) => a.includes(normNec) || normNec.includes(a));
-        }).length;
-        score += matchesCount * 2;
-      }
-
-      return { psi, score };
-    });
-
-    pontuados.sort((a, b) => b.score - a.score);
-    return pontuados.slice(0, 3).map((item) => item.psi);
-  }, [psicologosCredenciados, form.turno, form.paraQuemE, form.paraQuemEOutro, form.necessidadesPaciente, form.preferenciaGeneroPsicologo, selectedService, selectedModalidade]);
 
   const profissionaisCompativeis = psicologosCredenciados.filter((psi) => {
     if (psi.disponivelParaNovosPacientes === false) return false;
@@ -677,7 +618,7 @@ export default function ViverMaisLandingPage() {
                     Cuidado Psicológico Pensado para Você
                   </h2>
                   <p className="text-sm sm:text-base text-purple-100/90 leading-relaxed max-w-xl font-normal">
-                    A partir das suas preferências e demandas, direcionamos você ao psicólogo ideal conforme a modalidade de atendimento (online ou presencial) e disponibilidade da nossa equipe, sempre com cuidado, acolhimento e resguardo ético.
+                    Encontre a modalidade de atendimento que faz sentido para você. Escolha o profissional da sua preferência ou, se preferir, conte com a nossa equipe para fazer o direcionamento.
                   </p>
 
                   <div className="pt-2 flex flex-wrap items-center gap-4">
@@ -785,7 +726,6 @@ export default function ViverMaisLandingPage() {
                 {Object.entries(precos).map(([key, service], index) => {
                   const servicoKey = key as ServicoKey;
                   const estaAberto = servicoSanfonaAberto === servicoKey;
-                  const precoMinimo = service.opcoes[0]?.preco;
 
                   return (
                     <div
@@ -833,11 +773,8 @@ export default function ViverMaisLandingPage() {
                           </div>
                         </div>
 
-                        {/* Lado Direito: Preço de referência e Chevron */}
+                        {/* Lado Direito: Chevron */}
                         <div className="flex items-center gap-3 shrink-0">
-                          <div className="hidden sm:flex flex-col items-end">
-                            <span className="text-xs sm:text-sm font-black text-psi-deep">{precoMinimo}</span>
-                          </div>
                           <div
                             className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-transform duration-300 ${
                               estaAberto
@@ -876,7 +813,7 @@ export default function ViverMaisLandingPage() {
                                 </div>
                               </div>
 
-                              <p className="text-xs sm:text-sm leading-relaxed text-muted">
+                              <p className="text-xs sm:text-sm leading-relaxed text-muted whitespace-pre-line">
                                 {service.descricao}
                               </p>
 
@@ -921,10 +858,6 @@ export default function ViverMaisLandingPage() {
                                   </button>
                                 </div>
                               ))}
-
-                              <p className="text-[11px] text-muted/80 text-center sm:text-left pt-1 italic">
-                                * Sem necessidade de pagamento imediato. O alinhamento de horários é feito diretamente com o profissional.
-                              </p>
                             </div>
                           </div>
                         </div>
@@ -944,10 +877,17 @@ export default function ViverMaisLandingPage() {
             <div className="bg-surface rounded-3xl p-8 border border-line shadow-card grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
               <div className="lg:col-span-7 space-y-4">
                 <span className="chip-accent text-[11px]">Equipe Qualificada</span>
-                <h3 className="text-2xl font-black text-ink">Por que fazer Psicoterapia na Viver Mais?</h3>
-                <p className="text-xs sm:text-sm text-muted leading-relaxed">
-                  A psicoterapia é um espaço de escuta técnica e acolhimento, conduzido por profissionais devidamente registrados no Conselho Regional de Psicologia (CRP). Isso significa que todos os psicólogos da Clínica Viver Mais possuem registro profissional ativo e estão habilitados a exercer a profissão, seguindo as normas éticas e técnicas da profissão, garantindo responsabilidade e segurança em todo o processo.
-                </p>
+                <h3 className="text-2xl font-black text-ink">
+                  Por que escolher o Atendimento Psicológico da Viver Mais?
+                </h3>
+                <div className="space-y-3 text-xs sm:text-sm text-muted leading-relaxed">
+                  <p>
+                    Na Viver Mais, você encontra diferentes modalidades de atendimento psicológico, realizadas por profissionais com registro ativo no Conselho Regional de Psicologia (CRP). Cada atendimento é conduzido com responsabilidade, acolhimento e respeito às normas éticas e técnicas da profissão, considerando as necessidades de cada pessoa.
+                  </p>
+                  <p>
+                    Tudo isso para que você se sinta acolhido(a) e seguro(a) em cada etapa desse processo.
+                  </p>
+                </div>
               </div>
               <div className="lg:col-span-5">
                 <img
@@ -1054,7 +994,7 @@ export default function ViverMaisLandingPage() {
                   <Sparkles className="h-5 w-5" />
                 </span>
                 <h4 className="text-lg font-black">Escolha conforme minhas necessidades</h4>
-                <p className="mt-2 text-xs leading-relaxed text-purple-100/80">Responda somente três perguntas. O sistema filtra a equipe e encaminha o primeiro profissional compatível da fila.</p>
+                <p className="mt-2 text-xs leading-relaxed text-purple-100/80">Responda somente quatro perguntas. O sistema filtra a equipe e encaminha o primeiro profissional compatível da fila.</p>
                 <span className="mt-5 flex items-center gap-2 text-xs font-black text-psi-soft">Começar recomendação <ArrowRight className="h-4 w-4" /></span>
               </button>
             </div>
@@ -1177,93 +1117,9 @@ export default function ViverMaisLandingPage() {
               </div>
 
               <button type="button" onClick={continuarMatch} className="btn-accent w-full justify-center py-4 text-xs">
-                Ver Psicólogos Recomendados <ArrowRight className="h-4 w-4" />
+                Continuar para meus dados <ArrowRight className="h-4 w-4" />
               </button>
             </div>
-          </section>
-        )}
-
-        {step === 'MATCH_RECOMENDACOES' && selectedService && selectedModalidade && (
-          <section className="mx-auto max-w-4xl space-y-8 animate-in fade-in duration-300">
-            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-              <div>
-                <span className="text-[10px] font-black uppercase tracking-widest text-psi-vibrant">
-                  Recomendação Inteligente • Passo 2 de 3
-                </span>
-                <h3 className="mt-1 text-2xl font-black text-ink">Profissionais Compatíveis com Você</h3>
-                <p className="mt-1 text-xs text-muted">
-                  Encontramos estes psicólogos da nossa equipe alinhados às suas preferências de turno e demandas.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setStep('MATCH')}
-                className="text-xs font-bold text-muted hover:text-ink hover:underline"
-              >
-                Voltar às perguntas
-              </button>
-            </div>
-
-            {psicologosRecomendadosMatch.length > 0 ? (
-              <div className="space-y-6">
-                <VitrineCarrossel
-                  psicologos={psicologosRecomendadosMatch}
-                  selecionadoId={psicologoEscolhido?.id}
-                  titulo="Selecione seu Profissional Recomendado"
-                  subtitulo="Clique no profissional que você mais se identificar para seguir com o agendamento"
-                  onSelecionar={(psicologo) => {
-                    setPsicologoEscolhido(psicologo);
-                    setStep('FORMULARIO');
-                  }}
-                />
-
-                {/* Opção Alternativa: Atribuição Automática / Fila Inteligente */}
-                <div className="bg-purple-50/70 border border-purple-200 rounded-3xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <div className="space-y-1 text-center sm:text-left">
-                    <h4 className="text-sm font-black text-purple-950">Prefere não escolher um nome específico?</h4>
-                    <p className="text-xs text-purple-800/80">
-                      Nosso sistema escolherá o primeiro psicólogo compatível disponível da fila para entrar em contato com você em até 24h.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPsicologoEscolhido(null);
-                      setStep('FORMULARIO');
-                    }}
-                    className="bg-purple-700 hover:bg-purple-800 text-white font-extrabold text-xs px-5 py-3 rounded-2xl transition-all shadow-md shadow-purple-700/20 whitespace-nowrap shrink-0"
-                  >
-                    Escolher Automaticamente <ArrowRight className="w-4 h-4 inline-block ml-1" />
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="bg-surface rounded-3xl border border-amber-200 p-8 text-center space-y-4">
-                <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-800 flex items-center justify-center mx-auto border border-amber-200">
-                  <Sparkles className="w-6 h-6" />
-                </div>
-                <h4 className="text-lg font-black text-ink">Nenhum profissional com agenda imediata específica</h4>
-                <p className="text-xs text-muted max-w-md mx-auto">
-                  Não se preocupe! Conclua seus dados de contato e nossa equipe escolherá o próximo profissional compatível da fila para acolher o seu caso.
-                </p>
-                {form.preferenciaGeneroPsicologo !== 'SEM_PREFERENCIA' && (
-                  <p className="mx-auto max-w-md text-xs font-bold text-amber-900">
-                    Você pediu atendimento com {form.preferenciaGeneroPsicologo === 'FEMININO' ? 'psicóloga' : 'psicólogo'}.
-                    Volte às perguntas e marque “sem preferência” para ver toda a equipe disponível neste período.
-                  </p>
-                )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPsicologoEscolhido(null);
-                    setStep('FORMULARIO');
-                  }}
-                  className="bg-psi-deep hover:bg-psi-darkest text-white text-xs font-black px-6 py-3 rounded-2xl transition-all shadow-md"
-                >
-                  Continuar Cadastro de Atendimento <ArrowRight className="w-4 h-4 inline-block ml-1" />
-                </button>
-              </div>
-            )}
           </section>
         )}
 
@@ -1326,15 +1182,13 @@ export default function ViverMaisLandingPage() {
                 </h3>
                 <p className="mt-1 text-[11px] text-slate-500">
                   {caminho === 'MATCH'
-                    ? (psicologoEscolhido
-                        ? `Você escolheu a recomendação de ${psicologoEscolhido.nomeSocial || psicologoEscolhido.nome}. Preencha seus dados de contato para finalizar.`
-                        : 'Suas preferências foram salvas. Complete seus dados de contato para enviarmos ao primeiro profissional disponível da fila.')
+                    ? 'Suas respostas foram salvas. Complete seus dados de contato e encaminharemos você ao primeiro profissional compatível da fila, que fará o contato em até 24h.'
                     : `Você escolheu ${psicologoEscolhido?.nomeSocial || psicologoEscolhido?.nome}. Complete seus dados para enviar a solicitação.`}
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => setStep(caminho === 'MATCH' ? 'MATCH_RECOMENDACOES' : 'PROFISSIONAIS')}
+                onClick={() => setStep(caminho === 'MATCH' ? 'MATCH' : 'PROFISSIONAIS')}
                 className="text-xs text-slate-500 hover:text-slate-900 hover:underline font-bold"
               >
                 Voltar

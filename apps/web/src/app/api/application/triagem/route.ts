@@ -107,6 +107,7 @@ export async function POST(request: Request) {
       servicoKey: dados.servicoKey,
       modalidade: dados.modalidade,
       paraQuemE: dados.paraQuemE,
+      preferenciaGeneroPsicologo: dados.preferenciaGeneroPsicologo,
       especificarNecessidades: dados.especificarNecessidades,
       necessidadesPaciente: dados.necessidadesPaciente,
       necessidadesOutro: dados.necessidadesOutro,

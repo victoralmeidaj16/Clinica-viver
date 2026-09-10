@@ -178,6 +178,19 @@ function rotuloTurno(turno?: string): string {
   }
 }
 
+/**
+ * O pedido de gênero do profissional, quando houve um.
+ *
+ * `undefined` para quem não pediu nada — a linha some do e-mail em vez de
+ * anunciar "sem preferência", que não é informação que mude a conduta de quem
+ * recebe o lead.
+ */
+function rotuloPreferenciaGenero(preferencia?: string): string | undefined {
+  if (preferencia === 'FEMININO') return 'Psicóloga';
+  if (preferencia === 'MASCULINO') return 'Psicólogo';
+  return undefined;
+}
+
 function rotuloModalidade(modalidade?: string): string {
   switch (modalidade?.trim().toUpperCase()) {
     case 'SOCIAL':
@@ -206,6 +219,7 @@ export function conteudoAlocacaoPsicologo(
   const servicoSeguro = escaparHtml(lead.servico || 'Psicoterapia');
   const turnoSeguro = escaparHtml(rotuloTurno(lead.turno));
   const modalidadeSegura = escaparHtml(rotuloModalidade(lead.modalidade));
+  const preferenciaGenero = rotuloPreferenciaGenero(lead.preferenciaGeneroPsicologo);
 
   const telefoneLimpo = lead.telefone.replace(/\D/g, '');
   const linkWhatsApp = telefoneLimpo ? `https://wa.me/${telefoneLimpo}` : undefined;
@@ -259,6 +273,7 @@ export function conteudoAlocacaoPsicologo(
     ...(lead.idade ? [`• Idade: ${lead.idade}`] : []),
     ...(lead.genero ? [`• Gênero: ${lead.genero}`] : []),
     ...(lead.paraQuemE ? [`• Atendimento para: ${lead.paraQuemE}`] : []),
+    ...(preferenciaGenero ? [`• Pediu ser atendido(a) por: ${preferenciaGenero}`] : []),
     ...(lead.opcaoAvaliacaoPsicologica ? [`• Tipo de Avaliação: ${lead.opcaoAvaliacaoPsicologica}`] : []),
     ...(lead.possuiConvenio === 'SIM' && lead.convenioSelecionado && lead.convenioSelecionado !== 'Nenhum'
       ? [`• Convênio: ${lead.convenioSelecionado}`]
@@ -335,6 +350,7 @@ export function conteudoAlocacaoPsicologo(
         </tr>
         ${lead.idade ? `<tr><td style="padding: 6px 0; color: #64748b;"><strong>Idade:</strong></td><td style="padding: 6px 0; color: #0f172a;">${escaparHtml(String(lead.idade))} anos</td></tr>` : ''}
         ${lead.genero ? `<tr><td style="padding: 6px 0; color: #64748b;"><strong>Gênero:</strong></td><td style="padding: 6px 0; color: #0f172a;">${escaparHtml(lead.genero)}</td></tr>` : ''}
+        ${preferenciaGenero ? `<tr><td style="padding: 6px 0; color: #64748b;"><strong>Pediu ser atendido(a) por:</strong></td><td style="padding: 6px 0; color: #0f172a;">${escaparHtml(preferenciaGenero)}</td></tr>` : ''}
         ${lead.opcaoAvaliacaoPsicologica ? `<tr><td style="padding: 6px 0; color: #64748b;"><strong>Avaliação:</strong></td><td style="padding: 6px 0; color: #0f172a;">${escaparHtml(lead.opcaoAvaliacaoPsicologica)}</td></tr>` : ''}
         ${lead.possuiConvenio === 'SIM' && lead.convenioSelecionado && lead.convenioSelecionado !== 'Nenhum' ? `<tr><td style="padding: 6px 0; color: #64748b;"><strong>Convênio:</strong></td><td style="padding: 6px 0; color: #0f172a;">${escaparHtml(lead.convenioSelecionado)}</td></tr>` : ''}
         ${demandas.length > 0 ? `<tr><td style="padding: 6px 0; color: #64748b;"><strong>Demandas:</strong></td><td style="padding: 6px 0; color: #0f172a;">${escaparHtml(demandas.join(', '))}</td></tr>` : ''}

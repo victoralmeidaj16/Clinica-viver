@@ -12,6 +12,7 @@ import type {
   FinancialLedger,
   NotificationMessage,
   PatientHandoff,
+  PreferenciaGeneroPsicologo,
 } from '@thats-life/core';
 
 /**
@@ -88,6 +89,12 @@ export interface TriagemPacienteRecord {
   servicoKey?: string;
   modalidade?: string;
   paraQuemE?: string;
+  /**
+   * Gênero de profissional pedido na triagem. Critério do rodízio, não do
+   * paciente — `genero` logo abaixo é o da pessoa atendida, outro eixo.
+   * Ausente vale como sem preferência.
+   */
+  preferenciaGeneroPsicologo?: PreferenciaGeneroPsicologo;
   especificarNecessidades?: boolean;
   necessidadesPaciente?: readonly string[];
   necessidadesOutro?: string;

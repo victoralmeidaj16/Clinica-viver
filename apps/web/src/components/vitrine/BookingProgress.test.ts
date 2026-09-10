@@ -6,7 +6,6 @@ describe('indicador do fluxo de agendamento', () => {
     ['SERVICOS', 0],
     ['CAMINHO', 1],
     ['MATCH', 2],
-    ['MATCH_RECOMENDACOES', 2],
     ['PROFISSIONAIS', 2],
     ['FORMULARIO', 3],
     ['SUCESSO', 3],

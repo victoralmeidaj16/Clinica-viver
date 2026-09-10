@@ -1,16 +1,11 @@
 import { NextResponse } from 'next/server';
-import { normalizeGender } from '@/lib/gender';
+import { generoProfissional } from '@/lib/gender';
 import { emptySnapshot, readSnapshot } from '@/server/application/persistence';
 import { isMysqlConfigured } from '@/server/oci/runtime';
 import { MysqlCaptureRepository } from '@/server/persistence/mysql/captureRepository';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-function generoPublico(genero: string | undefined): 'MASCULINO' | 'FEMININO' | undefined {
-  const normalizado = normalizeGender(genero);
-  return normalizado === 'MASCULINO' || normalizado === 'FEMININO' ? normalizado : undefined;
-}
 
 /** Dados mínimos e públicos de profissionais aprovados para a vitrine. */
 export async function GET() {
@@ -35,7 +30,7 @@ export async function GET() {
         modalidadeAtendimento: item.modalidadeAtendimento,
         // Só o suficiente para o paciente filtrar por psicólogo ou psicóloga na
         // recomendação: quem não se declarou em um dos dois não expõe nada.
-        generoProfissional: generoPublico(item.genero),
+        generoProfissional: generoProfissional(item.genero),
         publicoAlvo: item.publicoAlvo ?? [],
         necessidadesAtendidas: item.necessidadesAtendidas ?? [],
         disponivelParaNovosPacientes:

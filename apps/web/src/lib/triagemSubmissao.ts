@@ -1,3 +1,4 @@
+import type { PreferenciaGeneroPsicologo } from '@thats-life/core';
 import { normalizeBrazilPhone } from './brazilPhone';
 import { validCpf } from './cpf';
 import { validateGender, type GenderValue } from './gender';
@@ -105,6 +106,7 @@ export interface DadosTriagem {
   servicoKey?: string;
   modalidade?: string;
   paraQuemE?: string;
+  preferenciaGeneroPsicologo: PreferenciaGeneroPsicologo;
   especificarNecessidades: boolean;
   necessidadesPaciente: readonly string[];
   necessidadesOutro?: string;
@@ -126,6 +128,20 @@ function texto(valor: unknown, limite: number): string | undefined {
 
 function recusa(erro: string): ResultadoValidacao {
   return { ok: false, erro, status: 400 };
+}
+
+/**
+ * A preferência de gênero como o rodízio a entende.
+ *
+ * Valor desconhecido cai em `SEM_PREFERENCIA`, nunca num palpite: este campo
+ * recorta a fila, e um lixo interpretado como "FEMININO" tiraria metade da
+ * equipe da indicação sem que ninguém tivesse pedido isso.
+ */
+function preferenciaGenero(valor: unknown): PreferenciaGeneroPsicologo {
+  const normalizado = String(valor ?? '').trim().toUpperCase();
+  return normalizado === 'MASCULINO' || normalizado === 'FEMININO'
+    ? normalizado
+    : 'SEM_PREFERENCIA';
 }
 
 /**
@@ -254,6 +270,7 @@ export function validarSubmissaoTriagem(corpo: unknown): ResultadoValidacao {
       servicoKey: texto(body.servicoKey, 40),
       modalidade: texto(body.modalidade, 40),
       paraQuemE: livres[1],
+      preferenciaGeneroPsicologo: preferenciaGenero(body.preferenciaGeneroPsicologo),
       especificarNecessidades: Boolean(body.especificarNecessidades),
       necessidadesPaciente: necessidades,
       necessidadesOutro: livres[0],

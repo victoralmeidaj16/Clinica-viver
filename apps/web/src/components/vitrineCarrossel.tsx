@@ -14,6 +14,7 @@ import {
   GraduationCap,
   MapPin,
   Video,
+  Building2,
 } from 'lucide-react';
 
 export interface PsicologoVitrineItem {
@@ -116,17 +117,61 @@ const ROTULOS_SERVICO: Record<string, string> = {
 };
 
 /**
- * A cidade só interessa a quem pode ser atendido lá: quem atende apenas online
- * exibe a tag "Online", quem atende os dois formatos exibe as duas informações.
- * Cadastro sem modalidade preenchida mantém o comportamento antigo (só cidade).
+ * Normaliza as modalidades de atendimento do psicólogo.
+ * - Psis que só atendem online: NÃO APARECE cidade/estado, exibe tag ONLINE.
+ * - Psis que atendem presencial e online: APARECE cidade/estado e tags ONLINE e PRESENCIAL.
+ * - Psis que só atendem presencial: APARECE cidade/estado e tag PRESENCIAL.
  */
-function localizacaoDoCard(psi: PsicologoVitrineItem): { online: boolean; cidade: string | null } {
-  const modalidade = psi.modalidadeAtendimento?.trim().toLocaleUpperCase('pt-BR');
-  const cidade = [psi.cidade, psi.estadoUf].filter(Boolean).join(' - ') || null;
+function localizacaoDoCard(psi: PsicologoVitrineItem): {
+  online: boolean;
+  presencial: boolean;
+  cidade: string | null;
+} {
+  const modRaw = (psi.modalidadeAtendimento ?? '')
+    .trim()
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  const array = (psi.modalidadesAtendidas ?? []).map((m) =>
+    m.trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  );
+
+  const temAmbos =
+    modRaw === 'AMBOS' ||
+    modRaw.includes('HIBRID') ||
+    (modRaw.includes('ONLINE') && modRaw.includes('PRESENCIAL')) ||
+    array.includes('AMBOS') ||
+    (array.includes('ONLINE') && array.includes('PRESENCIAL'));
+
+  let online = false;
+  let presencial = false;
+
+  if (temAmbos) {
+    online = true;
+    presencial = true;
+  } else {
+    const temPresencial = modRaw === 'PRESENCIAL' || array.includes('PRESENCIAL');
+    const temOnline = modRaw.includes('ONLINE') || array.includes('ONLINE');
+
+    if (temPresencial && !temOnline) {
+      online = false;
+      presencial = true;
+    } else {
+      // Se tiver 'ONLINE' ou não estiver preenchido, o padrão da clínica é somente online
+      online = true;
+      presencial = false;
+    }
+  }
+
+  const cidadeCompleta = [psi.cidade, psi.estadoUf].filter(Boolean).join(' - ') || null;
 
   return {
-    online: modalidade === 'ONLINE' || modalidade === 'AMBOS',
-    cidade: modalidade === 'ONLINE' ? null : cidade,
+    online,
+    presencial,
+    // Só online: NÃO APARECE cidade e estado
+    // Presencial (ou presencial e online): APARECE cidade e estado
+    cidade: presencial ? cidadeCompleta : null,
   };
 }
 
@@ -143,7 +188,7 @@ interface CardPsicologoLinhaProps {
  */
 function CardPsicologoLinha({ psi, selecionado, onSelecionar }: CardPsicologoLinhaProps) {
   const nomeExibicao = psi.nomeSocial?.trim() || psi.nome;
-  const { online, cidade } = localizacaoDoCard(psi);
+  const { online, presencial, cidade } = localizacaoDoCard(psi);
   const turnos = [...new Set(psi.turnosDisponiveis?.map((turno) => ROTULOS_TURNO[turno] ?? turno) ?? [])];
   const servicos = psi.servicosHabilitados?.map((servico) => ROTULOS_SERVICO[servico] ?? servico) ?? [];
 
@@ -172,12 +217,18 @@ function CardPsicologoLinha({ psi, selecionado, onSelecionar }: CardPsicologoLin
               </div>
             </div>
 
-            {(online || cidade) && (
+            {(online || presencial || cidade) && (
               <div className="flex shrink-0 flex-wrap items-center gap-2">
                 {online && (
                   <span className="inline-flex items-center gap-1 rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-800">
                     <Video className="h-3.5 w-3.5" />
                     Online
+                  </span>
+                )}
+                {presencial && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-800">
+                    <Building2 className="h-3.5 w-3.5" />
+                    Presencial
                   </span>
                 )}
                 {cidade && (
@@ -257,6 +308,7 @@ interface CardPsicologoProps {
 function CardPsicologo({ psi, selecionado, onSelecionar, className = '' }: CardPsicologoProps) {
   const [expandirFoco, setExpandirFoco] = useState(false);
   const nomeExibicao = psi.nomeSocial?.trim() || psi.nome;
+  const { online, presencial, cidade } = localizacaoDoCard(psi);
 
   return (
     <div
@@ -275,10 +327,28 @@ function CardPsicologo({ psi, selecionado, onSelecionar, className = '' }: CardP
             <h4 className="font-black text-base text-ink group-hover:text-psi-vibrant transition-colors truncate">
               {nomeExibicao}
             </h4>
-            <div className="flex items-center gap-1.5 mt-0.5">
+            <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
               <span className="text-xs font-mono font-bold text-psi-vibrant">
                 CRP {psi.crp.replace(/^CRP\s*/i, '')}
               </span>
+              {online && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-100 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                  <Video className="h-3 w-3" />
+                  Online
+                </span>
+              )}
+              {presencial && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-800">
+                  <Building2 className="h-3 w-3" />
+                  Presencial
+                </span>
+              )}
+              {cidade && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-psi-soft bg-purple-50 px-2 py-0.5 text-[10px] font-bold text-psi-deep">
+                  <MapPin className="h-3 w-3" />
+                  {cidade}
+                </span>
+              )}
             </div>
           </div>
         </div>

@@ -4,7 +4,6 @@ export type BookingStep =
   | 'SERVICOS'
   | 'CAMINHO'
   | 'MATCH'
-  | 'MATCH_RECOMENDACOES'
   | 'PROFISSIONAIS'
   | 'FORMULARIO'
   | 'SUCESSO';
@@ -23,7 +22,7 @@ const stages = [
 export function bookingStageIndex(step: BookingStep) {
   if (step === 'SERVICOS') return 0;
   if (step === 'CAMINHO') return 1;
-  if (step === 'MATCH' || step === 'MATCH_RECOMENDACOES' || step === 'PROFISSIONAIS') return 2;
+  if (step === 'MATCH' || step === 'PROFISSIONAIS') return 2;
   return 3;
 }
 

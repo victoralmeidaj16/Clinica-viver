@@ -16,6 +16,20 @@ export type StatusLead =
 
 export type StatusPaciente = 'ATIVO' | 'EM_FERIAS' | 'DESISTENTE';
 
+/**
+ * Gênero do profissional como a indicação o enxerga.
+ *
+ * Só duas opções porque é isso que o pedido do paciente distingue — "prefiro
+ * uma psicóloga". Quem se declarou de outra forma no cadastro fica sem valor
+ * aqui, e não como um terceiro caso a ser comparado: a pergunta que a fila
+ * precisa responder é "atende ao que a pessoa pediu?", e a resposta honesta
+ * para um gênero fora dessas duas opções é que não dá para afirmar que sim.
+ */
+export type GeneroProfissional = 'MASCULINO' | 'FEMININO';
+
+/** Preferência declarada pelo paciente na triagem. */
+export type PreferenciaGeneroPsicologo = 'SEM_PREFERENCIA' | GeneroProfissional;
+
 export type ModoAgendamentoCobranca = 'PRE_SESSAO_24H' | 'POS_SESSAO' | 'MANUAL';
 
 export type MotivoCancelamento = 
@@ -62,6 +76,12 @@ export interface LeadTriagem {
   necessidadesPaciente?: string[];
   necessidadesOutro?: string;
   opcaoAvaliacaoPsicologica?: string;
+  /**
+   * Gênero de profissional que a pessoa pediu na triagem. Ausente vale como
+   * `SEM_PREFERENCIA` — leads gravados antes deste campo existirem continuam
+   * válidos e seguem indo para a fila inteira.
+   */
+  preferenciaGeneroPsicologo?: PreferenciaGeneroPsicologo;
 }
 
 export interface PsicologoPerfil {
@@ -73,6 +93,12 @@ export interface PsicologoPerfil {
   email: string;
   fotoUrl?: string;
   apresentacaoCurta?: string;
+  /**
+   * Ausente quando o cadastro não declarou gênero, ou declarou um que não é
+   * masculino nem feminino. Nesse caso o perfil só entra em indicações sem
+   * preferência declarada. Ver `GeneroProfissional`.
+   */
+  genero?: GeneroProfissional;
   turnosDisponiveis: TurnoAtendimento[];
   modalidadesAtendidas: ModalidadeAtendimento[];
   servicosHabilitados?: string[]; // Ex: ['PSICOTERAPIA', 'AVALIACAO', 'ORIENTACAO_PROFISSIONAL', 'ORIENTACAO_PARENTAL']

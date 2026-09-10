@@ -14,6 +14,7 @@ import type {
   PersistedSnapshot,
   TriagemPacienteRecord,
 } from './persistence';
+import { generoProfissional } from '@/lib/gender';
 import { normalizarTurnoPreferencia } from '@/lib/turnos';
 import {
   LIMITE_PACIENTES_MAXIMO,
@@ -144,6 +145,10 @@ export function paraPsicologoPerfil(
     crp: record.crp,
     telefoneWhatsApp: record.whatsapp,
     email: record.email ?? '',
+    // Só masculino/feminino atravessam: é o que a preferência do paciente
+    // distingue. Qualquer outra declaração fica sem valor aqui e o perfil passa
+    // a entrar apenas em indicações sem preferência.
+    genero: generoProfissional(record.genero),
     turnosDisponiveis: normalizarLista(record.turnosDisponiveis, normalizarTurno),
     modalidadesAtendidas: normalizarLista(record.modalidadesAtendidas, normalizarModalidade),
     servicosHabilitados: [...(record.servicosHabilitados ?? [])],
@@ -171,8 +176,19 @@ export function rosterAtivo(snapshot: PersistedSnapshot): CadastroPsicologoRecor
   return (snapshot.cadastrosPsicologos ?? []).filter((psi) => psi.status === 'APROVADO');
 }
 
-/** Monta o lead no formato do motor. Só os campos que a indicação usa importam. */
-function paraLeadTriagem(record: TriagemPacienteRecord): LeadTriagem | null {
+/**
+ * Monta o lead no formato do motor. Só os campos que a indicação usa importam.
+ *
+ * `ignorarPreferenciaGenero` existe porque a preferência responde a uma
+ * pergunta só: "quem o rodízio deve escolher por conta própria?". Quando o
+ * paciente já apontou um nome no catálogo, ou quando a gestão está reatribuindo
+ * à mão, a decisão é de quem escolheu — filtrar a lista ali esconderia opções
+ * de quem tem autoridade para decidir, sem explicar por quê.
+ */
+function paraLeadTriagem(
+  record: TriagemPacienteRecord,
+  opcoes: { ignorarPreferenciaGenero?: boolean } = {}
+): LeadTriagem | null {
   const turno = normalizarTurno(record.turno);
   const modalidade = normalizarModalidade(record.modalidade);
   if (!turno || !modalidade) return null;
@@ -198,6 +214,9 @@ function paraLeadTriagem(record: TriagemPacienteRecord): LeadTriagem | null {
     necessidadesPaciente: record.necessidadesPaciente ? [...record.necessidadesPaciente] : undefined,
     necessidadesOutro: record.necessidadesOutro,
     opcaoAvaliacaoPsicologica: record.opcaoAvaliacaoPsicologica,
+    preferenciaGeneroPsicologo: opcoes.ignorarPreferenciaGenero
+      ? undefined
+      : record.preferenciaGeneroPsicologo,
   };
 }
 
@@ -359,6 +378,12 @@ export function alocarLeadEscolhido(
  * rodízio: aprovação, pausa, capacidade, turno, modalidade, serviço e perfil
  * da demanda. Rodar o motor com um candidato por vez evita uma segunda versão
  * das regras para a seleção manual da gestão.
+ *
+ * A preferência de gênero fica **fora** desta lista. Quem chega aqui é uma
+ * escolha humana — o paciente apontando um nome no catálogo, ou a gestão
+ * reatribuindo — e essas duas já são a decisão. O filtro de gênero serve para
+ * o rodízio escolher sozinho; aplicá-lo aqui sumiria com nomes da tela de quem
+ * está decidindo, sem dizer por quê.
  */
 export function listarPsicologosCompativeis(
   snapshot: PersistedSnapshot,
@@ -366,7 +391,7 @@ export function listarPsicologosCompativeis(
   agora: Date = new Date()
 ): CadastroPsicologoRecord[] {
   const atual = recalcularPacientesAtivos(snapshot);
-  const lead = paraLeadTriagem(leadRecord);
+  const lead = paraLeadTriagem(leadRecord, { ignorarPreferenciaGenero: true });
   if (!lead) return [];
 
   return rosterAtivo(atual).filter((psicologo) =>

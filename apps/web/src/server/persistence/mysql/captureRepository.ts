@@ -2,6 +2,7 @@ import 'server-only';
 
 import type { RowDataPacket } from 'mysql2';
 import type { Pool, PoolConnection } from 'mysql2/promise';
+import type { PreferenciaGeneroPsicologo } from '@thats-life/core';
 import { getMysqlPool } from '@/server/oci/runtime';
 import {
   emptySnapshot,
@@ -53,6 +54,7 @@ interface TriagemRow extends RowDataPacket {
   cidade: string | null;
   estado_uf: string | null;
   para_quem_e: string | null;
+  preferencia_genero_psicologo: string | null;
   especificar_necessidades: number;
   necessidades_paciente: unknown;
   necessidades_outro: string | null;
@@ -149,6 +151,17 @@ function asNullableJson(value: unknown): string | null {
   return JSON.stringify(value);
 }
 
+/**
+ * Preferência de gênero como ela volta do banco.
+ *
+ * Só masculino e feminino sobrevivem; `NULL`, `'SEM_PREFERENCIA'` e qualquer
+ * outro conteúdo viram ausência — que é como o rodízio lê "a fila inteira
+ * serve". Leads gravados antes da coluna existir caem exatamente aqui.
+ */
+function preferenciaGeneroLida(valor: string | null): PreferenciaGeneroPsicologo | undefined {
+  return valor === 'MASCULINO' || valor === 'FEMININO' ? valor : undefined;
+}
+
 function toLead(row: TriagemRow): TriagemPacienteRecord {
   return {
     id: row.ref_core,
@@ -173,6 +186,7 @@ function toLead(row: TriagemRow): TriagemPacienteRecord {
     cidade: row.cidade ?? undefined,
     estadoUf: row.estado_uf ?? undefined,
     paraQuemE: row.para_quem_e ?? undefined,
+    preferenciaGeneroPsicologo: preferenciaGeneroLida(row.preferencia_genero_psicologo),
     especificarNecessidades: Boolean(row.especificar_necessidades),
     necessidadesPaciente: asStringArray(row.necessidades_paciente),
     necessidadesOutro: row.necessidades_outro ?? undefined,
@@ -317,7 +331,8 @@ export class MysqlCaptureRepository {
       `SELECT ref_core, protocolo, nome_paciente, telefone, idade, email, cpf, cep,
               logradouro, numero_residencia, complemento, bairro, cidade, estado_uf,
               possui_convenio, convenio_selecionado, origem, turno, servico,
-              servico_key, modalidade, para_quem_e, especificar_necessidades,
+              servico_key, modalidade, para_quem_e, preferencia_genero_psicologo,
+              especificar_necessidades,
               necessidades_paciente, necessidades_outro, opcao_avaliacao_psicologica,
               genero, genero_outro, status, psicologo_alocado_id,
               psicologo_nome, paciente_ref, alocado_em, confirmado_em, sla_expirado,
@@ -549,11 +564,12 @@ export class MysqlCaptureRepository {
             telefone, idade, email, cpf, cep, logradouro, numero_residencia, complemento,
             bairro, cidade, estado_uf, possui_convenio,
             convenio_selecionado, origem, turno, servico, servico_key, modalidade,
-            para_quem_e, especificar_necessidades, necessidades_paciente,
+            para_quem_e, preferencia_genero_psicologo,
+            especificar_necessidades, necessidades_paciente,
             necessidades_outro, opcao_avaliacao_psicologica, genero, genero_outro, status,
             psicologo_alocado_id, psicologo_nome, paciente_ref, alocado_em, confirmado_em,
             sla_expirado, transbordos, psicologos_ja_tentados, criado_em)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
            protocolo = VALUES(protocolo), nome_paciente = VALUES(nome_paciente),
            telefone = VALUES(telefone), idade = VALUES(idade), email = VALUES(email),
@@ -564,6 +580,7 @@ export class MysqlCaptureRepository {
            convenio_selecionado = VALUES(convenio_selecionado), origem = VALUES(origem),
            turno = VALUES(turno), servico = VALUES(servico), servico_key = VALUES(servico_key),
            modalidade = VALUES(modalidade), para_quem_e = VALUES(para_quem_e),
+           preferencia_genero_psicologo = VALUES(preferencia_genero_psicologo),
            especificar_necessidades = VALUES(especificar_necessidades),
            necessidades_paciente = VALUES(necessidades_paciente),
            necessidades_outro = VALUES(necessidades_outro),
@@ -601,6 +618,7 @@ export class MysqlCaptureRepository {
           lead.servicoKey ?? null,
           lead.modalidade ?? null,
           lead.paraQuemE ?? null,
+          lead.preferenciaGeneroPsicologo ?? null,
           lead.especificarNecessidades ? 1 : 0,
           asJson(lead.necessidadesPaciente),
           lead.necessidadesOutro ?? null,

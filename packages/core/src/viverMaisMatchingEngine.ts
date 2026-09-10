@@ -1,4 +1,10 @@
-import { LeadTriagem, PsicologoPerfil, ModalidadeAtendimento, TurnoAtendimento } from './viverMaisTypes';
+import {
+  LeadTriagem,
+  PsicologoPerfil,
+  ModalidadeAtendimento,
+  PreferenciaGeneroPsicologo,
+  TurnoAtendimento,
+} from './viverMaisTypes';
 
 /** O credenciamento usa “Homens”; a triagem usa “Homem”. */
 export function normalizarPublicoAlvo(valor: string): string {
@@ -13,18 +19,42 @@ export interface MatchingResult {
   mensagem: string;
 }
 
+/** Recortes opcionais da fila, além do turno e da modalidade. */
+export interface CriteriosSelecao {
+  /** Quem não pode receber este lead — o profissional que estourou o SLA. */
+  psicologoIgnoradoId?: string;
+  servicoDesejado?: string;
+  paraQuemE?: string;
+  necessidadesDesejadas?: readonly string[];
+  /**
+   * Gênero pedido pelo paciente. `SEM_PREFERENCIA` (ou ausente) mantém a fila
+   * inteira.
+   */
+  preferenciaGeneroPsicologo?: PreferenciaGeneroPsicologo;
+}
+
 /**
  * Encontra o próximo psicólogo elegível na fila circular (Round-Robin).
+ *
+ * Os critérios opcionais vêm num objeto, e não como mais uma posição na lista
+ * de argumentos: com sete opcionais em sequência, quem chama passa a contar
+ * `undefined`s para alcançar o último, e um deslize aí não vira erro de tipo —
+ * vira indicação errada, em silêncio.
  */
 export function selecionarPsicologoRoundRobin(
   psicologos: PsicologoPerfil[],
   turnoDesejado: TurnoAtendimento,
   modalidadeDesejada: ModalidadeAtendimento,
-  psicologoIgnoradoId?: string,
-  servicoDesejado?: string,
-  paraQuemE?: string,
-  necessidadesDesejadas?: string[]
+  criterios: CriteriosSelecao = {}
 ): PsicologoPerfil | null {
+  const {
+    psicologoIgnoradoId,
+    servicoDesejado,
+    paraQuemE,
+    necessidadesDesejadas,
+    preferenciaGeneroPsicologo,
+  } = criterios;
+
   // Filtrar psicólogos ativos, que atendam o turno, modalidade, serviço, público alvo e necessidades específicas
   const elegiveis = psicologos.filter((p) => {
     if (psicologoIgnoradoId && p.id === psicologoIgnoradoId) return false;
@@ -40,6 +70,20 @@ export function selecionarPsicologoRoundRobin(
     if (p.pacientesAtivosCount >= p.limitePacientesAtivos) return false;
     if (!p.turnosDisponiveis.includes(turnoDesejado)) return false;
     if (!p.modalidadesAtendidas.includes(modalidadeDesejada)) return false;
+    // Preferência de gênero corta a fila em vez de só reordená-la: quem pediu
+    // uma psicóloga não deve receber um psicólogo porque era a vez dele. Quem
+    // não declarou gênero — ou declarou um que não é masculino nem feminino —
+    // sai junto enquanto há preferência declarada, porque não há como afirmar
+    // que atende ao pedido. Se isso esvaziar a fila, o lead fica pendente de
+    // atribuição para a gestão resolver: preferível a uma indicação que
+    // contraria o que a pessoa pediu.
+    if (
+      preferenciaGeneroPsicologo &&
+      preferenciaGeneroPsicologo !== 'SEM_PREFERENCIA' &&
+      p.genero !== preferenciaGeneroPsicologo
+    ) {
+      return false;
+    }
     if (servicoDesejado && p.servicosHabilitados && p.servicosHabilitados.length > 0) {
       if (servicoDesejado === 'PSICOTERAPIA_CASAL') {
         if (!p.servicosHabilitados.includes('PSICOTERAPIA') && !p.servicosHabilitados.includes('PSICOTERAPIA_CASAL')) return false;
@@ -104,15 +148,12 @@ export function processarTriagemLead(
   psicologos: PsicologoPerfil[],
   servicoDesejado?: string
 ): MatchingResult {
-  const selecionado = selecionarPsicologoRoundRobin(
-    psicologos,
-    lead.turno,
-    lead.modalidade,
-    undefined,
+  const selecionado = selecionarPsicologoRoundRobin(psicologos, lead.turno, lead.modalidade, {
     servicoDesejado,
-    lead.paraQuemE,
-    lead.necessidadesPaciente
-  );
+    paraQuemE: lead.paraQuemE,
+    necessidadesDesejadas: lead.necessidadesPaciente,
+    preferenciaGeneroPsicologo: lead.preferenciaGeneroPsicologo,
+  });
 
   if (!selecionado) {
     return {
@@ -180,15 +221,15 @@ export function checarEExecutarTransbordoSla(
   const jaTentados = opcoes.psicologosJaTentados ?? [];
   const candidatos = psicologos.filter((p) => !jaTentados.includes(p.id));
 
-  const novoPsicologo = selecionarPsicologoRoundRobin(
-    candidatos,
-    lead.turno,
-    lead.modalidade,
-    lead.psicologoAlocadoId,
-    opcoes.servicoDesejado,
-    lead.paraQuemE,
-    lead.necessidadesPaciente
-  );
+  const novoPsicologo = selecionarPsicologoRoundRobin(candidatos, lead.turno, lead.modalidade, {
+    psicologoIgnoradoId: lead.psicologoAlocadoId,
+    servicoDesejado: opcoes.servicoDesejado,
+    paraQuemE: lead.paraQuemE,
+    necessidadesDesejadas: lead.necessidadesPaciente,
+    // O transbordo herda a preferência: um pedido que valeu na indicação
+    // original não pode se perder só porque o prazo estourou.
+    preferenciaGeneroPsicologo: lead.preferenciaGeneroPsicologo,
+  });
 
   const agoraIso = new Date().toISOString();
 

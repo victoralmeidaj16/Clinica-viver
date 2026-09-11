@@ -276,12 +276,12 @@ export default function GestaoCockpitPage() {
     const corpo = await resposta.json();
 
     if (!corpo.success) {
-      setErroCarga(corpo.error ?? 'Não foi possível executar o transbordo.');
+      setErroCarga(corpo.error ?? 'Não foi possível executar o encaminhamento.');
       return;
     }
     if (corpo.transbordosExecutados === 0) {
       setErroCarga(
-        'Nada a transbordar: o prazo de 24h ainda não venceu ou não há outro profissional elegível.'
+        'Nada a encaminhar: o prazo de 24h ainda não venceu ou não há outro profissional elegível.'
       );
     }
     await recarregar();
@@ -361,7 +361,7 @@ export default function GestaoCockpitPage() {
             Fila Inteligente & Prazo para Contato (24h)
           </h1>
           <p className="text-xs text-muted">
-            Acompanhe a distribuição circular de novos pacientes, alertas de estouro de prazo e transbordo em tempo real.
+            Acompanhe a distribuição circular de novos pacientes, alertas de estouro de prazo e encaminhamento em tempo real.
           </p>
         </div>
 
@@ -705,7 +705,7 @@ export default function GestaoCockpitPage() {
                       </dd>
                       {(item.transbordos ?? 0) > 0 && (
                         <dd className="text-[10px] text-amber-700 font-bold">
-                          após {item.transbordos} {item.transbordos === 1 ? 'transbordo' : 'transbordos'}
+                          após {item.transbordos} {item.transbordos === 1 ? 'encaminhamento' : 'encaminhamentos'}
                         </dd>
                       )}
                     </div>
@@ -718,7 +718,7 @@ export default function GestaoCockpitPage() {
                       className="w-full bg-surface hover:bg-slate-100 border border-line text-ink font-bold text-[11px] px-3 py-2.5 rounded-xl transition-all inline-flex items-center justify-center gap-1"
                     >
                       <ArrowRightLeft className="w-3.5 h-3.5 text-psi-vibrant" />
-                      Forçar Transbordo
+                      Forçar Encaminhamento
                     </button>
                   )}
                 </article>
@@ -777,7 +777,7 @@ export default function GestaoCockpitPage() {
                             {(item.transbordos ?? 0) > 0 && (
                               <div className="text-[10px] text-amber-700 font-bold">
                                 após {item.transbordos}{' '}
-                                {item.transbordos === 1 ? 'transbordo' : 'transbordos'}
+                                {item.transbordos === 1 ? 'encaminhamento' : 'encaminhamentos'}
                               </div>
                             )}
                           </>
@@ -815,7 +815,7 @@ export default function GestaoCockpitPage() {
                             className="bg-surface hover:bg-slate-100 border border-line text-ink font-bold text-[11px] px-3 py-1.5 rounded-xl transition-all inline-flex items-center gap-1"
                           >
                             <ArrowRightLeft className="w-3.5 h-3.5 text-psi-vibrant" />
-                            Forçar Transbordo
+                            Forçar Encaminhamento
                           </button>
                         )}
                       </td>

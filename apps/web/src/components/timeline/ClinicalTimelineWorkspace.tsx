@@ -5,7 +5,6 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { type ClinicalTimelineEntry } from '@thats-life/core';
 import { applicationRequest } from '@/lib/applicationApi';
 import TimelineFeed from './TimelineFeed';
-import TimelineFilters, { TIMELINE_FILTERS } from './TimelineFilters';
 import TimelineHeader from './TimelineHeader';
 import TimelineSectionTabs from './TimelineSectionTabs';
 import EditPatientModal from '@/components/patients/EditPatientModal';
@@ -54,7 +53,6 @@ function ClinicalTimelineContent() {
 
   const [selectedPatientId, setSelectedPatientId] = useState(urlPatientId || '');
   const [activeTab, setActiveTab] = useState<'prontuarios' | 'sessoes' | 'demanda'>('prontuarios');
-  const [activeFilterId, setActiveFilterId] = useState('all');
   const [apiEntries, setApiEntries] = useState<ClinicalTimelineEntry[] | null>(null);
   const [patients, setPatients] = useState<TimelinePatient[]>([]);
   const [appointments, setAppointments] = useState<AppointmentSummary[]>([]);
@@ -138,15 +136,6 @@ function ClinicalTimelineContent() {
   }, [selectedPatientId]);
 
   const allEntries = apiEntries ?? [];
-
-  const activeFilter = TIMELINE_FILTERS.find((filter) => filter.id === activeFilterId);
-  const filteredEntries = useMemo(
-    () =>
-      activeFilter?.categories
-        ? allEntries.filter((entry) => activeFilter.categories?.includes(entry.category))
-        : allEntries,
-    [activeFilter, allEntries]
-  );
 
   const selectedPatient = patients.find((p) => p.id === selectedPatientId);
 
@@ -507,19 +496,18 @@ function ClinicalTimelineContent() {
       {/* Conteúdo da Aba Ativa */}
       {activeTab === 'prontuarios' && (
         <div className="space-y-4">
-          <div className="flex flex-col justify-between gap-3 rounded-2xl border border-line bg-white px-4 py-3 sm:flex-row sm:items-center shadow-card">
+          <div className="rounded-2xl border border-line bg-white px-4 py-3 shadow-card">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted">
                 Histórico de Prontuários
               </p>
               <p className="text-xs text-ink font-bold">
-                {filteredEntries.length} registro(s) no prontuário do paciente
+                {allEntries.length} registro(s) no prontuário do paciente
               </p>
             </div>
-            <TimelineFilters activeId={activeFilterId} onChange={setActiveFilterId} />
           </div>
 
-          <TimelineFeed entries={filteredEntries} />
+          <TimelineFeed entries={allEntries} />
         </div>
       )}
 

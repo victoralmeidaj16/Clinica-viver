@@ -51,7 +51,6 @@ CREATE TABLE IF NOT EXISTS clinica_triagens_pacientes (
   ref_core VARCHAR(128) NOT NULL,
   protocolo VARCHAR(64) NOT NULL,
   nome_paciente VARCHAR(255) NOT NULL,
-  nome_social VARCHAR(255) NULL,
   telefone VARCHAR(32) NOT NULL,
   idade VARCHAR(32) NULL,
   email VARCHAR(255) NULL,

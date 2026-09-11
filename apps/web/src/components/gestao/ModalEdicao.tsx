@@ -74,7 +74,6 @@ export function ModalEdicao({
   const [especialidade, setEspecialidade] = useState(psicologo.especialidade ?? '');
   const [modalidadeAtendimento, setModalidadeAtendimento] = useState(psicologo.modalidadeAtendimento ?? 'ONLINE');
   const [limitePacientesAtivos, setLimitePacientesAtivos] = useState(psicologo.limitePacientesAtivos ?? 5);
-  const [minibio, setMinibio] = useState(psicologo.minibio ?? '');
 
   // 4. Critérios de Rodízio & Encaminhamento
   const [turnos, setTurnos] = useState<string[]>([...(psicologo.turnosDisponiveis ?? [])]);
@@ -174,7 +173,6 @@ export function ModalEdicao({
         especialidade: especialidade.trim() || undefined,
         modalidadeAtendimento: modalidadeAtendimento.trim() || undefined,
         limitePacientesAtivos: limiteNum,
-        minibio: minibio.trim() || undefined,
 
         // Critérios & Rodízio
         turnosDisponiveis: turnos,
@@ -543,19 +541,6 @@ export function ModalEdicao({
                 <span className="text-[11px] text-slate-500 mt-1 block">
                   Define o teto de pacientes simultâneos que o psicólogo pode receber da clínica.
                 </span>
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block mb-1 text-xs">
-                  Minibio / Apresentação Profissional
-                </label>
-                <textarea
-                  rows={4}
-                  value={minibio}
-                  onChange={(e) => setMinibio(e.target.value)}
-                  placeholder="Apresentação do psicólogo exibida no perfil..."
-                  className={inputClass}
-                />
               </div>
             </div>
           )}

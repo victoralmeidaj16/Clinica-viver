@@ -17,6 +17,7 @@ import {
   CLINICAL_SERVICES,
   civilDaysBetween,
   getServiceDuration,
+  hasVariableDuration,
   clinicDateTimeToIso,
   manualAppointmentTimes,
   monthlyRecurrenceDates,
@@ -43,7 +44,6 @@ interface Props {
 const MODES: Array<{ value: ManualAppointmentMode; label: string }> = [
   { value: 'video', label: 'Online' },
   { value: 'in_person', label: 'Presencial' },
-  { value: 'phone', label: 'Telefone' },
 ];
 
 export function ManualAppointmentDialog({ patients, initialPatientId, onClose, onScheduled }: Props) {
@@ -57,6 +57,7 @@ export function ManualAppointmentDialog({ patients, initialPatientId, onClose, o
 
   const [patientId, setPatientId] = useState(initialPatientId ?? '');
   const [serviceKey, setServiceKey] = useState<string>('PSICOTERAPIA');
+  const [customDuration, setCustomDuration] = useState('');
   const [date, setDate] = useState(() => todayAtClinic());
   const [time, setTime] = useState('14:00');
   const [frequency, setFrequency] = useState<AppointmentFrequency>('weekly');
@@ -68,7 +69,9 @@ export function ManualAppointmentDialog({ patients, initialPatientId, onClose, o
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ kind: 'error' | 'success'; text: string }>();
 
-  const durationMinutes = getServiceDuration(serviceKey);
+  const variableDuration = hasVariableDuration(serviceKey);
+  const durationMinutes = variableDuration ? Number(customDuration) : getServiceDuration(serviceKey);
+  const validDuration = Number.isInteger(durationMinutes) && durationMinutes >= 15 && durationMinutes <= 240;
   const selectedService = CLINICAL_SERVICES.find((s) => s.key === serviceKey) ?? CLINICAL_SERVICES[0];
   const safeCustomInterval = Number.isInteger(customIntervalDays) && customIntervalDays >= 1 && customIntervalDays <= 30 ? customIntervalDays : 1;
   const recurrenceDates = useMemo(() => monthlyRecurrenceDates(date, frequency, safeCustomInterval), [date, frequency, safeCustomInterval]);
@@ -78,6 +81,10 @@ export function ManualAppointmentDialog({ patients, initialPatientId, onClose, o
     setMessage(undefined);
     if (!patientId) {
       setMessage({ kind: 'error', text: 'Selecione um paciente para continuar.' });
+      return;
+    }
+    if (!validDuration) {
+      setMessage({ kind: 'error', text: 'Informe a duração da sessão, entre 15 e 240 minutos.' });
       return;
     }
     setSaving(true);
@@ -171,13 +178,33 @@ export function ManualAppointmentDialog({ patients, initialPatientId, onClose, o
               >
                 {CLINICAL_SERVICES.map((servico) => (
                   <option key={servico.key} value={servico.key}>
-                    {servico.label} ({servico.durationMinutes} min)
+                    {servico.label} ({servico.variableDuration ? 'duração variável' : `${servico.durationMinutes} min`})
                   </option>
                 ))}
               </select>
               <ChevronDown className="pointer-events-none absolute right-3.5 top-3.5 h-4 w-4 text-muted" />
             </span>
           </label>
+
+          {variableDuration && (
+            <label className="block text-xs font-bold text-ink">
+              Duração da sessão (min) *
+              <input
+                type="number"
+                required
+                min={15}
+                max={240}
+                step={5}
+                inputMode="numeric"
+                placeholder="Ex.: 90"
+                value={customDuration}
+                onChange={(event) => setCustomDuration(event.target.value)}
+                disabled={saving || message?.kind === 'success'}
+                className="input mt-1.5 w-full py-3 text-xs font-bold"
+              />
+              <span className="mt-1 block text-[11px] font-medium text-muted">A avaliação não tem duração fixa: informe o tempo combinado para estas sessões (15 a 240 min).</span>
+            </label>
+          )}
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="text-xs font-bold text-ink">
@@ -211,7 +238,7 @@ export function ManualAppointmentDialog({ patients, initialPatientId, onClose, o
 
           <fieldset disabled={saving || message?.kind === 'success'}>
             <legend className="text-xs font-bold text-ink">Modalidade</legend>
-            <div className="mt-1.5 grid grid-cols-3 gap-2">
+            <div className="mt-1.5 grid grid-cols-2 gap-2">
               {MODES.map((item) => (
                 <button
                   key={item.value}
@@ -226,7 +253,7 @@ export function ManualAppointmentDialog({ patients, initialPatientId, onClose, o
           </fieldset>
 
           <p className="rounded-2xl border border-psi-soft bg-psi-light/60 px-4 py-3 text-[11px] leading-relaxed text-psi-deep">
-            Os horários serão registrados em Brasília com duração de <strong>{durationMinutes} min</strong> ({selectedService.label}). Cada sessão receberá sua própria cobrança e aparecerá nas notificações do sino.
+            Os horários serão registrados em Brasília com duração de <strong>{validDuration ? `${durationMinutes} min` : 'a definir'}</strong> ({selectedService.label}). Cada sessão receberá sua própria cobrança e aparecerá nas notificações do sino.
           </p>
 
           <div className="flex gap-2 pt-1">

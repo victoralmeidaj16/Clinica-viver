@@ -28,7 +28,10 @@ export function todayAtClinic(now: Date = new Date()): string {
 export interface ClinicalServiceOption {
   key: string;
   label: string;
+  /** Duração sugerida; nos serviços de duração variável é só o ponto de partida. */
   durationMinutes: number;
+  /** O profissional informa a duração de cada agendamento. */
+  variableDuration?: boolean;
 }
 
 export const CLINICAL_SERVICES: readonly ClinicalServiceOption[] = [
@@ -41,6 +44,7 @@ export const CLINICAL_SERVICES: readonly ClinicalServiceOption[] = [
     key: 'AVALIACAO',
     label: 'Avaliação Psicológica e Neuropsicológica',
     durationMinutes: 50,
+    variableDuration: true,
   },
   {
     key: 'ORIENTACAO_PARENTAL',
@@ -62,6 +66,10 @@ export const CLINICAL_SERVICES: readonly ClinicalServiceOption[] = [
 export function getServiceDuration(serviceKey: string): number {
   const service = CLINICAL_SERVICES.find((item) => item.key === serviceKey);
   return service ? service.durationMinutes : 50;
+}
+
+export function hasVariableDuration(serviceKey: string): boolean {
+  return CLINICAL_SERVICES.some((item) => item.key === serviceKey && item.variableDuration);
 }
 
 function addCivilDays(date: string, days: number): string {

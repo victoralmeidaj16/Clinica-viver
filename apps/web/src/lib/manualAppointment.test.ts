@@ -4,6 +4,7 @@ import {
   clinicDateTimeToIso,
   civilDaysBetween,
   getServiceDuration,
+  hasVariableDuration,
   manualAppointmentTimes,
   monthlyRecurrenceDates,
   shiftCivilDate,
@@ -27,6 +28,13 @@ describe('agendamento manual no fuso da clínica', () => {
     expect(getServiceDuration('ORIENTACAO_PROFISSIONAL')).toBe(50);
     expect(getServiceDuration('PSICOTERAPIA_CASAL')).toBe(90);
     expect(getServiceDuration('OUTRO_DESCONHECIDO')).toBe(50);
+  });
+
+  it('só a avaliação tem duração informada pelo profissional', () => {
+    expect(hasVariableDuration('AVALIACAO')).toBe(true);
+    expect(hasVariableDuration('PSICOTERAPIA')).toBe(false);
+    expect(hasVariableDuration('PSICOTERAPIA_CASAL')).toBe(false);
+    expect(hasVariableDuration('OUTRO_DESCONHECIDO')).toBe(false);
   });
 
   it('contém a lista esperada de serviços clínicos', () => {

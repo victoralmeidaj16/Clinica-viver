@@ -272,9 +272,9 @@ export function textoParaPsicologo(
     'Se preferir, confirme pelo link:',
     linkConfirmacao(lead, psicologo.id),
     '',
-    '💡 *Dica:* entre em contato o quanto antes! Quanto mais rápido você falar com o paciente, maiores são as chances de conseguir agendar o atendimento com ele.',
+    '*ATENÇÃO* 🚨: entre em contato o quanto antes! Quanto mais rápido você falar com o paciente, maiores são as chances de conseguir agendar o atendimento com ele.',
     '',
-    `Sem resposta em ${SLA_CONTATO_HORAS}h, o paciente é encaminhado automaticamente ao próximo da fila.`,
+    `Sem resposta a esta mensagem com *${COMANDO_CONFIRMAR}* ou *${COMANDO_ENCAMINHAR}*, em ${SLA_CONTATO_HORAS}h o paciente é encaminhado automaticamente ao próximo da fila.`,
   ];
   return linhas.join('\n');
 }
@@ -322,6 +322,8 @@ export function textoParaPaciente(lead: TriagemPacienteRecord): string {
     '',
     '📲 Contato com o(a) psicólogo(a)',
     'O(a) psicólogo(a) tem até 24 horas para entrar em contato com você após o recebimento desta mensagem.',
+    'Caso o prazo de 24 horas coincida com finais de semana ou feriados, ele será estendido até o próximo dia útil.',
+    'Qualquer problema, entre em contato com a gente.',
     '',
     '💳 Pagamento da consulta',
     'O pagamento da sua consulta é realizado diretamente para a Viver Mais Psicologia, via PIX ou cartão de crédito.',
@@ -335,12 +337,6 @@ export function textoParaPaciente(lead: TriagemPacienteRecord): string {
     '',
     '📅 Horários e pagamento',
     'A combinação de horários, datas das sessões e demais detalhes do atendimento será feita diretamente com o(a) psicólogo(a).',
-    '',
-    'As sessões individuais têm duração de 50 minutos e as sessões de casal/família, 1h30.',
-    '',
-    'Se após 24 horas você ainda não tiver recebido o contato do(a) psicólogo(a), por favor, me avise para que eu possa ajudar.',
-    '',
-    'Caso o prazo de 24 horas coincida com finais de semana ou feriados, ele será estendido até o próximo dia útil.',
     '',
     'Seja muito bem-vindo(a) à Viver Mais! 💜',
     'Estamos felizes em poder fazer parte desse processo com você.',

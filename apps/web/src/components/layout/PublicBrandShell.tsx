@@ -20,7 +20,7 @@ export default function PublicBrandShell({
 }: {
   /** Linha sob a marca: diz ao paciente em que fluxo ele está. */
   subtitulo: string;
-  selo: React.ReactNode;
+  selo?: React.ReactNode;
   rodape: string;
   children: React.ReactNode;
 }) {
@@ -42,7 +42,7 @@ export default function PublicBrandShell({
           </div>
         </div>
 
-        <span className="chip-accent text-[11px] whitespace-nowrap">{selo}</span>
+        {selo ? <span className="chip-accent text-[11px] whitespace-nowrap">{selo}</span> : null}
       </header>
 
       <main className="max-w-xl w-full mx-auto my-8 flex-1">{children}</main>

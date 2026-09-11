@@ -271,6 +271,8 @@ export function textoParaPsicologo(
     'Se preferir, confirme pelo link:',
     linkConfirmacao(lead, psicologo.id),
     '',
+    '💡 *Dica:* entre em contato o quanto antes! Quanto mais rápido você falar com o paciente, maiores são as chances de conseguir agendar o atendimento com ele.',
+    '',
     `Sem resposta em ${SLA_CONTATO_HORAS}h, o paciente é encaminhado automaticamente ao próximo da fila.`,
   ];
   return linhas.join('\n');

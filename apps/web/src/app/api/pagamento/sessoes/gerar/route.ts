@@ -47,7 +47,7 @@ export async function POST(request: Request) {
       await bindBatchProviderPayment(checkout, pix.id, 'inter');
       await reconcileSettledInterPixCharge(pix);
       return NextResponse.json({ success: true, provider: 'inter', paymentMethod: 'PIX',
-        pacienteNome: checkout.patientName, quantidade: tokens.length, valor: pix.value,
+        pacienteNome: checkout.patientName, quantidade: tokens.length, descontoCentavos: checkout.discountCents, subtotalCentavos: checkout.subtotalCents, valor: pix.value,
         pixQrCode: pix.pixQrCode, pixCopiaECola: pix.pixCopiaECola });
     }
 
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
       billingType: 'CREDIT_CARD', externalReference: checkout.externalReference });
     await bindBatchProviderPayment(checkout, payment.id, 'asaas');
     return NextResponse.json({ success: true, provider: 'asaas', paymentMethod: 'CREDIT_CARD',
-      pacienteNome: checkout.patientName, quantidade: tokens.length, valor: payment.value,
+      pacienteNome: checkout.patientName, quantidade: tokens.length, descontoCentavos: checkout.discountCents, subtotalCentavos: checkout.subtotalCents, valor: payment.value,
       invoiceUrl: payment.invoiceUrl });
   } catch (error) {
     console.error('[pagamento-sessoes] Falha ao gerar cobrança agrupada:', error);

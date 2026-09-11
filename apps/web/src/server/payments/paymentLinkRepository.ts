@@ -13,6 +13,7 @@ import {
 import { descricaoFiscalDaSessao } from '@/lib/sessionReference';
 import type { InterPixCharge } from '@/server/adapters/interPixAdapter';
 import { allocatePaymentAcrossCharges } from '@/lib/paymentAllocation';
+import { priceSessionBatch } from '@/lib/sessionBatchPayment';
 
 export type PaymentModality = 'social' | 'particular';
 
@@ -62,6 +63,8 @@ export interface ExpiredReservation { expired: true; dueAt: string; }
 export type ChargeReservation = ReservedCheckout | CompanyFundedReservation | ExpiredReservation;
 
 export interface BatchCheckout extends ReservedCheckout {
+  subtotalCents: number;
+  discountCents: number;
   chargeIds: string[];
   sessionStarts: string[];
 }
@@ -170,7 +173,7 @@ export async function listPayablePatientSessions(input: {
 export async function reserveAppointmentCharge(input: {
   token: string;
   cpf: string;
-}): Promise<ChargeReservation | null> {
+}, batch = false): Promise<ChargeReservation | null> {
   const connection = await getMysqlPool().getConnection();
   try {
     await connection.beginTransaction();
@@ -287,6 +290,15 @@ export async function reserveAppointmentCharge(input: {
       );
     }
 
+    if (!batch) {
+      const [grouped] = await connection.query<RowDataPacket[]>(
+        `SELECT cobranca_ref FROM financeiro_checkout_cobrancas
+          WHERE instituicao_id = ? AND cobranca_ref = ? LIMIT 1 FOR UPDATE`,
+        [instituicaoId(), chargeRef]
+      );
+      if (grouped.length) throw new Error('Esta sessão já está incluída em um pagamento agrupado. Utilize o pagamento gerado para o grupo.');
+    }
+
     const checkoutId = chargeRows[0]?.checkout_ref
       ? String(chargeRows[0].checkout_ref)
       : randomUUID();
@@ -353,7 +365,7 @@ export async function reserveAppointmentChargeBatch(input: {
   if (tokens.length < 2 || tokens.length > 10) throw new Error('Selecione entre 2 e 10 sessões.');
   const reservations: ReservedCheckout[] = [];
   for (const token of tokens) {
-    const reservation = await reserveAppointmentCharge({ token, cpf: input.cpf });
+    const reservation = await reserveAppointmentCharge({ token, cpf: input.cpf }, true);
     if (!reservation || isCompanyFundedReservation(reservation)) throw new Error('Uma das sessões não possui cobrança individual.');
     if (isExpiredReservation(reservation)) throw new Error('O prazo de uma das cobranças selecionadas terminou.');
     if (reservation.providerPaymentId) throw new Error('Uma das sessões já possui um pagamento iniciado.');
@@ -364,7 +376,9 @@ export async function reserveAppointmentChargeBatch(input: {
   if (reservations.some((item) => item.patientId !== first.patientId || item.organizationId !== first.organizationId)) {
     throw new Error('As sessões precisam pertencer ao mesmo paciente e à mesma clínica.');
   }
-  const amountCents = reservations.reduce((sum, item) => sum + item.amountCents, 0);
+  const pricing = priceSessionBatch(reservations.map((item) => ({
+    sessionStart: item.sessionStart!, amountCents: item.amountCents,
+  })));
   const dueAt = reservations.map((item) => item.dueAt).sort()[0];
   const connection = await getMysqlPool().getConnection();
   try {
@@ -377,13 +391,23 @@ export async function reserveAppointmentChargeBatch(input: {
     if (existingMappings.some((row) => String(row.referencia_externa) !== first.externalReference)) {
       throw new Error('Uma das sessões já está incluída em outro pagamento agrupado.');
     }
-    for (const item of reservations) {
+    const [groupMappings] = await connection.query<RowDataPacket[]>(
+      `SELECT cobranca_ref, valor_centavos FROM financeiro_checkout_cobrancas
+        WHERE instituicao_id = ? AND referencia_externa = ? FOR UPDATE`,
+      [instituicaoId(), first.externalReference]
+    );
+    if (groupMappings.length && (groupMappings.length !== reservations.length ||
+      reservations.some((item, index) => !groupMappings.some((row) =>
+        String(row.cobranca_ref) === item.chargeId && Number(row.valor_centavos) === pricing.amounts[index])))) {
+      throw new Error('Este pagamento agrupado já foi reservado com outra seleção ou valor. Utilize o grupo original.');
+    }
+    for (const [index, item] of reservations.entries()) {
       await connection.execute(
         `INSERT INTO financeiro_checkout_cobrancas
            (instituicao_id, referencia_externa, cobranca_ref, valor_centavos)
          VALUES (?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE valor_centavos = VALUES(valor_centavos)`,
-        [instituicaoId(), first.externalReference, item.chargeId, item.amountCents]
+        [instituicaoId(), first.externalReference, item.chargeId, pricing.amounts[index]]
       );
     }
     await connection.commit();
@@ -393,7 +417,9 @@ export async function reserveAppointmentChargeBatch(input: {
   } finally { connection.release(); }
   return {
     ...first,
-    amountCents,
+    amountCents: pricing.amountCents,
+    subtotalCents: pricing.subtotalCents,
+    discountCents: pricing.discountCents,
     dueAt,
     chargeIds: reservations.map((item) => item.chargeId),
     sessionStarts: reservations.map((item) => item.sessionStart!).sort(),
@@ -524,7 +550,9 @@ export async function claimCheckoutProvider(
 
 async function providerCharges(connection: PoolConnection, providerPaymentId: string): Promise<RowDataPacket[]> {
   const [rows] = await connection.query<RowDataPacket[]>(
-    `SELECT DISTINCT c.organizacao_ref, c.ref_core, c.valor_centavos
+    `SELECT DISTINCT c.organizacao_ref, c.ref_core,
+            COALESCE(m.valor_centavos, c.valor_centavos) AS valor_centavos,
+            c.valor_centavos - COALESCE(m.valor_centavos, c.valor_centavos) AS desconto_centavos
        FROM financeiro_cobrancas c
        LEFT JOIN financeiro_checkout_cobrancas m
          ON m.instituicao_id = c.instituicao_id AND m.cobranca_ref = c.ref_core
@@ -535,6 +563,21 @@ async function providerCharges(connection: PoolConnection, providerPaymentId: st
     [instituicaoId(), providerPaymentId, providerPaymentId]
   );
   return rows;
+}
+
+async function recordBatchDiscount(connection: PoolConnection, charge: RowDataPacket, receivedAt: string) {
+  if (Number(charge.desconto_centavos) <= 0 || !charge.desconto_centavos) return;
+  const ref = `batch-discount-${charge.ref_core}`;
+  await connection.execute(
+    `INSERT INTO financeiro_descontos
+       (id, instituicao_id, organizacao_ref, ref_core, cobranca_ref, valor_centavos,
+        motivo, aplicado_em, criado_por)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE valor_centavos = VALUES(valor_centavos)`,
+    [rowId('desconto', ref), instituicaoId(), charge.organizacao_ref, ref, charge.ref_core,
+      Number(charge.desconto_centavos), '10%: pagamento único de 4 ou mais sessões do mês vigente',
+      toSqlTimestamp(receivedAt), 'checkout-publico']
+  );
 }
 
 export async function reconcileInterPix(input: {
@@ -567,6 +610,7 @@ export async function reconcileInterPix(input: {
     })));
     for (const allocation of allocations) {
       const charge = chargeRows.find((row) => String(row.ref_core) === allocation.reference)!;
+      await recordBatchDiscount(connection, charge, input.receivedAt);
       const paymentRef = `inter-${input.endToEndId}-${charge.ref_core}`;
       const transactionRef = chargeRows.length === 1 ? input.endToEndId : `${input.endToEndId}:${charge.ref_core}`;
       await connection.execute(
@@ -660,6 +704,7 @@ export async function reconcileAsaasPayment(input: {
     })));
     for (const allocation of allocations) {
       const charge = chargeRows.find((row) => String(row.ref_core) === allocation.reference)!;
+      await recordBatchDiscount(connection, charge, input.receivedAt);
       const paymentRef = `asaas-${input.paymentId}-${charge.ref_core}`;
       const transactionRef = chargeRows.length === 1 ? input.paymentId : `${input.paymentId}:${charge.ref_core}`;
       await connection.execute(

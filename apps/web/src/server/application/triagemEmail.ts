@@ -57,7 +57,7 @@ export function conteudoTriagemRecebida(
   lead: TriagemPacienteRecord,
   psicologo?: CadastroPsicologoRecord
 ): ConteudoEmail {
-  const nomePaciente = lead.nomeSocial?.trim() || lead.nomePaciente || 'Paciente';
+  const nomePaciente = lead.nomeSocial?.trim() || lead.nomePaciente?.trim() || 'Paciente';
   const nomePacienteSeguro = escaparHtml(nomePaciente);
   const protocoloSeguro = escaparHtml(lead.protocolo);
   const servicoSeguro = escaparHtml(lead.servico || 'Psicoterapia');
@@ -72,6 +72,7 @@ export function conteudoTriagemRecebida(
       'Recebemos com sucesso a sua solicitação de agendamento na Clínica Viver Mais Psicologia.',
       '',
       `Protocolo de Acompanhamento: ${lead.protocolo}`,
+      `Paciente: ${nomePaciente}`,
       `Serviço Solicitado: ${lead.servico || 'Psicoterapia'}`,
       ...(nomePsicologo ? [`Profissional Vinculado: ${nomePsicologo}`] : []),
       '',
@@ -92,6 +93,7 @@ export function conteudoTriagemRecebida(
 
       <div style="background-color: #f3e8ff; border: 1px solid #d8b4fe; border-radius: 12px; padding: 16px; margin: 20px 0;">
         <p style="margin: 0 0 8px 0;"><strong>Protocolo:</strong> <span style="font-family: monospace; font-size: 1.1em; color: #581c87;">${protocoloSeguro}</span></p>
+        <p style="margin: 0 0 8px 0;"><strong>Paciente:</strong> ${nomePacienteSeguro}</p>
         <p style="margin: 0 0 8px 0;"><strong>Serviço:</strong> ${servicoSeguro}</p>
         ${psicologoSeguro ? `<p style="margin: 0;"><strong>Profissional:</strong> ${psicologoSeguro}</p>` : ''}
       </div>

@@ -60,17 +60,30 @@ describe('e-mails de confirmação de agendamento/triagem', () => {
     expect(conteudo.html).toContain('188');
   });
 
-  it('utiliza o nome social do paciente se o mesmo tiver informado', () => {
+  it('utiliza o nome social do paciente se o mesmo tiver informado, caso contrario usa o nome civil', () => {
     const leadComNomeSocial: TriagemPacienteRecord = {
       ...lead,
       nomePaciente: 'Carlos Eduardo Ferreira',
       nomeSocial: 'Eduarda Ferreira',
     };
-    const conteudo = conteudoTriagemRecebida(leadComNomeSocial, psicologo);
-    expect(conteudo.text).toContain('Olá, Eduarda Ferreira!');
-    expect(conteudo.text).not.toContain('Olá, Carlos Eduardo Ferreira!');
-    expect(conteudo.html).toContain('Olá, <strong>Eduarda Ferreira</strong>!');
-    expect(conteudo.html).not.toContain('Olá, <strong>Carlos Eduardo Ferreira</strong>!');
+    const conteudoSocial = conteudoTriagemRecebida(leadComNomeSocial, psicologo);
+    expect(conteudoSocial.text).toContain('Olá, Eduarda Ferreira!');
+    expect(conteudoSocial.text).toContain('Paciente: Eduarda Ferreira');
+    expect(conteudoSocial.text).not.toContain('Carlos Eduardo Ferreira');
+    expect(conteudoSocial.html).toContain('Olá, <strong>Eduarda Ferreira</strong>!');
+    expect(conteudoSocial.html).toContain('<strong>Paciente:</strong> Eduarda Ferreira');
+    expect(conteudoSocial.html).not.toContain('Carlos Eduardo Ferreira');
+
+    const leadSemNomeSocial: TriagemPacienteRecord = {
+      ...lead,
+      nomePaciente: 'Carlos Eduardo Ferreira',
+      nomeSocial: undefined,
+    };
+    const conteudoCivil = conteudoTriagemRecebida(leadSemNomeSocial, psicologo);
+    expect(conteudoCivil.text).toContain('Olá, Carlos Eduardo Ferreira!');
+    expect(conteudoCivil.text).toContain('Paciente: Carlos Eduardo Ferreira');
+    expect(conteudoCivil.html).toContain('Olá, <strong>Carlos Eduardo Ferreira</strong>!');
+    expect(conteudoCivil.html).toContain('<strong>Paciente:</strong> Carlos Eduardo Ferreira');
   });
 
   it('envia e-mail com chave de idempotência e destinatário normalizado', async () => {

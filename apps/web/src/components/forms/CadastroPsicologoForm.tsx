@@ -245,6 +245,7 @@ export function CadastroPsicologoForm({
               <Upload className="w-6 h-6 text-purple-600 mb-1" />
               <span className="text-xs font-bold text-purple-900">Clique para enviar uma foto de perfil</span>
               <span className="text-[10px] text-slate-500">Envie um arquivo de imagem (PNG, JPG, WEBP)</span>
+              <span className="text-[10px] text-slate-500">Prefira uma foto de rosto, com aparência profissional.</span>
               <input
                 type="file"
                 accept="image/*"

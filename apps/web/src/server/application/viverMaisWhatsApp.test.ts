@@ -5,7 +5,7 @@ vi.mock('@/server/viverMaisConfirmToken', () => ({
   gerarTokenConfirmacao: vi.fn(() => 'token-mock-123'),
 }));
 
-import { textoParaPsicologo, textoParaPaciente } from './viverMaisWhatsApp';
+import { textoParaPsicologo, textoParaPaciente, textoParaPacienteTransbordo } from './viverMaisWhatsApp';
 import type { CadastroPsicologoRecord, TriagemPacienteRecord } from './persistence';
 
 describe('mensagens de WhatsApp para o psicólogo', () => {
@@ -61,11 +61,38 @@ describe('mensagens de WhatsApp para o psicólogo', () => {
       nomeSocial: 'Joaquina Silva',
     };
     const msg = textoParaPaciente(comSocial);
-    expect(msg).toContain('Olá, Joaquina Silva! Recebemos sua solicitação de agendamento.');
+    expect(msg).toContain('Olá, Joaquina Silva! 💜');
+    expect(msg).toContain('processo de Psicoterapia Individual. 💜🧡');
+    expect(msg).toContain('O valor para Psicoterapia Individual Acessível é de R$ 75,00 por sessão.');
   });
 
   it('usa o nome de registro quando não houver nome social', () => {
     const msg = textoParaPaciente(leadStub);
-    expect(msg).toContain('Olá, Maria Joaquina da Silva! Recebemos sua solicitação de agendamento.');
+    expect(msg).toContain('Olá, Maria Joaquina da Silva! 💜');
+    expect(msg).toContain('Viviane Oliveira de Almeida Jeremias e Cia LTDA');
+    expect(msg).toContain('Viver Mais Psicologia');
+  });
+
+  it('ajusta valor e modalidade para agendamento particular de casal', () => {
+    const casalParticular: TriagemPacienteRecord = {
+      ...leadStub,
+      servico: 'Psicoterapia de Casal',
+      modalidade: 'CASAL_PARTICULAR',
+    };
+    const msg = textoParaPaciente(casalParticular);
+    expect(msg).toContain('O valor para Psicoterapia de Casal Particular é de R$ 260,00 por sessão.');
+  });
+
+  it('gera o texto acolhedor de encaminhamento / transbordo para o paciente', () => {
+    const msg = textoParaPacienteTransbordo();
+    expect(msg).toContain(
+      'Para dar continuidade ao seu atendimento, vamos encaminhar você para outro(a) psicólogo(a) da nossa equipe.'
+    );
+    expect(msg).toContain(
+      'Essa mudança é necessária por questões de organização e disponibilidade dos(as) psicólogos(as) da clínica, para que possamos garantir a continuidade do seu atendimento. 💜'
+    );
+    expect(msg).toContain(
+      'O(a) novo(a) psicólogo(a) entrará em contato com você em breve.'
+    );
   });
 });

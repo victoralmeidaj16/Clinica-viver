@@ -39,7 +39,8 @@ export type FinalidadeMensagem =
   | 'resposta_psicologo'
   | 'agenda_confirmacao_paciente'
   | 'agenda_confirmacao_psicologo'
-  | 'agenda_cancelamento_paciente';
+  | 'agenda_cancelamento_paciente'
+  | 'transbordo_paciente';
 
 export interface ResultadoEnvio {
   finalidade: FinalidadeMensagem;
@@ -158,7 +159,7 @@ export async function avisarBoasVindasPsicologo(
 function baseUrl(): string {
   return (
     process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, '') ||
-    'https://app.vivermaispsicologia.com.br'
+    'https://clinicavivermais.cloud'
   );
 }
 
@@ -279,24 +280,88 @@ export function textoParaPsicologo(
 }
 
 /**
- * Mensagem ao paciente.
- *
- * Curta de propósito. Ela existe para a pessoa saber que não caiu no vazio e
- * quanto tempo esperar — não para adiantar nada sobre o atendimento.
+ * Determina o rótulo do serviço, da modalidade e o valor para exibição na mensagem ao paciente.
+ */
+export function resolverPrecoEModalidade(lead: TriagemPacienteRecord): {
+  servico: string;
+  modalidadeRotulo: string;
+  valor: string;
+} {
+  const servico = lead.servico?.trim() || 'Psicoterapia Individual';
+  const modalidade = lead.modalidade?.trim().toUpperCase();
+  const isCasal = modalidade?.includes('CASAL') || servico.toLowerCase().includes('casal');
+  const isAvaliacao = servico.toLowerCase().includes('avaliação') || servico.toLowerCase().includes('avaliacao');
+  const isParticular = modalidade === 'PARTICULAR' || modalidade === 'CASAL_PARTICULAR';
+
+  const modalidadeRotulo = isParticular ? 'Particular' : 'Acessível';
+
+  let valor = isParticular ? 'R$ 130,00' : 'R$ 75,00';
+  if (isCasal) {
+    valor = isParticular ? 'R$ 260,00' : 'R$ 150,00';
+  } else if (isAvaliacao) {
+    valor = isParticular ? 'R$ 150,00' : 'R$ 100,00';
+  }
+
+  return { servico, modalidadeRotulo, valor };
+}
+
+/**
+ * Mensagem de confirmação enviada ao paciente quando solicita atendimento na vitrine.
  */
 export function textoParaPaciente(lead: TriagemPacienteRecord): string {
-  const nomePaciente = lead.nomeSocial?.trim() || lead.nomePaciente;
+  const nomePaciente = lead.nomeSocial?.trim() || lead.nomePaciente?.trim() || 'Paciente';
+  const { servico, modalidadeRotulo, valor } = resolverPrecoEModalidade(lead);
+
   return [
-    '🤖 *Mensagem automática da Clínica Viver Mais Psicologia*',
+    `Olá, ${nomePaciente}! 💜`,
+    'Aqui é a Clínica Viver Mais Psicologia!',
     '',
-    `Olá, ${nomePaciente}! Recebemos sua solicitação de agendamento.`,
+    `Ficamos felizes por você ter escolhido a Viver Mais para dar esse passo tão importante no seu processo de ${servico}. 💜🧡 Seu agendamento já foi encaminhado ao(à) psicólogo(a).`,
     '',
-    `*Protocolo:* ${lead.protocolo}`,
-    `*Serviço:* ${lead.servico || 'Psicoterapia'}`,
+    'Aqui estão algumas informações importantes sobre o seu atendimento:',
     '',
-    `Um de nossos psicólogos credenciados entrará em contato com você via WhatsApp em até *${SLA_CONTATO_HORAS} horas* para combinar o melhor dia e horário.`,
+    '📲 Contato com o(a) psicólogo(a)',
+    'O(a) psicólogo(a) tem até 24 horas para entrar em contato com você após o recebimento desta mensagem.',
     '',
-    '⚠️ *Em caso de urgência:* Se estiver em sofrimento emocional agudo ou crise, ligue gratuitamente para o *CVV no 188* (Centro de Valorização da Vida - 24h) ou procure o serviço de emergência mais próximo.',
+    '💳 Pagamento da consulta',
+    'O pagamento da sua consulta é realizado diretamente para a Viver Mais Psicologia, via PIX ou cartão de crédito.',
+    '',
+    'O(a) psicólogo(a) enviará o link de pagamento para você. Ao acessar o link, você encontrará as informações da Viver Mais para conferência:',
+    '',
+    'Nome: Viviane Oliveira de Almeida Jeremias e Cia LTDA',
+    'Nome comercial: Viver Mais Psicologia',
+    '',
+    `O valor para ${servico} ${modalidadeRotulo} é de ${valor} por sessão.`,
+    '',
+    '📅 Horários e pagamento',
+    'A combinação de horários, datas das sessões e demais detalhes do atendimento será feita diretamente com o(a) psicólogo(a).',
+    '',
+    'As sessões individuais têm duração de 50 minutos e as sessões de casal/família, 1h30.',
+    '',
+    'Se após 24 horas você ainda não tiver recebido o contato do(a) psicólogo(a), por favor, me avise para que eu possa ajudar.',
+    '',
+    'Caso o prazo de 24 horas coincida com finais de semana ou feriados, ele será estendido até o próximo dia útil.',
+    '',
+    'Seja muito bem-vindo(a) à Viver Mais! 💜',
+    'Estamos felizes em poder fazer parte desse processo com você.',
+    '',
+    'Com carinho,',
+    'Clínica Viver Mais Psicologia',
+    '',
+    '⚠️ Em caso de urgência: se você estiver em sofrimento emocional agudo ou em uma situação de crise, ligue gratuitamente para o CVV – 188 (24h) ou procure o serviço de emergência mais próximo.',
+  ].join('\n');
+}
+
+/**
+ * Mensagem acolhedora enviada ao paciente em caso de encaminhamento / transbordo ("alerta operacional").
+ */
+export function textoParaPacienteTransbordo(): string {
+  return [
+    'Para dar continuidade ao seu atendimento, vamos encaminhar você para outro(a) psicólogo(a) da nossa equipe.',
+    '',
+    'Essa mudança é necessária por questões de organização e disponibilidade dos(as) psicólogos(as) da clínica, para que possamos garantir a continuidade do seu atendimento. 💜',
+    '',
+    'O(a) novo(a) psicólogo(a) entrará em contato com você em breve.',
   ].join('\n');
 }
 
@@ -364,12 +429,11 @@ export async function avisarAlocacao(
 }
 
 /**
- * Aviso de transbordo: só o novo profissional é notificado.
+ * Aviso de transbordo ("alerta operacional"): o novo profissional, o paciente
+ * e a coordenação são notificados.
  *
- * O paciente não recebe nada aqui. Troca de profissional antes do primeiro
- * contato é rearranjo interno de fila; contar isso a quem está esperando
- * ajuda em nada e comunica desorganização onde houve, na verdade, a regra
- * funcionando.
+ * O paciente recebe mensagem acolhedora informando o encaminhamento para outro
+ * profissional da equipe a fim de garantir a continuidade do atendimento.
  */
 export async function avisarTransbordo(
   lead: TriagemPacienteRecord,
@@ -377,12 +441,19 @@ export async function avisarTransbordo(
   psicologoAnteriorNome?: string,
   motivo: 'sla_vencido' | 'encaminhamento_voluntario' | 'reatribuicao_gestao' = 'sla_vencido'
 ): Promise<ResultadoEnvio[]> {
+  const transbordosContador = lead.transbordos ?? 0;
   const resultados = [
     await enviarTexto(
       psicologo.whatsapp,
       textoParaPsicologo(lead, psicologo),
       'alocacao_psicologo',
       `alocacao:${lead.id}:${psicologo.id}`
+    ),
+    await enviarTexto(
+      lead.telefone,
+      textoParaPacienteTransbordo(),
+      'transbordo_paciente',
+      `transbordo-paciente:${lead.id}:${psicologo.id}:${transbordosContador}`
     ),
   ];
 

@@ -20,6 +20,9 @@ import 'server-only';
  *
  * Mensagem enviada é irreversível. Um número de teste digitado errado é o
  * telefone de um desconhecido recebendo conteúdo de uma clínica de psicologia.
+ *
+ * Com o fim do piloto, `WHATSAPP_ALLOW_ALL_RECIPIENTS=true` abre o envio para
+ * qualquer número válido — ver `allowsAllWhatsAppRecipients`.
  */
 
 export class RecipientNotAllowedError extends Error {
@@ -83,7 +86,27 @@ export function allowedWhatsAppNumbers(): readonly string[] {
     .filter(Boolean);
 }
 
+/**
+ * Fim do piloto: `WHATSAPP_ALLOW_ALL_RECIPIENTS=true` libera qualquer número.
+ *
+ * Só o texto exato `true` liga. Continua sendo opt-in explícito — variável
+ * ausente, vazia ou com erro de digitação cai de volta na lista, e a lista
+ * vazia segue bloqueando tudo.
+ */
+export function allowsAllWhatsAppRecipients(): boolean {
+  return process.env.WHATSAPP_ALLOW_ALL_RECIPIENTS?.trim() === 'true';
+}
+
+/** Número brasileiro plausível: 55 + DDD + 8 ou 9 dígitos. */
+function plausibleBrazilianNumber(value: string): boolean {
+  return /^55[1-9][0-9]\d{8,9}$/.test(normalizeWhatsAppNumber(value));
+}
+
 export function isWhatsAppRecipientAllowed(value: string): boolean {
+  // Liberar todos não significa aceitar lixo: telefone vazio ou truncado não
+  // chega ao provedor, que tentaria entregar para quem quer que responda.
+  if (allowsAllWhatsAppRecipients()) return plausibleBrazilianNumber(value);
+
   const allowed = allowedWhatsAppNumbers();
   if (allowed.length === 0) return false;
 

@@ -5,7 +5,6 @@ import {
   Shield,
   Clock,
   UserCheck,
-  UserPlus,
   RefreshCw,
   AlertTriangle,
   CheckCircle2,
@@ -17,9 +16,7 @@ import {
   Save,
 } from 'lucide-react';
 import { BrazilLocationFields } from '@/components/forms/BrazilLocationFields';
-import { GenderFields } from '@/components/forms/GenderFields';
 import { CadastroPsicologoForm } from '@/components/forms/CadastroPsicologoForm';
-import { TurnoPreferenceField } from '@/components/forms/TurnoPreferenceField';
 import { ModalEdicao } from '@/components/gestao/ModalEdicao';
 import type { PsicologoItem } from '@/components/gestao/types';
 import { TIPOS_ATENDIMENTO } from '@/components/forms/opcoesPsicologo';
@@ -30,7 +27,6 @@ import type { GenderValue } from '@/lib/gender';
 import {
   normalizarTurnoPreferencia,
   rotuloTurnoPreferencia,
-  type TurnoPreferencia,
 } from '@/lib/turnos';
 
 /** Linha da fila, como o `GET /api/application/triagem` a devolve. */
@@ -236,17 +232,7 @@ export default function GestaoCockpitPage() {
     return matchModalidade && matchTurno && matchBusca;
   });
 
-  const [novoLeadModal, setNovoLeadModal] = useState(false);
   const [novoPsiModal, setNovoPsiModal] = useState(false);
-  const [enviandoLead, setEnviandoLead] = useState(false);
-  const [manualForm, setManualForm] = useState({
-    nome: '',
-    telefone: '',
-    genero: '' as GenderValue | '',
-    generoOutro: '',
-    modalidade: 'SOCIAL',
-    turno: '' as TurnoPreferencia | '',
-  });
 
   const handleAprovarPsicologo = (id: string) =>
     atualizarCadastro(id, { status: 'APROVADO', exibirNaVitrine: true });
@@ -285,46 +271,6 @@ export default function GestaoCockpitPage() {
       );
     }
     await recarregar();
-  };
-
-  /**
-   * Cadastro manual de lead — quem chegou por WhatsApp ou indicação.
-   *
-   * Passa pela mesma rota da vitrine de propósito: o rodízio, o SLA e o disparo
-   * duplo valem igual para quem entrou pelo site e para quem chamou no
-   * WhatsApp. Cadastro manual que não entra na fila é a planilha paralela de
-   * volta.
-   */
-  const handleCadastrarLeadManual = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setEnviandoLead(true);
-    try {
-      const resposta = await fetch('/api/application/triagem', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nome: manualForm.nome,
-          whatsapp: manualForm.telefone,
-          genero: manualForm.genero,
-          generoOutro: manualForm.generoOutro,
-          modalidade: manualForm.modalidade,
-          turno: manualForm.turno,
-          origem: 'Cadastro manual (WhatsApp/indicação)',
-        }),
-      });
-      const corpo = await resposta.json();
-
-      if (!corpo.success) {
-        setErroCarga(corpo.error ?? 'Não foi possível cadastrar o lead.');
-        return;
-      }
-
-      setNovoLeadModal(false);
-      setManualForm({ nome: '', telefone: '', genero: '', generoOutro: '', modalidade: 'SOCIAL', turno: '' });
-      await recarregar();
-    } finally {
-      setEnviandoLead(false);
-    }
   };
 
   const aguardandoContato = leads.filter((item) => item.status === 'AGUARDANDO_CONTATO');
@@ -386,97 +332,8 @@ export default function GestaoCockpitPage() {
             + Cadastrar Psicólogo Manualmente
           </button>
 
-          <button
-            type="button"
-            onClick={() => setNovoLeadModal(true)}
-            className="bg-psi-vibrant hover:bg-psi-vibrant/90 text-white font-extrabold text-xs px-5 py-3 rounded-2xl shadow-lg shadow-psi-vibrant/30 transition-all flex items-center justify-center gap-2"
-          >
-            <UserPlus className="w-4 h-4" />
-            Cadastro Manual de Lead (WhatsApp)
-          </button>
         </div>
       </div>
-
-      {/* Modal de Cadastrar Lead Manual */}
-      {novoLeadModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-surface rounded-3xl p-5 sm:p-6 border border-line shadow-2xl max-w-md w-full space-y-4 my-auto max-h-[90dvh] overflow-y-auto">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-black text-ink">Inserção Manual de Lead</h2>
-              <button
-                type="button"
-                onClick={() => setNovoLeadModal(false)}
-                className="text-muted hover:text-ink text-xs font-bold"
-              >
-                Fechar
-              </button>
-            </div>
-
-            <form onSubmit={handleCadastrarLeadManual} className="space-y-4 text-xs">
-              <div>
-                <label className="font-bold text-ink block mb-1">Nome do Paciente</label>
-                <input
-                  type="text"
-                  required
-                  value={manualForm.nome}
-                  onChange={(e) => setManualForm({ ...manualForm, nome: e.target.value })}
-                  placeholder="Ex: Pedro Henrique"
-                  className="w-full bg-slate-50 border border-line rounded-xl p-2.5 text-ink focus:outline-none focus:border-psi-vibrant"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-ink block mb-1">WhatsApp</label>
-                <input
-                  type="text"
-                  required
-                  value={manualForm.telefone}
-                  onChange={(e) => setManualForm({ ...manualForm, telefone: e.target.value })}
-                  placeholder="(51) 99999-9999"
-                  className="w-full bg-slate-50 border border-line rounded-xl p-2.5 text-ink focus:outline-none focus:border-psi-vibrant"
-                />
-              </div>
-
-              <GenderFields
-                idPrefix="paciente-manual"
-                gender={manualForm.genero}
-                other={manualForm.generoOutro}
-                onGenderChange={(genero) => setManualForm((current) => ({ ...current, genero }))}
-                onOtherChange={(generoOutro) => setManualForm((current) => ({ ...current, generoOutro }))}
-              />
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-ink block mb-1">Modalidade</label>
-                  <select
-                    value={manualForm.modalidade}
-                    onChange={(e) => setManualForm({ ...manualForm, modalidade: e.target.value })}
-                    className="w-full bg-slate-50 border border-line rounded-xl p-2.5 text-ink focus:outline-none focus:border-psi-vibrant"
-                  >
-                    <option value="SOCIAL">Acessível / Social</option>
-                    <option value="PARTICULAR">Particular</option>
-                  </select>
-                </div>
-
-                <TurnoPreferenceField
-                  name="turno-manual"
-                  value={manualForm.turno}
-                  onChange={(turno) => setManualForm((current) => ({ ...current, turno }))}
-                  compact
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={enviandoLead}
-                className="w-full bg-psi-vibrant text-white font-extrabold py-3 rounded-2xl shadow-md hover:bg-psi-vibrant/90 transition-all disabled:opacity-60"
-              >
-                {enviandoLead ? 'ALOCANDO…' : 'ALOCAR NA FILA ROUND-ROBIN'}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* Modal de Cadastrar Psicólogo — mesmo formulário da vitrine */}
       {novoPsiModal && (
@@ -512,7 +369,7 @@ export default function GestaoCockpitPage() {
           <div>
             <span className="text-xs font-bold text-muted">Aguardando contato</span>
             <h3 className="text-2xl font-black text-emerald-600 mt-1">
-              {aguardandoContato.length} {aguardandoContato.length === 1 ? 'lead' : 'leads'}
+              {aguardandoContato.length} {aguardandoContato.length === 1 ? 'paciente' : 'pacientes'}
             </h3>
             {semProfissional > 0 && (
               <p className="text-[10px] font-bold text-amber-700 mt-1">
@@ -541,7 +398,7 @@ export default function GestaoCockpitPage() {
           <div>
             <span className="text-xs font-bold text-muted">Prazo para contato vencido (&gt; 24h)</span>
             <h3 className="text-2xl font-black text-rose-600 mt-1">
-              {slasEstourados} {slasEstourados === 1 ? 'lead' : 'leads'}
+              {slasEstourados} {slasEstourados === 1 ? 'paciente' : 'pacientes'}
             </h3>
           </div>
           <div className="p-3 bg-rose-100 text-rose-700 rounded-2xl">
@@ -604,7 +461,7 @@ export default function GestaoCockpitPage() {
           <div className="p-5 sm:p-6 border-b border-line flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <h3 className="font-extrabold text-base text-ink">Monitoramento da Fila de Atribuição (prazo de 24h)</h3>
-              <p className="text-xs text-muted">Leads em andamento e contagem regressiva para confirmação via WhatsApp</p>
+              <p className="text-xs text-muted">Pacientes em andamento e contagem regressiva para confirmação via WhatsApp</p>
             </div>
 
             {/* Barra de Filtros Rápida */}
@@ -665,7 +522,7 @@ export default function GestaoCockpitPage() {
               <p className="px-5 py-8 text-center text-muted text-xs font-semibold">
                 {leads.length === 0
                   ? 'Nenhuma solicitação recebida até agora.'
-                  : 'Nenhum lead encontrado com os filtros selecionados.'}
+                  : 'Nenhum paciente encontrado com os filtros selecionados.'}
               </p>
             ) : (
               leadsFiltrados.map((item) => (
@@ -751,7 +608,7 @@ export default function GestaoCockpitPage() {
                     <td colSpan={7} className="px-6 py-8 text-center text-muted font-semibold">
                       {leads.length === 0
                         ? 'Nenhuma solicitação recebida até agora.'
-                        : 'Nenhum lead encontrado com os filtros selecionados.'}
+                        : 'Nenhum paciente encontrado com os filtros selecionados.'}
                     </td>
                   </tr>
                 ) : (

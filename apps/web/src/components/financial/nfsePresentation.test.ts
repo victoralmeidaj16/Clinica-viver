@@ -17,6 +17,35 @@ describe('ação fiscal na linha financeira', () => {
       .toMatchObject({ label: 'Gerar NFS-e', clickable: true, tone: 'ready' });
   });
 
+  it('não oferece emissão individual do que a empresa pagou por boleto', () => {
+    expect(nfseRowAction({ paymentStatus: 'paid', nfseStatus: 'none', isAdmin: true, paymentMethod: 'boleto' }))
+      .toEqual({ label: 'NFS-e na fatura PJ', clickable: false, tone: 'muted' });
+  });
+
+  it('nem do que foi agrupado numa fatura PJ, mesmo sem o vínculo do paciente', () => {
+    expect(nfseRowAction({
+      paymentStatus: 'paid', nfseStatus: 'none', isAdmin: true,
+      custeadoPelaEmpresa: false, faturaConvenioId: 'fatura-convenio-1',
+    })).toMatchObject({ label: 'NFS-e na fatura PJ', clickable: false });
+  });
+
+  it('nem do que o vínculo já diz ser custeado', () => {
+    expect(nfseRowAction({
+      paymentStatus: 'paid', nfseStatus: 'none', isAdmin: true, custeadoPelaEmpresa: true,
+    })).toMatchObject({ label: 'NFS-e na fatura PJ', clickable: false });
+  });
+
+  it('a sessão que o próprio paciente pagou continua emitindo', () => {
+    expect(nfseRowAction({ paymentStatus: 'paid', nfseStatus: 'none', isAdmin: true, paymentMethod: 'pix' }))
+      .toMatchObject({ label: 'Gerar NFS-e', clickable: true });
+  });
+
+  it('uma nota já emitida continua visível mesmo na cobrança da empresa', () => {
+    expect(nfseRowAction({
+      paymentStatus: 'paid', nfseStatus: 'issued', isAdmin: true, numero: '42', paymentMethod: 'boleto',
+    })).toMatchObject({ label: 'NFS-e nº 42', clickable: true });
+  });
+
   it('mostra o número de uma nota emitida', () => {
     expect(nfseRowAction({ paymentStatus: 'paid', nfseStatus: 'issued', isAdmin: true, numero: '42' }).label)
       .toBe('NFS-e nº 42');

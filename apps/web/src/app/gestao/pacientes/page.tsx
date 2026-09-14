@@ -6,6 +6,7 @@ import PatientManagementDrawer from '@/components/patients/PatientManagementDraw
 import type { ManagedPatient, ManagedPsychologist, PatientManagementStatus } from '@/components/patients/managementTypes';
 import type { ManagedConvenio } from '@/components/patients/managementTypes';
 import { commandHeaders } from '@/lib/applicationApi';
+import type { CusteioCiclo } from '@/lib/convenioBilling';
 
 type FilterStatus = 'TODOS' | PatientManagementStatus;
 type SortKey = 'ESPERA' | 'ENTRADA' | 'NOME';
@@ -144,10 +145,15 @@ export default function GestaoPacientesPage() {
     setSelected(null);
   };
 
-  const changeConvenio = async (patientId: string, convenioId: string | null, custeadoPelaEmpresa: boolean | null) => {
+  const changeConvenio = async (
+    patientId: string,
+    convenioId: string | null,
+    custeadoPelaEmpresa: boolean | null,
+    cota: { custeioCota: number | null; custeioCiclo: CusteioCiclo | null },
+  ) => {
     const response = await fetch(`/api/application/gestao/pacientes/${encodeURIComponent(patientId)}/convenio`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json', ...commandHeaders() },
-      body: JSON.stringify({ convenioId, custeadoPelaEmpresa }),
+      body: JSON.stringify({ convenioId, custeadoPelaEmpresa, ...cota }),
     });
     const body = await response.json().catch(() => null);
     if (!response.ok) {

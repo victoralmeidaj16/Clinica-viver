@@ -4,7 +4,8 @@ import { randomUUID } from 'node:crypto';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { getMysqlPool } from '@/server/oci/runtime';
 import { fromSqlTimestamp, instituicaoId, rowId } from './mappers';
-import { ratearFatura, resolveCusteio } from '@/lib/convenioBilling';
+import { normalizarCicloCusteio, ratearFatura, type CusteioCiclo } from '@/lib/convenioBilling';
+import { custeioDoAgendamentoSql, custeioEfetivoSql } from './custeioSql';
 
 export type StatusFaturaConvenio = 'aberta' | 'boleto_gerado' | 'paga' | 'cancelada';
 
@@ -30,6 +31,9 @@ export interface PacienteConvenio {
   status: string;
   custeioConfigurado?: boolean;
   custeadoPelaEmpresa: boolean;
+  /** Sessões que a empresa cobre; ausente é o acordo sem limite. */
+  custeioCota?: number;
+  custeioCiclo?: CusteioCiclo;
   psicologoNome?: string;
   sessoesNoPeriodo: number;
   valorNoPeriodoCents: number;
@@ -198,15 +202,20 @@ export async function atualizarConvenio(organizationId: string, id: string, inpu
 }
 
 export async function pacientesDoConvenio(organizationId: string, convenioId: string, inicio?: string, fim?: string): Promise<PacienteConvenio[]> {
-  const periodo = inicio && fim ? 'AND fc.emitida_em >= ? AND fc.emitida_em < DATE_ADD(?, INTERVAL 1 DAY)' : '';
-  // O recorte de período vive no LEFT JOIN, que aparece antes do WHERE: os
-  // parâmetros precisam seguir a ordem dos placeholders, não a ordem de leitura.
+  const periodo = inicio && fim
+    ? `WHERE COALESCE(s.inicio_real, s.inicio_previsto, fc_base.emitida_em) >= ?
+         AND COALESCE(s.inicio_real, s.inicio_previsto, fc_base.emitida_em) < DATE_ADD(?, INTERVAL 1 DAY)`
+    : '';
+  // O recorte vive na subconsulta de cobranças, que aparece antes do WHERE
+  // externo: os parâmetros seguem a ordem dos placeholders no SQL.
   const params: unknown[] = periodo
     ? [inicio, fim, instituicaoId(), organizationId, convenioId]
     : [instituicaoId(), organizationId, convenioId];
   const [rows] = await getMysqlPool().query<RowDataPacket[]>(
     `SELECT p.ref_core, COALESCE(p.nome_social, p.nome) AS nome, p.status,
             p.custeado_pela_empresa, c.empresa_paga_sessoes,
+            p.custeio_sessoes_cota, p.custeio_sessoes_ciclo,
+            ${custeioEfetivoSql({ paciente: 'p', convenio: 'c' })} AS custeado_efetivo,
             pr.nome AS psicologo_nome,
             COUNT(DISTINCT fc.id) AS sessoes_periodo,
             COALESCE(SUM(fc.valor_centavos), 0) AS valor_periodo
@@ -215,8 +224,16 @@ export async function pacientesDoConvenio(organizationId: string, convenioId: st
        JOIN clinica_convenios c ON c.instituicao_id = p.instituicao_id
         AND c.organizacao_ref = o.ref_core AND c.ref_core = p.convenio_ref
        LEFT JOIN clinica_profissionais pr ON pr.id = p.profissional_id
-       LEFT JOIN financeiro_cobrancas fc ON fc.instituicao_id = p.instituicao_id
-        AND fc.organizacao_ref = o.ref_core AND fc.paciente_ref = p.ref_core ${periodo}
+       LEFT JOIN (
+         SELECT fc_base.*
+           FROM financeiro_cobrancas fc_base
+           LEFT JOIN clinica_sessoes s
+             ON s.instituicao_id = fc_base.instituicao_id
+            AND s.organizacao_ref = fc_base.organizacao_ref
+            AND s.ref_core = fc_base.sessao_ref
+           ${periodo}
+       ) fc ON fc.instituicao_id = p.instituicao_id
+        AND fc.organizacao_ref = o.ref_core AND fc.paciente_ref = p.ref_core
       WHERE p.instituicao_id = ? AND o.ref_core = ? AND c.ref_core = ?
       GROUP BY p.id ORDER BY nome`,
     params
@@ -224,37 +241,46 @@ export async function pacientesDoConvenio(organizationId: string, convenioId: st
   return rows.map((row) => ({
     id: String(row.ref_core), nome: String(row.nome), status: String(row.status),
     custeioConfigurado: row.custeado_pela_empresa === null ? undefined : Boolean(row.custeado_pela_empresa),
-    custeadoPelaEmpresa: resolveCusteio(row.custeado_pela_empresa, row.empresa_paga_sessoes),
+    // Com cota, o rótulo responde pela próxima sessão, não pelo vínculo: um
+    // paciente de cota esgotada aparece como quem paga a própria sessão.
+    custeadoPelaEmpresa: Boolean(row.custeado_efetivo),
+    custeioCota: row.custeio_sessoes_cota === null ? undefined : Number(row.custeio_sessoes_cota),
+    custeioCiclo: normalizarCicloCusteio(row.custeio_sessoes_ciclo) ?? undefined,
     psicologoNome: row.psicologo_nome ? String(row.psicologo_nome) : undefined,
     sessoesNoPeriodo: Number(row.sessoes_periodo), valorNoPeriodoCents: Number(row.valor_periodo),
   }));
 }
 
 export async function sessoesDoConvenio(organizationId: string, convenioId: string, inicio?: string, fim?: string): Promise<SessaoConvenio[]> {
+  const dataAtendimento = 'COALESCE(s.inicio_real, s.inicio_previsto, fc.emitida_em)';
   const clauses = ['fc.instituicao_id = ?', 'fc.organizacao_ref = ?', 'p.convenio_ref = ?'];
   const params: unknown[] = [instituicaoId(), organizationId, convenioId];
-  if (inicio) { clauses.push('fc.emitida_em >= ?'); params.push(inicio); }
-  if (fim) { clauses.push('fc.emitida_em < DATE_ADD(?, INTERVAL 1 DAY)'); params.push(fim); }
+  if (inicio) { clauses.push(`${dataAtendimento} >= ?`); params.push(inicio); }
+  if (fim) { clauses.push(`${dataAtendimento} < DATE_ADD(?, INTERVAL 1 DAY)`); params.push(fim); }
   const [rows] = await getMysqlPool().query<RowDataPacket[]>(
     `SELECT fc.ref_core, fc.sessao_ref, fc.paciente_ref, fc.profissional_ref,
-            fc.emitida_em, fc.valor_centavos, fc.status, fc.fatura_convenio_ref,
+            ${dataAtendimento} AS realizada_em, fc.valor_centavos, fc.status, fc.fatura_convenio_ref,
             COALESCE(p.nome_social, p.nome) AS paciente_nome, pr.nome AS psicologo_nome,
-            p.custeado_pela_empresa, c.empresa_paga_sessoes
+            ${custeioDoAgendamentoSql({ agendamento: 'ag', paciente: 'p', convenio: 'c' })} AS custeado_efetivo
        FROM financeiro_cobrancas fc
        JOIN clinica_pacientes p ON p.instituicao_id = fc.instituicao_id AND p.ref_core = fc.paciente_ref
        JOIN clinica_convenios c ON c.instituicao_id = p.instituicao_id
         AND c.organizacao_ref = fc.organizacao_ref AND c.ref_core = p.convenio_ref
+       LEFT JOIN clinica_agendamentos ag ON ag.instituicao_id = fc.instituicao_id
+        AND fc.sessao_ref IN (ag.ref_core, ag.sessao_clinica_ref)
+       LEFT JOIN clinica_sessoes s ON s.instituicao_id = fc.instituicao_id
+        AND s.organizacao_ref = fc.organizacao_ref AND s.ref_core = fc.sessao_ref
        LEFT JOIN clinica_profissionais pr ON pr.instituicao_id = fc.instituicao_id AND pr.ref_core = fc.profissional_ref
-      WHERE ${clauses.join(' AND ')} ORDER BY fc.emitida_em DESC`,
+      WHERE ${clauses.join(' AND ')} ORDER BY ${dataAtendimento} DESC`,
     params
   );
   return rows.map((row) => ({
     chargeId: String(row.ref_core), sessionId: String(row.sessao_ref), patientId: String(row.paciente_ref),
     pacienteNome: String(row.paciente_nome), professionalId: String(row.profissional_ref),
     psicologoNome: String(row.psicologo_nome ?? row.profissional_ref),
-    realizadaEm: fromSqlTimestamp(row.emitida_em)!, valorCents: Number(row.valor_centavos),
+    realizadaEm: fromSqlTimestamp(row.realizada_em)!, valorCents: Number(row.valor_centavos),
     status: String(row.status), faturaId: row.fatura_convenio_ref ? String(row.fatura_convenio_ref) : undefined,
-    custeadoPelaEmpresa: resolveCusteio(row.custeado_pela_empresa, row.empresa_paga_sessoes),
+    custeadoPelaEmpresa: Boolean(row.custeado_efetivo),
   }));
 }
 
@@ -294,12 +320,17 @@ export async function fecharFatura(
       'p.convenio_ref = ?',
       'fc.fatura_convenio_ref IS NULL',
       "fc.status IN ('pending','overdue')",
-      'fc.emitida_em >= ?',
-      'fc.emitida_em < DATE_ADD(?, INTERVAL 1 DAY)',
+      'COALESCE(s.inicio_real, s.inicio_previsto, fc.emitida_em) >= ?',
+      'COALESCE(s.inicio_real, s.inicio_previsto, fc.emitida_em) < DATE_ADD(?, INTERVAL 1 DAY)',
       // A fatura empresarial cobra só o que a empresa custeia. Um paciente do
       // convênio que paga a própria sessão continua com a cobrança individual;
       // incluí-la no boleto cobraria o mesmo atendimento duas vezes.
-      'COALESCE(p.custeado_pela_empresa, c.empresa_paga_sessoes, 1) = 1',
+      //
+      // O filtro é por sessão, não por paciente: sob cota personalizada o mesmo
+      // paciente tem sessões da empresa e sessões dele, e olhar só o vínculo
+      // varreria as dele para dentro do boleto — cobrando duas vezes o
+      // atendimento que ele já pagou.
+      `${custeioDoAgendamentoSql({ agendamento: 'ag', paciente: 'p', convenio: 'c' })} = 1`,
     ];
     const queryParams: unknown[] = [
       instituicaoId(),
@@ -320,8 +351,12 @@ export async function fecharFatura(
          JOIN clinica_pacientes p ON p.instituicao_id = fc.instituicao_id AND p.ref_core = fc.paciente_ref
          JOIN clinica_convenios c ON c.instituicao_id = p.instituicao_id
           AND c.organizacao_ref = fc.organizacao_ref AND c.ref_core = p.convenio_ref
+         LEFT JOIN clinica_agendamentos ag ON ag.instituicao_id = fc.instituicao_id
+          AND fc.sessao_ref IN (ag.ref_core, ag.sessao_clinica_ref)
+         LEFT JOIN clinica_sessoes s ON s.instituicao_id = fc.instituicao_id
+          AND s.organizacao_ref = fc.organizacao_ref AND s.ref_core = fc.sessao_ref
         WHERE ${whereClauses.join(' AND ')}
-        ORDER BY fc.emitida_em, fc.ref_core FOR UPDATE`,
+        ORDER BY COALESCE(s.inicio_real, s.inicio_previsto, fc.emitida_em), fc.ref_core FOR UPDATE`,
       queryParams
     );
 
@@ -389,16 +424,28 @@ export async function registrarBoleto(organizationId: string, convenioId: string
   return (await obterFatura(organizationId, convenioId, faturaId))!;
 }
 
-export async function vincularPacienteConvenio(organizationId: string, patientId: string, convenioId: string | null, custeio: boolean | null): Promise<void> {
+export async function vincularPacienteConvenio(
+  organizationId: string,
+  patientId: string,
+  convenioId: string | null,
+  custeio: boolean | null,
+  cota: { cota: number | null; ciclo: CusteioCiclo | null } = { cota: null, ciclo: null }
+): Promise<void> {
   if (convenioId) {
     const convenio = await obterConvenio(organizationId, convenioId);
     if (!convenio) throw new Error('Convênio não encontrado.');
   }
+  // As sessões já realizadas guardam a própria decisão, então mexer na cota
+  // daqui vale da próxima em diante. É o que permite à gestão corrigir um
+  // acordo sem reabrir cobrança encerrada.
   const [result] = await getMysqlPool().execute<ResultSetHeader>(
     `UPDATE clinica_pacientes p JOIN clinica_organizacoes o ON o.id = p.organizacao_id
-        SET p.convenio_ref = ?, p.custeado_pela_empresa = ?
+        SET p.convenio_ref = ?, p.custeado_pela_empresa = ?,
+            p.custeio_sessoes_cota = ?, p.custeio_sessoes_ciclo = ?
       WHERE p.instituicao_id = ? AND o.ref_core = ? AND p.ref_core = ?`,
-    [convenioId, convenioId ? custeio : null, instituicaoId(), organizationId, patientId]
+    [convenioId, convenioId ? custeio : null,
+      convenioId ? cota.cota : null, convenioId && cota.cota !== null ? cota.ciclo ?? 'total' : null,
+      instituicaoId(), organizationId, patientId]
   );
   if (result.affectedRows === 0) throw new Error('Paciente não encontrado.');
 }
@@ -437,14 +484,14 @@ export async function reconcileConvenioInvoicePayment(input: { eventId: string; 
         `INSERT INTO financeiro_pagamentos
           (id, instituicao_id, organizacao_ref, ref_core, cobranca_ref, recebido_em,
            valor_centavos, forma, status, provedor, provedor_transacao_ref)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'bank_transfer', 'confirmed', 'asaas', ?)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'boleto', 'confirmed', 'asaas', ?)
          ON DUPLICATE KEY UPDATE status = 'confirmed'`,
         [rowId('pagamento', paymentRef), instituicaoId(), fatura.organizacao_ref, paymentRef,
           charge.ref_core, input.receivedAt, rateio[indice], `${input.paymentId}:${charge.ref_core}`]
       );
     }
     await connection.execute(
-      `UPDATE financeiro_cobrancas SET status = 'paid', forma_pagamento = 'bank_transfer', atualizado_em = CURRENT_TIMESTAMP(3)
+      `UPDATE financeiro_cobrancas SET status = 'paid', forma_pagamento = 'boleto', atualizado_em = CURRENT_TIMESTAMP(3)
         WHERE instituicao_id = ? AND organizacao_ref = ? AND fatura_convenio_ref = ?`,
       [instituicaoId(), fatura.organizacao_ref, fatura.ref_core]
     );

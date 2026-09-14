@@ -83,10 +83,12 @@ export function normalizarModalidade(valor: string | undefined): ModalidadeAtend
   switch (valor?.trim().toUpperCase()) {
     case 'SOCIAL':
     case 'CASAL_SOCIAL':
+    case 'FAMILIA_SOCIAL':
     case 'ACESSIVEL_SOCIAL':
       return 'ACESSIVEL_SOCIAL';
     case 'PARTICULAR':
     case 'CASAL_PARTICULAR':
+    case 'FAMILIA_PARTICULAR':
       return 'PARTICULAR';
     case 'AVALIACAO_PSICOLOGICA':
       return 'AVALIACAO_PSICOLOGICA';

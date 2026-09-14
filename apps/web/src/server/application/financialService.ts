@@ -5,12 +5,14 @@ import {
   reconcileSessionReceivables,
   type ChargeStatus,
   type FinancialFilter,
+  type PaymentMethod,
 } from '@thats-life/core';
 import type { RowDataPacket } from 'mysql2';
 import type { RequestContext } from './context';
 import { getApplicationStore } from './store';
 import { getMysqlPool, isMysqlConfigured } from '@/server/oci/runtime';
 import { instituicaoId } from '@/server/persistence/mysql/mappers';
+import { custeioDoAgendamentoSql, custeioEfetivoSql } from '@/server/persistence/mysql/custeioSql';
 import { readSnapshot } from './persistence';
 
 export async function getFinancialReportsData(
@@ -84,6 +86,7 @@ export async function getMyFinancialData(
     conveniado?: boolean;
     convenioNome?: string;
     custeadoPelaEmpresa?: boolean;
+    paymentLink?: string;
   }>();
 
   const conveniosByPatient = new Map<string, {
@@ -145,8 +148,7 @@ export async function getMyFinancialData(
       const [patientRows] = await pool.query<RowDataPacket[]>(
         `SELECT pa.ref_core, conv.nome AS convenio_nome,
                 CASE WHEN pa.convenio_ref IS NOT NULL OR conv.nome IS NOT NULL THEN 1 ELSE 0 END AS conveniado,
-                CASE WHEN pa.convenio_ref IS NULL THEN 0
-                     ELSE COALESCE(pa.custeado_pela_empresa, conv.empresa_paga_sessoes, 1) END
+                ${custeioEfetivoSql({ paciente: 'pa', convenio: 'conv' })}
                   AS custeado_pela_empresa
            FROM clinica_pacientes pa
            JOIN clinica_organizacoes o ON o.id = pa.organizacao_id
@@ -169,11 +171,11 @@ export async function getMyFinancialData(
       // Agendamentos detalhados com vínculo de convênio
       const [rows] = await pool.query<RowDataPacket[]>(
         `SELECT a.id, a.ref_core, a.sessao_clinica_ref, a.status, a.inicio, a.fim, a.duracao_min, a.modalidade,
+                a.token_pagamento_sessao,
                 pa.ref_core AS paciente_ref,
                 conv.nome AS convenio_nome,
                 CASE WHEN pa.convenio_ref IS NOT NULL OR conv.nome IS NOT NULL THEN 1 ELSE 0 END AS conveniado,
-                CASE WHEN pa.convenio_ref IS NULL THEN 0
-                     ELSE COALESCE(pa.custeado_pela_empresa, conv.empresa_paga_sessoes, 1) END
+                ${custeioDoAgendamentoSql({ agendamento: 'a', paciente: 'pa', convenio: 'conv' })}
                   AS custeado_pela_empresa
            FROM clinica_agendamentos a
            JOIN clinica_profissionais p ON p.id = a.profissional_id
@@ -206,6 +208,11 @@ export async function getMyFinancialData(
           conveniado: isConveniado,
           convenioNome: row.convenio_nome ? String(row.convenio_nome) : undefined,
           custeadoPelaEmpresa: Boolean(row.custeado_pela_empresa),
+          // Mesmo link público que o paciente recebe ao agendar; o psicólogo
+          // copia daqui para reenviar quando a cobrança continua em aberto.
+          paymentLink: row.token_pagamento_sessao
+            ? `/pagar/sessao/${String(row.token_pagamento_sessao)}`
+            : undefined,
         };
         if (row.id) appointmentsMap.set(String(row.id), entry);
         if (row.ref_core) appointmentsMap.set(String(row.ref_core), entry);
@@ -244,6 +251,8 @@ export async function getMyFinancialData(
         conveniado,
         convenioNome,
         custeadoPelaEmpresa,
+        paymentMethod: charges.get(receivable.chargeId)?.paymentMethod as PaymentMethod | undefined,
+        paymentLink: apt?.paymentLink,
         amountCents: receivable.netAmountCents,
         receivedCents: Math.max(receivable.paidAmountCents - receivable.refundedAmountCents, 0),
         outstandingCents: receivable.outstandingAmountCents,

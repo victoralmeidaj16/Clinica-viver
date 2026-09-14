@@ -21,7 +21,7 @@ import {
   type UpdateAppointmentInput,
 } from '@/server/scheduling/agendaRepository';
 import { avisarSessaoCancelada } from '@/server/scheduling/agendaAvisos';
-import { atualizarVencimentoCobrancaSessao, cancelarCobrancaDaSessao } from '@/server/payments/sessionCharge';
+import { atualizarVencimentoCobrancaSessao, cancelarCobrancaDaSessao, garantirCobrancaDaSessao } from '@/server/payments/sessionCharge';
 
 /**
  * A agenda pelo lado de quem atende.
@@ -216,6 +216,29 @@ function exigirConclusao(resultado: ResultadoConfirmacaoRealizacao) {
   }
 }
 
+const PRAZO_COBRANCA_POS_SESSAO_MS = 3 * 24 * 60 * 60_000;
+
+/**
+ * Garante a cobrança individual da sessão que acabou de ser confirmada.
+ *
+ * Sob cota personalizada, quem paga só se decide na confirmação de realização:
+ * a sessão pode ter sido agendada quando a cota ainda comportava mais uma e
+ * chegar aqui já esgotada, sem cobrança nenhuma emitida. Fora da transação,
+ * porque `garantirCobrancaDaSessao` trava o mesmo agendamento — e sem drama se
+ * falhar: a cobrança é idempotente e o financeiro nunca desfaz agenda.
+ */
+async function cobrarPacienteSePreciso(appointmentId: string) {
+  // A sessão já aconteceu, então o vencimento não pode ser o horário dela: a
+  // cobrança nasceria vencida e seria recusada. Três dias corridos a partir da
+  // confirmação é a mesma folga do boleto, contada de quando o paciente ficou
+  // sabendo que aquela sessão era por conta dele.
+  const vencimento = new Date(Date.now() + PRAZO_COBRANCA_POS_SESSAO_MS).toISOString();
+  try { await garantirCobrancaDaSessao(appointmentId, vencimento); }
+  catch (cause) {
+    console.error(`[agenda] Falha ao emitir a cobrança da sessão ${appointmentId}.`, cause);
+  }
+}
+
 export async function confirmAgendaAppointmentCompleted(
   context: RequestContext,
   appointmentId: string
@@ -230,6 +253,7 @@ export async function confirmAgendaAppointmentCompleted(
       409
     );
   }
+  await cobrarPacienteSePreciso(appointmentId);
 
   const desde = new Date(Date.now() - 90 * 24 * 60 * 60_000);
   return { appointments: await listAppointments(organizationId, professionalId, desde) };
@@ -350,6 +374,7 @@ export async function editAgendaAppointment(
     const resultado = await completeAppointment(organizationId, professionalId, appointmentId);
     exigirConclusao(resultado);
     // `already_completed` aqui é apenas o formulário reenviando o status atual.
+    if (resultado === 'completed') await cobrarPacienteSePreciso(appointmentId);
   }
 
   const desde = new Date(Date.now() - 90 * 24 * 60 * 60_000);

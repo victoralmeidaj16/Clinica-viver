@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import type { RowDataPacket } from 'mysql2';
 import type { PoolConnection } from 'mysql2/promise';
 import { getMysqlPool } from '@/server/oci/runtime';
+import { custeioDoAgendamentoSql } from '@/server/persistence/mysql/custeioSql';
 import {
   fromSqlTimestamp,
   instituicaoId,
@@ -91,8 +92,7 @@ export async function getSessionPaymentProfile(
     `SELECT a.token_pagamento_sessao, a.inicio, a.valor_centavos,
             p.nome AS profissional_nome, p.valor_social_centavos, p.valor_sessao_centavos,
             conv.nome AS convenio_nome,
-            CASE WHEN pa.convenio_ref IS NULL THEN 0
-                 ELSE COALESCE(pa.custeado_pela_empresa, conv.empresa_paga_sessoes, 1) END
+            ${custeioDoAgendamentoSql({ agendamento: 'a', paciente: 'pa', convenio: 'conv' })}
               AS custeado_pela_empresa,
             COALESCE((SELECT c.vence_em FROM financeiro_cobrancas c
               WHERE c.instituicao_id = a.instituicao_id AND c.organizacao_ref = o.ref_core
@@ -183,8 +183,7 @@ export async function reserveAppointmentCharge(input: {
               p.nome AS profissional_nome, p.valor_social_centavos, p.valor_sessao_centavos,
               pa.ref_core AS paciente_ref, COALESCE(pa.nome_social, pa.nome) AS paciente_nome,
               conv.nome AS convenio_nome,
-              CASE WHEN pa.convenio_ref IS NULL THEN 0
-                   ELSE COALESCE(pa.custeado_pela_empresa, conv.empresa_paga_sessoes, 1) END
+              ${custeioDoAgendamentoSql({ agendamento: 'a', paciente: 'pa', convenio: 'conv' })}
                 AS custeado_pela_empresa,
               COALESCE(pa.documento, (SELECT t.cpf FROM clinica_triagens_pacientes t
                 WHERE t.instituicao_id = a.instituicao_id AND t.organizacao_ref = o.ref_core
@@ -698,7 +697,9 @@ export async function reconcileAsaasPayment(input: {
     );
     const paymentMethod = input.billingType === 'PIX'
       ? 'pix'
-      : input.billingType === 'CREDIT_CARD' ? 'card' : 'other';
+      : input.billingType === 'CREDIT_CARD'
+        ? 'card'
+        : input.billingType === 'BOLETO' ? 'boleto' : 'other';
     const allocations = allocatePaymentAcrossCharges(input.amountCents, chargeRows.map((charge) => ({
       reference: String(charge.ref_core), amountCents: Number(charge.valor_centavos),
     })));

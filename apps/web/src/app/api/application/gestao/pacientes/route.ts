@@ -11,6 +11,8 @@ import { isMysqlConfigured, getMysqlPool } from '@/server/oci/runtime';
 import { instituicaoId } from '@/server/persistence/mysql/mappers';
 import type { RowDataPacket } from 'mysql2/promise';
 import { listarConvenios } from '@/server/persistence/mysql/convenioRepository';
+import { custeioEfetivoSql } from '@/server/persistence/mysql/custeioSql';
+import { normalizarCicloCusteio } from '@/lib/convenioBilling';
 import { listarPsicologosCompativeis, reatribuirLeadPelaGestao } from '@/server/application/viverMaisRodizio';
 import { avisarTransbordo } from '@/server/application/viverMaisWhatsApp';
 import { avisarAlocacaoPsicologoPorEmail } from '@/server/application/triagemEmail';
@@ -61,6 +63,15 @@ export async function GET() {
           listarConvenios(organizationId),
           getMysqlPool().query<RowDataPacket[]>(
             `SELECT p.ref_core, p.convenio_ref, p.custeado_pela_empresa,
+                    p.custeio_sessoes_cota, p.custeio_sessoes_ciclo,
+                    ${custeioEfetivoSql({ paciente: 'p', convenio: 'c' })} AS custeado_efetivo,
+                    (SELECT COUNT(*) FROM clinica_agendamentos cota_ag
+                      WHERE cota_ag.instituicao_id = p.instituicao_id
+                        AND cota_ag.paciente_id = p.id
+                        AND cota_ag.custeado_pela_empresa = 1
+                        AND (p.custeio_sessoes_ciclo <> 'mensal'
+                             OR DATE_FORMAT(cota_ag.inicio, '%Y-%m') = DATE_FORMAT(CURRENT_TIMESTAMP(3), '%Y-%m')))
+                      AS custeio_consumidas,
                     c.nome AS convenio_nome, c.empresa_paga_sessoes
                FROM clinica_pacientes p
                JOIN clinica_organizacoes o ON o.id = p.organizacao_id
@@ -159,9 +170,13 @@ export async function GET() {
         convenioNome: agreement?.convenio_nome ? String(agreement.convenio_nome) : undefined,
         custeioConfigurado: agreement?.custeado_pela_empresa === null || agreement?.custeado_pela_empresa === undefined
           ? undefined : Boolean(agreement.custeado_pela_empresa),
-        custeadoPelaEmpresa: agreement?.convenio_ref
-          ? Boolean(agreement.custeado_pela_empresa ?? agreement.empresa_paga_sessoes ?? 1)
-          : false,
+        // Sob cota, o rótulo vale para a próxima sessão: esgotada a cota, quem
+        // paga a seguinte é o paciente, mesmo o vínculo continuando de pé.
+        custeadoPelaEmpresa: Boolean(agreement?.custeado_efetivo),
+        custeioCota: agreement?.custeio_sessoes_cota === null || agreement?.custeio_sessoes_cota === undefined
+          ? undefined : Number(agreement.custeio_sessoes_cota),
+        custeioCiclo: normalizarCicloCusteio(agreement?.custeio_sessoes_ciclo) ?? undefined,
+        custeioConsumidas: Number(agreement?.custeio_consumidas ?? 0),
         paraQuemE: lead?.paraQuemE,
         turno: lead?.turno,
         necessidadesPaciente: lead?.necessidadesPaciente,

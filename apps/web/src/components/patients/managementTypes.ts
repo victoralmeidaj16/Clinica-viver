@@ -1,4 +1,5 @@
 import type { MotivoDesistencia } from '@/lib/desistencias';
+import type { CusteioCiclo } from '@/lib/convenioBilling';
 
 export type PatientManagementStatus = 'EM_TRIAGEM' | 'ATIVO' | 'ALTA' | 'DESISTENTE';
 export type PatientSlaStatus = 'SEM_ALOCACAO' | 'ESTOURADO' | 'NO_PRAZO' | 'CONCLUIDO';
@@ -37,7 +38,13 @@ export interface ManagedPatient {
   convenioId?: string;
   convenioNome?: string;
   custeioConfigurado?: boolean;
+  /** Quem paga a **próxima** sessão — já descontada a cota, quando há uma. */
   custeadoPelaEmpresa?: boolean;
+  /** Sessões que a empresa cobre; ausente é o custeio sem limite. */
+  custeioCota?: number;
+  custeioCiclo?: CusteioCiclo;
+  /** Sessões já realizadas por conta da empresa no ciclo corrente. */
+  custeioConsumidas?: number;
   paraQuemE?: string;
   turno?: string;
   necessidadesPaciente?: readonly string[];

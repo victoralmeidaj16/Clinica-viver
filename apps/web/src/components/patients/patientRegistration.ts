@@ -67,6 +67,7 @@ export const PATIENT_SERVICES = [
 export const PATIENT_MODALITIES = [
   ['SOCIAL', 'Agendamento Acessível/Social'], ['PARTICULAR', 'Agendamento Particular'],
   ['CASAL_SOCIAL', 'Agendamento Acessível/Social (Casal)'], ['CASAL_PARTICULAR', 'Agendamento Particular (Casal)'],
+  ['FAMILIA_SOCIAL', 'Agendamento Acessível/Social (Em família)'], ['FAMILIA_PARTICULAR', 'Agendamento Particular (Em família)'],
 ] as const;
 
 export function serviceName(key: string): string {
@@ -74,8 +75,18 @@ export function serviceName(key: string): string {
 }
 
 export function modalitiesForService(serviceKey: string) {
-  const casal = serviceKey === 'PSICOTERAPIA_CASAL';
-  return PATIENT_MODALITIES.filter(([value]) => value.startsWith('CASAL_') === casal);
+  if (serviceKey === 'PSICOTERAPIA_CASAL') {
+    return PATIENT_MODALITIES.filter(([value]) => value.startsWith('CASAL_'));
+  }
+  if (serviceKey === 'ORIENTACAO_PARENTAL') {
+    return [
+      ['SOCIAL', 'Agendamento Acessível/Social (Individual)'],
+      ['PARTICULAR', 'Agendamento Particular (Individual)'],
+      ['FAMILIA_SOCIAL', 'Agendamento Acessível/Social (Em família)'],
+      ['FAMILIA_PARTICULAR', 'Agendamento Particular (Em família)'],
+    ] as const;
+  }
+  return PATIENT_MODALITIES.filter(([value]) => !value.startsWith('CASAL_') && !value.startsWith('FAMILIA_'));
 }
 
 export function audiencesForService(serviceKey?: string | null): readonly string[] {

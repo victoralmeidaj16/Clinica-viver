@@ -1,3 +1,5 @@
+import { quitadaPelaEmpresa } from '@/lib/convenioBilling';
+
 export type NfseRowStatus = 'none' | 'reserved' | 'processing' | 'issued' | 'failed' | 'cancelled';
 
 export interface NfseRowAction {
@@ -12,6 +14,12 @@ export function nfseRowAction(input: {
   nfseStatus: NfseRowStatus;
   isAdmin: boolean;
   numero?: string;
+  /** Custeio da sessão, já descontada a cota quando há uma. */
+  custeadoPelaEmpresa?: boolean;
+  /** Fatura PJ que agrupou esta cobrança, quando houve uma. */
+  faturaConvenioId?: string;
+  /** Forma como a cobrança foi liquidada. */
+  paymentMethod?: string;
 }): NfseRowAction {
   const possuiRegistroFiscal = input.nfseStatus !== 'none';
   if (!input.isAdmin && (input.paymentStatus === 'paid' || possuiRegistroFiscal)) {
@@ -19,6 +27,12 @@ export function nfseRowAction(input: {
   }
   if (!possuiRegistroFiscal && input.paymentStatus !== 'paid') {
     return { label: 'Aguardando pagamento', clickable: false, tone: 'muted' };
+  }
+  // A nota de quem a empresa pagou é uma só, emitida contra a fatura PJ. Emitir
+  // por sessão aqui lançaria a mesma receita duas vezes e contra o tomador
+  // errado — o paciente, que não pagou aquela sessão.
+  if (!possuiRegistroFiscal && quitadaPelaEmpresa(input)) {
+    return { label: 'NFS-e na fatura PJ', clickable: false, tone: 'muted' };
   }
 
   switch (input.nfseStatus) {

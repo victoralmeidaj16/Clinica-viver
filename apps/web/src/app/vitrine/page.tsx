@@ -36,7 +36,13 @@ type ServicoKey =
   | 'ORIENTACAO_PROFISSIONAL'
   | 'ORIENTACAO_PARENTAL';
 
-type ModalidadeKey = 'SOCIAL' | 'PARTICULAR' | 'CASAL_SOCIAL' | 'CASAL_PARTICULAR';
+type ModalidadeKey =
+  | 'SOCIAL'
+  | 'PARTICULAR'
+  | 'CASAL_SOCIAL'
+  | 'CASAL_PARTICULAR'
+  | 'FAMILIA_SOCIAL'
+  | 'FAMILIA_PARTICULAR';
 
 type PreferenciaGeneroPsicologo = 'SEM_PREFERENCIA' | 'FEMININO' | 'MASCULINO';
 
@@ -56,6 +62,7 @@ interface ServicoVitrine {
   titulo: string;
   descricao: string;
   duracao: string;
+  duracoes?: string[];
   imagem: string;
   opcoes: OpcaoPreco[];
 }
@@ -78,16 +85,10 @@ const PASSOS_AGENDAMENTO: PassoJornada[] = [
     ],
   },
   {
-    titulo: 'Preferência',
-    resumo: 'Defina como escolher',
+    titulo: 'Psicólogo(a)',
+    resumo: 'Encontre seu psicólogo(a)',
     detalhes: [
-      'Escolha diretamente o(a) profissional ou deixe que nosso sistema indique automaticamente um(a) psicólogo(a) compatível com o que você procura.',
-    ],
-  },
-  {
-    titulo: 'Psicólogo',
-    resumo: 'Encontre seu psicólogo',
-    detalhes: [
+      'Escolha diretamente o(a) psicólogo(a) ou deixe que nosso sistema indique automaticamente um(a) psicólogo(a) compatível com o que você procura.',
       'Veja quem atende o serviço escolhido, com formação, foco de atuação clínica e períodos disponíveis, e escolha quem você preferir.',
     ],
   },
@@ -368,11 +369,17 @@ export default function ViverMaisLandingPage() {
     ORIENTACAO_PARENTAL: {
       titulo: 'Orientação Parental',
       descricao: 'Oferece suporte aos pais e responsáveis, auxiliando na compreensão das necessidades emocionais e comportamentais dos filhos, além de orientar sobre estratégias para lidar com os desafios do desenvolvimento e da educação.',
-      duracao: '50min',
+      duracao: '50min a 1h30min',
+      duracoes: [
+        'Duração estimada da sessão INDIVIDUAL: 50min',
+        'Duração estimada da sessão EM FAMÍLIA: 1h30min',
+      ],
       imagem: '/orientacao_parental.jpg',
       opcoes: [
-        { tipo: 'SOCIAL', label: 'Agendamento Acessível/Social', preco: 'R$ 75,00' },
-        { tipo: 'PARTICULAR', label: 'Agendamento Particular', preco: 'R$ 130,00' }
+        { tipo: 'SOCIAL', label: 'Agendamento Acessível/Social (Individual)', preco: 'R$ 75,00' },
+        { tipo: 'PARTICULAR', label: 'Agendamento Particular (Individual)', preco: 'R$ 130,00' },
+        { tipo: 'FAMILIA_SOCIAL', label: 'Agendamento Acessível/Social (Em família)', preco: 'R$ 150,00' },
+        { tipo: 'FAMILIA_PARTICULAR', label: 'Agendamento Particular (Em família)', preco: 'R$ 230,00' }
       ]
     }
   };
@@ -432,7 +439,7 @@ export default function ViverMaisLandingPage() {
     setForm((prev) => {
       let paraQuemE = prev.paraQuemE;
       if (serviceKey === 'ORIENTACAO_PARENTAL') {
-        paraQuemE = '';
+        paraQuemE = modalidadeType.startsWith('FAMILIA') ? 'Família' : 'Individual';
       } else if (serviceKey === 'PSICOTERAPIA_CASAL') {
         if (paraQuemE !== 'Casal' && paraQuemE !== 'Outro') {
           paraQuemE = 'Casal';
@@ -470,9 +477,9 @@ export default function ViverMaisLandingPage() {
     if (!modalidades || modalidades.length === 0) return true;
     const isParticular = modalidadeDesejada?.includes('PARTICULAR');
     if (isParticular) {
-      return modalidades.some((m) => m === 'PARTICULAR' || m === 'CASAL_PARTICULAR');
+      return modalidades.some((m) => m === 'PARTICULAR' || m === 'CASAL_PARTICULAR' || m === 'FAMILIA_PARTICULAR');
     }
-    return modalidades.some((m) => m === 'SOCIAL' || m === 'CASAL_SOCIAL' || m === 'ACESSIVEL_SOCIAL');
+    return modalidades.some((m) => m === 'SOCIAL' || m === 'CASAL_SOCIAL' || m === 'FAMILIA_SOCIAL' || m === 'ACESSIVEL_SOCIAL');
   };
 
   const profissionaisCompativeis = psicologosCredenciados.filter((psi) => {
@@ -664,11 +671,7 @@ export default function ViverMaisLandingPage() {
               </h3>
             </div>
 
-            <ol
-              className={`mt-7 grid gap-4 sm:grid-cols-2 ${
-                isPsicologo ? 'lg:grid-cols-3' : 'lg:grid-cols-4'
-              }`}
-            >
+            <ol className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {(isPsicologo ? PASSOS_CREDENCIAMENTO : PASSOS_AGENDAMENTO).map((passo, indice, passos) => (
                 <li
                   key={passo.titulo}
@@ -818,10 +821,24 @@ export default function ViverMaisLandingPage() {
                                 {service.descricao}
                               </p>
 
-                              <div className="flex items-center gap-2 rounded-xl border border-purple-100 bg-purple-50/80 px-3.5 py-2.5 text-xs font-extrabold text-purple-800">
-                                <Clock className="w-4 h-4 shrink-0 text-purple-600" />
-                                <span>Duração estimada da sessão: {service.duracao}</span>
-                              </div>
+                              {service.duracoes && service.duracoes.length > 0 ? (
+                                <div className="space-y-2">
+                                  {service.duracoes.map((duracaoItem) => (
+                                    <div
+                                      key={duracaoItem}
+                                      className="flex items-center gap-2 rounded-xl border border-purple-100 bg-purple-50/80 px-3.5 py-2.5 text-xs font-extrabold text-purple-800"
+                                    >
+                                      <Clock className="w-4 h-4 shrink-0 text-purple-600" />
+                                      <span>{duracaoItem}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2 rounded-xl border border-purple-100 bg-purple-50/80 px-3.5 py-2.5 text-xs font-extrabold text-purple-800">
+                                  <Clock className="w-4 h-4 shrink-0 text-purple-600" />
+                                  <span>Duração estimada da sessão: {service.duracao}</span>
+                                </div>
+                              )}
                             </div>
 
                             {/* Coluna Direita: Cards de Modalidade & Agendamento */}
@@ -995,8 +1012,8 @@ export default function ViverMaisLandingPage() {
                   <Sparkles className="h-5 w-5" />
                 </span>
                 <h4 className="text-lg font-black">Escolha conforme minhas necessidades</h4>
-                <p className="mt-2 text-xs leading-relaxed text-purple-100/80">Responda somente quatro perguntas. O sistema filtra a equipe e encaminha o primeiro psicólogo compatível da fila.</p>
-                <span className="mt-5 flex items-center gap-2 text-xs font-black text-psi-soft">Começar recomendação <ArrowRight className="h-4 w-4" /></span>
+                <p className="mt-2 text-xs leading-relaxed text-purple-100/80">Responda algumas perguntas e deixe que o sistema encontre um(a) psicólogo(a) disponível.</p>
+                <span className="mt-5 flex items-center gap-2 text-xs font-black text-psi-soft">Começar <ArrowRight className="h-4 w-4" /></span>
               </button>
             </div>
 

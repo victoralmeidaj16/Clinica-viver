@@ -2,26 +2,28 @@
 
 import { CalendarRange } from 'lucide-react';
 import type { AppointmentFrequency } from '@/lib/manualAppointment';
+import { todayAtClinic } from '@/lib/manualAppointment';
+import { AppointmentDatesCalendar } from './AppointmentDatesCalendar';
 
 const OPTIONS: Array<{ value: AppointmentFrequency; label: string; hint: string }> = [
   { value: 'weekly', label: 'Semanal', hint: 'a cada 7 dias' },
   { value: 'biweekly', label: 'Quinzenal', hint: 'a cada 14 dias' },
-  { value: 'custom', label: 'Personalizado', hint: 'defina o intervalo' },
+  { value: 'custom', label: 'Personalizado', hint: 'selecione os dias' },
 ];
 
 interface Props {
   value: AppointmentFrequency;
-  customIntervalDays: number;
+  initialDate: string;
   dates: readonly string[];
   time: string;
   disabled?: boolean;
   onChange: (value: AppointmentFrequency) => void;
-  onCustomIntervalChange: (value: number) => void;
+  onDatesChange: (dates: string[]) => void;
 }
 
 const shortDate = (date: string) => date.split('-').reverse().slice(0, 2).join('/');
 
-export function AppointmentFrequencyField({ value, customIntervalDays, dates, time, disabled, onChange, onCustomIntervalChange }: Props) {
+export function AppointmentFrequencyField({ value, initialDate, dates, time, disabled, onChange, onDatesChange }: Props) {
   return (
     <fieldset disabled={disabled}>
       <legend className="flex items-center gap-1.5 text-xs font-bold text-ink">
@@ -43,24 +45,12 @@ export function AppointmentFrequencyField({ value, customIntervalDays, dates, ti
       </div>
 
       {value === 'custom' && (
-        <label className="mt-3 flex items-center gap-3 rounded-xl border border-line bg-slate-50 px-3 py-2 text-[11px] font-bold text-ink">
-          Repetir a cada
-          <input
-            type="number"
-            min={1}
-            max={30}
-            required
-            value={customIntervalDays}
-            onChange={(event) => onCustomIntervalChange(Number(event.target.value))}
-            className="input ml-auto w-20 py-2 text-center text-xs font-bold"
-          />
-          dias
-        </label>
+        <AppointmentDatesCalendar initialDate={initialDate} minDate={todayAtClinic()} dates={dates} onChange={onDatesChange} />
       )}
 
       <div className="mt-3 rounded-xl border border-psi-soft bg-psi-light/60 px-3 py-2.5">
         <p className="text-[10px] font-black uppercase tracking-wider text-psi-deep">
-          {dates.length} {dates.length === 1 ? 'sessão neste mês' : 'sessões neste mês'}
+          {dates.length} {dates.length === 1 ? 'sessão selecionada' : 'sessões selecionadas'}
         </p>
         <p className="mt-1 text-[11px] leading-relaxed text-psi-deep">
           {dates.map(shortDate).join(' • ')} às {time}

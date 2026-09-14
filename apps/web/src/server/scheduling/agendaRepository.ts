@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import type { RowDataPacket } from 'mysql2';
 import { getMysqlPool, isMysqlConfigured } from '@/server/oci/runtime';
 import { instituicaoId, rowId } from '@/server/persistence/mysql/mappers';
+import { custeioDoAgendamentoSql } from '@/server/persistence/mysql/custeioSql';
 import {
   disponibilidadePadraoDoCadastro,
   FUSO_CLINICA,
@@ -64,6 +65,7 @@ export interface AgendamentoResumo {
   realizadoEm?: string;
   linkPagamento: string;
   pagamentoStatus?: string;
+  formaPagamento?: string;
   vencimentoCobrancaEm?: string;
   custeadoPelaEmpresa: boolean;
   convenioNome?: string;
@@ -388,14 +390,18 @@ export async function listAppointments(
               a.origem_criacao, a.criado_em, a.realizado_em, a.token_pagamento_sessao,
               COALESCE(pa.nome_social, pa.nome) AS paciente_nome,
               conv.nome AS convenio_nome,
-              CASE WHEN pa.convenio_ref IS NULL THEN 0
-                   ELSE COALESCE(pa.custeado_pela_empresa, conv.empresa_paga_sessoes, 1) END
+              ${custeioDoAgendamentoSql({ agendamento: 'a', paciente: 'pa', convenio: 'conv' })}
                 AS custeado_pela_empresa,
               (SELECT c.status FROM financeiro_cobrancas c
                 WHERE c.instituicao_id = a.instituicao_id
                   AND c.organizacao_ref = o.ref_core
                   AND c.sessao_ref IN (a.ref_core, a.sessao_clinica_ref)
                 ORDER BY c.criado_em DESC LIMIT 1) AS pagamento_status
+              ,(SELECT c.forma_pagamento FROM financeiro_cobrancas c
+                WHERE c.instituicao_id = a.instituicao_id
+                  AND c.organizacao_ref = o.ref_core
+                  AND c.sessao_ref IN (a.ref_core, a.sessao_clinica_ref)
+                ORDER BY c.criado_em DESC LIMIT 1) AS forma_pagamento
               ,(SELECT c.vence_em FROM financeiro_cobrancas c
                 WHERE c.instituicao_id = a.instituicao_id
                   AND c.organizacao_ref = o.ref_core
@@ -436,6 +442,7 @@ export async function listAppointments(
         realizadoEm: row.realizado_em ? new Date(row.realizado_em).toISOString() : undefined,
         linkPagamento: `/pagar/sessao/${String(row.token_pagamento_sessao)}`,
         pagamentoStatus: row.pagamento_status ? String(row.pagamento_status) : undefined,
+        formaPagamento: row.forma_pagamento ? String(row.forma_pagamento) : undefined,
         vencimentoCobrancaEm: row.vencimento_cobranca_em ? new Date(row.vencimento_cobranca_em).toISOString() : undefined,
         custeadoPelaEmpresa: Boolean(row.custeado_pela_empresa),
         convenioNome: row.convenio_nome ? String(row.convenio_nome) : undefined,
@@ -470,8 +477,7 @@ export async function completeAppointment(
               o.ref_core AS organizacao_ref, pa.ref_core AS paciente_ref,
               p.ref_core AS profissional_ref,
               conv.nome AS convenio_nome,
-              CASE WHEN pa.convenio_ref IS NULL THEN 0
-                   ELSE COALESCE(pa.custeado_pela_empresa, conv.empresa_paga_sessoes, 1) END
+              ${custeioDoAgendamentoSql({ agendamento: 'a', paciente: 'pa', convenio: 'conv' })}
                 AS custeado_pela_empresa,
               COALESCE(a.fim, DATE_ADD(a.inicio, INTERVAL a.duracao_min MINUTE)) AS fim,
               (SELECT c.ref_core FROM financeiro_cobrancas c
@@ -547,14 +553,27 @@ export async function completeAppointment(
         JSON.stringify(automation), appointment.cobranca_ref ?? null, agora, agora,
       ]
     );
+    // É aqui que o custeio da sessão deixa de ser uma conta e vira um fato.
+    // Enquanto era recalculado a cada consulta, editar a cota do paciente
+    // reescrevia o passado: subir de quatro para seis mandava para a empresa
+    // sessões que o paciente já tinha pago, e descer cobrava de novo quem já
+    // quitou. Gravado no agendamento, o que foi decidido fica decidido.
+    //
+    // Uma cobrança individual já emitida decide sozinha: ela nasceu no
+    // agendamento, quando a cota ainda comportava outra sessão, e mandar a
+    // mesma sessão para o boleto da empresa cobraria o atendimento duas vezes.
+    const custeadoPelaEmpresa = appointment.cobranca_ref
+      ? false
+      : Boolean(appointment.custeado_pela_empresa);
     await connection.execute(
       `UPDATE clinica_agendamentos
           SET status = 'realizado', realizado_em = ?, sessao_clinica_ref = ?,
+              custeado_pela_empresa = ?,
               versao = versao + 1, atualizado_em = ?
         WHERE instituicao_id = ? AND id = ?`,
-      [agora, sessionRef, agora, instituicaoId(), appointmentId]
+      [agora, sessionRef, custeadoPelaEmpresa ? 1 : 0, agora, instituicaoId(), appointmentId]
     );
-    if (Boolean(appointment.custeado_pela_empresa) && !appointment.cobranca_ref) {
+    if (custeadoPelaEmpresa && !appointment.cobranca_ref) {
       const amountCents = Number(appointment.valor_centavos ?? appointment.valor_sessao_centavos);
       if (!Number.isSafeInteger(amountCents) || amountCents <= 0) {
         throw new Error('O valor da sessão custeada não está configurado no perfil profissional.');

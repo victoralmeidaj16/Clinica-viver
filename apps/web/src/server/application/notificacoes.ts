@@ -329,6 +329,8 @@ function rotuloForma(forma: string): string {
       return 'Pix';
     case 'card':
       return 'cartão';
+    case 'boleto':
+      return 'boleto';
     case 'cash':
       return 'dinheiro';
     case 'bank_transfer':

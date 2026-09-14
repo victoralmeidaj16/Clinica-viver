@@ -52,6 +52,7 @@ const SESSAO_PASSADA: Linha = {
   convenio_nome: null,
   custeado_pela_empresa: 0,
   pagamento_status: null,
+  forma_pagamento: null,
   vencimento_cobranca_em: null,
 };
 
@@ -122,6 +123,20 @@ describe('listAppointments', () => {
     );
 
     expect(item.podeConfirmarRealizacao).toBe(false);
+  });
+
+  it('informa a forma usada para pagar a sessão', async () => {
+    comLinhas({ ...SESSAO_PASSADA, pagamento_status: 'paid', forma_pagamento: 'boleto' });
+
+    const [item] = await listAppointments(
+      'org-1',
+      'pro-1',
+      new Date('2026-06-01T00:00:00Z'),
+      AGORA
+    );
+
+    expect(item.pagamentoStatus).toBe('paid');
+    expect(item.formaPagamento).toBe('boleto');
   });
 });
 

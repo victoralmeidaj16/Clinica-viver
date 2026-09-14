@@ -9,7 +9,7 @@ export type ChargeStatus =
   | 'cancelled'
   | 'refunded';
 
-export type PaymentMethod = 'pix' | 'cash' | 'card' | 'bank_transfer' | 'other';
+export type PaymentMethod = 'pix' | 'cash' | 'card' | 'boleto' | 'bank_transfer' | 'other';
 export type PaymentStatus = 'confirmed' | 'cancelled';
 export type TransferStatus = 'pending' | 'paid' | 'cancelled';
 

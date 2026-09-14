@@ -14,16 +14,14 @@ interface BookingProgressProps {
 
 const stages = [
   { label: 'Serviço', description: 'Escolha a modalidade' },
-  { label: 'Preferência', description: 'Defina como escolher' },
-  { label: 'Profissional', description: 'Encontre seu psicólogo' },
+  { label: 'Psicólogo(a)', description: 'Encontre seu psicólogo(a)' },
   { label: 'Seus dados', description: 'Finalize a solicitação' },
 ] as const;
 
 export function bookingStageIndex(step: BookingStep) {
   if (step === 'SERVICOS') return 0;
-  if (step === 'CAMINHO') return 1;
-  if (step === 'MATCH' || step === 'PROFISSIONAIS') return 2;
-  return 3;
+  if (step === 'CAMINHO' || step === 'MATCH' || step === 'PROFISSIONAIS') return 1;
+  return 2;
 }
 
 export function BookingProgress({ step }: BookingProgressProps) {
@@ -36,7 +34,7 @@ export function BookingProgress({ step }: BookingProgressProps) {
       aria-label="Etapas do agendamento"
       className="border-t border-purple-100 bg-purple-50/50"
     >
-      <ol className="mx-auto grid max-w-6xl grid-cols-4 px-4 sm:px-6">
+      <ol className="mx-auto grid max-w-6xl grid-cols-3 px-4 sm:px-6">
         {stages.map((stage, index) => {
           const active = index === current;
           const complete = index < current || completedFlow;

@@ -19,24 +19,20 @@ import {
 /**
  * Declaração de horas de atendimento.
  *
- * O que este serviço garante, e que a versão anterior não garantia: **o total
- * declarado é sempre derivado das sessões registradas**. Não há parâmetro de
- * horas, não há valor padrão, não há caminho em que a declaração saia com um
- * número que ninguém possa reconstituir. Quando não há sessão, a emissão
- * falha — e falhar é a resposta certa, porque a alternativa é atestar hora que
- * não aconteceu.
+ * A prévia nasce das sessões e do cadastro. Quando a gestão faz um ajuste
+ * manual, o valor impresso é persistido junto dos ids das sessões que serviram
+ * de base, preservando a rastreabilidade do documento emitido.
  */
 
 /**
  * Quem assina a declaração.
  *
- * A coordenação da clínica é cargo, não preferência de tela: deixá-la editável
- * no formulário permitiria emitir declaração assinada por quem não coordena.
- * As variáveis de ambiente existem para a troca de quem ocupa o cargo, que
- * acontece fora do código.
+ * As variáveis de ambiente definem os nomes sugeridos no formulário. A gestão
+ * pode ajustá-los em uma emissão específica quando houver mudança de cargo ou
+ * substituição temporária.
  *
- * A supervisora é fixa hoje porque o cadastro do psicólogo não guarda quem o
- * supervisiona. Quando guardar, este valor vira consulta.
+ * A supervisora é sugerida de forma fixa porque o cadastro do psicólogo ainda
+ * não guarda quem o supervisiona. Quando guardar, este valor vira consulta.
  */
 export const SIGNATARIOS_DECLARACAO = {
   coordenadora: process.env.DECLARACAO_COORDENADORA?.trim() || 'GIULIANA ALANO DE OLIVEIRA',
@@ -133,6 +129,68 @@ export interface PreviaDeclaracao {
   supervisora: string;
 }
 
+/** Campos que a gestão pode ajustar no documento antes da emissão. */
+export interface AjustesDeclaracao {
+  psicologoNome: string;
+  psicologoCrp: string;
+  tratamento: string;
+  curso: string;
+  periodoInicio: string;
+  periodoFim: string;
+  totalHoras: number;
+  coordenadora: string;
+  supervisora: string;
+}
+
+function textoObrigatorio(valor: unknown, rotulo: string, limite = 180): string {
+  const texto = typeof valor === 'string' ? valor.trim() : '';
+  if (!texto) {
+    throw new ApplicationError('INVALID_INPUT', `Preencha o campo ${rotulo}.`, 400);
+  }
+  if (texto.length > limite) {
+    throw new ApplicationError('INVALID_INPUT', `${rotulo} deve ter no máximo ${limite} caracteres.`, 400);
+  }
+  return texto;
+}
+
+function dataObrigatoria(valor: unknown, rotulo: string): string {
+  const data = textoObrigatorio(valor, rotulo, 10);
+  const instante = new Date(`${data}T12:00:00Z`);
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(data) ||
+    Number.isNaN(instante.getTime()) ||
+    instante.toISOString().slice(0, 10) !== data
+  ) {
+    throw new ApplicationError('INVALID_INPUT', `Informe uma data válida em ${rotulo}.`, 400);
+  }
+  return data;
+}
+
+function validarAjustes(ajustes: AjustesDeclaracao): AjustesDeclaracao {
+  const periodoInicio = dataObrigatoria(ajustes.periodoInicio, 'início do período');
+  const periodoFim = dataObrigatoria(ajustes.periodoFim, 'fim do período');
+  if (periodoInicio > periodoFim) {
+    throw new ApplicationError('INVALID_INPUT', 'O início do período não pode ser posterior ao fim.', 400);
+  }
+
+  const totalHoras = Number(ajustes.totalHoras);
+  if (!Number.isInteger(totalHoras) || totalHoras <= 0 || totalHoras > 10000) {
+    throw new ApplicationError('INVALID_INPUT', 'Informe um total de horas inteiro entre 1 e 10.000.', 400);
+  }
+
+  return {
+    psicologoNome: textoObrigatorio(ajustes.psicologoNome, 'nome', 180),
+    psicologoCrp: textoObrigatorio(ajustes.psicologoCrp, 'CRP', 40),
+    tratamento: textoObrigatorio(ajustes.tratamento, 'tratamento acadêmico', 80),
+    curso: textoObrigatorio(ajustes.curso, 'curso', 240),
+    periodoInicio,
+    periodoFim,
+    totalHoras,
+    coordenadora: textoObrigatorio(ajustes.coordenadora, 'coordenadora', 180),
+    supervisora: textoObrigatorio(ajustes.supervisora, 'supervisora', 180),
+  };
+}
+
 async function apurar(cadastro: CadastroPsicologoRecord, organizationId: string): Promise<ApuracaoDeHoras> {
   const sessoes = await getApplicationStore().sessions.list({
     organizationId,
@@ -177,49 +235,61 @@ export async function previaDeclaracao(
 /**
  * Emite a declaração e devolve o código de conferência.
  *
- * A apuração é refeita aqui, e não recebida da tela: entre abrir a prévia e
- * clicar em emitir podem ter entrado sessões novas, e — o que importa mais —
- * um total que viaja pelo navegador é um total que o navegador pode alterar.
+ * A apuração é refeita aqui para manter a evidência das sessões atualizada. Os
+ * ajustes enviados pela gestão são validados e persistidos como conteúdo final
+ * da declaração.
  */
 export async function emitirDeclaracao(
   organizationId: string,
   usuarioId: string,
-  psicologoCadastroId: string
+  psicologoCadastroId: string,
+  ajustes?: AjustesDeclaracao
 ): Promise<DeclaracaoHoras & { tratamento: string }> {
   exigirPersistenciaDeclaracao();
 
   const cadastro = await exigirCadastro(psicologoCadastroId);
   const apuracao = await apurar(cadastro, organizationId);
-  const curso = cursoDoCadastro(cadastro);
-  const nome = cadastro.nomeSocial || cadastro.nomeCompleto;
+  const valores = ajustes
+    ? validarAjustes(ajustes)
+    : {
+        psicologoNome: cadastro.nomeSocial || cadastro.nomeCompleto,
+        psicologoCrp: cadastro.crp,
+        tratamento: tratamentoAcademico(cadastro),
+        curso: cursoDoCadastro(cadastro),
+        periodoInicio: apuracao.periodoInicio,
+        periodoFim: apuracao.periodoFim,
+        totalHoras: apuracao.totalHoras,
+        coordenadora: SIGNATARIOS_DECLARACAO.coordenadora,
+        supervisora: SIGNATARIOS_DECLARACAO.supervisora,
+      };
 
   const declaracao = await new DeclaracaoHorasRepository().registrar(
     {
       organizationId,
       psicologoCadastroId: cadastro.id,
       profissionalId: exigirProfissionalRef(cadastro),
-      psicologoNome: nome,
-      psicologoCrp: cadastro.crp,
-      curso,
-      periodoInicio: apuracao.periodoInicio,
-      periodoFim: apuracao.periodoFim,
+      psicologoNome: valores.psicologoNome,
+      psicologoCrp: valores.psicologoCrp,
+      curso: valores.curso,
+      periodoInicio: valores.periodoInicio,
+      periodoFim: valores.periodoFim,
       totalSessoes: apuracao.totalSessoes,
-      totalHoras: apuracao.totalHoras,
+      totalHoras: valores.totalHoras,
       sessaoIds: apuracao.sessaoIds,
-      coordenadora: SIGNATARIOS_DECLARACAO.coordenadora,
-      supervisora: SIGNATARIOS_DECLARACAO.supervisora,
+      coordenadora: valores.coordenadora,
+      supervisora: valores.supervisora,
       emitidoPor: usuarioId,
     },
     (codigo, emitidoEm) =>
       calcularHashDeclaracao({
         codigo,
-        psicologoNome: nome,
-        psicologoCrp: cadastro.crp,
-        curso,
-        periodoInicio: apuracao.periodoInicio,
-        periodoFim: apuracao.periodoFim,
+        psicologoNome: valores.psicologoNome,
+        psicologoCrp: valores.psicologoCrp,
+        curso: valores.curso,
+        periodoInicio: valores.periodoInicio,
+        periodoFim: valores.periodoFim,
         totalSessoes: apuracao.totalSessoes,
-        totalHoras: apuracao.totalHoras,
+        totalHoras: valores.totalHoras,
         emitidoEm,
         sessaoIds: apuracao.sessaoIds,
       })
@@ -228,7 +298,7 @@ export async function emitirDeclaracao(
   // O tratamento acompanha a resposta sem entrar na linha gravada: ele é
   // concordância do texto impresso, não afirmação sobre horas. Deixá-lo fora
   // do hash mantém a conferência falando só do que ela pode provar.
-  return { ...declaracao, tratamento: tratamentoAcademico(cadastro) };
+  return { ...declaracao, tratamento: valores.tratamento };
 }
 
 /*

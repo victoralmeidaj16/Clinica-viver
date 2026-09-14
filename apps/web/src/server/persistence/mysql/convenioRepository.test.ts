@@ -1,14 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ratearFatura, resolveCusteio } from '@/lib/convenioBilling';
-
-describe('custeio de convênio', () => {
-  it('herda a política da empresa somente quando a exceção do paciente é nula', () => {
-    expect(resolveCusteio(null, 1)).toBe(true);
-    expect(resolveCusteio(undefined, 0)).toBe(false);
-    expect(resolveCusteio(0, 1)).toBe(false);
-    expect(resolveCusteio(1, 0)).toBe(true);
-  });
-});
+import { ratearFatura } from '@/lib/convenioBilling';
 
 describe('rateio da fatura de convênio', () => {
   it('distribui proporcionalmente e põe o resto da divisão na última sessão', () => {

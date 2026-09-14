@@ -7,6 +7,7 @@ import {
   type ChargeStatus,
   type FinancialCharge,
   type FinancialFilter,
+  type PaymentMethod,
   type SessionReceivable,
 } from '@thats-life/core';
 import type { RequestContext } from './context';
@@ -18,12 +19,15 @@ import { ambienteNfse, type AmbienteNfse } from '@/server/fiscal/sefinNacional';
 import { NfseRepository, type StatusEmissaoNfse } from '@/server/fiscal/nfseRepository';
 import { isMysqlConfigured } from '@/server/oci/runtime';
 import { getMysqlPool } from '@/server/oci/runtime';
+import { custeioDoAgendamentoSql } from '@/server/persistence/mysql/custeioSql';
+import { quitadaPelaEmpresa } from '@/lib/convenioBilling';
 import { instituicaoId } from '@/server/persistence/mysql/mappers';
 import type { RowDataPacket } from 'mysql2/promise';
 import type { PatientContactCapable } from '@/server/persistence/mysql/identityRepository';
 import { ApplicationError } from './http';
 import { descricaoFiscalDaSessao } from '@/lib/sessionReference';
 import { normalizarEmailPaciente } from '@/server/fiscal/nfseEmail';
+import { rotuloFormaPagamento } from '@/lib/modalidadesPagamento';
 
 /**
  * Financeiro da clínica — o outro lado do extrato que o psicólogo vê.
@@ -56,6 +60,9 @@ export interface AtendimentoFinanceiroClinica {
   nfseNumero?: string;
   convenioNome?: string;
   custeadoPelaEmpresa: boolean;
+  /** Fatura PJ que agrupou a cobrança; é nela que sai a nota da empresa. */
+  faturaConvenioId?: string;
+  formaPagamento?: PaymentMethod;
 }
 
 export interface ConsolidadoPsicologo {
@@ -123,13 +130,20 @@ async function resolverNomes(organizationId: string) {
 }
 
 async function metadadosConvenios(organizationId: string, chargeIds: readonly string[]) {
-  if (!isMysqlConfigured() || chargeIds.length === 0) return new Map<string, { nome?: string; custeado: boolean }>();
+  if (!isMysqlConfigured() || chargeIds.length === 0) {
+    return new Map<string, { nome?: string; custeado: boolean; faturaId?: string }>();
+  }
   const [rows] = await getMysqlPool().query<RowDataPacket[]>(
-    `SELECT fc.ref_core, conv.nome,
-            CASE WHEN p.convenio_ref IS NULL THEN 0
-                 ELSE COALESCE(p.custeado_pela_empresa, conv.empresa_paga_sessoes, 1) END AS custeado
+    // A cobrança sozinha não diz quem paga: com cota personalizada, duas sessões
+    // do mesmo paciente têm pagadores diferentes. Por isso o custeio vem da
+    // sessão que originou a cobrança, e o vínculo do paciente só responde
+    // enquanto aquela sessão ainda não foi decidida.
+    `SELECT fc.ref_core, conv.nome, fc.fatura_convenio_ref,
+            ${custeioDoAgendamentoSql({ agendamento: 'ag', paciente: 'p', convenio: 'conv' })} AS custeado
        FROM financeiro_cobrancas fc
        JOIN clinica_pacientes p ON p.instituicao_id = fc.instituicao_id AND p.ref_core = fc.paciente_ref
+       LEFT JOIN clinica_agendamentos ag ON ag.instituicao_id = fc.instituicao_id
+        AND fc.sessao_ref IN (ag.ref_core, ag.sessao_clinica_ref)
        LEFT JOIN clinica_convenios conv ON conv.instituicao_id = fc.instituicao_id
         AND conv.organizacao_ref = fc.organizacao_ref AND conv.ref_core = p.convenio_ref
       WHERE fc.instituicao_id = ? AND fc.organizacao_ref = ? AND fc.ref_core IN (?)`,
@@ -137,6 +151,7 @@ async function metadadosConvenios(organizationId: string, chargeIds: readonly st
   );
   return new Map(rows.map((row) => [String(row.ref_core), {
     nome: row.nome ? String(row.nome) : undefined, custeado: Boolean(row.custeado),
+    faturaId: row.fatura_convenio_ref ? String(row.fatura_convenio_ref) : undefined,
   }]));
 }
 
@@ -161,6 +176,7 @@ export async function getClinicFinanceOverview(
   );
 
   const chargeIds = bundle.receivables.map((item) => item.chargeId);
+  const formasPagamento = new Map(ledger.charges.map((charge) => [charge.id, charge.paymentMethod]));
   const [nomes, emissoes, convenios] = await Promise.all([
     resolverNomes(organizationId),
     isMysqlConfigured() ? new NfseRepository().porCobrancas(organizationId, chargeIds) : Promise.resolve(new Map()),
@@ -191,6 +207,8 @@ export async function getClinicFinanceOverview(
       nfseNumero: emissoes.get(receivable.chargeId)?.numeroNfse,
       convenioNome: convenios.get(receivable.chargeId)?.nome,
       custeadoPelaEmpresa: convenios.get(receivable.chargeId)?.custeado ?? false,
+      faturaConvenioId: convenios.get(receivable.chargeId)?.faturaId,
+      formaPagamento: formasPagamento.get(receivable.chargeId),
     };
   });
 
@@ -406,6 +424,23 @@ export async function getNfsePreview(
     );
   }
 
+  // O botão da tabela já não oferece emissão individual do que a empresa pagou,
+  // mas a regra não pode viver só lá: quem chega por uma aba antiga ou direto
+  // pela rota emitiria uma nota contra o paciente por uma sessão que ele não
+  // pagou — e a receita apareceria duas vezes, já que a fatura PJ tem a sua.
+  const convenio = (await metadadosConvenios(organizationId, [chargeId])).get(chargeId);
+  if (quitadaPelaEmpresa({
+    custeadoPelaEmpresa: convenio?.custeado,
+    faturaConvenioId: convenio?.faturaId,
+    paymentMethod: charge.paymentMethod,
+  })) {
+    throw new ApplicationError(
+      'INVALID_FISCAL_STATE',
+      'Esta sessão foi quitada pela empresa. A NFS-e sai na fatura PJ do convênio, não por sessão.',
+      422
+    );
+  }
+
   const fatoFiscal = await competenciaFiscalDaCobranca(organizationId, charge);
 
   const paciente = await store.identities.getPatient(organizationId, charge.patientId);
@@ -513,6 +548,7 @@ export async function exportClinicFinanceCsv(
       'Psicólogo',
       'Vencimento',
       'Status',
+      'Forma de pagamento',
       'Valor líquido',
       'Recebido',
       'Em aberto',
@@ -528,6 +564,7 @@ export async function exportClinicFinanceCsv(
         item.psicologoNome,
         dataBr(item.vencimentoEm),
         rotuloStatus[item.status],
+        item.formaPagamento ? rotuloFormaPagamento(item.formaPagamento) : '',
         reais(item.valorLiquidoCents),
         reais(item.recebidoCents),
         reais(item.emAbertoCents),

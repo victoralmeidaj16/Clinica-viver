@@ -6,6 +6,7 @@ import {
   emitirDeclaracao,
   listarPsicologosParaDeclaracao,
   previaDeclaracao,
+  type AjustesDeclaracao,
 } from '@/server/application/declaracaoHorasService';
 
 export const runtime = 'nodejs';
@@ -63,7 +64,18 @@ export async function POST(request: Request) {
       throw new ApplicationError('INVALID_INPUT', 'Informe o psicólogo da declaração.', 400);
     }
 
-    const declaracao = await emitirDeclaracao(sessao.organizationId, sessao.userId, psicologoId);
+    const campos = corpo.campos;
+    const ajustes =
+      typeof campos === 'object' && campos !== null
+        ? (campos as AjustesDeclaracao)
+        : undefined;
+
+    const declaracao = await emitirDeclaracao(
+      sessao.organizationId,
+      sessao.userId,
+      psicologoId,
+      ajustes
+    );
 
     // O código, o hash e os ids das sessões ficam no servidor: são o registro
     // da emissão, e nada no papel precisa deles desde que o relatório de

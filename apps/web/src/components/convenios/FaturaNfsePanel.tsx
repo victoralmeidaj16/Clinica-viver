@@ -6,7 +6,7 @@ import { applicationRequest, commandHeaders } from '@/lib/applicationApi';
 import type { FaturaConvenioView } from './types';
 
 const money = (cents: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
-const statusLabel = { aberta: 'Aberta', boleto_gerado: 'Boleto gerado', paga: 'Paga', cancelada: 'Cancelada' } as const;
+const statusLabel = { aberta: 'Aberta', boleto_gerado: 'Boleto gerado', paga: 'Paga por boleto', cancelada: 'Cancelada' } as const;
 
 interface FiscalData {
   preview: { camposPendentes: string[]; integracaoConfigurada: boolean; statusFatura: string };

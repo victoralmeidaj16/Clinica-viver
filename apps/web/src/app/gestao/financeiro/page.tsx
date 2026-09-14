@@ -18,6 +18,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { applicationRequest, commandHeaders } from '@/lib/applicationApi';
+import { rotuloFormaPagamento } from '@/lib/modalidadesPagamento';
 import {
   NfsePreviewModal,
   type NfseEmissao,
@@ -60,6 +61,8 @@ interface Atendimento {
   nfseNumero?: string;
   convenioNome?: string;
   custeadoPelaEmpresa: boolean;
+  faturaConvenioId?: string;
+  formaPagamento?: string;
 }
 
 interface ConsolidadoPsicologo {
@@ -665,6 +668,7 @@ export default function FinanceiroClinicaPage() {
                 <th className="px-6 py-4 text-emerald-700">Crédito (70%)</th>
                 <th className="px-6 py-4 text-psi-deep">Clínica (30%)</th>
                 <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4">Forma</th>
                 <th className="px-6 py-4 text-right">NFS-e</th>
               </tr>
             </thead>
@@ -675,6 +679,9 @@ export default function FinanceiroClinicaPage() {
                   nfseStatus: item.nfseStatus,
                   isAdmin: eAdmin === true,
                   numero: item.nfseNumero,
+                  custeadoPelaEmpresa: item.custeadoPelaEmpresa,
+                  faturaConvenioId: item.faturaConvenioId,
+                  paymentMethod: item.formaPagamento,
                 });
                 return (
                 <tr key={item.chargeId} className="hover:bg-slate-50/80 transition-colors">
@@ -708,10 +715,11 @@ export default function FinanceiroClinicaPage() {
                       {rotuloStatus[item.status]}
                     </span>
                   </td>
+                  <td className="px-6 py-4 font-semibold text-ink whitespace-nowrap">
+                    {item.formaPagamento ? rotuloFormaPagamento(item.formaPagamento) : '—'}
+                  </td>
                   <td className="px-6 py-4 text-right">
-                    {item.custeadoPelaEmpresa ? (
-                      <span className="text-[10px] font-semibold text-muted">NFS-e na fatura PJ</span>
-                    ) : acaoNfse.clickable ? (
+                    {acaoNfse.clickable ? (
                       <button
                         type="button"
                         onClick={() => void abrirPreviaNfse(item.chargeId)}

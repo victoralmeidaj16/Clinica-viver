@@ -22,7 +22,12 @@ vi.mock('./mappers', () => ({
   rowId: (prefix: string, ref: string) => `${prefix}:${ref}`,
 }));
 
-import { fecharFatura, pacientesDoConvenio } from './convenioRepository';
+import {
+  fecharFatura,
+  pacientesDoConvenio,
+  reconcileConvenioInvoicePayment,
+  sessoesDoConvenio,
+} from './convenioRepository';
 
 /** Associa cada `?` do SQL ao valor que o driver vai colocar nele. */
 function bindings(sql: string, values: unknown[]) {
@@ -40,7 +45,8 @@ describe('pacientesDoConvenio', () => {
 
     const [sql, values] = query.mock.calls[0] as unknown as [string, unknown[]];
     // O recorte de período mora no LEFT JOIN, que vem antes do WHERE.
-    expect(sql.indexOf('fc.emitida_em >= ?')).toBeLessThan(sql.indexOf('WHERE p.instituicao_id = ?'));
+    expect(sql.indexOf('COALESCE(s.inicio_real, s.inicio_previsto, fc_base.emitida_em) >= ?'))
+      .toBeLessThan(sql.indexOf('WHERE p.instituicao_id = ?'));
     expect(values).toEqual(['2026-09-01', '2026-09-07', 'inst-1', 'org-1', 'conv-1']);
     expect(bindings(sql, values)).toContainEqual(['WHERE p.instituicao_id =', 'inst-1']);
   });
@@ -49,8 +55,34 @@ describe('pacientesDoConvenio', () => {
     await pacientesDoConvenio('org-1', 'conv-1');
 
     const [sql, values] = query.mock.calls[0] as unknown as [string, unknown[]];
-    expect(sql).not.toContain('fc.emitida_em >= ?');
+    expect(sql).not.toContain('fc_base.emitida_em) >= ?');
     expect(values).toEqual(['inst-1', 'org-1', 'conv-1']);
+  });
+});
+
+describe('sessoesDoConvenio', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('usa a data real ou agendada do atendimento para exibir, filtrar e ordenar', async () => {
+    query.mockResolvedValueOnce([[
+      {
+        ref_core: 'charge-1', sessao_ref: 'session-1', paciente_ref: 'patient-1',
+        profissional_ref: 'professional-1', realizada_em: '2026-09-03 14:00:00.000',
+        valor_centavos: 7500, status: 'pending', fatura_convenio_ref: null,
+        paciente_nome: 'Paciente', psicologo_nome: 'Psicóloga',
+        custeado_pela_empresa: 1, empresa_paga_sessoes: 1,
+      },
+    ], []] as never);
+
+    const resultado = await sessoesDoConvenio('org-1', 'conv-1', '2026-09-01', '2026-09-30');
+    const [sql, values] = query.mock.calls[0] as unknown as [string, unknown[]];
+
+    expect(sql).toContain('COALESCE(s.inicio_real, s.inicio_previsto, fc.emitida_em) AS realizada_em');
+    expect(sql).toContain('LEFT JOIN clinica_sessoes s');
+    expect(sql).toContain('COALESCE(s.inicio_real, s.inicio_previsto, fc.emitida_em) >= ?');
+    expect(sql).toContain('ORDER BY COALESCE(s.inicio_real, s.inicio_previsto, fc.emitida_em) DESC');
+    expect(values).toEqual(['inst-1', 'org-1', 'conv-1', '2026-09-01', '2026-09-30']);
+    expect(resultado[0].realizadaEm).toBe('2026-09-03 14:00:00.000');
   });
 });
 
@@ -68,10 +100,43 @@ describe('fecharFatura', () => {
     ).rejects.toThrow(/Nenhum atendimento/);
 
     const [sql, values] = connection.query.mock.calls[0] as unknown as [string, unknown[]];
-    expect(sql).toContain('COALESCE(p.custeado_pela_empresa, c.empresa_paga_sessoes, 1) = 1');
+    // A decisão gravada na sessão vence o vínculo do paciente: sob cota, o
+    // mesmo paciente tem sessões da empresa e sessões dele, e só as primeiras
+    // entram no boleto.
+    expect(sql).toContain('COALESCE(ag.custeado_pela_empresa,');
+    expect(sql).toContain('LEFT JOIN clinica_agendamentos ag');
+    expect(sql).toContain('COALESCE(p.custeado_pela_empresa, c.empresa_paga_sessoes, 1) = 0 THEN 0');
+    expect(sql).toContain('< p.custeio_sessoes_cota THEN 1');
     expect(sql).toContain('JOIN clinica_convenios c');
+    expect(sql).toContain('LEFT JOIN clinica_sessoes s');
+    expect(sql).toContain('COALESCE(s.inicio_real, s.inicio_previsto, fc.emitida_em) >= ?');
     // O filtro de custeio não carrega parâmetro: a ordem original se mantém.
     expect(values).toEqual(['inst-1', 'org-1', 'conv-1', '2026-09-01', '2026-09-30']);
     expect(connection.rollback).toHaveBeenCalled();
+  });
+});
+
+describe('reconcileConvenioInvoicePayment', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('registra como boleto o pagamento e as cobranças da fatura empresarial', async () => {
+    connection.query
+      .mockResolvedValueOnce([[{
+        ref_core: 'invoice-1', organizacao_ref: 'org-1', convenio_ref: 'conv-1',
+      }], []] as never)
+      .mockResolvedValueOnce([[], []])
+      .mockResolvedValueOnce([[{ ref_core: 'charge-1', valor_centavos: 7500 }], []] as never);
+
+    await expect(reconcileConvenioInvoicePayment({
+      eventId: 'event-1', eventType: 'PAYMENT_RECEIVED', paymentId: 'payment-1',
+      amountCents: 7500, receivedAt: '2026-09-10T15:00:00.000Z',
+    })).resolves.toBe('processed');
+
+    const escritas = (
+      connection.execute.mock.calls as unknown as Array<[string, unknown[]?]>
+    ).map(([sql]) => sql);
+    expect(escritas.some((sql) => sql.includes("'boleto', 'confirmed'"))).toBe(true);
+    expect(escritas.some((sql) => sql.includes("forma_pagamento = 'boleto'"))).toBe(true);
+    expect(connection.commit).toHaveBeenCalled();
   });
 });

@@ -1,9 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Building2, CalendarDays, CheckCircle2, CreditCard, FileSpreadsheet, Pencil, XCircle } from 'lucide-react';
+import { Building2, CalendarDays, Check, CheckCircle2, Copy, CreditCard, FileSpreadsheet, Pencil, XCircle } from 'lucide-react';
 import { applicationRequest } from '@/lib/applicationApi';
-import { reaisDeCentavos } from '@/lib/modalidadesPagamento';
+import { reaisDeCentavos, rotuloFormaPagamento } from '@/lib/modalidadesPagamento';
 import { EditSessionModal, type SessionEditableData } from '@/components/scheduling/EditSessionModal';
 import { FocoDeNotificacao } from '@/components/layout/FocoDeNotificacao';
 import { focoPagamento } from '@/lib/focoNotificacao';
@@ -34,6 +34,9 @@ interface Receivable {
   conveniado?: boolean;
   convenioNome?: string;
   custeadoPelaEmpresa?: boolean;
+  /** Caminho público da cobrança (`/pagar/sessao/...`), quando a sessão tem uma. */
+  paymentLink?: string;
+  paymentMethod?: string;
   amountCents: number;
   receivedCents: number;
   outstandingCents: number;
@@ -100,6 +103,7 @@ export default function MeuFinanceiroPage() {
   const [error, setError] = useState<string>();
   const [editingSession, setEditingSession] = useState<SessionEditableData>();
   const [pacientesMap, setPacientesMap] = useState<Map<string, { conveniado?: boolean; convenioNome?: string }>>(new Map());
+  const [linkCopiado, setLinkCopiado] = useState<string>();
 
   // "Já passou" depende do relógio, que não pode ser lido durante a render.
   // O instante fica no estado e avança de minuto em minuto, o que também faz a
@@ -141,7 +145,7 @@ export default function MeuFinanceiroPage() {
     if (!data) return;
     const rows = [['Data', 'Paciente', 'Valor', 'Crédito 70%', 'Método'], ...data.transactions.map((item) => [
       item.receivedAt, item.patientName, (item.amountCents / 100).toFixed(2),
-      (item.professionalCreditCents / 100).toFixed(2), item.method,
+      (item.professionalCreditCents / 100).toFixed(2), rotuloFormaPagamento(item.method),
     ])];
     const blob = new Blob([`\uFEFF${rows.map((row) => row.join(';')).join('\n')}`], { type: 'text/csv;charset=utf-8' });
     const anchor = document.createElement('a');
@@ -149,6 +153,23 @@ export default function MeuFinanceiroPage() {
     anchor.download = `meu-financeiro-${mes}.csv`;
     anchor.click();
     URL.revokeObjectURL(anchor.href);
+  };
+
+  /**
+   * Copia o link completo, pronto para colar no WhatsApp do paciente. Sem
+   * permissão de área de transferência (navegador antigo, contexto sem HTTPS),
+   * o link aparece numa caixa para ser copiado à mão — nunca some em silêncio.
+   */
+  const copiarLinkPagamento = async (item: Receivable) => {
+    if (!item.paymentLink) return;
+    const link = new URL(item.paymentLink, window.location.origin).toString();
+    try {
+      await navigator.clipboard.writeText(link);
+      setLinkCopiado(item.chargeId);
+      setTimeout(() => setLinkCopiado((atual) => (atual === item.chargeId ? undefined : atual)), 2000);
+    } catch {
+      window.prompt('Copie o link de pagamento:', link);
+    }
   };
 
   const handleEditSession = (item: Receivable) => {
@@ -202,7 +223,7 @@ export default function MeuFinanceiroPage() {
           <div className="sm:ml-auto"><p className="text-xs text-muted">Crédito de {MES_POR_EXTENSO.format(new Date(`${mes}-01T12:00:00Z`))} (70%)</p><p className="text-2xl font-black text-emerald-600">{reaisDeCentavos(data?.professionalCreditCents ?? 0)}</p></div>
         </div>
         <div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr className="text-left text-muted border-b border-line"><th className="py-3">Data</th><th>Paciente</th><th>Pagamento</th><th>Crédito 70%</th><th>Forma</th></tr></thead>
-          <tbody>{data?.transactions.map((item) => <tr key={item.id} data-foco={focoPagamento(item.id)} className="border-b border-line/70"><td className="py-3">{new Date(item.receivedAt).toLocaleDateString('pt-BR')}</td><td className="font-bold">{item.patientName}</td><td>{reaisDeCentavos(item.amountCents)}</td><td className="text-emerald-700 font-bold">{reaisDeCentavos(item.professionalCreditCents)}</td><td>{item.method}</td></tr>)}</tbody></table>
+          <tbody>{data?.transactions.map((item) => <tr key={item.id} data-foco={focoPagamento(item.id)} className="border-b border-line/70"><td className="py-3">{new Date(item.receivedAt).toLocaleDateString('pt-BR')}</td><td className="font-bold">{item.patientName}</td><td>{reaisDeCentavos(item.amountCents)}</td><td className="text-emerald-700 font-bold">{reaisDeCentavos(item.professionalCreditCents)}</td><td>{rotuloFormaPagamento(item.method)}</td></tr>)}</tbody></table>
           {data?.transactions.length === 0 && <p className="text-center text-muted py-8">Nenhum pagamento conciliado neste mês.</p>}
         </div>
       </section>
@@ -220,9 +241,11 @@ export default function MeuFinanceiroPage() {
                 <th>Paciente</th>
                 <th>Atendimento</th>
                 <th>Pagamento</th>
+                <th>Forma</th>
                 <th>Valor</th>
                 <th>Recebido</th>
                 <th>Em aberto</th>
+                <th>Link de pagamento</th>
                 <th className="text-right py-3 pr-2">Ações</th>
               </tr>
             </thead>
@@ -288,10 +311,30 @@ export default function MeuFinanceiroPage() {
                         </span>
                       )}
                     </td>
+                    <td className="font-semibold text-ink">
+                      {item.paymentMethod ? rotuloFormaPagamento(item.paymentMethod) : '—'}
+                    </td>
                     <td>{reaisDeCentavos(item.amountCents)}</td>
                     <td className="text-emerald-700 font-bold">{reaisDeCentavos(item.receivedCents)}</td>
                     <td className={item.outstandingCents > 0 ? 'font-bold text-amber-700' : 'text-muted'}>
                       {reaisDeCentavos(item.outstandingCents)}
+                    </td>
+                    <td>
+                      {item.paymentLink && !custeado && !isCancelado && item.outstandingCents > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => void copiarLinkPagamento(item)}
+                          className="rounded-xl border border-line bg-white px-2.5 py-1 text-[11px] font-bold text-ink hover:bg-slate-100 hover:text-psi-deep transition inline-flex items-center gap-1 shadow-sm whitespace-nowrap"
+                        >
+                          {linkCopiado === item.chargeId ? (
+                            <><Check className="w-3 h-3 text-emerald-600" /> Copiado!</>
+                          ) : (
+                            <><Copy className="w-3 h-3 text-psi-vibrant" /> Copiar link</>
+                          )}
+                        </button>
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
                     </td>
                     <td className="text-right py-3 pr-2">
                       <button

@@ -238,10 +238,14 @@ function rotuloModalidadeLead(modalidade: string | undefined): string {
       return 'Acessível (social)';
     case 'CASAL_SOCIAL':
       return 'Acessível (social) — casal';
+    case 'FAMILIA_SOCIAL':
+      return 'Acessível (social) — família';
     case 'PARTICULAR':
       return 'Particular';
     case 'CASAL_PARTICULAR':
       return 'Particular — casal';
+    case 'FAMILIA_PARTICULAR':
+      return 'Particular — família';
     default:
       return modalidade || 'Não informada';
   }

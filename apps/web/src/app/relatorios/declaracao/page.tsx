@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AlertTriangle, Award, Loader2, Printer, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, Award, Loader2, PencilLine, Printer, RotateCcw, ShieldCheck } from 'lucide-react';
 import { DocumentoDeclaracao } from '@/components/declaracao/DocumentoDeclaracao';
 import './declaracao.css';
 
@@ -14,8 +14,9 @@ import './declaracao.css';
  * com o curso de outra e um total digitado — e o documento saía com a mesma
  * aparência de um emitido corretamente.
  *
- * Agora nada é digitado. O psicólogo é escolhido do cadastro, o resto vem do
- * servidor, e o papel só existe **depois** da emissão registrada.
+ * O psicólogo continua sendo escolhido do cadastro e o servidor preenche uma
+ * base confiável. A gestão pode revisar e ajustar os campos antes de emitir;
+ * os valores finais seguem para o registro e para o papel juntos.
  *
  * O documento não carrega mais código de conferência nem QR: o relatório de
  * estágio vale pelas assinaturas da coordenação e da supervisão, e a validação
@@ -50,6 +51,19 @@ interface Emitida extends Previa {
   emitidoEm: string;
 }
 
+type CamposEditaveis = Pick<
+  Previa,
+  | 'psicologoNome'
+  | 'psicologoCrp'
+  | 'tratamento'
+  | 'curso'
+  | 'periodoInicio'
+  | 'periodoFim'
+  | 'totalHoras'
+  | 'coordenadora'
+  | 'supervisora'
+>;
+
 function mesAno(iso: string): string {
   const rotulo = new Date(`${iso}T12:00:00Z`).toLocaleDateString('pt-BR', {
     month: 'long',
@@ -73,6 +87,7 @@ export default function DeclaracaoHorasPage() {
   const [carregandoLista, setCarregandoLista] = useState(true);
   const [selecionado, setSelecionado] = useState('');
   const [previa, setPrevia] = useState<Previa>();
+  const [campos, setCampos] = useState<CamposEditaveis>();
   const [carregandoPrevia, setCarregandoPrevia] = useState(false);
   const [emitida, setEmitida] = useState<Emitida>();
   const [emitindo, setEmitindo] = useState(false);
@@ -98,7 +113,10 @@ export default function DeclaracaoHorasPage() {
       .then(async (resposta) => {
         if (!resposta.ok) throw new Error(await mensagemDeErro(resposta));
         const corpo = (await resposta.json()) as { data: Previa };
-        if (ativo) setPrevia(corpo.data);
+        if (ativo) {
+          setPrevia(corpo.data);
+          setCampos(corpo.data);
+        }
       })
       .catch((causa: Error) => {
         if (ativo) setErro(causa.message);
@@ -119,7 +137,7 @@ export default function DeclaracaoHorasPage() {
       const resposta = await fetch('/api/application/declaracao-horas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ psicologoId: selecionado }),
+        body: JSON.stringify({ psicologoId: selecionado, campos }),
       });
       if (!resposta.ok) throw new Error(await mensagemDeErro(resposta));
       const corpo = (await resposta.json()) as { data: Emitida };
@@ -142,6 +160,7 @@ export default function DeclaracaoHorasPage() {
   function selecionar(psicologoId: string) {
     setSelecionado(psicologoId);
     setPrevia(undefined);
+    setCampos(undefined);
     setEmitida(undefined);
     setErro(undefined);
     // O "carregando" começa junto com a escolha, e não dentro do efeito: a
@@ -150,6 +169,16 @@ export default function DeclaracaoHorasPage() {
   }
 
   const escolhido = psicologos.find((psi) => psi.id === selecionado);
+  const camposValidos =
+    campos &&
+    Object.entries(campos).every(([, valor]) => String(valor).trim()) &&
+    campos.periodoInicio <= campos.periodoFim &&
+    Number.isInteger(campos.totalHoras) &&
+    campos.totalHoras > 0;
+
+  function editarCampo<K extends keyof CamposEditaveis>(campo: K, valor: CamposEditaveis[K]) {
+    setCampos((atuais) => (atuais ? { ...atuais, [campo]: valor } : atuais));
+  }
 
   return (
     <div className="min-h-screen bg-slate-100 p-4 md:p-8 text-slate-800 font-sans print:p-0 print:bg-white">
@@ -227,16 +256,55 @@ export default function DeclaracaoHorasPage() {
             </p>
           )}
 
-          {previa && !emitida && (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+          {previa && campos && !emitida && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                    <PencilLine className="h-4 w-4 text-purple-700" />
+                    Campos do documento
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Revise e ajuste os dados antes de emitir. O registro guardará os valores abaixo.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCampos(previa)}
+                  className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-purple-800 hover:bg-purple-100"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  Restaurar cadastro
+                </button>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <CampoTexto label="Nome completo" value={campos.psicologoNome} onChange={(valor) => editarCampo('psicologoNome', valor)} />
+                <CampoTexto label="CRP" value={campos.psicologoCrp} onChange={(valor) => editarCampo('psicologoCrp', valor)} />
+                <CampoTexto label="Tratamento acadêmico" value={campos.tratamento} onChange={(valor) => editarCampo('tratamento', valor)} />
+                <CampoTexto label="Curso / pós-graduação" value={campos.curso} onChange={(valor) => editarCampo('curso', valor)} />
+                <CampoTexto label="Coordenadora" value={campos.coordenadora} onChange={(valor) => editarCampo('coordenadora', valor)} />
+                <CampoTexto label="Supervisora" value={campos.supervisora} onChange={(valor) => editarCampo('supervisora', valor)} />
+                <CampoTexto label="Início do período" type="date" value={campos.periodoInicio} onChange={(valor) => editarCampo('periodoInicio', valor)} />
+                <CampoTexto label="Fim do período" type="date" value={campos.periodoFim} onChange={(valor) => editarCampo('periodoFim', valor)} />
+                <CampoTexto
+                  label="Total de horas"
+                  type="number"
+                  min="1"
+                  max="10000"
+                  value={String(campos.totalHoras)}
+                  onChange={(valor) => editarCampo('totalHoras', Number(valor))}
+                />
+              </div>
+
               <p className="text-xs text-slate-600">
-                Serão declaradas <strong className="text-slate-900">{previa.totalHoras} horas</strong> —{' '}
+                O cadastro apurou <strong className="text-slate-900">{previa.totalHoras} horas</strong> —{' '}
                 {previa.totalSessoes} {previa.totalSessoes === 1 ? 'atendimento realizado' : 'atendimentos realizados'} entre{' '}
                 {mesAno(previa.periodoInicio)} e {mesAno(previa.periodoFim)}.
               </p>
               <button
                 onClick={emitir}
-                disabled={emitindo}
+                disabled={emitindo || !camposValidos}
                 className="flex items-center gap-2 px-5 py-2.5 bg-purple-800 hover:bg-purple-900 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition-all shadow-md shadow-purple-900/10"
               >
                 {emitindo ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
@@ -265,5 +333,31 @@ export default function DeclaracaoHorasPage() {
           que amarra o total impresso às sessões que o produziram. */}
       {emitida && <DocumentoDeclaracao declaracao={emitida} />}
     </div>
+  );
+}
+
+interface CampoTextoProps {
+  label: string;
+  value: string;
+  onChange: (valor: string) => void;
+  type?: 'text' | 'date' | 'number';
+  min?: string;
+  max?: string;
+}
+
+function CampoTexto({ label, value, onChange, type = 'text', min, max }: CampoTextoProps) {
+  return (
+    <label className="block text-xs font-medium text-slate-700">
+      {label}
+      <input
+        type={type}
+        value={value}
+        min={min}
+        max={max}
+        required
+        onChange={(evento) => onChange(evento.target.value)}
+        className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-purple-500 focus:ring-2 focus:ring-purple-200"
+      />
+    </label>
   );
 }

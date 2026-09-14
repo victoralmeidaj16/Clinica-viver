@@ -2,17 +2,16 @@
 
 import { useMemo, useState } from 'react';
 import {
-  CalendarPlus,
   CheckCircle2,
   ChevronDown,
   Clock3,
   Layers,
-  Loader2,
   UserRound,
-  X,
 } from 'lucide-react';
 import { applicationRequest, commandHeaders } from '@/lib/applicationApi';
 import { AppointmentFrequencyField } from './AppointmentFrequencyField';
+import { ManualAppointmentHeader } from './ManualAppointmentHeader';
+import { ManualAppointmentActions } from './ManualAppointmentActions';
 import {
   CLINICAL_SERVICES,
   civilDaysBetween,
@@ -61,7 +60,7 @@ export function ManualAppointmentDialog({ patients, initialPatientId, onClose, o
   const [date, setDate] = useState(() => todayAtClinic());
   const [time, setTime] = useState('14:00');
   const [frequency, setFrequency] = useState<AppointmentFrequency>('weekly');
-  const [customIntervalDays, setCustomIntervalDays] = useState(10);
+  const [customDates, setCustomDates] = useState<string[]>([]);
   const [mode, setMode] = useState<ManualAppointmentMode>('video');
   const [chargeDueDate, setChargeDueDate] = useState(() => todayAtClinic());
   const [chargeDueTime, setChargeDueTime] = useState('14:00');
@@ -73,12 +72,15 @@ export function ManualAppointmentDialog({ patients, initialPatientId, onClose, o
   const durationMinutes = variableDuration ? Number(customDuration) : getServiceDuration(serviceKey);
   const validDuration = Number.isInteger(durationMinutes) && durationMinutes >= 15 && durationMinutes <= 240;
   const selectedService = CLINICAL_SERVICES.find((s) => s.key === serviceKey) ?? CLINICAL_SERVICES[0];
-  const safeCustomInterval = Number.isInteger(customIntervalDays) && customIntervalDays >= 1 && customIntervalDays <= 30 ? customIntervalDays : 1;
-  const recurrenceDates = useMemo(() => monthlyRecurrenceDates(date, frequency, safeCustomInterval), [date, frequency, safeCustomInterval]);
+  const recurrenceDates = useMemo(() => frequency === 'custom' ? customDates : monthlyRecurrenceDates(date, frequency), [date, frequency, customDates]);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setMessage(undefined);
+    if (!recurrenceDates.length) {
+      setMessage({ kind: 'error', text: 'Selecione pelo menos um dia no calendário.' });
+      return;
+    }
     if (!patientId) {
       setMessage({ kind: 'error', text: 'Selecione um paciente para continuar.' });
       return;
@@ -117,27 +119,11 @@ export function ManualAppointmentDialog({ patients, initialPatientId, onClose, o
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/70 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-      <section role="dialog" aria-modal="true" aria-labelledby="manual-appointment-title" className="w-full max-w-xl overflow-hidden rounded-t-[2rem] border border-white/10 bg-white shadow-2xl sm:rounded-[2rem]">
-        <header className="relative overflow-hidden bg-psi-darkest px-5 py-6 text-white sm:px-7">
-          <div className="absolute -right-10 -top-16 h-40 w-40 rounded-full border-[28px] border-psi-vibrant/15" />
-          <div className="relative flex items-start justify-between gap-4">
-            <div className="flex gap-3">
-              <span className="rounded-2xl bg-psi-vibrant p-3 shadow-lg shadow-psi-vibrant/20">
-                <CalendarPlus className="h-5 w-5" />
-              </span>
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[.22em] text-psi-vibrant">Agenda clínica</p>
-                <h2 id="manual-appointment-title" className="mt-1 text-xl font-extrabold">Novo agendamento</h2>
-                <p className="mt-1 text-xs text-psi-soft/75">Registre o horário combinado diretamente com o paciente.</p>
-              </div>
-            </div>
-            <button type="button" onClick={onClose} aria-label="Fechar" className="rounded-xl p-2 text-psi-soft hover:bg-white/10 hover:text-white">
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-        </header>
+      <section role="dialog" aria-modal="true" aria-labelledby="manual-appointment-title" className="flex max-h-[calc(100dvh-1rem)] w-full max-w-xl flex-col overflow-hidden rounded-t-[2rem] border border-white/10 bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-[2rem]">
+        <ManualAppointmentHeader onClose={onClose} />
 
-        <form onSubmit={submit} className="space-y-5 p-5 sm:p-7">
+        <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 sm:px-6">
           {message && (
             <div role="status" className={`flex items-center gap-2 rounded-2xl border px-4 py-3 text-xs font-bold ${message.kind === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-rose-200 bg-rose-50 text-rose-800'}`}>
               {message.kind === 'success' ? <CheckCircle2 className="h-4 w-4" /> : <Clock3 className="h-4 w-4" />}
@@ -219,12 +205,12 @@ export function ManualAppointmentDialog({ patients, initialPatientId, onClose, o
 
           <AppointmentFrequencyField
             value={frequency}
-            customIntervalDays={customIntervalDays}
+            initialDate={date}
             dates={recurrenceDates}
             time={time}
             disabled={saving || message?.kind === 'success'}
-            onChange={setFrequency}
-            onCustomIntervalChange={setCustomIntervalDays}
+            onChange={(value) => { setFrequency(value); if (value === 'custom' && !customDates.length && date) setCustomDates([date]); }}
+            onDatesChange={setCustomDates}
           />
 
           <fieldset disabled={saving || message?.kind === 'success'} className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
@@ -256,16 +242,10 @@ export function ManualAppointmentDialog({ patients, initialPatientId, onClose, o
             Os horários serão registrados em Brasília com duração de <strong>{validDuration ? `${durationMinutes} min` : 'a definir'}</strong> ({selectedService.label}). Cada sessão receberá sua própria cobrança e aparecerá nas notificações do sino.
           </p>
 
-          <div className="flex gap-2 pt-1">
-            <button type="button" onClick={onClose} className="btn-outline flex-1 justify-center py-3 text-xs">
-              {message?.kind === 'success' ? 'Concluir' : 'Cancelar'}
-            </button>
-            {message?.kind !== 'success' && (
-              <button type="submit" disabled={saving || eligible.length === 0} className="btn-accent flex-1 justify-center py-3 text-xs disabled:opacity-50">
-                {saving ? <><Loader2 className="h-4 w-4 animate-spin" /> Salvando…</> : <><CalendarPlus className="h-4 w-4" /> Agendar {recurrenceDates.length} {recurrenceDates.length === 1 ? 'sessão' : 'sessões'}</>}
-              </button>
-            )}
           </div>
+          <ManualAppointmentActions success={message?.kind === 'success'} saving={saving}
+            disabled={saving || eligible.length === 0 || recurrenceDates.length === 0}
+            count={recurrenceDates.length} onClose={onClose} />
         </form>
       </section>
     </div>

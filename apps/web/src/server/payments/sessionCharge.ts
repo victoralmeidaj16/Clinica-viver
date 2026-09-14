@@ -6,6 +6,7 @@ import type { PoolConnection } from 'mysql2/promise';
 import { decideSessionCharge } from '@/lib/sessionChargeRules';
 import { descricaoFiscalDaSessao } from '@/lib/sessionReference';
 import { getMysqlPool } from '@/server/oci/runtime';
+import { custeioDoAgendamentoSql } from '@/server/persistence/mysql/custeioSql';
 import {
   fromSqlTimestamp,
   instituicaoId,
@@ -46,8 +47,7 @@ export async function garantirCobrancaDaSessao(
       `SELECT a.ref_core AS agendamento_ref, a.sessao_clinica_ref, a.inicio,
               a.valor_centavos, o.ref_core AS organizacao_ref,
               pa.ref_core AS paciente_ref, pr.ref_core AS profissional_ref,
-              CASE WHEN pa.convenio_ref IS NULL THEN 0
-                   ELSE COALESCE(pa.custeado_pela_empresa, conv.empresa_paga_sessoes, 1) END
+              ${custeioDoAgendamentoSql({ agendamento: 'a', paciente: 'pa', convenio: 'conv' })}
                 AS custeado_pela_empresa
          FROM clinica_agendamentos a
          JOIN clinica_organizacoes o ON o.id = a.organizacao_id

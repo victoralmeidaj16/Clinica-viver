@@ -13,6 +13,7 @@ import {
   getOrCreateAsaasCustomer,
 } from '@/server/adapters/asaasAdapter';
 import { gerarRelatorioConvenioPdf } from '@/server/reports/convenioReportPdf';
+import { normalizarCicloCusteio } from '@/lib/convenioBilling';
 
 function admin(context: RequestContext) {
   exigirAdminFiscal(context);
@@ -165,8 +166,15 @@ export async function updatePatientConvenio(context: RequestContext, patientId: 
   const convenioId = texto(body.convenioId, 128) ?? null;
   const custeio = body.custeadoPelaEmpresa === null || body.custeadoPelaEmpresa === undefined
     ? null : body.custeadoPelaEmpresa === true;
-  await vincularPacienteConvenio(organizationId, patientId, convenioId, custeio);
-  return { patientId, convenioId, custeadoPelaEmpresa: custeio };
+  // A cota descreve um custeio empresarial limitado, então só existe junto de
+  // um convênio que paga. Aceitá-la solta gravaria um limite invisível, que
+  // voltaria a valer no dia em que alguém marcasse o paciente como custeado.
+  const cota = convenioId && custeio === true
+    ? numeroOpcional(body.custeioCota, 1, 65535, 'A quantidade de sessões custeadas') ?? null
+    : null;
+  const ciclo = cota === null ? null : normalizarCicloCusteio(body.custeioCiclo) ?? 'total';
+  await vincularPacienteConvenio(organizationId, patientId, convenioId, custeio, { cota, ciclo });
+  return { patientId, convenioId, custeadoPelaEmpresa: custeio, custeioCota: cota, custeioCiclo: ciclo };
 }
 
 function csvCell(value: string | number) {

@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   Copy,
   UsersRound,
+  Award,
 } from 'lucide-react';
 import { CadastroPsicologoForm } from '@/components/forms/CadastroPsicologoForm';
 import { PsicologoItem, FiltroStatus } from '@/components/gestao/types';
@@ -262,6 +263,19 @@ export default function GestaoPsicologosPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3 shrink-0">
+          {/*
+            O relatório de estágio mora aqui, junto do corpo clínico: quem presta
+            contas das horas é o psicólogo, então o atalho fica na tela em que a
+            gestão já cuida de cada um deles.
+          */}
+          <a
+            href="/relatorios/declaracao"
+            className="flex items-center gap-2 rounded-2xl border border-purple-200 bg-white px-4 py-3 text-xs font-extrabold text-purple-900 transition-all hover:bg-purple-50 active:scale-95"
+          >
+            <Award className="h-4 w-4 text-purple-600" />
+            <span>Relatório de estágio</span>
+          </a>
+
           <button
             type="button"
             onClick={() => setLimiteAlvo('TODOS')}

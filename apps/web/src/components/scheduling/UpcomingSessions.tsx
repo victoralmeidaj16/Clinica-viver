@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { clinicDateTimeToIso } from '@/lib/manualAppointment';
 import { focoSessao } from '@/lib/focoNotificacao';
+import { permiteNovoPagamento, rotuloFormaPagamento } from '@/lib/modalidadesPagamento';
 import { RescheduleModal } from './RescheduleModal';
 import { EditSessionModal, type SessionEditableData } from './EditSessionModal';
 
@@ -21,6 +22,7 @@ export interface AgendamentoResumo {
   realizadoEm?: string;
   linkPagamento: string;
   pagamentoStatus?: string;
+  formaPagamento?: string;
   vencimentoCobrancaEm?: string;
   custeadoPelaEmpresa: boolean;
   convenioNome?: string;
@@ -173,6 +175,8 @@ export function UpcomingSessions({ agendamentos, onCancelar, onConfirmarRealizac
           const aguardandoConfirmacao = !cancelado && item.podeConfirmarRealizacao;
           const realizado = !cancelado && !aguardandoConfirmacao
             && (item.status === 'realizado' || Boolean(item.realizadoEm) || jaPassou);
+          const pagamentoDisponivel =
+            !item.custeadoPelaEmpresa && permiteNovoPagamento(item.pagamentoStatus);
           return (
             <li key={item.id} data-foco={focoSessao(item.id)} className="space-y-3 px-6 py-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -272,23 +276,24 @@ export function UpcomingSessions({ agendamentos, onCancelar, onConfirmarRealizac
                     <span className="flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-extrabold text-emerald-800">
                       <CreditCard className="h-3.5 w-3.5" /> Custeado por {item.convenioNome ?? 'empresa'} - sem cobrança
                     </span>
-                  ) : <>
+                  ) : pagamentoDisponivel ? <>
                     <a href={item.linkPagamento} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 rounded-xl border border-psi-vibrant/25 bg-white px-3 py-2 text-[11px] font-extrabold text-psi-deep hover:bg-psi-soft/50">
                       <CreditCard className="h-3.5 w-3.5" /> Pagamento da sessão
                     </a>
                     <button type="button" onClick={() => void copiarPagamento(item)} className="flex items-center gap-1.5 rounded-xl border border-line bg-white px-3 py-2 text-[11px] font-bold text-muted hover:text-ink">
                       <Copy className="h-3.5 w-3.5" /> {copiadoId === item.id ? 'Link copiado' : 'Copiar link'}
                     </button>
-                  </>}
-                  {!item.custeadoPelaEmpresa && item.pagamentoStatus && (
-                    <span className="self-center text-[10px] font-bold uppercase tracking-wider text-muted">
+                  </> : null}
+                  {item.pagamentoStatus && (
+                    <span className={`self-center text-[10px] font-bold uppercase tracking-wider ${item.pagamentoStatus === 'paid' ? 'text-emerald-700' : 'text-muted'}`}>
                       Pagamento: {item.pagamentoStatus === 'paid' ? 'pago' : 'pendente'}
+                      {item.formaPagamento ? ` · ${rotuloFormaPagamento(item.formaPagamento)}` : ''}
                     </span>
                   )}
-                  {!item.custeadoPelaEmpresa && !['paid', 'partially_paid', 'refunded'].includes(item.pagamentoStatus ?? '') && (
+                  {pagamentoDisponivel && item.pagamentoStatus !== 'partially_paid' && (
                     <button type="button" onClick={() => abrirVencimento(item)} className="flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-900 hover:bg-amber-100"><CalendarClock className="h-3.5 w-3.5" /> Editar vencimento</button>
                   )}
-                  {!item.custeadoPelaEmpresa && item.vencimentoCobrancaEm && <span className="self-center text-[10px] font-semibold text-muted">Vence {FORMATO.format(new Date(item.vencimentoCobrancaEm))}</span>}
+                  {pagamentoDisponivel && item.vencimentoCobrancaEm && <span className="self-center text-[10px] font-semibold text-muted">Vence {FORMATO.format(new Date(item.vencimentoCobrancaEm))}</span>}
                 </div>
               )}
             </li>

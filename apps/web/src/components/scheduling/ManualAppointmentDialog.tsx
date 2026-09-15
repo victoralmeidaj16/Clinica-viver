@@ -35,6 +35,7 @@ export interface ManualAppointmentPatient {
 
 interface Props {
   patients: readonly ManualAppointmentPatient[];
+  servicosHabilitados?: readonly string[];
   initialPatientId?: string;
   onClose: () => void;
   onScheduled?: () => void | Promise<void>;
@@ -45,7 +46,7 @@ const MODES: Array<{ value: ManualAppointmentMode; label: string }> = [
   { value: 'in_person', label: 'Presencial' },
 ];
 
-export function ManualAppointmentDialog({ patients, initialPatientId, onClose, onScheduled }: Props) {
+export function ManualAppointmentDialog({ patients, servicosHabilitados = [], initialPatientId, onClose, onScheduled }: Props) {
   const eligible = useMemo(
     () =>
       patients
@@ -55,7 +56,17 @@ export function ManualAppointmentDialog({ patients, initialPatientId, onClose, o
   );
 
   const [patientId, setPatientId] = useState(initialPatientId ?? '');
-  const [serviceKey, setServiceKey] = useState<string>('PSICOTERAPIA');
+  const servicosDisponiveis = useMemo(
+    () => servicosHabilitados.length === 0
+      ? CLINICAL_SERVICES
+      : CLINICAL_SERVICES.filter((servico) => servicosHabilitados.includes(servico.key)),
+    [servicosHabilitados]
+  );
+  const [serviceKey, setServiceKey] = useState<string>(() =>
+    servicosHabilitados.length > 0 && !servicosHabilitados.includes('PSICOTERAPIA')
+      ? servicosHabilitados[0]
+      : 'PSICOTERAPIA'
+  );
   const [customDuration, setCustomDuration] = useState('');
   const [date, setDate] = useState(() => todayAtClinic());
   const [time, setTime] = useState('14:00');
@@ -99,7 +110,7 @@ export function ManualAppointmentDialog({ patients, initialPatientId, onClose, o
         await applicationRequest('/appointments', {
           method: 'POST', headers: commandHeaders(),
           body: JSON.stringify({ id: `appointment-manual-${crypto.randomUUID()}`, patientId, startsAt, endsAt,
-            timezone: FUSO_CLINICA, mode, createdAt: new Date().toISOString(),
+            timezone: FUSO_CLINICA, mode, createdAt: new Date().toISOString(), serviceKey,
             chargeDueAt: clinicDateTimeToIso(occurrenceDueDate, chargeDueTime) }),
         });
         createdCount += 1;
@@ -162,7 +173,7 @@ export function ManualAppointmentDialog({ patients, initialPatientId, onClose, o
                 disabled={saving || message?.kind === 'success'}
                 className="input w-full appearance-none py-3 pl-10 pr-10 text-xs font-bold"
               >
-                {CLINICAL_SERVICES.map((servico) => (
+                {servicosDisponiveis.map((servico) => (
                   <option key={servico.key} value={servico.key}>
                     {servico.label} ({servico.variableDuration ? 'duração variável' : `${servico.durationMinutes} min`})
                   </option>

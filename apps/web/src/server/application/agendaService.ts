@@ -61,6 +61,7 @@ export async function getAgendaOverview(context: RequestContext) {
 
   return {
     professionalName: profile.professionalName,
+    servicosHabilitados: profile.servicosHabilitados,
     agendaToken: profile.token,
     availability,
     blocks,

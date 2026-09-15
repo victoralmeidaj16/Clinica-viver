@@ -18,6 +18,7 @@ interface AgendaOverview {
   availability: JanelaEditavel[];
   blocks: BloqueioAgenda[];
   appointments: AgendamentoResumo[];
+  servicosHabilitados: string[];
 }
 
 export default function AgendaPage() {
@@ -174,6 +175,7 @@ export default function AgendaPage() {
       {agendamentoManualAberto && (
         <ManualAppointmentDialog
           patients={pacientes}
+          servicosHabilitados={dados?.servicosHabilitados}
           onClose={() => setAgendamentoManualAberto(false)}
           onScheduled={carregar}
         />

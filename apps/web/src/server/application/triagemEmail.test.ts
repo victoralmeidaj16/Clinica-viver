@@ -52,11 +52,17 @@ describe('e-mails de confirmação de agendamento/triagem', () => {
     const conteudo = conteudoTriagemRecebida(lead, psicologo);
     expect(conteudo.text).toContain('Protocolo de Acompanhamento: VM-123456');
     expect(conteudo.text).toContain('Dra. Beatriz Santos');
+    expect(conteudo.text).toContain('Psicólogo(a): Dra. Beatriz Santos');
+    expect(conteudo.text).toContain('O psicólogo(a) entrará em contato com você via WhatsApp em até 24 horas para combinar o melhor dia e horário da sua primeira sessão.');
+    expect(conteudo.text).not.toContain('Um de nossos psicólogos credenciados');
     expect(conteudo.text).toContain('24 horas');
     expect(conteudo.text).toContain('188');
     expect(conteudo.text).toContain('CVV');
     expect(conteudo.html).toContain('João &amp; Maria');
     expect(conteudo.html).toContain('VM-123456');
+    expect(conteudo.html).toContain('<strong>Psicólogo(a):</strong> Dra. Beatriz Santos');
+    expect(conteudo.html).toContain('O psicólogo(a) entrará em contato com você via WhatsApp');
+    expect(conteudo.html).not.toContain('Um de nossos psicólogos credenciados');
     expect(conteudo.html).toContain('188');
   });
 
@@ -182,4 +188,3 @@ describe('e-mails de confirmação de agendamento/triagem', () => {
     });
   });
 });
-

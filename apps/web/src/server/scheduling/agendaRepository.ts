@@ -31,6 +31,8 @@ export interface AgendaProfile {
   organizationId: string;
   professionalId: string;
   professionalName: string;
+  /** Serviços homologados para o profissional; vazio mantém compatibilidade legada. */
+  servicosHabilitados: readonly string[];
 }
 
 export interface PacienteIdentificado {
@@ -79,21 +81,44 @@ interface ProfileRow extends RowDataPacket {
   profissional_ref: string;
   profissional_id: string;
   nome: string;
+  servicos_habilitados: string | null;
 }
 
 const PROFILE_SELECT = `
   SELECT p.token_link_agenda, o.ref_core AS organizacao_ref, o.id AS organizacao_id,
-         p.ref_core AS profissional_ref, p.id AS profissional_id, p.nome
+         p.ref_core AS profissional_ref, p.id AS profissional_id, p.nome,
+         COALESCE(
+           (SELECT cp.servicos_habilitados
+              FROM clinica_cadastros_psicologos cp
+             WHERE cp.profissional_ref = p.ref_core
+             ORDER BY cp.atualizado_em DESC
+             LIMIT 1),
+           (SELECT GROUP_CONCAT(e.especialidade ORDER BY e.especialidade SEPARATOR ',')
+              FROM clinica_profissionais_especialidades e
+             WHERE e.profissional_id = p.id)
+         ) AS servicos_habilitados
     FROM clinica_profissionais p
     JOIN clinica_organizacoes o ON o.id = p.organizacao_id
    WHERE p.instituicao_id = ? AND p.ativo = 1`;
 
 function perfil(row: ProfileRow): AgendaProfile {
+  let servicosHabilitados: string[] = [];
+  if (row.servicos_habilitados) {
+    try {
+      const parsed = JSON.parse(row.servicos_habilitados);
+      servicosHabilitados = Array.isArray(parsed)
+        ? parsed.filter((item): item is string => typeof item === 'string')
+        : [];
+    } catch {
+      servicosHabilitados = row.servicos_habilitados.split(',').map((item) => item.trim()).filter(Boolean);
+    }
+  }
   return {
     token: row.token_link_agenda,
     organizationId: row.organizacao_ref,
     professionalId: row.profissional_ref,
     professionalName: row.nome,
+    servicosHabilitados,
   };
 }
 

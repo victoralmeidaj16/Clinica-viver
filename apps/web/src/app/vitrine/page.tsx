@@ -96,11 +96,9 @@ const PASSOS_AGENDAMENTO: PassoJornada[] = [
     titulo: 'Seus dados',
     resumo: 'Finalize a solicitação',
     detalhes: [
-      'Somente no último passo você informa seus dados. O psicólogo entra em contato no WhatsApp em até 24 horas.',
-      'Se após 24 horas você ainda não tiver recebido o contato do seu psicoterapeuta, por favor, nos avise para que possamos ajudar.',
+      'Somente no último passo você informa seus dados. O psicólogo entrará em contato pelo WhatsApp em até 24 horas úteis, de segunda a sexta, das 8h às 17h.',
     ],
-    observacao:
-      '(→ Se o prazo de 24h coincidir com finais de semana ou feriados, ele será automaticamente estendido até o próximo dia útil.)',
+    observacao: 'Solicitações feitas fora desse horário começam a contar a partir das 8h do próximo dia útil.',
   },
 ];
 
@@ -436,6 +434,7 @@ export default function ViverMaisLandingPage() {
   const handleSelectServiceAndPrice = (serviceKey: ServicoKey, modalidadeType: ModalidadeKey) => {
     setSelectedService(serviceKey);
     setSelectedModalidade(modalidadeType);
+    const modalidadeParticular = modalidadeType.includes('PARTICULAR');
     setForm((prev) => {
       let paraQuemE = prev.paraQuemE;
       if (serviceKey === 'ORIENTACAO_PARENTAL') {
@@ -451,7 +450,11 @@ export default function ViverMaisLandingPage() {
       } else if (['Casal', 'Família', 'Grupo'].includes(paraQuemE)) {
         paraQuemE = '';
       }
-      return { ...prev, paraQuemE };
+      return {
+        ...prev,
+        paraQuemE,
+        ...(modalidadeParticular ? { possuiConvenio: 'NAO', convenioSelecionado: '' } : {}),
+      };
     });
     setCaminho(null);
     setPsicologoEscolhido(null);
@@ -661,9 +664,7 @@ export default function ViverMaisLandingPage() {
         <div className="max-w-6xl mx-auto">
           <div className="rounded-3xl border border-line bg-surface p-6 shadow-card sm:p-8">
             <div className="mx-auto max-w-2xl space-y-2 text-center">
-              <span className="chip-accent text-[11px]">
-                {isPsicologo ? 'Jornada do Psicólogo' : 'Jornada Descomplicada'}
-              </span>
+              {isPsicologo && <span className="chip-accent text-[11px]">Jornada do Psicólogo</span>}
               <h3 className="text-xl font-black text-ink sm:text-2xl">
                 {isPsicologo
                   ? `Como Funciona o Credenciamento em ${PASSOS_CREDENCIAMENTO.length} Passos`
@@ -1448,8 +1449,8 @@ export default function ViverMaisLandingPage() {
                 </fieldset>
               )}
 
-              {/* Você tem vínculo com alguma empresa parceira? */}
-              <div className="space-y-2">
+              {/* Convênios só se aplicam às modalidades custeadas pela empresa. */}
+              {!selectedModalidade?.includes('PARTICULAR') && <div className="space-y-2">
                 <label className="font-bold text-slate-700 block">Você tem vínculo com alguma empresa parceira? <span className="text-rose-500">*</span></label>
                 <div className="flex items-center gap-4">
                   <label className="flex items-center gap-1.5 cursor-pointer">
@@ -1475,10 +1476,10 @@ export default function ViverMaisLandingPage() {
                     Não
                   </label>
                 </div>
-              </div>
+              </div>}
 
               {/* Dropdown condicional da empresa parceira */}
-              {form.possuiConvenio === 'SIM' && (
+              {!selectedModalidade?.includes('PARTICULAR') && form.possuiConvenio === 'SIM' && (
                 <div className="animate-in fade-in duration-200">
                   <label className="font-bold text-slate-700 block mb-1">Selecione a empresa parceira <span className="text-rose-500">*</span></label>
                   {conveniosError ? (

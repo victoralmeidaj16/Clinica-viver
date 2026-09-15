@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import type { PatientDirectoryEntry } from '@/server/application/patientDirectory';
 import { focoPaciente } from '@/lib/focoNotificacao';
+import { resumoCusteio } from '@/lib/convenioBilling';
 
 interface PatientCardProps {
   patient: PatientDirectoryEntry;
@@ -53,6 +54,8 @@ export function PatientCard({
   onDropout,
   canRegisterDropout = false,
 }: PatientCardProps) {
+  const custeio = resumoCusteio(patient);
+
   return (
     <div
       data-foco={focoPaciente(patient.id)}
@@ -123,6 +126,13 @@ export function PatientCard({
             </span>
           </div>
         </div>
+
+        {custeio && (
+          <p className="-mt-1 flex items-center gap-1.5 text-[11px] font-bold text-emerald-700">
+            <Building2 className="h-3.5 w-3.5 shrink-0" />
+            <span>{custeio}</span>
+          </p>
+        )}
 
         {/* METADADOS DA AGENDA */}
         <div className="flex items-center justify-between border-t border-line pt-2 text-xs text-muted">

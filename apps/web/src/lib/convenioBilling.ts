@@ -24,6 +24,23 @@ export function ratearFatura(valorRecebidoCents: number, valoresCents: readonly 
  */
 export type CusteioCiclo = 'total' | 'mensal';
 
+/** Resumo curto do acordo financeiro para os cartões de pacientes. */
+export function resumoCusteio(input: {
+  custeioConfigurado?: boolean;
+  custeioCota?: number;
+  custeioCiclo?: CusteioCiclo;
+}): string | undefined {
+  if (Number.isInteger(input.custeioCota) && (input.custeioCota ?? 0) > 0) {
+    const quantidade = input.custeioCota === 1 ? '1 sessão' : `${input.custeioCota} sessões`;
+    return input.custeioCiclo === 'mensal'
+      ? `${quantidade}/mês pagas pela empresa`
+      : `${quantidade} pagas pela empresa`;
+  }
+  if (input.custeioConfigurado === true) return 'Sessões pagas pela empresa';
+  if (input.custeioConfigurado === false) return 'Sessões pagas pelo paciente';
+  return undefined;
+}
+
 export function normalizarCicloCusteio(valor: unknown): CusteioCiclo | null {
   return valor === 'mensal' ? 'mensal' : valor === 'total' ? 'total' : null;
 }

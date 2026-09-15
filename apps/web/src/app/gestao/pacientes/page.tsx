@@ -7,6 +7,7 @@ import type { ManagedPatient, ManagedPsychologist, PatientManagementStatus } fro
 import type { ManagedConvenio } from '@/components/patients/managementTypes';
 import { commandHeaders } from '@/lib/applicationApi';
 import type { CusteioCiclo } from '@/lib/convenioBilling';
+import { resumoCusteio } from '@/lib/convenioBilling';
 
 type FilterStatus = 'TODOS' | PatientManagementStatus;
 type SortKey = 'ESPERA' | 'ENTRADA' | 'NOME';
@@ -342,6 +343,11 @@ export default function GestaoPacientesPage() {
                         {patient.modalidade ?? 'Modalidade pendente'}
                         {agreementOf(patient) !== 'Sem convênio' && ` · ${agreementOf(patient)}`}
                       </p>
+                      {resumoCusteio(patient) && (
+                        <p className="mt-1 text-[11px] font-bold text-emerald-700">
+                          {resumoCusteio(patient)}
+                        </p>
+                      )}
                     </td>
                     <td className="p-4 font-semibold text-ink">
                       {patient.psicologoNome ?? (

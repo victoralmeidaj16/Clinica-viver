@@ -8,6 +8,7 @@ import {
   garantirCobrancaDaSessao,
 } from '@/server/payments/sessionCharge';
 import { isFutureChargeDueAt } from '@/lib/chargeDue';
+import { getProfessionalAgendaProfile } from '@/server/scheduling/agendaRepository';
 
 export async function listAppointments(context: RequestContext) {
   assertStaffAuthorized(context.actor, 'schedule.read', { organizationId: context.actor.organizationId });
@@ -21,9 +22,17 @@ export async function listAppointments(context: RequestContext) {
   });
 }
 
-export async function createAppointmentFlow(context: RequestContext, input: ScheduleAppointmentInput, chargeDueAt?: string) {
+export async function createAppointmentFlow(context: RequestContext, input: ScheduleAppointmentInput, chargeDueAt?: string, serviceKey?: string) {
+  if (!serviceKey?.trim()) {
+    throw new ApplicationError('INVALID_INPUT', 'Informe o serviço do agendamento.', 400);
+  }
   if (context.actor.roles.includes('professional') && context.actor.professionalProfileId !== input.professionalId) {
     throw new ApplicationError('FORBIDDEN', 'Um psicólogo só pode agendar para o próprio perfil.', 403);
+  }
+  const profile = await getProfessionalAgendaProfile(context.actor.organizationId, input.professionalId);
+  if (!profile) throw new ApplicationError('NOT_FOUND', 'Perfil profissional ativo não encontrado.', 404);
+  if (profile.servicosHabilitados.length > 0 && !profile.servicosHabilitados.includes(serviceKey.trim())) {
+    throw new ApplicationError('FORBIDDEN', 'Este serviço não está habilitado para o perfil profissional.', 403);
   }
   const effectiveDueAt = chargeDueAt || input.startsAt;
   if (!isFutureChargeDueAt(effectiveDueAt)) {

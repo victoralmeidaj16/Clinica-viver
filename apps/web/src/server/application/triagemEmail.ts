@@ -74,11 +74,10 @@ export function conteudoTriagemRecebida(
       `Protocolo de Acompanhamento: ${lead.protocolo}`,
       `Paciente: ${nomePaciente}`,
       `Serviço Solicitado: ${lead.servico || 'Psicoterapia'}`,
-      ...(nomePsicologo ? [`Profissional Vinculado: ${nomePsicologo}`] : []),
+      ...(nomePsicologo ? [`Psicólogo(a): ${nomePsicologo}`] : []),
       '',
       'Próximos Passos:',
-      '• Um de nossos psicólogos entrará em contato via WhatsApp no prazo de até 24 horas para alinhar o dia e horário do seu atendimento.',
-      '• (Caso o prazo de 24h coincida com finais de semana ou feriados, o contato ocorrerá no próximo dia útil).',
+      'O psicólogo(a) entrará em contato com você via WhatsApp em até 24 horas para combinar o melhor dia e horário da sua primeira sessão.',
       '',
       '⚠️ ATENÇÃO & SUPORTE DE EMERGÊNCIA:',
       'Se você ou alguém que você conhece estiver passando por uma crise emocional aguda, sofrimento intenso ou risco à vida, ligue imediatamente para o CVV no número 188 (ligação gratuita, 24 horas por dia) ou procure a Unidade de Pronto Atendimento (UPA) mais próxima.',
@@ -95,12 +94,11 @@ export function conteudoTriagemRecebida(
         <p style="margin: 0 0 8px 0;"><strong>Protocolo:</strong> <span style="font-family: monospace; font-size: 1.1em; color: #581c87;">${protocoloSeguro}</span></p>
         <p style="margin: 0 0 8px 0;"><strong>Paciente:</strong> ${nomePacienteSeguro}</p>
         <p style="margin: 0 0 8px 0;"><strong>Serviço:</strong> ${servicoSeguro}</p>
-        ${psicologoSeguro ? `<p style="margin: 0;"><strong>Profissional:</strong> ${psicologoSeguro}</p>` : ''}
+        ${psicologoSeguro ? `<p style="margin: 0;"><strong>Psicólogo(a):</strong> ${psicologoSeguro}</p>` : ''}
       </div>
 
       <h3 style="color: #334155; font-size: 1.1em;">Próximos Passos:</h3>
-      <p>Um de nossos psicólogos credenciados entrará em contato com você via WhatsApp em até <strong>24 horas</strong> para combinar o melhor dia e horário da sua primeira sessão.</p>
-      <p style="font-size: 0.85em; color: #64748b; font-style: italic;">*Se o prazo de 24h coincidir com finais de semana ou feriados, o contato ocorrerá no primeiro dia útil subsequente.</p>
+      <p>O psicólogo(a) entrará em contato com você via WhatsApp em até <strong>24 horas</strong> para combinar o melhor dia e horário da sua primeira sessão.</p>
 
       <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 16px; margin: 24px 0;">
         <strong style="color: #991b1b; display: block; margin-bottom: 6px;">⚠️ Suporte e Acolhimento em Crise:</strong>

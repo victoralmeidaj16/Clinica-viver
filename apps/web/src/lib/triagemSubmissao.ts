@@ -250,6 +250,9 @@ export function validarSubmissaoTriagem(corpo: unknown): ResultadoValidacao {
     return recusa('Não foi possível validar o envio do formulário.');
   }
 
+  const modalidade = texto(body.modalidade, 40);
+  const modalidadeParticular = modalidade?.toUpperCase().includes('PARTICULAR');
+
   return {
     ok: true,
     dados: {
@@ -269,13 +272,13 @@ export function validarSubmissaoTriagem(corpo: unknown): ResultadoValidacao {
       bairro,
       cidade,
       estadoUf,
-      possuiConvenio: texto(body.possuiConvenio, 20),
-      convenioSelecionado: texto(body.convenioSelecionado, 120) ?? 'Nenhum',
+      possuiConvenio: modalidadeParticular ? 'NAO' : texto(body.possuiConvenio, 20),
+      convenioSelecionado: modalidadeParticular ? 'Nenhum' : texto(body.convenioSelecionado, 120) ?? 'Nenhum',
       origem: texto(body.origem, 80) ?? 'Formulário Vitrine',
       turno,
       servico: texto(body.servico, 120),
       servicoKey: texto(body.servicoKey, 40),
-      modalidade: texto(body.modalidade, 40),
+      modalidade,
       paraQuemE: livres[1],
       preferenciaGeneroPsicologo: preferenciaGenero(body.preferenciaGeneroPsicologo),
       especificarNecessidades: Boolean(body.especificarNecessidades),

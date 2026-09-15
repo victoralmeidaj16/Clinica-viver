@@ -17,6 +17,7 @@ import {
 import { isMysqlConfigured, getMysqlPool } from '@/server/oci/runtime';
 import { instituicaoId } from '@/server/persistence/mysql/mappers';
 import type { RowDataPacket } from 'mysql2/promise';
+import { normalizarCicloCusteio } from '@/lib/convenioBilling';
 
 /**
  * Cadastro de pacientes visto pela equipe.
@@ -45,6 +46,9 @@ export interface PatientDirectoryEntry {
   lastRegistrationUpdate?: PatientRegistrationUpdate;
   conveniado?: boolean;
   convenioNome?: string;
+  custeioConfigurado?: boolean;
+  custeioCota?: number;
+  custeioCiclo?: 'total' | 'mensal';
   demanda?: string;
 }
 
@@ -75,6 +79,8 @@ export async function listPatientDirectory(context: RequestContext): Promise<rea
       ? getMysqlPool()
           .query<RowDataPacket[]>(
             `SELECT p.ref_core, p.convenio_ref, p.custeado_pela_empresa,
+                    p.custeio_sessoes_cota, p.custeio_sessoes_ciclo,
+                    c.empresa_paga_sessoes,
                     c.nome AS convenio_nome
                FROM clinica_pacientes p
                JOIN clinica_organizacoes o ON o.id = p.organizacao_id
@@ -176,6 +182,13 @@ export async function listPatientDirectory(context: RequestContext): Promise<rea
       lastRegistrationUpdate: contactMap[patient.id]?.lastRegistrationUpdate,
       conveniado,
       convenioNome,
+      custeioConfigurado: agreement?.custeado_pela_empresa === null || agreement?.custeado_pela_empresa === undefined
+        ? (agreement?.empresa_paga_sessoes === null || agreement?.empresa_paga_sessoes === undefined
+          ? undefined : Boolean(agreement.empresa_paga_sessoes))
+        : Boolean(agreement.custeado_pela_empresa),
+      custeioCota: agreement?.custeio_sessoes_cota === null || agreement?.custeio_sessoes_cota === undefined
+        ? undefined : Number(agreement.custeio_sessoes_cota),
+      custeioCiclo: normalizarCicloCusteio(agreement?.custeio_sessoes_ciclo) ?? undefined,
       demanda,
     };
   });

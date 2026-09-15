@@ -11,6 +11,6 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  try { const context = await resolveRequestContext(request, true); const body = await readJson(request); return success(await createAppointmentFlow(context, parseAppointmentInput(body, context), body.chargeDueAt ? String(body.chargeDueAt) : undefined), 201); }
+  try { const context = await resolveRequestContext(request, true); const body = await readJson(request); return success(await createAppointmentFlow(context, parseAppointmentInput(body, context), body.chargeDueAt ? String(body.chargeDueAt) : undefined, typeof body.serviceKey === 'string' ? body.serviceKey : undefined), 201); }
   catch (error) { return failure(error); }
 }

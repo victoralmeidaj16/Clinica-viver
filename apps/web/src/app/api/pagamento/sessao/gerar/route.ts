@@ -11,6 +11,7 @@ import {
 } from '@/server/adapters/interPixAdapter';
 import { rateLimited, validCpf } from '@/server/http/publicRequest';
 import {
+  SessionChargeUnavailableError,
   bindProviderPayment,
   claimCheckoutProvider,
   isCompanyFundedReservation,
@@ -140,6 +141,9 @@ export async function POST(request: Request) {
       status: payment.status,
     }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
+    if (error instanceof SessionChargeUnavailableError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
     console.error('[pagamento-sessao] Falha ao gerar cobrança:', error);
     return NextResponse.json(
       { error: 'Não foi possível gerar a cobrança desta sessão agora.' },

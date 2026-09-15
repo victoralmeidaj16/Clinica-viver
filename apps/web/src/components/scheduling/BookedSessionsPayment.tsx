@@ -7,7 +7,7 @@ import { sessionBatchPaymentRule, sessionPaymentMonth } from '@/lib/sessionBatch
 import { reaisDeCentavos } from '@/lib/modalidadesPagamento';
 
 interface Session { inicio: string; linkPagamento: string; }
-interface PaymentResult { valor: number; descontoCentavos?: number; subtotalCentavos?: number; pixQrCode?: string; pixCopiaECola?: string; invoiceUrl?: string; }
+interface PaymentResult { fundedByCompany?: boolean; companyName?: string; valor: number; descontoCentavos?: number; subtotalCentavos?: number; pixQrCode?: string; pixCopiaECola?: string; invoiceUrl?: string; }
 
 const label = (value: string) => new Intl.DateTimeFormat('pt-BR', {
   weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
@@ -52,6 +52,13 @@ export function BookedSessionsPayment({ sessions, cpf }: { sessions: readonly Se
     } finally { setLoading(false); }
   };
 
+  if (payment?.fundedByCompany) return (
+    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">
+      <p className="font-black">Não há nada a pagar</p>
+      <p>Esta sessão é custeada por {payment.companyName ?? 'sua empresa'}.</p>
+    </div>
+  );
+
   if (payment) return (
     <div className="space-y-4 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
       <p className="font-black text-emerald-950">{selectedSessions.length > 1 ? `Pagamento agrupado de ${selectedSessions.length} sessões` : 'Pagamento da sessão selecionada'}</p>
@@ -69,12 +76,12 @@ export function BookedSessionsPayment({ sessions, cpf }: { sessions: readonly Se
     <div className="space-y-4 text-left">
       <div className="flex items-center justify-between gap-3">
         <div><p className="text-sm font-black text-ink">Quais sessões deseja pagar agora?</p><p className="text-[10px] text-muted">Pague 4 ou mais sessões do mês vigente juntas, em 1x, e ganhe 10% de desconto.</p></div>
-        <button type="button" onClick={() => setSelected(new Set(sessions.filter((item) => sessionPaymentMonth(item.inicio) === sessionPaymentMonth(new Date())).map((item) => item.linkPagamento)))} className="text-[10px] font-black text-psi-deep hover:underline">Selecionar mês vigente</button>
+        <button type="button" disabled={loading} onClick={() => setSelected(new Set(sessions.filter((item) => sessionPaymentMonth(item.inicio) === sessionPaymentMonth(new Date())).map((item) => item.linkPagamento)))} className="text-[10px] font-black text-psi-deep hover:underline">Selecionar mês vigente</button>
       </div>
       <div className="space-y-2">
         {sessions.map((session) => {
           const active = selected.has(session.linkPagamento);
-          return <button key={session.linkPagamento} type="button" onClick={() => toggle(session.linkPagamento)} aria-pressed={active}
+          return <button key={session.linkPagamento} type="button" disabled={loading} onClick={() => toggle(session.linkPagamento)} aria-pressed={active}
             className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-xs font-bold transition ${active ? 'border-psi-vibrant bg-psi-light text-psi-deep' : 'border-line bg-white text-muted'}`}>
             <span className={`flex h-5 w-5 items-center justify-center rounded-md border ${active ? 'border-psi-vibrant bg-psi-vibrant text-white' : 'border-line'}`}>{active && <Check className="h-3 w-3" />}</span>
             <span className="capitalize">{label(session.inicio)}</span>
@@ -82,8 +89,8 @@ export function BookedSessionsPayment({ sessions, cpf }: { sessions: readonly Se
         })}
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <button type="button" onClick={() => setMethod('PIX')} className={`rounded-xl border p-3 text-xs font-black ${method === 'PIX' ? 'border-psi-vibrant bg-psi-light text-psi-deep' : 'border-line text-muted'}`}><QrCode className="mr-1 inline h-4 w-4" /> Pix</button>
-        <button type="button" onClick={() => setMethod('CREDIT_CARD')} className={`rounded-xl border p-3 text-xs font-black ${method === 'CREDIT_CARD' ? 'border-psi-vibrant bg-psi-light text-psi-deep' : 'border-line text-muted'}`}><CreditCard className="mr-1 inline h-4 w-4" /> Cartão em 1x</button>
+        <button type="button" disabled={loading} onClick={() => setMethod('PIX')} className={`rounded-xl border p-3 text-xs font-black ${method === 'PIX' ? 'border-psi-vibrant bg-psi-light text-psi-deep' : 'border-line text-muted'}`}><QrCode className="mr-1 inline h-4 w-4" /> Pix</button>
+        <button type="button" disabled={loading} onClick={() => setMethod('CREDIT_CARD')} className={`rounded-xl border p-3 text-xs font-black ${method === 'CREDIT_CARD' ? 'border-psi-vibrant bg-psi-light text-psi-deep' : 'border-line text-muted'}`}><CreditCard className="mr-1 inline h-4 w-4" /> Cartão em 1x</button>
       </div>
       {rule.discountPercent === 10 && <p className="text-xs font-semibold text-emerald-800">10% de desconto no total das sessões selecionadas, em pagamento único.</p>}
       {rule.error && <p role="alert" className="text-xs font-semibold text-rose-800">{rule.error}</p>}

@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { CalendarDays, CalendarPlus, Loader2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { CalendarDays, CalendarPlus, Loader2, Search, X } from 'lucide-react';
 import { applicationRequest } from '@/lib/applicationApi';
 import { AgendaBlocks, type BloqueioAgenda, type NovoBloqueioAgenda } from '@/components/scheduling/AgendaBlocks';
 import { AgendaShareCard } from '@/components/scheduling/AgendaShareCard';
@@ -24,6 +24,7 @@ interface AgendaOverview {
 export default function AgendaPage() {
   const [dados, setDados] = useState<AgendaOverview>();
   const [pacientes, setPacientes] = useState<readonly PatientDirectoryEntry[]>([]);
+  const [buscaPaciente, setBuscaPaciente] = useState('');
   const [agendamentoManualAberto, setAgendamentoManualAberto] = useState(false);
   const [erro, setErro] = useState<string>();
 
@@ -47,6 +48,20 @@ export default function AgendaPage() {
   useEffect(() => {
     void carregar();
   }, [carregar]);
+
+  const nomesPacientes = useMemo(
+    () => Array.from(new Set(pacientes.map((paciente) => paciente.displayName.trim()).filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    [pacientes]
+  );
+
+  const agendamentosVisiveis = useMemo(() => {
+    const termo = buscaPaciente.trim().toLocaleLowerCase('pt-BR');
+    if (!termo) return dados?.appointments ?? [];
+    return (dados?.appointments ?? []).filter((agendamento) =>
+      agendamento.pacienteNome.toLocaleLowerCase('pt-BR').includes(termo)
+    );
+  }, [buscaPaciente, dados?.appointments]);
 
   const salvarGrade = async (availability: JanelaEditavel[]) => {
     const resposta = await applicationRequest<{ availability: JanelaEditavel[] }>(
@@ -150,11 +165,49 @@ export default function AgendaPage() {
         <>
           <AgendaShareCard token={dados.agendaToken} professionalName={dados.professionalName} />
 
+          <section className="rounded-2xl border border-psi-soft/60 bg-surface p-4 shadow-card">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <label className="block min-w-0 flex-1">
+                <span className="mb-1.5 block text-[10px] font-black uppercase tracking-[.16em] text-muted">
+                  Filtrar por paciente
+                </span>
+                <span className="relative block">
+                  <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-psi-vibrant" />
+                  <input
+                    list="agenda-pacientes"
+                    value={buscaPaciente}
+                    onChange={(event) => setBuscaPaciente(event.target.value)}
+                    placeholder="Digite o nome da paciente…"
+                    className="w-full rounded-xl border border-psi-soft bg-white py-2.5 pl-9 pr-3 text-xs font-medium text-ink placeholder:text-muted focus:border-psi-vibrant focus:outline-none focus:ring-2 focus:ring-psi-vibrant/20"
+                    aria-label="Filtrar agenda pelo nome do paciente"
+                  />
+                  <datalist id="agenda-pacientes">
+                    {nomesPacientes.map((nome) => <option key={nome} value={nome} />)}
+                  </datalist>
+                </span>
+              </label>
+              {buscaPaciente && (
+                <button
+                  type="button"
+                  onClick={() => setBuscaPaciente('')}
+                  className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-white px-3 py-2.5 text-xs font-bold text-muted transition hover:bg-slate-50 hover:text-ink"
+                >
+                  <X className="h-3.5 w-3.5" /> Limpar filtro
+                </button>
+              )}
+            </div>
+            <p className="mt-2 text-[11px] text-muted">
+              {buscaPaciente.trim()
+                ? `${agendamentosVisiveis.length} ${agendamentosVisiveis.length === 1 ? 'sessão encontrada' : 'sessões encontradas'} para “${buscaPaciente.trim()}”.`
+                : 'Digite ou selecione um nome para ver somente os agendamentos dessa paciente.'}
+            </p>
+          </section>
+
           {/* Calendário Interativo do Psicólogo */}
           <ProfessionalCalendarView
             availability={dados.availability}
             blocks={dados.blocks}
-            appointments={dados.appointments}
+            appointments={agendamentosVisiveis}
             onAdicionarBloqueio={adicionarBloqueio}
             onRemoverBloqueio={removerBloqueio}
           />
@@ -162,7 +215,7 @@ export default function AgendaPage() {
           <AvailabilityEditor janelas={dados.availability} onSalvar={salvarGrade} />
           <AgendaBlocks bloqueios={dados.blocks} onAdicionar={adicionarBloqueio} onRemover={removerBloqueio} />
           <UpcomingSessions
-            agendamentos={dados.appointments}
+            agendamentos={agendamentosVisiveis}
             onCancelar={cancelarSessao}
             onConfirmarRealizacao={confirmarRealizacao}
             onAtualizarVencimento={atualizarVencimento}

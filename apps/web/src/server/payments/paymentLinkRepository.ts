@@ -16,6 +16,8 @@ import type { InterPixCharge } from '@/server/adapters/interPixAdapter';
 import { allocatePaymentAcrossCharges } from '@/lib/paymentAllocation';
 import { priceSessionBatch } from '@/lib/sessionBatchPayment';
 
+export class SessionChargeUnavailableError extends Error {}
+
 export type PaymentModality = 'social' | 'particular';
 
 export interface ReservedCheckout {
@@ -144,6 +146,10 @@ export async function listPayablePatientSessions(input: {
          ON future.instituicao_id = anchor.instituicao_id
         AND future.paciente_id = anchor.paciente_id
         AND future.profissional_id = anchor.profissional_id
+       JOIN clinica_organizacoes org ON org.id = future.organizacao_id
+       LEFT JOIN clinica_convenios conv
+         ON conv.instituicao_id = pa.instituicao_id
+        AND conv.organizacao_ref = org.ref_core AND conv.ref_core = pa.convenio_ref
        LEFT JOIN financeiro_cobrancas c
          ON c.instituicao_id = future.instituicao_id AND c.sessao_ref = future.ref_core
       WHERE anchor.instituicao_id = ? AND anchor.token_pagamento_sessao = ? AND anchor.status <> 'cancelado'
@@ -155,6 +161,7 @@ export async function listPayablePatientSessions(input: {
               AND REPLACE(REPLACE(REPLACE(COALESCE(t.cpf, ''), '.', ''), '-', ''), ' ', '') = ?))
         AND future.status IN ('agendado', 'confirmado') AND future.inicio >= UTC_TIMESTAMP(3)
         AND future.token_pagamento_sessao IS NOT NULL
+        AND ${custeioDoAgendamentoSql({ agendamento: 'future', paciente: 'pa', convenio: 'conv' })} = 0
         AND (c.status IS NULL OR c.status IN ('draft', 'pending'))
       ORDER BY future.inicio LIMIT 10`,
     [instituicaoId(), input.token, input.cpf, input.cpf]
@@ -261,6 +268,14 @@ export async function reserveAppointmentCharge(input: {
       [instituicaoId(), appointment.organizacao_ref, appointment.agendamento_ref,
         appointment.sessao_clinica_ref ?? appointment.agendamento_ref]
     );
+
+    if (['paid', 'refunded', 'partially_paid'].includes(String(chargeRows[0]?.cobranca_status))) {
+      throw new SessionChargeUnavailableError(
+        chargeRows[0]?.cobranca_status === 'paid'
+          ? 'Esta sessão já está paga. Não é necessário pagar novamente.'
+          : 'Esta cobrança já possui pagamento ou estorno. Fale com a clínica para conferir o saldo.'
+      );
+    }
 
     let chargeRef = chargeRows[0]?.cobranca_ref
       ? String(chargeRows[0].cobranca_ref)

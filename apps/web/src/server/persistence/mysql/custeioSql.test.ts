@@ -41,4 +41,14 @@ describe('custeioDoAgendamentoSql', () => {
   it('e o ciclo mensal passa a ser o da própria sessão', () => {
     expect(sql).toContain("DATE_FORMAT(a.inicio, '%Y-%m')");
   });
+
+  it('reserva saldo apenas para sessões anteriores elegíveis, com desempate estável', () => {
+    expect(sql).toContain('cota_ag.custeado_pela_empresa IS NULL');
+    expect(sql).toContain('cota_ag.cobranca_ref IS NULL');
+    expect(sql).toContain("cota_ag.status IN ('agendado', 'confirmado', 'realizado')");
+    expect(sql).toContain('cota_ag.inicio < a.inicio');
+    expect(sql).toContain('cota_ag.inicio = a.inicio AND cota_ag.id < a.id');
+    expect(sql).toContain('cota_ag.instituicao_id = pa.instituicao_id');
+    expect(sql).toContain('cota_ag.paciente_id = pa.id');
+  });
 });

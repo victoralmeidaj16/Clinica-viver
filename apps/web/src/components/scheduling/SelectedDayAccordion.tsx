@@ -41,6 +41,7 @@ interface Props {
   onBloquearDia: (data: string) => Promise<void>;
   onRemoverBloqueio: (id: string) => Promise<void>;
   onRemoverData: (data: string) => void;
+  hoje?: string;
 }
 
 export function SelectedDayAccordion({
@@ -57,6 +58,7 @@ export function SelectedDayAccordion({
   onBloquearDia,
   onRemoverBloqueio,
   onRemoverData,
+  hoje,
 }: Props) {
   const [agora] = useState(() => Date.now());
   const [bloqueandoDia, setBloqueandoDia] = useState(false);

@@ -10,7 +10,7 @@ vi.mock('@/server/persistence/mysql/mappers', () => ({
   fromSqlTimestamp: (value: string) => new Date(value).toISOString(),
   toSqlTimestamp: (value: string) => value,
 }));
-import { reserveAppointmentChargeBatch, reconcileInterPix, reconcileAsaasPayment } from './paymentLinkRepository';
+import { reserveAppointmentCharge, reserveAppointmentChargeBatch, reconcileInterPix, reconcileAsaasPayment } from './paymentLinkRepository';
 
 beforeEach(() => { vi.clearAllMocks(); vi.useFakeTimers(); vi.setSystemTime(new Date('2026-09-01T12:00:00Z')); });
 afterEach(() => vi.useRealTimers());
@@ -62,5 +62,26 @@ describe.each(['inter', 'asaas'])('conciliação com desconto: %s', (provider) =
     const statuses = connection.execute.mock.calls.filter(([sql]) => String(sql).includes('UPDATE financeiro_cobrancas SET status'));
     expect(statuses).toHaveLength(4);
     expect(statuses.every((call) => (call[1] as unknown[])[0] === 'paid')).toBe(true);
+  });
+});
+
+
+describe('proteção contra cobrar novamente uma sessão quitada', () => {
+  it.each(['paid', 'refunded', 'partially_paid'])('recusa cobrança com status %s antes de criar checkout', async (status) => {
+    connection.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM clinica_agendamentos a')) return [[{
+        agendamento_ref: 'a', inicio: '2026-09-10T12:00:00Z', valor_centavos: 10000,
+        organizacao_ref: 'org', paciente_ref: 'p', profissional_ref: 'pro',
+      }], []];
+      if (sql.includes('FROM financeiro_cobrancas c')) return [[{
+        cobranca_ref: 'charge', cobranca_status: status, vence_em: '2026-09-10T12:00:00Z',
+      }], []];
+      return [[], []];
+    });
+    await expect(reserveAppointmentCharge({ token: 'a', cpf: '123' })).rejects.toThrow(
+      status === 'paid' ? 'já está paga' : 'já possui pagamento ou estorno'
+    );
+    expect(connection.execute).not.toHaveBeenCalled();
+    expect(connection.rollback).toHaveBeenCalled();
   });
 });

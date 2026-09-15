@@ -73,6 +73,10 @@ export default function SessionPaymentPage({ params }: { params: Promise<{ token
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || 'Não foi possível gerar a cobrança.');
+      if (body.fundedByCompany) {
+        setProfile((current) => current ? { ...current, fundedByCompany: true, companyName: body.companyName } : current);
+        return;
+      }
       setPayment(body);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Não foi possível gerar a cobrança.');

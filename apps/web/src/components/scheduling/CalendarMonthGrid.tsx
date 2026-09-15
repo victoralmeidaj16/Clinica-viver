@@ -14,8 +14,8 @@ interface Props {
   onSelecionar: (data: string) => void;
 }
 
-export function CalendarMonthGrid({ celulas, diasDisponiveis, bloqueios, agendamentos, selecionados, hoje, onSelecionar }: Props) {
-  const hojeCalculado = hoje ?? dataLocal(Date.now());
+export function CalendarMonthGrid({ celulas, diasDisponiveis, bloqueios, agendamentos, selecionados, hoje = '', onSelecionar }: Props) {
+  const hojeCalculado = hoje;
 
   return (
     <>

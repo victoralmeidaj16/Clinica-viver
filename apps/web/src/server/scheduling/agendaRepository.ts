@@ -1131,16 +1131,24 @@ export async function bookAppointments(
   inicioIsos: readonly string[],
   agora: Date = new Date()
 ): Promise<ResultadoAgendamentos> {
-  const uniqueStarts = [...new Set(inicioIsos)].sort();
+  if (inicioIsos.some((value) => !Number.isFinite(Date.parse(value)))) return { ok: false, motivo: 'INDISPONIVEL' };
+  const uniqueStarts = [...new Set(inicioIsos.map((value) => new Date(value).toISOString()))].sort();
   if (uniqueStarts.length === 0 || uniqueStarts.length > 10) return { ok: false, motivo: 'INDISPONIVEL' };
   const parsedStarts = uniqueStarts.map((value) => new Date(value));
   if (parsedStarts.some((value) => !Number.isFinite(value.getTime()))) return { ok: false, motivo: 'INDISPONIVEL' };
+  if (parsedStarts.some((value) => value.getTime() > agora.getTime() + 60 * 86_400_000)) {
+    return { ok: false, motivo: 'INDISPONIVEL' };
+  }
   const inicio = parsedStarts[0];
   const janelaFim = new Date(parsedStarts.at(-1)!.getTime() + 24 * 60 * 60_000);
   const slots = await listAvailableSlots(paciente, inicio, janelaFim, agora);
   const requestedSlots = uniqueStarts.map((value) => slots.find((item) => item.inicio === new Date(value).toISOString()));
   if (requestedSlots.some((slot) => !slot)) return { ok: false, motivo: 'INDISPONIVEL' };
   const selectedSlots = requestedSlots as Slot[];
+  if (selectedSlots.some((slot, index) => index > 0
+    && Date.parse(slot.inicio) < Date.parse(selectedSlots[index - 1].fim))) {
+    return { ok: false, motivo: 'INDISPONIVEL' };
+  }
 
   const connection = await getMysqlPool().getConnection();
   try {
@@ -1275,9 +1283,21 @@ export async function rescheduleAppointmentPublic(
   novoInicioIso: string,
   agora: Date = new Date()
 ): Promise<ResultadoReagendamento> {
+  const novoInicio = new Date(novoInicioIso);
+  if (!Number.isFinite(novoInicio.getTime()) || novoInicio.getTime() > agora.getTime() + 60 * 86_400_000) {
+    return { ok: false, motivo: 'INDISPONIVEL' };
+  }
+  const grade = await janelas(paciente.professionalRowId, paciente.professionalId);
+  const slot = gerarSlots(grade, [], novoInicio, new Date(novoInicio.getTime() + 86_400_000), agora)
+    .find((item) => item.inicio === novoInicio.toISOString());
+  if (!slot) return { ok: false, motivo: 'INDISPONIVEL' };
   const connection = await getMysqlPool().getConnection();
   try {
     await connection.beginTransaction();
+    await connection.query(
+      'SELECT id FROM clinica_profissionais WHERE instituicao_id = ? AND id = ? FOR UPDATE',
+      [instituicaoId(), paciente.professionalRowId]
+    );
 
     const [rows] = await connection.query<RowDataPacket[]>(
       `SELECT a.id, a.ref_core, a.inicio, a.token_pagamento_sessao, a.duracao_min, a.modalidade
@@ -1299,9 +1319,9 @@ export async function rescheduleAppointmentPublic(
       return { ok: false, motivo: 'PRAZO_EXPIRADO' };
     }
 
-    const novoInicio = new Date(novoInicioIso);
-    const duracaoMin = Number(agendamento.duracao_min || 50);
-    const novoFim = new Date(novoInicio.getTime() + duracaoMin * 60_000);
+    const novoFim = new Date(slot.fim);
+    const duracaoMin = (novoFim.getTime() - novoInicio.getTime()) / 60_000;
+    const tokenPagamento = agendamento.token_pagamento_sessao || randomUUID().replaceAll('-', '');
 
     const [conflitos] = await connection.query<RowDataPacket[]>(
       `SELECT a.id FROM clinica_agendamentos a
@@ -1336,9 +1356,10 @@ export async function rescheduleAppointmentPublic(
 
     await connection.execute(
       `UPDATE clinica_agendamentos
-          SET inicio = ?, fim = ?, status = 'agendado', versao = versao + 1, atualizado_em = CURRENT_TIMESTAMP(3)
+          SET inicio = ?, fim = ?, duracao_min = ?, modalidade = ?, token_pagamento_sessao = ?,
+              status = 'agendado', versao = versao + 1, atualizado_em = CURRENT_TIMESTAMP(3)
         WHERE instituicao_id = ? AND id = ?`,
-      [novoInicio, novoFim, instituicaoId(), agendamento.id]
+      [novoInicio, novoFim, duracaoMin, slot.modalidade, tokenPagamento, instituicaoId(), agendamento.id]
     );
 
     await connection.execute(
@@ -1350,13 +1371,12 @@ export async function rescheduleAppointmentPublic(
 
     await connection.commit();
 
-    const tokenPagamento = agendamento.token_pagamento_sessao || randomUUID().replaceAll('-', '');
     return {
       ok: true,
       agendamentoId: String(agendamento.id),
       inicio: novoInicio.toISOString(),
       fim: novoFim.toISOString(),
-      modalidade: String(agendamento.modalidade ?? 'online'),
+      modalidade: slot.modalidade,
       linkPagamento: `/pagar/sessao/${tokenPagamento}`,
     };
   } catch (error) {

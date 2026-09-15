@@ -14,17 +14,20 @@ import 'server-only';
  *   1. sem convênio, quem paga é o paciente;
  *   2. exceção gravada no paciente vence a política do convênio;
  *   3. sem cota, o custeio vale para todas as sessões (comportamento antigo);
- *   4. com cota, a empresa paga enquanto as sessões já decididas couberem nela.
+ *   4. com cota, desconta decisões gravadas e agendamentos anteriores elegíveis.
  *
- * O consumo conta apenas agendamentos com decisão gravada — isto é, sessões
- * realizadas. Agendamento futuro não reserva cota, então uma sessão cancelada
- * não queima o benefício.
+ * Na consulta de uma sessão, as anteriores reservam o saldo por ordem de início
+ * e id. Cancelamentos e faltas sem decisão não reservam benefício. A reserva é
+ * recalculada; apenas a decisão gravada na realização é definitiva.
+ * Sem agendamento de referência, retorna o saldo efetivamente consumido.
  */
 export function custeioEfetivoSql(alias: {
   /** Alias da tabela `clinica_pacientes`. */
   paciente: string;
   /** Alias da tabela `clinica_convenios` (LEFT JOIN). */
   convenio: string;
+  /** Agendamento cuja posição na cota deve ser projetada. */
+  agendamento?: string;
   /**
    * Expressão da data da sessão, para recortar o ciclo mensal. Sem uma sessão
    * em vista — a lista de pacientes do convênio, por exemplo — vale "hoje", que
@@ -35,6 +38,12 @@ export function custeioEfetivoSql(alias: {
   const p = alias.paciente;
   const c = alias.convenio;
   const referencia = alias.referencia ?? 'CURRENT_TIMESTAMP(3)';
+  const a = alias.agendamento;
+  const reservaAnterior = a ? `OR (cota_ag.custeado_pela_empresa IS NULL
+               AND cota_ag.cobranca_ref IS NULL
+               AND cota_ag.status IN ('agendado', 'confirmado', 'realizado')
+               AND (cota_ag.inicio < ${a}.inicio
+                    OR (cota_ag.inicio = ${a}.inicio AND cota_ag.id < ${a}.id)))` : '';
   return `CASE
     WHEN ${p}.convenio_ref IS NULL THEN 0
     WHEN COALESCE(${p}.custeado_pela_empresa, ${c}.empresa_paga_sessoes, 1) = 0 THEN 0
@@ -42,7 +51,7 @@ export function custeioEfetivoSql(alias: {
     WHEN (SELECT COUNT(*) FROM clinica_agendamentos cota_ag
            WHERE cota_ag.instituicao_id = ${p}.instituicao_id
              AND cota_ag.paciente_id = ${p}.id
-             AND cota_ag.custeado_pela_empresa = 1
+             AND (cota_ag.custeado_pela_empresa = 1 ${reservaAnterior})
              AND (${p}.custeio_sessoes_ciclo <> 'mensal'
                   OR DATE_FORMAT(cota_ag.inicio, '%Y-%m') = DATE_FORMAT(${referencia}, '%Y-%m')))
          < ${p}.custeio_sessoes_cota THEN 1
@@ -65,6 +74,7 @@ export function custeioDoAgendamentoSql(alias: {
   return `COALESCE(${alias.agendamento}.custeado_pela_empresa, ${custeioEfetivoSql({
     paciente: alias.paciente,
     convenio: alias.convenio,
+    agendamento: alias.agendamento,
     referencia: `${alias.agendamento}.inicio`,
   })})`;
 }

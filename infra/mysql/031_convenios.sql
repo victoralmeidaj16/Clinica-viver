@@ -164,7 +164,7 @@ SELECT UUID(), o.instituicao_id, o.ref_core, seed.ref_core, seed.nome,
     SELECT 'convenio-008', 'Colorminas', 0 UNION ALL
     SELECT 'convenio-009', 'Concordia Logistica Portuária', 0 UNION ALL
     SELECT 'convenio-010', 'Copaza Descartáveis', 0 UNION ALL
-    SELECT 'convenio-011', 'Cristalcopo', 1 UNION ALL
+    SELECT 'convenio-011', 'Cristalcopo (empresa paga as sessões)', 1 UNION ALL
     SELECT 'convenio-012', 'Damyller', 0 UNION ALL
     SELECT 'convenio-013', 'Engeplus', 0 UNION ALL
     SELECT 'convenio-014', 'ESUCRI', 0 UNION ALL

@@ -31,18 +31,17 @@ import {
  * pode ajustá-los em uma emissão específica quando houver mudança de cargo ou
  * substituição temporária.
  *
- * A supervisora é sugerida de forma fixa porque o cadastro do psicólogo ainda
- * não guarda quem o supervisiona. Quando guardar, este valor vira consulta.
+ * O relatório é assinado apenas pela coordenação. O campo legado de
+ * supervisão permanece opcional na persistência para preservar históricos.
  */
 export const SIGNATARIOS_DECLARACAO = {
   coordenadora: process.env.DECLARACAO_COORDENADORA?.trim() || 'GIULIANA ALANO DE OLIVEIRA',
-  supervisora: process.env.DECLARACAO_SUPERVISORA?.trim() || 'ALINE ALVES DE ANDRADE FURLAN DE SÁ',
 } as const;
 
 /**
  * Aqui ficava `enderecoDeConferencia`, que montava a URL impressa no QR do
  * papel. O relatório de estágio deixou de trazer código e QR — quem confere um
- * relatório confere as assinaturas da coordenação e da supervisão —, e a
+ * relatório confere a assinatura da coordenação —, e a
  * validação pública por código passou a ser exclusividade dos certificados.
  *
  * O código de verificação continua sendo gerado e gravado na emissão: ele é a
@@ -126,7 +125,6 @@ export interface PreviaDeclaracao {
   totalSessoes: number;
   totalHoras: number;
   coordenadora: string;
-  supervisora: string;
 }
 
 /** Campos que a gestão pode ajustar no documento antes da emissão. */
@@ -139,7 +137,6 @@ export interface AjustesDeclaracao {
   periodoFim: string;
   totalHoras: number;
   coordenadora: string;
-  supervisora: string;
 }
 
 function textoObrigatorio(valor: unknown, rotulo: string, limite = 180): string {
@@ -187,7 +184,6 @@ function validarAjustes(ajustes: AjustesDeclaracao): AjustesDeclaracao {
     periodoFim,
     totalHoras,
     coordenadora: textoObrigatorio(ajustes.coordenadora, 'coordenadora', 180),
-    supervisora: textoObrigatorio(ajustes.supervisora, 'supervisora', 180),
   };
 }
 
@@ -228,7 +224,6 @@ export async function previaDeclaracao(
     totalSessoes: apuracao.totalSessoes,
     totalHoras: apuracao.totalHoras,
     coordenadora: SIGNATARIOS_DECLARACAO.coordenadora,
-    supervisora: SIGNATARIOS_DECLARACAO.supervisora,
   };
 }
 
@@ -260,7 +255,6 @@ export async function emitirDeclaracao(
         periodoFim: apuracao.periodoFim,
         totalHoras: apuracao.totalHoras,
         coordenadora: SIGNATARIOS_DECLARACAO.coordenadora,
-        supervisora: SIGNATARIOS_DECLARACAO.supervisora,
       };
 
   const declaracao = await new DeclaracaoHorasRepository().registrar(
@@ -277,7 +271,6 @@ export async function emitirDeclaracao(
       totalHoras: valores.totalHoras,
       sessaoIds: apuracao.sessaoIds,
       coordenadora: valores.coordenadora,
-      supervisora: valores.supervisora,
       emitidoPor: usuarioId,
     },
     (codigo, emitidoEm) =>

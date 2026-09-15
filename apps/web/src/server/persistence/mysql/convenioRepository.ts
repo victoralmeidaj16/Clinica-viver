@@ -203,8 +203,8 @@ export async function atualizarConvenio(organizationId: string, id: string, inpu
 
 export async function pacientesDoConvenio(organizationId: string, convenioId: string, inicio?: string, fim?: string): Promise<PacienteConvenio[]> {
   const periodo = inicio && fim
-    ? `WHERE COALESCE(s.inicio_real, s.inicio_previsto, fc_base.emitida_em) >= ?
-         AND COALESCE(s.inicio_real, s.inicio_previsto, fc_base.emitida_em) < DATE_ADD(?, INTERVAL 1 DAY)`
+    ? `WHERE COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc_base.emitida_em) >= ?
+         AND COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc_base.emitida_em) < DATE_ADD(?, INTERVAL 1 DAY)`
     : '';
   // O recorte vive na subconsulta de cobranças, que aparece antes do WHERE
   // externo: os parâmetros seguem a ordem dos placeholders no SQL.
@@ -227,6 +227,9 @@ export async function pacientesDoConvenio(organizationId: string, convenioId: st
        LEFT JOIN (
          SELECT fc_base.*
            FROM financeiro_cobrancas fc_base
+           LEFT JOIN clinica_agendamentos ag
+             ON ag.instituicao_id = fc_base.instituicao_id
+            AND fc_base.sessao_ref IN (ag.ref_core, ag.sessao_clinica_ref)
            LEFT JOIN clinica_sessoes s
              ON s.instituicao_id = fc_base.instituicao_id
             AND s.organizacao_ref = fc_base.organizacao_ref
@@ -252,7 +255,10 @@ export async function pacientesDoConvenio(organizationId: string, convenioId: st
 }
 
 export async function sessoesDoConvenio(organizationId: string, convenioId: string, inicio?: string, fim?: string): Promise<SessaoConvenio[]> {
-  const dataAtendimento = 'COALESCE(s.inicio_real, s.inicio_previsto, fc.emitida_em)';
+  // A cobrança nasce no pagamento, mas a data do relatório é a do atendimento.
+  // Algumas cobranças apontam para o agendamento, não para a sessão clínica;
+  // por isso o agendamento precisa entrar antes de `fc.emitida_em`.
+  const dataAtendimento = 'COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc.emitida_em)';
   const clauses = ['fc.instituicao_id = ?', 'fc.organizacao_ref = ?', 'p.convenio_ref = ?'];
   const params: unknown[] = [instituicaoId(), organizationId, convenioId];
   if (inicio) { clauses.push(`${dataAtendimento} >= ?`); params.push(inicio); }
@@ -320,8 +326,8 @@ export async function fecharFatura(
       'p.convenio_ref = ?',
       'fc.fatura_convenio_ref IS NULL',
       "fc.status IN ('pending','overdue')",
-      'COALESCE(s.inicio_real, s.inicio_previsto, fc.emitida_em) >= ?',
-      'COALESCE(s.inicio_real, s.inicio_previsto, fc.emitida_em) < DATE_ADD(?, INTERVAL 1 DAY)',
+      'COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc.emitida_em) >= ?',
+      'COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc.emitida_em) < DATE_ADD(?, INTERVAL 1 DAY)',
       // A fatura empresarial cobra só o que a empresa custeia. Um paciente do
       // convênio que paga a própria sessão continua com a cobrança individual;
       // incluí-la no boleto cobraria o mesmo atendimento duas vezes.
@@ -356,7 +362,7 @@ export async function fecharFatura(
          LEFT JOIN clinica_sessoes s ON s.instituicao_id = fc.instituicao_id
           AND s.organizacao_ref = fc.organizacao_ref AND s.ref_core = fc.sessao_ref
         WHERE ${whereClauses.join(' AND ')}
-        ORDER BY COALESCE(s.inicio_real, s.inicio_previsto, fc.emitida_em), fc.ref_core FOR UPDATE`,
+        ORDER BY COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc.emitida_em), fc.ref_core FOR UPDATE`,
       queryParams
     );
 

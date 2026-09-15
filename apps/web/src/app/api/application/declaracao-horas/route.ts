@@ -91,7 +91,6 @@ export async function POST(request: Request) {
         totalSessoes: declaracao.totalSessoes,
         totalHoras: declaracao.totalHoras,
         coordenadora: declaracao.coordenadora,
-        supervisora: declaracao.supervisora,
         emitidoEm: declaracao.emitidoEm,
       },
       201

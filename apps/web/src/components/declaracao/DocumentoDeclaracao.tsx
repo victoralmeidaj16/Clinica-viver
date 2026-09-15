@@ -10,8 +10,8 @@ import { Globe, Phone } from 'lucide-react';
  * fluxo de emissão inteiro para achar onde mexer.
  *
  * O layout segue o modelo da clínica: listras coloridas e marca no topo, corpo
- * serifado justificado, marca d'água do Complexo Educacional ao centro, duas
- * assinaturas e o rodapé em onda com os contatos.
+ * serifado justificado, marca d'água do Complexo Educacional ao centro, a
+ * assinatura da coordenação e o rodapé em onda com os contatos.
  */
 
 export interface DeclaracaoImpressa {
@@ -24,7 +24,6 @@ export interface DeclaracaoImpressa {
   periodoFim: string;
   totalHoras: number;
   coordenadora: string;
-  supervisora: string;
   emitidoEm: string;
 }
 
@@ -160,28 +159,20 @@ export function DocumentoDeclaracao({ declaracao }: { declaracao: DeclaracaoImpr
           Tubarão, {dataPorExtenso(declaracao.emitidoEm)}.
         </div>
 
-        <div className="grid grid-cols-2 gap-10 text-center mb-10">
-          <div className="flex flex-col items-center">
+        <div className="flex justify-center text-center mb-10">
+          <div className="flex w-full max-w-sm flex-col items-center">
             <div className="w-full border-t-[3px] border-purple-900 mb-3" />
             <span className="font-bold italic text-[13px] uppercase text-purple-900 tracking-wide">
               {declaracao.coordenadora}
             </span>
             <span className="text-[13px] font-bold text-slate-900 mt-3">Coordenadora</span>
           </div>
-
-          <div className="flex flex-col items-center">
-            <div className="w-full border-t-[3px] border-purple-900 mb-3" />
-            <span className="font-bold italic text-[13px] uppercase text-purple-900 tracking-wide">
-              {declaracao.supervisora}
-            </span>
-            <span className="text-[13px] font-bold text-slate-900 mt-3">Psicóloga</span>
-          </div>
         </div>
 
         {/*
           Aqui ficava o bloco de conferência — QR e código impressos. Ele saiu
-          por decisão da clínica: o relatório de estágio vale pelas assinaturas
-          da coordenação e da supervisão, como o modelo em papel sempre valeu, e
+          por decisão da clínica: o relatório de estágio vale pela assinatura
+          da coordenação, como o modelo em papel sempre valeu, e
           a conferência por código fica restrita aos certificados, que circulam
           sozinhos e sem assinatura de quem os emitiu.
         */}

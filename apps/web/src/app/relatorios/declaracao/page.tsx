@@ -19,7 +19,7 @@ import './declaracao.css';
  * os valores finais seguem para o registro e para o papel juntos.
  *
  * O documento não carrega mais código de conferência nem QR: o relatório de
- * estágio vale pelas assinaturas da coordenação e da supervisão, e a validação
+ * estágio vale pela assinatura da coordenação, e a validação
  * pública por código ficou restrita aos certificados do painel de certificados.
  * A emissão continua gravada — o que se perdeu foi a conferência de fora, não o
  * registro de dentro.
@@ -44,7 +44,6 @@ interface Previa {
   totalSessoes: number;
   totalHoras: number;
   coordenadora: string;
-  supervisora: string;
 }
 
 interface Emitida extends Previa {
@@ -61,7 +60,6 @@ type CamposEditaveis = Pick<
   | 'periodoFim'
   | 'totalHoras'
   | 'coordenadora'
-  | 'supervisora'
 >;
 
 function mesAno(iso: string): string {
@@ -284,7 +282,6 @@ export default function DeclaracaoHorasPage() {
                 <CampoTexto label="Tratamento acadêmico" value={campos.tratamento} onChange={(valor) => editarCampo('tratamento', valor)} />
                 <CampoTexto label="Curso / pós-graduação" value={campos.curso} onChange={(valor) => editarCampo('curso', valor)} />
                 <CampoTexto label="Coordenadora" value={campos.coordenadora} onChange={(valor) => editarCampo('coordenadora', valor)} />
-                <CampoTexto label="Supervisora" value={campos.supervisora} onChange={(valor) => editarCampo('supervisora', valor)} />
                 <CampoTexto label="Início do período" type="date" value={campos.periodoInicio} onChange={(valor) => editarCampo('periodoInicio', valor)} />
                 <CampoTexto label="Fim do período" type="date" value={campos.periodoFim} onChange={(valor) => editarCampo('periodoFim', valor)} />
                 <CampoTexto

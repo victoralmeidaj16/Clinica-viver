@@ -45,8 +45,9 @@ describe('pacientesDoConvenio', () => {
 
     const [sql, values] = query.mock.calls[0] as unknown as [string, unknown[]];
     // O recorte de período mora no LEFT JOIN, que vem antes do WHERE.
-    expect(sql.indexOf('COALESCE(s.inicio_real, s.inicio_previsto, fc_base.emitida_em) >= ?'))
+    expect(sql.indexOf('COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc_base.emitida_em) >= ?'))
       .toBeLessThan(sql.indexOf('WHERE p.instituicao_id = ?'));
+    expect(sql).toContain('LEFT JOIN clinica_agendamentos ag');
     expect(values).toEqual(['2026-09-01', '2026-09-07', 'inst-1', 'org-1', 'conv-1']);
     expect(bindings(sql, values)).toContainEqual(['WHERE p.instituicao_id =', 'inst-1']);
   });
@@ -77,10 +78,11 @@ describe('sessoesDoConvenio', () => {
     const resultado = await sessoesDoConvenio('org-1', 'conv-1', '2026-09-01', '2026-09-30');
     const [sql, values] = query.mock.calls[0] as unknown as [string, unknown[]];
 
-    expect(sql).toContain('COALESCE(s.inicio_real, s.inicio_previsto, fc.emitida_em) AS realizada_em');
+    expect(sql).toContain('COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc.emitida_em) AS realizada_em');
+    expect(sql).toContain('LEFT JOIN clinica_agendamentos ag');
     expect(sql).toContain('LEFT JOIN clinica_sessoes s');
-    expect(sql).toContain('COALESCE(s.inicio_real, s.inicio_previsto, fc.emitida_em) >= ?');
-    expect(sql).toContain('ORDER BY COALESCE(s.inicio_real, s.inicio_previsto, fc.emitida_em) DESC');
+    expect(sql).toContain('COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc.emitida_em) >= ?');
+    expect(sql).toContain('ORDER BY COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc.emitida_em) DESC');
     expect(values).toEqual(['inst-1', 'org-1', 'conv-1', '2026-09-01', '2026-09-30']);
     expect(resultado[0].realizadaEm).toBe('2026-09-03 14:00:00.000');
   });
@@ -109,7 +111,7 @@ describe('fecharFatura', () => {
     expect(sql).toContain('< p.custeio_sessoes_cota THEN 1');
     expect(sql).toContain('JOIN clinica_convenios c');
     expect(sql).toContain('LEFT JOIN clinica_sessoes s');
-    expect(sql).toContain('COALESCE(s.inicio_real, s.inicio_previsto, fc.emitida_em) >= ?');
+    expect(sql).toContain('COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc.emitida_em) >= ?');
     // O filtro de custeio não carrega parâmetro: a ordem original se mantém.
     expect(values).toEqual(['inst-1', 'org-1', 'conv-1', '2026-09-01', '2026-09-30']);
     expect(connection.rollback).toHaveBeenCalled();

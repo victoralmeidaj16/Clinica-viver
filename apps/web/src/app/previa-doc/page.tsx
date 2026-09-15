@@ -17,7 +17,6 @@ export default function Preview() {
           periodoFim: '2026-08-14',
           totalHoras: 180,
           coordenadora: 'GIULIANA ALANO DE OLIVEIRA',
-          supervisora: 'ALINE ALVES DE ANDRADE FURLAN DE SÁ',
           emitidoEm: '2026-08-06T12:00:00.000Z',
         }}
       />

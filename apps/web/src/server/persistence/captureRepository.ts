@@ -12,6 +12,7 @@ import {
   MysqlCaptureRepository,
   type CaptureState,
 } from './mysql/captureRepository';
+import { comTurmasEncerradas } from './turmasEncerradas';
 
 /**
  * Um caminho só para a captação — fila de triagem e credenciamento.
@@ -52,21 +53,30 @@ export interface CaptureRepository {
  */
 export class FileCaptureRepository implements CaptureRepository {
   async read(): Promise<CaptureState> {
-    return captureStateFromSnapshot(readSnapshot() ?? emptySnapshot());
+    return this.comDerivados(captureStateFromSnapshot(readSnapshot() ?? emptySnapshot()));
   }
 
   async mutate<T>(mutator: (state: CaptureState) => CaptureResult<T>): Promise<T> {
     const snapshot = readSnapshot() ?? emptySnapshot();
-    const change = mutator(captureStateFromSnapshot(snapshot));
+    const change = mutator(await this.comDerivados(captureStateFromSnapshot(snapshot)));
 
     await writeSnapshot({
       ...snapshot,
       savedAt: new Date().toISOString(),
       triagensPacientes: change.next.triagensPacientes,
-      cadastrosPsicologos: change.next.cadastrosPsicologos,
+      // O encerramento da turma é derivado a cada leitura; gravado no arquivo,
+      // sobreviveria à reabertura da turma.
+      cadastrosPsicologos: change.next.cadastrosPsicologos.map((cadastro) => ({ ...cadastro, turmaEncerrada: undefined })),
     });
 
     return change.result;
+  }
+
+  private async comDerivados(state: CaptureState): Promise<CaptureState> {
+    return {
+      ...state,
+      cadastrosPsicologos: await comTurmasEncerradas([...state.cadastrosPsicologos]),
+    };
   }
 }
 

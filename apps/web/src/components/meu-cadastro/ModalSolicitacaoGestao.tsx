@@ -186,6 +186,10 @@ export function ModalSolicitacaoGestao({
                 className={campoClasse}
               >
                 <option value="">Selecione sua turma...</option>
+                    {turmaViverMais && !TURMAS_VIVER_MAIS.includes(turmaViverMais) && (
+                      // Turma antiga gravada antes do recorte: aparece para não sumir do campo.
+                      <option value={turmaViverMais}>Turma {turmaViverMais} (encerrada)</option>
+                    )}
                 {TURMAS_VIVER_MAIS.map((t) => (
                   <option key={t} value={t}>
                     Turma {t}

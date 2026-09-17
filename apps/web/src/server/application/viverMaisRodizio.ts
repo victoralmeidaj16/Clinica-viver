@@ -16,6 +16,7 @@ import type {
 } from './persistence';
 import { generoProfissional } from '@/lib/gender';
 import { normalizarTurnoPreferencia } from '@/lib/turnos';
+import { desligadoPorTurma } from '@/lib/turmaEncerrada';
 import {
   LIMITE_PACIENTES_MAXIMO,
   LIMITE_PACIENTES_MINIMO,
@@ -164,7 +165,12 @@ export function paraPsicologoPerfil(
     motivoDesativacao: record.motivoDesativacao,
     // Férias na agenda pausam sem apagar a pausa manual: as duas somam, e
     // quando as férias acabam continua valendo o que a gestão decidiu.
-    pausadoNoRodizio: (record.pausadoNoRodizio ?? false) || Boolean(ausenciaVigente(record, agora)),
+    // Turma encerrada também tira da fila, pelo mesmo mecanismo: derivado,
+    // sem tocar na pausa manual.
+    pausadoNoRodizio:
+      (record.pausadoNoRodizio ?? false) ||
+      Boolean(ausenciaVigente(record, agora)) ||
+      desligadoPorTurma(record.turmaEncerrada),
     posicaoFilaRoundRobin: 0,
     ultimoLeadRecebidoEm: record.ultimoLeadRecebidoEm,
     saldoCreditoAbatimento: 0,

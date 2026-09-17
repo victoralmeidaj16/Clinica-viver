@@ -1,3 +1,4 @@
+import { TURMAS_ATIVAS } from '@/lib/turmaEncerrada';
 import { TURNOS_ATENDIMENTO, rotuloTurnoPreferencia } from '@/lib/turnos';
 
 /**
@@ -50,9 +51,8 @@ export const TIPOS_ATENDIMENTO: readonly Opcao[] = [
   { value: 'AMBOS', label: 'Ambos' },
 ];
 
-export const TURMAS_VIVER_MAIS: readonly string[] = [
-  '22A', '22B', '23A', '23B', '24A', '24B', '25A', '25B', '26A', '26B',
-];
+/** Só turmas em curso: a clínica atende com os alunos das pós que estão acontecendo. */
+export const TURMAS_VIVER_MAIS: readonly string[] = TURMAS_ATIVAS;
 
 export const POS_GRADUACOES_VIVER_MAIS: readonly string[] = [
   'Pós-graduação em Avaliação Psicológica',

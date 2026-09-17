@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { mkdir, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { MotivoDesistencia } from '@/lib/desistencias';
+import type { TurmaEncerrada } from '@/lib/turmaEncerrada';
 import type {
   Appointment,
   ClinicalRecord,
@@ -235,6 +236,12 @@ export interface CadastroPsicologoRecord {
    * morando em `pausadoNoRodizio`.
    */
   ausenciasAgenda?: readonly AusenciaAgenda[];
+  /**
+   * Encerramento da turma deste profissional, derivado de
+   * `clinica_turmas_encerradas` a cada leitura — nunca gravado no cadastro.
+   * Presente, tira do rodízio e da vitrine (`lib/turmaEncerrada.ts`).
+   */
+  turmaEncerrada?: TurmaEncerrada;
   /** Atualizado a cada alocação; é o que faz o rodízio girar. */
   ultimoLeadRecebidoEm?: string;
   turmaViverMais?: string;

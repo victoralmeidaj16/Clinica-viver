@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { formatarDataCurta } from '@/lib/turmaEncerrada';
 import type { CadastroPsicologoRecord, TriagemPacienteRecord } from './persistence';
 import type { CaptureState } from '@/server/persistence/captureRepository';
 import type { PagamentoRecebido } from '@/server/payments/paymentLinkRepository';
@@ -404,6 +405,21 @@ function notificacoesDoCadastro(cadastro: CadastroPsicologoRecord): NotificacaoD
         ? `Motivo registrado pela gestão: ${cadastro.motivoDesativacao.trim()}`
         : 'Procure a coordenação da clínica para entender os próximos passos.',
       ocorridoEm: quando,
+      severidade: 'ATENCAO',
+      href: comFoco('/meu-cadastro', FOCO_SECAO.statusCredenciamento),
+      pendente: true,
+    });
+  }
+
+  if (cadastro.status === 'APROVADO' && cadastro.turmaEncerrada) {
+    const encerramento = cadastro.turmaEncerrada;
+    itens.push({
+      // A data entra na chave: reabrir e encerrar de novo em outro dia é um aviso novo.
+      chave: `turma-encerrada:${cadastro.id}:${encerramento.encerradaEm}`,
+      tipo: 'turma-encerrada',
+      titulo: `Sua turma ${encerramento.turma} foi encerrada`,
+      descricao: `A gestão encerrou a turma em ${formatarDataCurta(encerramento.encerradaEm)}. Você saiu da vitrine e não receberá novos encaminhamentos; seus pacientes atuais seguem com você.`,
+      ocorridoEm: new Date(`${encerramento.encerradaEm}T12:00:00-03:00`).toISOString(),
       severidade: 'ATENCAO',
       href: comFoco('/meu-cadastro', FOCO_SECAO.statusCredenciamento),
       pendente: true,

@@ -20,6 +20,7 @@ import {
   rowId,
   toSqlTimestamp,
 } from './mappers';
+import { comTurmasEncerradas } from '@/server/persistence/turmasEncerradas';
 
 export interface CaptureState {
   triagensPacientes: readonly TriagemPacienteRecord[];
@@ -384,7 +385,10 @@ export class MysqlCaptureRepository {
     );
     return {
       triagensPacientes: leadRows.map(toLead),
-      cadastrosPsicologos: await this.comAusencias(connection, psychRows.map(toPsychologist)),
+      cadastrosPsicologos: await comTurmasEncerradas(
+        await this.comAusencias(connection, psychRows.map(toPsychologist)),
+        connection
+      ),
     };
   }
 

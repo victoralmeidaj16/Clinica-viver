@@ -17,6 +17,8 @@ import { PsicologoCard } from '@/components/gestao/PsicologoCard';
 import { ModalMotivo } from '@/components/gestao/ModalMotivo';
 import { ModalEdicao } from '@/components/gestao/ModalEdicao';
 import { ModalLimitePacientes } from '@/components/gestao/ModalLimitePacientes';
+import { PainelTurmas } from '@/components/gestao/PainelTurmas';
+import { desligadoPorTurma, type TurmaEncerrada } from '@/lib/turmaEncerrada';
 import { ausenciaEmCurso } from '@/lib/ausenciaAgenda';
 import { FocoDeNotificacao } from '@/components/layout/FocoDeNotificacao';
 
@@ -26,6 +28,7 @@ const FILTROS: Array<[FiltroStatus, string]> = [
   ['EM_ANALISE', 'Em análise'],
   ['APROVADO', 'No rodízio'],
   ['PAUSADO', 'Pausados'],
+  ['TURMA_ENCERRADA', 'Turma encerrada'],
   ['RECUSADO', 'Recusados'],
 ];
 
@@ -43,6 +46,7 @@ export default function GestaoPsicologosPage() {
   const [motivoAlvo, setMotivoAlvo] = useState<PsicologoItem | null>(null);
   const [editando, setEditando] = useState<PsicologoItem | null>(null);
   const [limiteAlvo, setLimiteAlvo] = useState<PsicologoItem | 'TODOS' | null>(null);
+  const [turmasEncerradas, setTurmasEncerradas] = useState<TurmaEncerrada[]>([]);
 
   const handleCopyFormLink = () => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -68,9 +72,46 @@ export default function GestaoPsicologosPage() {
     }
   };
 
+  const loadTurmas = async () => {
+    try {
+      const resp = await fetch('/api/application/turmas-encerradas', { cache: 'no-store' });
+      const body = (await resp.json()) as { success: boolean; data?: TurmaEncerrada[] };
+      if (resp.ok && body.success) setTurmasEncerradas(Array.isArray(body.data) ? body.data : []);
+    } catch {
+      // O painel de turmas é acessório: sem ele a lista da equipe segue utilizável.
+    }
+  };
+
   useEffect(() => {
-    void Promise.resolve().then(loadPsicologos);
+    void Promise.resolve().then(() => Promise.all([loadPsicologos(), loadTurmas()]));
   }, []);
+
+  const alterarTurma = async (turma: string, metodo: 'POST' | 'DELETE') => {
+    setOcupado(`turma:${turma}`);
+    try {
+      const resp = await fetch(
+        metodo === 'POST'
+          ? '/api/application/turmas-encerradas'
+          : `/api/application/turmas-encerradas?turma=${encodeURIComponent(turma)}`,
+        {
+          method: metodo,
+          headers: { 'Content-Type': 'application/json' },
+          body: metodo === 'POST' ? JSON.stringify({ turma }) : undefined,
+        }
+      );
+      const body = (await resp.json()) as { success: boolean; error?: string };
+      if (!resp.ok || !body.success) {
+        alert(body.error ?? 'Não foi possível atualizar a turma.');
+        return;
+      }
+      // A saída aparece nos cards da equipe, que vêm do credenciamento.
+      await Promise.all([loadTurmas(), loadPsicologos()]);
+    } catch {
+      alert('Falha de conexão ao atualizar a turma.');
+    } finally {
+      setOcupado(null);
+    }
+  };
 
   const atualizar = async (id: string, mudancas: Record<string, unknown>) => {
     setOcupado(id);
@@ -211,10 +252,12 @@ export default function GestaoPsicologosPage() {
       statusFilter === 'TODOS' ||
       (statusFilter === 'SOLICITACOES'
         ? p.solicitacaoAlteracaoGestao?.status === 'PENDENTE'
-        : statusFilter === 'PAUSADO'
+        : statusFilter === 'TURMA_ENCERRADA'
+          ? Boolean(p.turmaEncerrada)
+          : statusFilter === 'PAUSADO'
           ? p.status === 'APROVADO' && Boolean(p.pausadoNoRodizio)
           : statusFilter === 'APROVADO'
-            ? p.status === 'APROVADO' && !p.pausadoNoRodizio
+            ? p.status === 'APROVADO' && !p.pausadoNoRodizio && !desligadoPorTurma(p.turmaEncerrada)
             : p.status === statusFilter);
 
     return matchesSearch && matchesStatus;
@@ -230,8 +273,14 @@ export default function GestaoPsicologosPage() {
   // contar essa pessoa aqui faria o painel prometer uma capacidade que a
   // distribuição não tem.
   const ausentes = aprovados.filter((p) => Boolean(ausenciaEmCurso(p.ausenciasAgenda)));
+  // Mesma lógica para a turma encerrada: a pessoa está fora da fila mesmo sem
+  // pausa manual.
+  const desligadosPorTurma = aprovados.filter((p) => desligadoPorTurma(p.turmaEncerrada));
   const noRodizio = aprovados.filter(
-    (p) => !p.pausadoNoRodizio && !ausenciaEmCurso(p.ausenciasAgenda)
+    (p) =>
+      !p.pausadoNoRodizio &&
+      !ausenciaEmCurso(p.ausenciasAgenda) &&
+      !desligadoPorTurma(p.turmaEncerrada)
   );
   const pendentes = psicologos.filter((p) => p.status === 'EM_ANALISE').length;
   const pausados = aprovados.filter((p) => p.pausadoNoRodizio).length;
@@ -353,6 +402,13 @@ export default function GestaoPsicologosPage() {
                 : `${ausentes.length} profissionais de férias ou folga hoje`}
             </p>
           )}
+          {desligadosPorTurma.length > 0 && (
+            <p className="text-[11px] font-semibold text-rose-700">
+              {desligadosPorTurma.length === 1
+                ? '1 profissional fora por turma encerrada'
+                : `${desligadosPorTurma.length} profissionais fora por turma encerrada`}
+            </p>
+          )}
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
@@ -385,6 +441,14 @@ export default function GestaoPsicologosPage() {
           <p className="text-[10px] text-slate-400 pt-0.5">Fora do rodízio e da vitrine</p>
         </div>
       </div>
+
+      <PainelTurmas
+        psicologos={psicologos}
+        encerradas={turmasEncerradas}
+        ocupado={ocupado}
+        onEncerrar={(turma) => alterarTurma(turma, 'POST')}
+        onReabrir={(turma) => alterarTurma(turma, 'DELETE')}
+      />
 
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="relative w-full sm:w-80">

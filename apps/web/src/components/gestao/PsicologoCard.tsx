@@ -12,7 +12,9 @@ import {
   Phone,
   Bell,
   Plane,
+  UserX,
 } from 'lucide-react';
+import { desligadoPorTurma, formatarDataCurta } from '@/lib/turmaEncerrada';
 import { ausenciaEmCurso, periodoAusencia } from '@/lib/ausenciaAgenda';
 import { rotuloModalidade, rotuloTipoAtendimento, rotuloTurno } from '@/components/forms/opcoesPsicologo';
 import { formatBrazilPhone } from '@/lib/brazilPhone';
@@ -70,6 +72,8 @@ export function PsicologoCard({
   const proximaAusencia = !ausencia
     ? p.ausenciasAgenda?.find((item) => Date.parse(item.inicio) > agora.getTime())
     : undefined;
+  const encerramento = p.turmaEncerrada;
+  const desligado = desligadoPorTurma(encerramento);
   const semTurno = !p.turnosDisponiveis?.length;
   const trabalhando = ocupado === p.id;
   const temSolicitacaoPendente = p.solicitacaoAlteracaoGestao?.status === 'PENDENTE';
@@ -125,6 +129,13 @@ export function PsicologoCard({
               ) : p.status === 'RECUSADO' ? (
                 <span className="text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 bg-slate-100 text-slate-600 border border-slate-200">
                   <XCircle className="w-3 h-3" /> Recusado
+                </span>
+              ) : desligado ? (
+                <span
+                  className="text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 bg-rose-50 text-rose-700 border border-rose-200"
+                  title={`Turma ${encerramento!.turma} encerrada em ${formatarDataCurta(encerramento!.encerradaEm)}. Fora do rodízio e da vitrine; reabra a turma para desfazer.`}
+                >
+                  <UserX className="w-3 h-3" /> Fora · turma encerrada
                 </span>
               ) : ausencia ? (
                 <span

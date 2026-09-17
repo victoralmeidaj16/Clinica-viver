@@ -1,3 +1,5 @@
+import type { TurmaEncerrada } from '@/lib/turmaEncerrada';
+
 export type StatusCadastro = 'EM_ANALISE' | 'APROVADO' | 'RECUSADO';
 
 export interface PsicologoItem {
@@ -41,6 +43,8 @@ export interface PsicologoItem {
   ausenciasAgenda?: Array<{ inicio: string; fim: string; motivo?: string; criadoEm: string }>;
   ultimoLeadRecebidoEm?: string;
   turmaViverMais?: string;
+  /** Encerramento da turma, derivado no servidor. Ver `lib/turmaEncerrada.ts`. */
+  turmaEncerrada?: TurmaEncerrada;
   posGraduacaoViverMais?: string;
   segundaPosGraduacao?: string;
   solicitacaoAlteracaoGestao?: {
@@ -69,4 +73,5 @@ export type FiltroStatus =
   | 'SOLICITACOES'
   | 'APROVADO'
   | 'PAUSADO'
+  | 'TURMA_ENCERRADA'
   | 'RECUSADO';

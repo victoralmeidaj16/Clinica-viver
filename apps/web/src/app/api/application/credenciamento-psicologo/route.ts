@@ -10,6 +10,7 @@ import {
 } from '@/server/application/persistence';
 import { isMysqlConfigured } from '@/server/oci/runtime';
 import { MysqlCaptureRepository } from '@/server/persistence/mysql/captureRepository';
+import { getCaptureRepository } from '@/server/persistence/captureRepository';
 import { exigirGestao, NaoAutorizadoError } from '@/server/viverMaisGestaoAuth';
 import { normalizeBrazilPhone } from '@/lib/brazilPhone';
 import { isBrazilUf } from '@/lib/brazilLocations';
@@ -95,9 +96,7 @@ async function comEstadoDeAcesso(
 export async function GET() {
   try {
     await exigirGestao();
-    const cadastros = isMysqlConfigured()
-      ? (await new MysqlCaptureRepository().read()).cadastrosPsicologos
-      : readSnapshot()?.cadastrosPsicologos ?? [];
+    const { cadastrosPsicologos: cadastros } = await getCaptureRepository().read();
 
     return NextResponse.json({ success: true, data: await comEstadoDeAcesso(cadastros) });
   } catch (error) {

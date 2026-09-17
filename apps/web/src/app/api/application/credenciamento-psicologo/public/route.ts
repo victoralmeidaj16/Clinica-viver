@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { generoProfissional } from '@/lib/gender';
-import { emptySnapshot, readSnapshot } from '@/server/application/persistence';
-import { isMysqlConfigured } from '@/server/oci/runtime';
-import { MysqlCaptureRepository } from '@/server/persistence/mysql/captureRepository';
+import { desligadoPorTurma } from '@/lib/turmaEncerrada';
+import { getCaptureRepository } from '@/server/persistence/captureRepository';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -10,9 +9,15 @@ export const dynamic = 'force-dynamic';
 /** Dados mínimos e públicos de profissionais aprovados para a vitrine. */
 export async function GET() {
   try {
-    const state = isMysqlConfigured() ? await new MysqlCaptureRepository().read() : readSnapshot() ?? emptySnapshot();
+    const state = await getCaptureRepository().read();
     const data = (state.cadastrosPsicologos ?? [])
-      .filter((item) => item.status === 'APROVADO' && item.exibirNaVitrine !== false)
+      // Turma encerrada: o perfil some da vitrine junto com a saída do rodízio.
+      .filter(
+        (item) =>
+          item.status === 'APROVADO' &&
+          item.exibirNaVitrine !== false &&
+          !desligadoPorTurma(item.turmaEncerrada)
+      )
       .map((item) => ({
         id: item.id,
         nome: item.nomeCompleto,

@@ -172,6 +172,29 @@ describe('reatribuição administrativa antes da confirmação', () => {
     expect(resultado.lead.status).toBe('AGUARDANDO_CONTATO');
     expect(resultado.lead.confirmadoEm).toBeUndefined();
     expect(resultado.lead.alocadoEm).toBe(agora.toISOString());
+    expect(resultado.primeiraAlocacao).toBe(false);
+  });
+
+  it('identifica a primeira alocação para não avisar a paciente sobre uma troca inexistente', () => {
+    const semAlocacao = {
+      ...lead,
+      psicologoAlocadoId: undefined,
+      psicologoNome: undefined,
+      alocadoEm: undefined,
+    };
+    const snapshot = {
+      ...emptySnapshot(),
+      triagensPacientes: [semAlocacao],
+      cadastrosPsicologos: [cadastro({ id: 'psi-2', profissionalRef: 'prof-2' })],
+    };
+
+    const resultado = reatribuirLeadPelaGestao(snapshot, semAlocacao.id, 'prof-2');
+
+    expect(resultado.situacao).toBe('reatribuido');
+    if (resultado.situacao !== 'reatribuido') return;
+    expect(resultado.primeiraAlocacao).toBe(true);
+    expect(resultado.psicologoAnteriorNome).toBeUndefined();
+    expect(resultado.lead.transbordos).toBe(0);
   });
 
   it('não altera por este fluxo uma triagem que já virou paciente', () => {

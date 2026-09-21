@@ -139,7 +139,7 @@ export default function GestaoPacientesPage() {
     if (!response.ok) {
       throw new Error(
         (body && (typeof body.error === 'string' ? body.error : body.error?.message)) ||
-        `Falha ao reatribuir paciente (HTTP ${response.status}).`
+        `Falha ao encaminhar paciente (HTTP ${response.status}).`
       );
     }
     await load();

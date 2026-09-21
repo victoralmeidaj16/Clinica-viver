@@ -109,4 +109,30 @@ describe('updateAppointmentDetails', () => {
     expect(cobranca).toContain('SET vence_em = ?');
     expect(cobranca).not.toContain('vencimento_em');
   });
+
+  it('grava por sessão quando o pagamento passa para a paciente', async () => {
+    expect(
+      await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', {
+        custeadoPelaEmpresa: false,
+      })
+    ).toBe('ok');
+
+    const [sql, values] = connection.execute.mock.calls[0];
+    expect(sql).toContain('custeado_pela_empresa = ?');
+    expect(values).toContain(0);
+    expect(connection.commit).toHaveBeenCalled();
+  });
+
+  it('não permite escolher empresa quando a cota do ciclo está esgotada', async () => {
+    comAgendamento({ custeado_pela_empresa: null, custeio_disponivel: 0 });
+
+    expect(
+      await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', {
+        custeadoPelaEmpresa: true,
+      })
+    ).toBe('funding_quota_exceeded');
+
+    expect(connection.execute).not.toHaveBeenCalled();
+    expect(connection.rollback).toHaveBeenCalled();
+  });
 });

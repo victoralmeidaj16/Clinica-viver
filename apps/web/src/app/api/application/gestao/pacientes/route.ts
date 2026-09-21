@@ -14,7 +14,7 @@ import { listarConvenios } from '@/server/persistence/mysql/convenioRepository';
 import { custeioEfetivoSql } from '@/server/persistence/mysql/custeioSql';
 import { normalizarCicloCusteio } from '@/lib/convenioBilling';
 import { listarPsicologosCompativeis, reatribuirLeadPelaGestao } from '@/server/application/viverMaisRodizio';
-import { avisarTransbordo } from '@/server/application/viverMaisWhatsApp';
+import { avisarAlocacao, avisarTransbordo } from '@/server/application/viverMaisWhatsApp';
 import { avisarAlocacaoPsicologoPorEmail } from '@/server/application/triagemEmail';
 
 export const runtime = 'nodejs';
@@ -258,7 +258,7 @@ export async function PATCH(request: Request) {
     const motivo = String(body.motivo ?? '').trim();
     if (!leadId || !professionalId || !motivo) {
       return NextResponse.json(
-        { success: false, error: 'Triagem, novo psicólogo e motivo da reatribuição são obrigatórios.' },
+        { success: false, error: 'Triagem, novo psicólogo e motivo do encaminhamento são obrigatórios.' },
         { status: 400 }
       );
     }
@@ -286,20 +286,24 @@ export async function PATCH(request: Request) {
     }
     if (resultado.situacao === 'lead_ja_confirmado') {
       return NextResponse.json(
-        { success: false, error: 'O contato já foi confirmado; recarregue a página para reatribuir o paciente.' },
+        { success: false, error: 'O contato já foi confirmado; recarregue a página para encaminhar o paciente.' },
         { status: 409 }
       );
     }
     if (resultado.situacao !== 'reatribuido') {
-      return NextResponse.json({ success: false, error: 'Falha ao reatribuir psicólogo.' }, { status: 500 });
+      return NextResponse.json({ success: false, error: 'Falha ao encaminhar para o psicólogo.' }, { status: 500 });
     }
 
-    void avisarTransbordo(
-      resultado.lead,
-      resultado.psicologo,
-      resultado.psicologoAnteriorNome,
-      'reatribuicao_gestao'
-    );
+    if (resultado.primeiraAlocacao) {
+      void avisarAlocacao(resultado.lead, resultado.psicologo);
+    } else {
+      void avisarTransbordo(
+        resultado.lead,
+        resultado.psicologo,
+        resultado.psicologoAnteriorNome,
+        'reatribuicao_gestao'
+      );
+    }
     void avisarAlocacaoPsicologoPorEmail(resultado.lead, resultado.psicologo, 'RODIZIO');
     return NextResponse.json({ success: true, data: resultado.lead });
   } catch (error) {
@@ -307,6 +311,6 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ success: false, error: error.message }, { status: error.status });
     }
     console.error('Erro ao reatribuir triagem pela gestão:', error);
-    return NextResponse.json({ success: false, error: 'Falha ao reatribuir psicólogo.' }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Falha ao encaminhar para o psicólogo.' }, { status: 500 });
   }
 }

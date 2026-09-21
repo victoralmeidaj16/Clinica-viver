@@ -469,7 +469,7 @@ export async function avisarTransbordo(
       ? 'Alerta operacional — prazo para o primeiro contato vencido.'
       : motivo === 'encaminhamento_voluntario'
         ? 'Alerta operacional — profissional respondeu ENCAMINHAR.'
-        : 'Alerta operacional — responsável reatribuído pela gestão.',
+        : 'Alerta operacional — paciente encaminhado pela gestão para um novo responsável.',
     `Protocolo: ${lead.protocolo}`,
     `Transbordo: ${anterior} → ${nomeDeExibicao(psicologo)}`,
     `Transbordos realizados: ${lead.transbordos ?? 0}`,

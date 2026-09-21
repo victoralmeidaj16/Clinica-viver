@@ -31,18 +31,19 @@ export interface AgendamentoResumo {
 
 interface Props {
   agendamentos: readonly AgendamentoResumo[];
+  filtroPaciente?: string;
   onCancelar: (id: string, motivo: string) => Promise<void>;
   onConfirmarRealizacao: (id: string) => Promise<void>;
   onAtualizarVencimento: (id: string, dueAt: string) => Promise<void>;
   onReagendar?: (id: string, startsAt: string, endsAt: string) => Promise<void>;
-  onEditar?: (id: string, input: { startsAt?: string; endsAt?: string; modalidade?: string; status?: string }) => Promise<void>;
+  onRecarregar?: () => Promise<void>;
 }
 
 const FORMATO = new Intl.DateTimeFormat('pt-BR', {
   dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo',
 });
 
-export function UpcomingSessions({ agendamentos, onCancelar, onConfirmarRealizacao, onAtualizarVencimento, onReagendar, onEditar }: Props) {
+export function UpcomingSessions({ agendamentos, filtroPaciente, onCancelar, onConfirmarRealizacao, onAtualizarVencimento, onReagendar, onRecarregar }: Props) {
   const [cancelando, setCancelando] = useState<AgendamentoResumo>();
   const [reagendando, setReagendando] = useState<AgendamentoResumo>();
   const [editingSession, setEditingSession] = useState<SessionEditableData>();
@@ -216,6 +217,8 @@ export function UpcomingSessions({ agendamentos, onCancelar, onConfirmarRealizac
                         fim: item.fim,
                         modalidade: item.modalidade,
                         status: item.status,
+                        custeadoPelaEmpresa: item.custeadoPelaEmpresa,
+                        convenioNome: item.convenioNome,
                       })
                     }
                     className="rounded-xl border border-line bg-white px-3 py-1.5 text-[11px] font-bold text-ink hover:bg-slate-100 flex items-center gap-1.5 transition shadow-sm"
@@ -235,6 +238,8 @@ export function UpcomingSessions({ agendamentos, onCancelar, onConfirmarRealizac
                         fim: item.fim,
                         modalidade: item.modalidade,
                         status: item.status,
+                        custeadoPelaEmpresa: item.custeadoPelaEmpresa,
+                        convenioNome: item.convenioNome,
                       })
                     }
                     className="rounded-xl border border-line bg-white px-3 py-1.5 text-[11px] font-bold text-ink hover:bg-slate-100 flex items-center gap-1.5 transition shadow-sm"
@@ -301,7 +306,9 @@ export function UpcomingSessions({ agendamentos, onCancelar, onConfirmarRealizac
         })}
         {agendamentos.length === 0 && (
           <li className="px-6 py-10 text-center text-xs text-muted">
-            Nenhuma sessão marcada. Compartilhe seu link de agendamento com os pacientes.
+            {filtroPaciente?.trim()
+              ? `Nenhuma sessão encontrada para “${filtroPaciente.trim()}”.`
+              : 'Nenhuma sessão marcada. Compartilhe seu link de agendamento com os pacientes.'}
           </li>
         )}
       </ul>
@@ -325,14 +332,7 @@ export function UpcomingSessions({ agendamentos, onCancelar, onConfirmarRealizac
           isOpen={Boolean(editingSession)}
           onClose={() => setEditingSession(undefined)}
           onSaved={async () => {
-            if (onEditar) {
-              await onEditar(editingSession.id, {
-                startsAt: editingSession.inicio,
-                endsAt: editingSession.fim,
-                modalidade: editingSession.modalidade,
-                status: editingSession.status,
-              });
-            }
+            await onRecarregar?.();
           }}
         />
       )}

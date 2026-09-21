@@ -185,6 +185,8 @@ export default function MeuFinanceiroPage() {
       fim: item.endsAt,
       modalidade: item.modalidade || 'online',
       status: isRealizado ? 'realizado' : (isCancelado ? 'cancelado' : 'agendado'),
+      custeadoPelaEmpresa: item.custeadoPelaEmpresa,
+      convenioNome: item.convenioNome,
     });
   };
 

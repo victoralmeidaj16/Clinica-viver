@@ -497,7 +497,7 @@ export async function reassignPatient(
   if (!id || !professionalId || !reason) {
     throw new ApplicationError(
       'INVALID_INPUT',
-      'Paciente, novo psicólogo e motivo da reatribuição são obrigatórios.',
+      'Paciente, novo psicólogo e motivo do encaminhamento são obrigatórios.',
       400
     );
   }
@@ -516,7 +516,7 @@ export async function reassignPatient(
     throw new ApplicationError('INVALID_INPUT', 'O novo psicólogo não existe ou está inativo.', 400);
   }
   if (context.actor.roles.includes('professional') && context.actor.professionalProfileId !== professionalId) {
-    throw new ApplicationError('FORBIDDEN', 'Um psicólogo não pode reatribuir o paciente a outro perfil.', 403);
+    throw new ApplicationError('FORBIDDEN', 'Um psicólogo não pode encaminhar o paciente a outro perfil.', 403);
   }
 
   const reassigned = await store.identities.reassignPatient({

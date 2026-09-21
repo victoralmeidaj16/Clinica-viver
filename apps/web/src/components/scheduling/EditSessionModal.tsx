@@ -12,6 +12,8 @@ import {
   Loader2,
   X,
   Pencil,
+  Building2,
+  UserRound,
 } from 'lucide-react';
 import { clinicDateTimeToIso } from '@/lib/manualAppointment';
 import { applicationRequest } from '@/lib/applicationApi';
@@ -23,6 +25,8 @@ export interface SessionEditableData {
   fim?: string;
   modalidade?: 'online' | 'presencial' | 'telefone';
   status?: string;
+  custeadoPelaEmpresa?: boolean;
+  convenioNome?: string;
 }
 
 interface Props {
@@ -65,6 +69,7 @@ function camposIniciais(session: SessionEditableData) {
       session.status === 'realizado' || session.status === 'completed'
         ? ('realizado' as const)
         : ('agendado' as const),
+    custeadoPelaEmpresa: Boolean(session.custeadoPelaEmpresa),
   };
 }
 
@@ -94,6 +99,7 @@ function FormularioEdicao({
   const [duracaoMin, setDuracaoMin] = useState(iniciais.duracaoMin);
   const [modalidade, setModalidade] = useState<'online' | 'presencial'>(iniciais.modalidade);
   const [status, setStatus] = useState<'agendado' | 'realizado'>(iniciais.status);
+  const [custeadoPelaEmpresa, setCusteadoPelaEmpresa] = useState(iniciais.custeadoPelaEmpresa);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
 
@@ -132,6 +138,10 @@ function FormularioEdicao({
             endsAt: endsAtIso,
             modalidade,
             status: status === statusInicial ? undefined : status,
+            custeadoPelaEmpresa: session.convenioNome
+              && custeadoPelaEmpresa !== iniciais.custeadoPelaEmpresa
+              ? custeadoPelaEmpresa
+              : undefined,
           }),
         }
       );
@@ -148,7 +158,7 @@ function FormularioEdicao({
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-surface rounded-3xl p-6 border border-line shadow-2xl max-w-md w-full space-y-5 animate-in fade-in zoom-in-95 duration-200">
+      <div className="max-h-[92dvh] w-full max-w-md space-y-5 overflow-y-auto rounded-3xl border border-line bg-surface p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-center justify-between border-b border-line pb-4">
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-2xl bg-psi-vibrant/10 text-psi-vibrant flex items-center justify-center">
@@ -156,7 +166,7 @@ function FormularioEdicao({
             </div>
             <div>
               <h2 className="text-base font-black text-ink">Editar Atendimento</h2>
-              <p className="text-xs text-muted">Ajuste horário, modalidade ou status do atendimento</p>
+              <p className="text-xs text-muted">Ajuste horário, modalidade, pagamento ou status</p>
             </div>
           </div>
           <button
@@ -281,6 +291,32 @@ function FormularioEdicao({
               </div>
             </div>
           </div>
+
+          {session.convenioNome && status !== 'realizado' && (
+            <fieldset>
+              <legend className="mb-1 text-xs font-bold text-ink">Responsável pelo pagamento</legend>
+              <p className="mb-2 text-[11px] text-muted">Esta escolha vale somente para esta sessão e substitui a ordem automática da cota.</p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  aria-pressed={custeadoPelaEmpresa}
+                  onClick={() => setCusteadoPelaEmpresa(true)}
+                  className={`rounded-2xl border px-3 py-2.5 text-xs font-bold transition ${custeadoPelaEmpresa ? 'border-emerald-300 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-400/20' : 'border-line bg-white text-muted hover:bg-slate-50'}`}
+                >
+                  <Building2 className="mr-1.5 inline h-4 w-4" /> Empresa
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={!custeadoPelaEmpresa}
+                  onClick={() => setCusteadoPelaEmpresa(false)}
+                  className={`rounded-2xl border px-3 py-2.5 text-xs font-bold transition ${!custeadoPelaEmpresa ? 'border-amber-300 bg-amber-50 text-amber-950 ring-2 ring-amber-400/20' : 'border-line bg-white text-muted hover:bg-slate-50'}`}
+                >
+                  <UserRound className="mr-1.5 inline h-4 w-4" /> Paciente
+                </button>
+              </div>
+              <p className="mt-2 text-[11px] font-semibold text-muted">Convênio: {session.convenioNome}</p>
+            </fieldset>
+          )}
 
           {/* Status do Atendimento */}
           <div>

@@ -7,6 +7,7 @@ import {
 } from '@/server/scheduling/agendaRepository';
 import { avisarSessaoMarcada } from '@/server/scheduling/agendaAvisos';
 import { garantirCobrancaDaSessao } from '@/server/payments/sessionCharge';
+import { getSessionPaymentProfile } from '@/server/payments/paymentLinkRepository';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -74,7 +75,20 @@ export async function POST(request: Request) {
       }
     }
 
-    const first = resultado.agendamentos[0];
+    // A confirmação precisa dizer quem paga cada data. Enviar apenas as quatro
+    // sessões fazia uma mensagem sobre uma data custeada parecer valer para o
+    // lote inteiro, mesmo quando a cota cobria somente as duas primeiras.
+    const sessoes = await Promise.all(resultado.agendamentos.map(async (agendamento) => {
+      const paymentToken = agendamento.linkPagamento.split('/').filter(Boolean).at(-1) ?? '';
+      const profile = await getSessionPaymentProfile(paymentToken);
+      return {
+        ...agendamento,
+        custeadoPelaEmpresa: profile?.fundedByCompany ?? false,
+        convenioNome: profile?.companyName,
+      };
+    }));
+
+    const first = sessoes[0];
 
     return NextResponse.json(
       {
@@ -83,7 +97,7 @@ export async function POST(request: Request) {
         fim: first.fim,
         modalidade: first.modalidade,
         linkPagamento: first.linkPagamento,
-        sessoes: resultado.agendamentos,
+        sessoes,
         pacienteNome: paciente.nome,
         professionalName: paciente.professionalName,
       },

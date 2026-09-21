@@ -191,12 +191,9 @@ export function PatientRegistrationFields({ form, setForm, convenios, conveniosC
         ...current,
         especificarNecessidades: value,
         necessidadesPaciente: value ? current.necessidadesPaciente : [],
-        necessidadesOutro: value ? current.necessidadesOutro : '',
       }))}
       selecionados={form.necessidadesPaciente}
       onSelecionadosChange={(lista) => update('necessidadesPaciente', lista)}
-      outro={form.necessidadesOutro}
-      onOutroChange={(value) => update('necessidadesOutro', value)}
     />
     <div className="grid gap-3 sm:grid-cols-2">
       <div><label className="mb-1 block font-bold text-ink">Contato de emergência <span className="font-normal text-muted">(opcional)</span></label><input className={field} value={form.emergencyContactName} onChange={(e) => update('emergencyContactName', e.target.value)} placeholder="Nome e vínculo" /></div>

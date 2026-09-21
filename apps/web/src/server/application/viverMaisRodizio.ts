@@ -60,7 +60,14 @@ export interface ResultadoAlocacao {
 }
 
 export type ResultadoReatribuicaoGestao =
-  | { situacao: 'reatribuido'; snapshot: PersistedSnapshot; lead: TriagemPacienteRecord; psicologo: CadastroPsicologoRecord; psicologoAnteriorNome?: string }
+  | {
+      situacao: 'reatribuido';
+      snapshot: PersistedSnapshot;
+      lead: TriagemPacienteRecord;
+      psicologo: CadastroPsicologoRecord;
+      primeiraAlocacao: boolean;
+      psicologoAnteriorNome?: string;
+    }
   | { situacao: 'lead_nao_encontrado' | 'psicologo_indisponivel' | 'lead_ja_confirmado'; snapshot: PersistedSnapshot };
 
 /**
@@ -461,6 +468,7 @@ export function reatribuirLeadPelaGestao(
   if (!psicologo) return { situacao: 'psicologo_indisponivel', snapshot: atual };
 
   const alocadoEm = agora.toISOString();
+  const primeiraAlocacao = !lead.psicologoAlocadoId;
   const mudouResponsavel = lead.psicologoAlocadoId !== psicologo.id;
   const atualizado: TriagemPacienteRecord = {
     ...lead,
@@ -480,6 +488,7 @@ export function reatribuirLeadPelaGestao(
     snapshot: recalcularPacientesAtivos(next),
     lead: atualizado,
     psicologo,
+    primeiraAlocacao,
     psicologoAnteriorNome: lead.psicologoNome,
   };
 }
@@ -603,7 +612,7 @@ export function varrerSla(
  * Confirmação de primeiro contato.
  *
  * Vive aqui, e não na rota, porque agora tem dois chamadores: o link assinado
- * do WhatsApp e a resposta `CONTATO` que o profissional manda no próprio chat.
+ * do WhatsApp e a resposta `CONFIRMAR` que o profissional manda no próprio chat.
  * Duas cópias divergiriam justamente na parte delicada — o que fazer quando a
  * confirmação estoura o limite de pacientes ativos.
  */

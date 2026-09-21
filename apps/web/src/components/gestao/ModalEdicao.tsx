@@ -83,8 +83,10 @@ export function ModalEdicao({
   const [especificarNecessidades, setEspecificarNecessidades] = useState<boolean>(
     Boolean(psicologo.especificarNecessidades || psicologo.necessidadesAtendidas?.length || psicologo.necessidadesOutro)
   );
-  const [necessidades, setNecessidades] = useState<string[]>([...(psicologo.necessidadesAtendidas ?? [])]);
-  const [necessidadeOutra, setNecessidadeOutra] = useState(psicologo.necessidadesOutro ?? '');
+  const [necessidades, setNecessidades] = useState<string[]>(Array.from(new Set([
+    ...(psicologo.necessidadesAtendidas ?? []),
+    ...(psicologo.necessidadesOutro ? ['Outros'] : []),
+  ])));
   const [preferencia, setPreferencia] = useState<'PARTICULAR' | 'SOCIAL' | 'AMBOS'>(
     psicologo.atendimentoPreferencia ?? 'AMBOS'
   );
@@ -179,9 +181,9 @@ export function ModalEdicao({
         servicosPrestados: servicos,
         publicoAlvo: publicos,
         publicoAlvoOutro: publicoOutro.trim() || undefined,
-        especificarNecessidades: especificarNecessidades && (necessidades.length > 0 || Boolean(necessidadeOutra.trim())),
+        especificarNecessidades: especificarNecessidades && necessidades.length > 0,
         necessidadesAtendidas: especificarNecessidades ? necessidades : [],
-        necessidadesOutro: especificarNecessidades ? necessidadeOutra.trim() || undefined : undefined,
+        necessidadesOutro: undefined,
         atendimentoPreferencia: preferencia,
       });
     } finally {
@@ -623,7 +625,7 @@ export function ModalEdicao({
                     DEMANDAS PARA ATENDIMENTO
                   </label>
                   <span className="text-[11px] text-slate-500 block mt-0.5">
-                    Especificar demandas clínicas que o profissional atende com prioridade no rodízio.
+                    Selecione “Outros” quando o profissional atender demandas variadas, sem uma especificação principal.
                   </span>
                 </div>
 
@@ -646,7 +648,6 @@ export function ModalEdicao({
                       onChange={() => {
                         setEspecificarNecessidades(false);
                         setNecessidades([]);
-                        setNecessidadeOutra('');
                       }}
                       className="w-4 h-4 accent-purple-600 cursor-pointer"
                     />
@@ -669,12 +670,6 @@ export function ModalEdicao({
                         </label>
                       ))}
                     </div>
-                    <input
-                      value={necessidadeOutra}
-                      onChange={(e) => setNecessidadeOutra(e.target.value)}
-                      placeholder="Outra demanda específica declarada..."
-                      className="w-full rounded-xl border border-slate-300 bg-white p-2.5 text-xs text-slate-800 outline-none focus:border-purple-600"
-                    />
                   </div>
                 )}
               </div>

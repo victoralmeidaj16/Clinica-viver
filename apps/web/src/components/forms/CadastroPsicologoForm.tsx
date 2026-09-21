@@ -83,7 +83,6 @@ export function CadastroPsicologoForm({
     publicoAlvoOutro: '',
     especificarNecessidades: false,
     necessidadesAtendidas: [] as string[],
-    necessidadesOutro: '',
     especialidade: '',
     minibio: '',
     disponibilidadeTurnos: [] as string[],
@@ -436,13 +435,11 @@ export function CadastroPsicologoForm({
         <NecessidadesSelector
           prefix="psicologo"
           titulo="DEMANDAS PARA ATENDIMENTO"
-          subtitulo={null}
+          subtitulo="Selecione “Outros” para atender demandas variadas, sem uma especificação principal."
           especificar={formPsicologo.especificarNecessidades}
           onEspecificarChange={(especificar) => setFormPsicologo((prev) => ({ ...prev, especificarNecessidades: especificar }))}
           selecionados={formPsicologo.necessidadesAtendidas}
           onSelecionadosChange={(necessidadesAtendidas) => setFormPsicologo((prev) => ({ ...prev, necessidadesAtendidas }))}
-          outro={formPsicologo.necessidadesOutro}
-          onOutroChange={(necessidadesOutro) => setFormPsicologo((prev) => ({ ...prev, necessidadesOutro }))}
         />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

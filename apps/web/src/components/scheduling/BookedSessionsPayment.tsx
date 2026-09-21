@@ -6,7 +6,12 @@ import { Check, Copy, CreditCard, Loader2, QrCode } from 'lucide-react';
 import { sessionBatchPaymentRule, sessionPaymentMonth } from '@/lib/sessionBatchPayment';
 import { reaisDeCentavos } from '@/lib/modalidadesPagamento';
 
-interface Session { inicio: string; linkPagamento: string; }
+interface Session {
+  inicio: string;
+  linkPagamento: string;
+  custeadoPelaEmpresa?: boolean;
+  convenioNome?: string;
+}
 interface PaymentResult { fundedByCompany?: boolean; companyName?: string; valor: number; descontoCentavos?: number; subtotalCentavos?: number; pixQrCode?: string; pixCopiaECola?: string; invoiceUrl?: string; }
 
 const label = (value: string) => new Intl.DateTimeFormat('pt-BR', {
@@ -17,13 +22,18 @@ const label = (value: string) => new Intl.DateTimeFormat('pt-BR', {
 const tokenFromLink = (link: string) => link.split('/').filter(Boolean).at(-1) ?? '';
 
 export function BookedSessionsPayment({ sessions, cpf }: { sessions: readonly Session[]; cpf: string }) {
-  const [selected, setSelected] = useState(() => new Set(sessions.filter((session) => sessionPaymentMonth(session.inicio) === sessionPaymentMonth(new Date())).map((session) => session.linkPagamento)));
+  const [selected, setSelected] = useState(() => new Set(sessions.filter((session) =>
+    !session.custeadoPelaEmpresa
+    && sessionPaymentMonth(session.inicio) === sessionPaymentMonth(new Date())
+  ).map((session) => session.linkPagamento)));
   const [method, setMethod] = useState<'PIX' | 'CREDIT_CARD'>('PIX');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
   const [payment, setPayment] = useState<PaymentResult>();
   const [copied, setCopied] = useState(false);
   const selectedSessions = useMemo(() => sessions.filter((session) => selected.has(session.linkPagamento)), [selected, sessions]);
+  const companyFundedCount = sessions.filter((session) => session.custeadoPelaEmpresa).length;
+  const individuallyPaidCount = sessions.length - companyFundedCount;
 
   const rule = sessionBatchPaymentRule(selectedSessions.map((session) => session.inicio));
 
@@ -55,7 +65,8 @@ export function BookedSessionsPayment({ sessions, cpf }: { sessions: readonly Se
   if (payment?.fundedByCompany) return (
     <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">
       <p className="font-black">Não há nada a pagar</p>
-      <p>Esta sessão é custeada por {payment.companyName ?? 'sua empresa'}.</p>
+      <p>A sessão selecionada é custeada por {payment.companyName ?? 'sua empresa'}.</p>
+      {individuallyPaidCount > 0 && <p className="mt-1 font-semibold">As outras {individuallyPaidCount} sessões continuam com pagamento individual.</p>}
     </div>
   );
 
@@ -72,19 +83,47 @@ export function BookedSessionsPayment({ sessions, cpf }: { sessions: readonly Se
     </div>
   );
 
+  if (individuallyPaidCount === 0) return (
+    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-left text-sm text-emerald-950">
+      <p className="font-black">Todas as sessões estão cobertas pela empresa</p>
+      <p className="mt-1">Não há pagamento individual para estas {sessions.length} sessões reservadas.</p>
+      <div className="mt-3 space-y-1.5 border-t border-emerald-200 pt-3 text-xs font-semibold">
+        {sessions.map((session) => (
+          <p key={session.linkPagamento} className="capitalize">{label(session.inicio)} · Empresa paga</p>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-4 text-left">
+      {companyFundedCount > 0 && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-950">
+          <p className="font-black">
+            {companyFundedCount} {companyFundedCount === 1 ? 'sessão será paga' : 'sessões serão pagas'} pela empresa
+          </p>
+          <p className="mt-0.5">
+            {individuallyPaidCount > 0
+              ? `${individuallyPaidCount} ${individuallyPaidCount === 1 ? 'sessão ficará' : 'sessões ficarão'} com pagamento da paciente.`
+              : 'Todas as sessões reservadas estão cobertas; não há pagamento individual.'}
+          </p>
+        </div>
+      )}
       <div className="flex items-center justify-between gap-3">
         <div><p className="text-sm font-black text-ink">Quais sessões deseja pagar agora?</p><p className="text-[10px] text-muted">Pague 4 ou mais sessões do mês vigente juntas, em 1x, e ganhe 10% de desconto.</p></div>
-        <button type="button" disabled={loading} onClick={() => setSelected(new Set(sessions.filter((item) => sessionPaymentMonth(item.inicio) === sessionPaymentMonth(new Date())).map((item) => item.linkPagamento)))} className="text-[10px] font-black text-psi-deep hover:underline">Selecionar mês vigente</button>
+        <button type="button" disabled={loading || individuallyPaidCount === 0} onClick={() => setSelected(new Set(sessions.filter((item) => !item.custeadoPelaEmpresa && sessionPaymentMonth(item.inicio) === sessionPaymentMonth(new Date())).map((item) => item.linkPagamento)))} className="text-[10px] font-black text-psi-deep hover:underline disabled:opacity-40">Selecionar mês vigente</button>
       </div>
       <div className="space-y-2">
         {sessions.map((session) => {
           const active = selected.has(session.linkPagamento);
-          return <button key={session.linkPagamento} type="button" disabled={loading} onClick={() => toggle(session.linkPagamento)} aria-pressed={active}
-            className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-xs font-bold transition ${active ? 'border-psi-vibrant bg-psi-light text-psi-deep' : 'border-line bg-white text-muted'}`}>
+          const funded = Boolean(session.custeadoPelaEmpresa);
+          return <button key={session.linkPagamento} type="button" disabled={loading || funded} onClick={() => toggle(session.linkPagamento)} aria-pressed={active}
+            className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-xs font-bold transition ${funded ? 'cursor-default border-emerald-200 bg-emerald-50 text-emerald-900' : active ? 'border-psi-vibrant bg-psi-light text-psi-deep' : 'border-line bg-white text-muted'}`}>
             <span className={`flex h-5 w-5 items-center justify-center rounded-md border ${active ? 'border-psi-vibrant bg-psi-vibrant text-white' : 'border-line'}`}>{active && <Check className="h-3 w-3" />}</span>
-            <span className="capitalize">{label(session.inicio)}</span>
+            <span className="flex-1 capitalize">{label(session.inicio)}</span>
+            <span className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wide ${funded ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'}`}>
+              {funded ? 'Empresa paga' : 'Paciente paga'}
+            </span>
           </button>;
         })}
       </div>

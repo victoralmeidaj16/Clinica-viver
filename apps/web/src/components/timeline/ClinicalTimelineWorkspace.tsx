@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { type ClinicalTimelineEntry } from '@thats-life/core';
-import { applicationRequest } from '@/lib/applicationApi';
+import { applicationRequest, commandHeaders } from '@/lib/applicationApi';
 import TimelineFeed from './TimelineFeed';
 import TimelineHeader from './TimelineHeader';
 import TimelineSectionTabs from './TimelineSectionTabs';
@@ -166,36 +166,24 @@ function ClinicalTimelineContent() {
     setSalvandoProntuario(true);
     setMensagemSucesso(undefined);
 
-    const novoRegistro: ClinicalTimelineEntry = {
-      schemaVersion: 1,
-      id: `prontuario-manual-${Date.now()}`,
-      organizationId: 'org-viver-mais',
-      patientId: selectedPatientId,
-      authorizedProfessionalIds: ['prof-1'],
-      title: novoTitulo || 'Evolução Clínica Manual',
-      category: 'clinical_record',
-      importance: 'routine',
-      occurredAt: new Date().toISOString(),
-      recordedAt: new Date().toISOString(),
-      summary: novosSubjetivo || novosAvaliacao || 'Registro de atendimento clínico manual.',
-      evidenceExcerpt: [
-        novosSubjetivo && `Subjetivo: ${novosSubjetivo}`,
-        novosObjetivo && `Objetivo: ${novosObjetivo}`,
-        novosAvaliacao && `Avaliação: ${novosAvaliacao}`,
-        novosPlano && `Plano: ${novosPlano}`,
-      ]
-        .filter(Boolean)
-        .join(' | '),
-      evidence: {
-        sourceType: 'clinical_record_revision',
-        sourceId: `atendimento-${Date.now()}`,
-      },
-      tags: ['prontuario-manual'],
-    };
-
     try {
-      setApiEntries((prev) => [novoRegistro, ...(prev || [])]);
+      const result = await applicationRequest<{ entries: ClinicalTimelineEntry[] }>('/timeline', {
+        method: 'POST',
+        headers: commandHeaders(),
+        body: JSON.stringify({
+          patientId: selectedPatientId,
+          title: novoTitulo,
+          subjective: novosSubjetivo,
+          objective: novosObjetivo,
+          assessment: novosAvaliacao,
+          plan: novosPlano,
+        }),
+      });
+      setApiEntries((prev) => [...result.entries, ...(prev || []).filter(
+        (entry) => !result.entries.some((saved) => saved.id === entry.id)
+      )]);
       setMensagemSucesso('Prontuário salvo com sucesso no histórico do paciente!');
+      setLoadError(undefined);
       setMostrarFormNovo(false);
 
       setNovoTitulo('');
@@ -203,8 +191,8 @@ function ClinicalTimelineContent() {
       setNovosObjetivo('');
       setNovosAvaliacao('');
       setNovosPlano('');
-    } catch {
-      setLoadError('Não foi possível salvar o prontuário.');
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Não foi possível salvar o prontuário.');
     } finally {
       setSalvandoProntuario(false);
     }

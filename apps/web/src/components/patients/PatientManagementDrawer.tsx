@@ -53,7 +53,7 @@ export default function PatientManagementDrawer({ patient, psychologists, conven
     setSaving(true);
     setError('');
     try { await onReassign(patient, professionalId, reason.trim()); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : 'Falha ao reatribuir paciente.'); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Falha ao encaminhar paciente.'); }
     finally { setSaving(false); }
   };
 
@@ -212,11 +212,11 @@ export default function PatientManagementDrawer({ patient, psychologists, conven
           <section className="rounded-2xl border border-psi-soft/60 bg-psi-soft/20 p-4 sm:p-5">
             <div className="mb-4 flex items-center gap-2">
               <UserRoundCog className="h-4 w-4 text-psi-vibrant" />
-              <h3 className="text-sm font-black text-ink">Reatribuir psicólogo</h3>
+              <h3 className="text-sm font-black text-ink">Encaminhar para psicólogo</h3>
             </div>
             {!patient.patientId && !patient.leadId ? (
               <p className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-3 text-xs font-semibold text-amber-800">
-                Não foi possível identificar a triagem ou o cadastro deste paciente para reatribuição.
+                Não foi possível identificar a triagem ou o cadastro deste paciente para encaminhamento.
               </p>
             ) : (
               <div className="space-y-3">
@@ -242,7 +242,7 @@ export default function PatientManagementDrawer({ patient, psychologists, conven
                   disabled={saving || !professionalId || !reason.trim()}
                   className="btn-primary w-full text-xs font-black py-3 rounded-xl disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  {saving ? 'Registrando troca…' : 'Confirmar reatribuição'}
+                  {saving ? 'Registrando encaminhamento…' : 'Confirmar encaminhamento'}
                 </button>
               </div>
             )}

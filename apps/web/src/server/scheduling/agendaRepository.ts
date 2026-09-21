@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import type { RowDataPacket } from 'mysql2';
 import { getMysqlPool, isMysqlConfigured } from '@/server/oci/runtime';
 import { instituicaoId, rowId } from '@/server/persistence/mysql/mappers';
-import { custeioDoAgendamentoSql } from '@/server/persistence/mysql/custeioSql';
+import { custeioDoAgendamentoSql, custeioEfetivoSql } from '@/server/persistence/mysql/custeioSql';
 import {
   disponibilidadePadraoDoCadastro,
   FUSO_CLINICA,
@@ -734,6 +734,8 @@ export interface UpdateAppointmentInput {
   endsAt?: string;
   modalidade?: 'online' | 'presencial' | 'telefone';
   status?: 'agendado' | 'confirmado' | 'realizado' | 'cancelado';
+  /** Decisão explícita desta sessão: true empresa, false paciente. */
+  custeadoPelaEmpresa?: boolean;
 }
 
 export type ResultadoEdicaoAgendamento =
@@ -744,6 +746,10 @@ export type ResultadoEdicaoAgendamento =
   | 'requires_completion'
   /** Um atendimento já concluído não volta atrás por edição de status. */
   | 'completed_locked'
+  /** Cobrança já paga ou iniciada não pode mudar de responsável. */
+  | 'funding_locked'
+  /** A sessão não cabe na cota da empresa deste ciclo. */
+  | 'funding_quota_exceeded'
   /** A conclusão pedida junto da edição não vale antes do fim do atendimento. */
   | 'not_finished'
   /** O atendimento está num status que a conclusão não aceita. */
@@ -777,10 +783,17 @@ export async function updateAppointmentDetails(
     await connection.beginTransaction();
 
     const [rows] = await connection.query<RowDataPacket[]>(
-      `SELECT a.id, a.ref_core, a.profissional_id, a.status, a.inicio, a.fim, a.duracao_min, a.modalidade
+      `SELECT a.id, a.ref_core, a.profissional_id, a.status, a.inicio, a.fim, a.duracao_min,
+              a.modalidade, a.sessao_clinica_ref, a.custeado_pela_empresa,
+              ${custeioEfetivoSql({ paciente: 'pa', convenio: 'conv', agendamento: 'a', referencia: 'a.inicio' })}
+                AS custeio_disponivel
          FROM clinica_agendamentos a
          JOIN clinica_profissionais p ON p.id = a.profissional_id
          JOIN clinica_organizacoes o ON o.id = p.organizacao_id
+         JOIN clinica_pacientes pa ON pa.id = a.paciente_id
+         LEFT JOIN clinica_convenios conv
+           ON conv.instituicao_id = pa.instituicao_id AND conv.organizacao_ref = o.ref_core
+          AND conv.ref_core = pa.convenio_ref
         WHERE a.instituicao_id = ? AND o.ref_core = ? AND p.ref_core = ?
           AND (a.id = ? OR a.ref_core = ?)
         LIMIT 1 FOR UPDATE`,
@@ -803,6 +816,53 @@ export async function updateAppointmentDetails(
         && String(agendamento.status) === 'realizado') {
       await connection.rollback();
       return 'completed_locked';
+    }
+    if (input.custeadoPelaEmpresa !== undefined
+        && ['realizado', 'cancelado'].includes(String(agendamento.status))) {
+      await connection.rollback();
+      return 'completed_locked';
+    }
+
+    if (input.custeadoPelaEmpresa === true) {
+      if (!Boolean(agendamento.custeado_pela_empresa)
+          && !Boolean(agendamento.custeio_disponivel)) {
+        await connection.rollback();
+        return 'funding_quota_exceeded';
+      }
+      const [charges] = await connection.query<RowDataPacket[]>(
+        `SELECT c.ref_core, c.status, c.provedor_ref, x.provedor_pagamento_ref,
+                EXISTS(SELECT 1 FROM financeiro_pagamentos pg
+                  WHERE pg.instituicao_id = c.instituicao_id
+                    AND pg.organizacao_ref = c.organizacao_ref
+                    AND pg.cobranca_ref = c.ref_core AND pg.status = 'confirmed') AS possui_pagamento
+           FROM financeiro_cobrancas c
+           LEFT JOIN financeiro_checkouts_asaas x
+             ON x.instituicao_id = c.instituicao_id AND x.cobranca_ref = c.ref_core
+          WHERE c.instituicao_id = ?
+            AND c.sessao_ref IN (?, COALESCE(?, ?))
+            AND c.status <> 'cancelled'
+          FOR UPDATE`,
+        [instituicaoId(), agendamento.ref_core, agendamento.sessao_clinica_ref,
+          agendamento.ref_core]
+      );
+      const chargeLocked = charges.some((charge) =>
+        Boolean(charge.possui_pagamento)
+        || ['paid', 'partially_paid', 'refunded'].includes(String(charge.status))
+        || Boolean(charge.provedor_ref)
+        || Boolean(charge.provedor_pagamento_ref)
+      );
+      if (chargeLocked) {
+        await connection.rollback();
+        return 'funding_locked';
+      }
+      await connection.execute(
+        `UPDATE financeiro_cobrancas
+            SET status = 'cancelled', atualizado_em = CURRENT_TIMESTAMP(3)
+          WHERE instituicao_id = ? AND sessao_ref IN (?, COALESCE(?, ?))
+            AND status <> 'cancelled'`,
+        [instituicaoId(), agendamento.ref_core, agendamento.sessao_clinica_ref,
+          agendamento.ref_core]
+      );
     }
 
     let novoInicio = agendamento.inicio ? new Date(agendamento.inicio) : null;
@@ -879,6 +939,11 @@ export async function updateAppointmentDetails(
       if (input.status === 'agendado') {
         updates.push('realizado_em = NULL');
       }
+    }
+
+    if (input.custeadoPelaEmpresa !== undefined) {
+      updates.push('custeado_pela_empresa = ?');
+      values.push(input.custeadoPelaEmpresa ? 1 : 0);
     }
 
     values.push(instituicaoId(), agendamento.id);

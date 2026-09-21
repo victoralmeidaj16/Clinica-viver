@@ -9,7 +9,7 @@ export type PatientRegistrationForm = {
   turno: TurnoPreferencia | ''; paraQuemE: string; paraQuemEOutro: string;
   genero: GenderValue | ''; generoOutro: string; servicoKey: string; modalidade: string;
   opcaoAvaliacaoPsicologica: string;
-  especificarNecessidades: boolean; necessidadesPaciente: string[]; necessidadesOutro: string;
+  especificarNecessidades: boolean; necessidadesPaciente: string[];
   emergencyContactName: string; emergencyContactPhone: string; registrationNotes: string;
 };
 
@@ -19,7 +19,7 @@ export const EMPTY_PATIENT_REGISTRATION: PatientRegistrationForm = {
   possuiConvenio: 'NAO', convenioSelecionado: '', origem: 'Indicação', turno: '', paraQuemE: '',
   paraQuemEOutro: '', genero: '', generoOutro: '',
   servicoKey: '', modalidade: '', opcaoAvaliacaoPsicologica: '',
-  especificarNecessidades: false, necessidadesPaciente: [], necessidadesOutro: '',
+  especificarNecessidades: false, necessidadesPaciente: [],
   emergencyContactName: '', emergencyContactPhone: '', registrationNotes: '',
 };
 

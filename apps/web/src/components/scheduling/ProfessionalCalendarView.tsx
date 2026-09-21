@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock3, X } from 'lucide-react';
 import type { BloqueioAgenda, NovoBloqueioAgenda } from './AgendaBlocks';
 import type { JanelaEditavel } from './AvailabilityEditor';
@@ -28,14 +28,6 @@ export function ProfessionalCalendarView({
   const [ano, setAno] = useState(() => Number(hoje.slice(0, 4)));
   const [mes, setMes] = useState(() => Number(hoje.slice(5, 7)) - 1);
   const [selecionados, setSelecionados] = useState<string[]>(() => [hoje]);
-
-  useEffect(() => {
-    const dataAtual = dataLocal(Date.now());
-    setHoje(dataAtual);
-    setAno(Number(dataAtual.slice(0, 4)));
-    setMes(Number(dataAtual.slice(5, 7)) - 1);
-    setSelecionados((atual) => (atual.length === 0 ? [dataAtual] : atual));
-  }, []);
 
   const celulas = useMemo(() => monthCells(ano, mes), [ano, mes]);
   const diasDisponiveis = useMemo(

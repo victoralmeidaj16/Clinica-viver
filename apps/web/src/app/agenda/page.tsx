@@ -21,6 +21,14 @@ interface AgendaOverview {
   servicosHabilitados: string[];
 }
 
+function normalizarBuscaPaciente(value: string): string {
+  return value
+    .trim()
+    .toLocaleLowerCase('pt-BR')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
 export default function AgendaPage() {
   const [dados, setDados] = useState<AgendaOverview>();
   const [pacientes, setPacientes] = useState<readonly PatientDirectoryEntry[]>([]);
@@ -50,16 +58,19 @@ export default function AgendaPage() {
   }, [carregar]);
 
   const nomesPacientes = useMemo(
-    () => Array.from(new Set(pacientes.map((paciente) => paciente.displayName.trim()).filter(Boolean)))
+    () => Array.from(new Set([
+      ...pacientes.map((paciente) => paciente.displayName.trim()),
+      ...(dados?.appointments ?? []).map((agendamento) => agendamento.pacienteNome.trim()),
+    ].filter(Boolean)))
       .sort((a, b) => a.localeCompare(b, 'pt-BR')),
-    [pacientes]
+    [dados?.appointments, pacientes]
   );
 
   const agendamentosVisiveis = useMemo(() => {
-    const termo = buscaPaciente.trim().toLocaleLowerCase('pt-BR');
+    const termo = normalizarBuscaPaciente(buscaPaciente);
     if (!termo) return dados?.appointments ?? [];
     return (dados?.appointments ?? []).filter((agendamento) =>
-      agendamento.pacienteNome.toLocaleLowerCase('pt-BR').includes(termo)
+      normalizarBuscaPaciente(agendamento.pacienteNome).includes(termo)
     );
   }, [buscaPaciente, dados?.appointments]);
 
@@ -119,17 +130,6 @@ export default function AgendaPage() {
     setDados((atual) => (atual ? { ...atual, appointments: resposta.appointments } : atual));
   };
 
-  const editarSessao = async (
-    id: string,
-    input: { startsAt?: string; endsAt?: string; modalidade?: string; status?: string }
-  ) => {
-    const resposta = await applicationRequest<{ appointments: AgendamentoResumo[] }>(
-      `/agenda/agendamentos/${encodeURIComponent(id)}`,
-      { method: 'PATCH', body: JSON.stringify({ action: 'edit', ...input }) }
-    );
-    setDados((atual) => (atual ? { ...atual, appointments: resposta.appointments } : atual));
-  };
-
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -165,21 +165,34 @@ export default function AgendaPage() {
         <>
           <AgendaShareCard token={dados.agendaToken} professionalName={dados.professionalName} />
 
-          <section className="rounded-2xl border border-psi-soft/60 bg-surface p-4 shadow-card">
+          {/* Calendário Interativo do Psicólogo */}
+          <ProfessionalCalendarView
+            availability={dados.availability}
+            blocks={dados.blocks}
+            appointments={agendamentosVisiveis}
+            onAdicionarBloqueio={adicionarBloqueio}
+            onRemoverBloqueio={removerBloqueio}
+          />
+
+          <AvailabilityEditor janelas={dados.availability} onSalvar={salvarGrade} />
+          <AgendaBlocks bloqueios={dados.blocks} onAdicionar={adicionarBloqueio} onRemover={removerBloqueio} />
+
+          <section className="rounded-2xl border border-psi-soft/60 bg-surface p-4 shadow-card" aria-labelledby="filtro-paciente-agenda">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
               <label className="block min-w-0 flex-1">
-                <span className="mb-1.5 block text-[10px] font-black uppercase tracking-[.16em] text-muted">
-                  Filtrar por paciente
+                <span id="filtro-paciente-agenda" className="mb-1.5 block text-[10px] font-black uppercase tracking-[.16em] text-muted">
+                  Buscar sessões por paciente
                 </span>
                 <span className="relative block">
                   <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-psi-vibrant" />
                   <input
                     list="agenda-pacientes"
+                    type="search"
                     value={buscaPaciente}
                     onChange={(event) => setBuscaPaciente(event.target.value)}
                     placeholder="Digite o nome da paciente…"
                     className="w-full rounded-xl border border-psi-soft bg-white py-2.5 pl-9 pr-3 text-xs font-medium text-ink placeholder:text-muted focus:border-psi-vibrant focus:outline-none focus:ring-2 focus:ring-psi-vibrant/20"
-                    aria-label="Filtrar agenda pelo nome do paciente"
+                    aria-label="Buscar sessões pelo nome do paciente"
                   />
                   <datalist id="agenda-pacientes">
                     {nomesPacientes.map((nome) => <option key={nome} value={nome} />)}
@@ -192,35 +205,25 @@ export default function AgendaPage() {
                   onClick={() => setBuscaPaciente('')}
                   className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-white px-3 py-2.5 text-xs font-bold text-muted transition hover:bg-slate-50 hover:text-ink"
                 >
-                  <X className="h-3.5 w-3.5" /> Limpar filtro
+                  <X className="h-3.5 w-3.5" /> Mostrar todas
                 </button>
               )}
             </div>
-            <p className="mt-2 text-[11px] text-muted">
+            <p className="mt-2 text-[11px] text-muted" aria-live="polite">
               {buscaPaciente.trim()
                 ? `${agendamentosVisiveis.length} ${agendamentosVisiveis.length === 1 ? 'sessão encontrada' : 'sessões encontradas'} para “${buscaPaciente.trim()}”.`
-                : 'Digite ou selecione um nome para ver somente os agendamentos dessa paciente.'}
+                : 'Digite ou selecione um nome para ver somente as sessões dessa paciente.'}
             </p>
           </section>
 
-          {/* Calendário Interativo do Psicólogo */}
-          <ProfessionalCalendarView
-            availability={dados.availability}
-            blocks={dados.blocks}
-            appointments={agendamentosVisiveis}
-            onAdicionarBloqueio={adicionarBloqueio}
-            onRemoverBloqueio={removerBloqueio}
-          />
-
-          <AvailabilityEditor janelas={dados.availability} onSalvar={salvarGrade} />
-          <AgendaBlocks bloqueios={dados.blocks} onAdicionar={adicionarBloqueio} onRemover={removerBloqueio} />
           <UpcomingSessions
             agendamentos={agendamentosVisiveis}
+            filtroPaciente={buscaPaciente}
             onCancelar={cancelarSessao}
             onConfirmarRealizacao={confirmarRealizacao}
             onAtualizarVencimento={atualizarVencimento}
             onReagendar={reagendarSessao}
-            onEditar={editarSessao}
+            onRecarregar={carregar}
           />
         </>
       )}

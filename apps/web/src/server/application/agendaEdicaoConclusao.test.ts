@@ -5,6 +5,7 @@ vi.mock('@/server/scheduling/agendaAvisos', () => ({ avisarSessaoCancelada: vi.f
 vi.mock('@/server/payments/sessionCharge', () => ({
   atualizarVencimentoCobrancaSessao: vi.fn(),
   cancelarCobrancaDaSessao: vi.fn(),
+  garantirCobrancaDaSessao: vi.fn(async () => 'created'),
 }));
 vi.mock('@/server/scheduling/agendaRepository', () => ({
   cancelAppointment: vi.fn(),
@@ -26,6 +27,7 @@ import {
   completeAppointment,
   updateAppointmentDetails,
 } from '@/server/scheduling/agendaRepository';
+import { garantirCobrancaDaSessao } from '@/server/payments/sessionCharge';
 import type { RequestContext } from './context';
 
 const context = {
@@ -90,5 +92,41 @@ describe('editAgendaAppointment', () => {
     await editAgendaAppointment(context, 'apt-1', { startsAt: '2026-09-01T12:00:00.000Z' });
 
     expect(completeAppointment).not.toHaveBeenCalled();
+  });
+
+  it('cria a cobrança quando a sessão passa a ser paga pela paciente', async () => {
+    await editAgendaAppointment(context, 'apt-1', {
+      startsAt: '2026-10-01T12:00:00.000Z',
+      custeadoPelaEmpresa: false,
+    });
+
+    expect(updateAppointmentDetails).toHaveBeenCalledWith(
+      'org-1',
+      'pro-1',
+      'apt-1',
+      { startsAt: '2026-10-01T12:00:00.000Z', custeadoPelaEmpresa: false },
+      { concluirDepois: false }
+    );
+    expect(garantirCobrancaDaSessao).toHaveBeenCalledWith(
+      'apt-1',
+      '2026-10-01T12:00:00.000Z'
+    );
+  });
+
+  it('recusa mudar o pagador depois que o pagamento foi iniciado', async () => {
+    vi.mocked(updateAppointmentDetails).mockResolvedValueOnce('funding_locked');
+
+    await expect(
+      editAgendaAppointment(context, 'apt-1', { custeadoPelaEmpresa: true })
+    ).rejects.toMatchObject({ code: 'APPOINTMENT_FUNDING_LOCKED', status: 409 });
+    expect(garantirCobrancaDaSessao).not.toHaveBeenCalled();
+  });
+
+  it('recusa ultrapassar a cota de sessões pagas pela empresa', async () => {
+    vi.mocked(updateAppointmentDetails).mockResolvedValueOnce('funding_quota_exceeded');
+
+    await expect(
+      editAgendaAppointment(context, 'apt-1', { custeadoPelaEmpresa: true })
+    ).rejects.toMatchObject({ code: 'APPOINTMENT_FUNDING_QUOTA_EXCEEDED', status: 409 });
   });
 });

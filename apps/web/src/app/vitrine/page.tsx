@@ -166,7 +166,6 @@ export default function ViverMaisLandingPage() {
     paraQuemEOutro: '',
     especificarNecessidades: false,
     necessidadesPaciente: [] as string[],
-    necessidadesOutro: '',
     opcaoAvaliacaoPsicologica: '',
     genero: '' as GenderValue | '',
     generoOutro: '',
@@ -467,7 +466,7 @@ export default function ViverMaisLandingPage() {
       alert('Responda às perguntas obrigatórias para continuar.');
       return;
     }
-    const temNecessidade = form.necessidadesPaciente.length > 0 || Boolean(form.necessidadesOutro.trim());
+    const temNecessidade = form.necessidadesPaciente.length > 0;
     setForm((prev) => ({ ...prev, especificarNecessidades: temNecessidade }));
     // Neste caminho quem indica é o rodízio, não o paciente: as respostas viram
     // critério de fila no servidor e nenhum nome é oferecido aqui. Zerar a
@@ -613,9 +612,9 @@ export default function ViverMaisLandingPage() {
                     <button
                       type="button"
                       onClick={handleIrParaCadastroPsicologo}
-                      className="bg-psi-vibrant hover:bg-psi-deep text-white font-black text-xs px-6 py-3.5 rounded-2xl transition-all shadow-lift flex items-center gap-2 active:scale-95"
+                      className="bg-psi-vibrant hover:bg-psi-deep text-white font-black text-sm sm:text-base px-6 py-3.5 rounded-2xl transition-all shadow-lift flex items-center gap-2 active:scale-95"
                     >
-                      Preencher Cadastro de Credenciamento <ArrowRight className="w-4 h-4" />
+                      Preencher Cadastro de Credenciamento <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
                     </button>
                   </div>
                 </>
@@ -636,9 +635,9 @@ export default function ViverMaisLandingPage() {
                     <a
                       href="#secao-escolha-servico"
                       onClick={handleAgendarConsultaScroll}
-                      className="bg-psi-vibrant hover:bg-psi-deep text-white font-black text-xs px-6 py-3.5 rounded-2xl transition-all shadow-lift flex items-center gap-2 active:scale-95"
+                      className="bg-psi-vibrant hover:bg-psi-deep text-white font-black text-sm sm:text-base px-6 py-3.5 rounded-2xl transition-all shadow-lift flex items-center gap-2 active:scale-95"
                     >
-                      Ver Modalidades & Agendar <ArrowRight className="w-4 h-4" />
+                      Ver Modalidades & Agendar <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
                     </a>
                   </div>
                 </>
@@ -1092,17 +1091,6 @@ export default function ViverMaisLandingPage() {
                     );
                   })}
                 </div>
-                <label className="block space-y-2 border-t border-line pt-3">
-                  <span className="text-xs font-bold text-ink">Outro <span className="font-normal text-muted">(opcional)</span></span>
-                  <input
-                    type="text"
-                    maxLength={300}
-                    value={form.necessidadesOutro}
-                    onChange={(e) => setForm((prev) => ({ ...prev, especificarNecessidades: true, necessidadesOutro: e.target.value }))}
-                    placeholder="Escreva outra necessidade"
-                    className="input text-xs"
-                  />
-                </label>
               </fieldset>
 
               <fieldset className="space-y-3">

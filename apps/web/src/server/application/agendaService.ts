@@ -346,6 +346,20 @@ export async function editAgendaAppointment(
       409
     );
   }
+  if (outcome === 'funding_locked') {
+    throw new ApplicationError(
+      'APPOINTMENT_FUNDING_LOCKED',
+      'O responsável pelo pagamento não pode ser alterado porque esta cobrança já foi paga ou teve o pagamento iniciado.',
+      409
+    );
+  }
+  if (outcome === 'funding_quota_exceeded') {
+    throw new ApplicationError(
+      'APPOINTMENT_FUNDING_QUOTA_EXCEEDED',
+      'Esta sessão não cabe na cota da empresa. Altere primeiro outra sessão coberta para pagamento da paciente.',
+      409
+    );
+  }
   if (outcome === 'requires_completion') {
     throw new ApplicationError(
       'INVALID_APPOINTMENT_STATUS',
@@ -376,6 +390,21 @@ export async function editAgendaAppointment(
     exigirConclusao(resultado);
     // `already_completed` aqui é apenas o formulário reenviando o status atual.
     if (resultado === 'completed') await cobrarPacienteSePreciso(appointmentId);
+  }
+
+  if (input.custeadoPelaEmpresa === false) {
+    const inicio = input.startsAt ? Date.parse(input.startsAt) : Number.NaN;
+    const dueAt = Number.isFinite(inicio) && inicio > Date.now()
+      ? new Date(inicio).toISOString()
+      : new Date(Date.now() + PRAZO_COBRANCA_POS_SESSAO_MS).toISOString();
+    const charge = await garantirCobrancaDaSessao(appointmentId, dueAt);
+    if (charge === 'failed') {
+      throw new ApplicationError(
+        'SESSION_CHARGE_FAILED',
+        'A sessão foi alterada para pagamento da paciente, mas a cobrança não pôde ser criada. Tente novamente.',
+        500
+      );
+    }
   }
 
   const desde = new Date(Date.now() - 90 * 24 * 60 * 60_000);

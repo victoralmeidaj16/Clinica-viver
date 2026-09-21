@@ -1,6 +1,10 @@
 import { resolveRequestContext } from '@/server/application/context';
-import { failure, success } from '@/server/application/http';
-import { getClinicalTimeline } from '@/server/application/timelineService';
+import { failure, readJson, success } from '@/server/application/http';
+import {
+  createManualClinicalRecord,
+  getClinicalTimeline,
+} from '@/server/application/timelineService';
+import { parseManualClinicalRecordInput } from '@/server/application/manualClinicalRecordInput';
 import type { ClinicalTimelineCategory } from '@thats-life/core';
 
 export const runtime = 'nodejs';
@@ -41,6 +45,16 @@ export async function GET(request: Request) {
     });
 
     return success(result);
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const context = await resolveRequestContext(request, true);
+    const input = parseManualClinicalRecordInput(await readJson(request));
+    return success(await createManualClinicalRecord(context, input), 201);
   } catch (error) {
     return failure(error);
   }

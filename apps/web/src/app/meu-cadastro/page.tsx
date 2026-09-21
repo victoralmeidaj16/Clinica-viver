@@ -119,7 +119,6 @@ type Rascunho = {
   publicoAlvoOutro: string;
   especificarNecessidades: boolean;
   necessidadesAtendidas: string[];
-  necessidadesOutro: string;
 };
 
 function rascunhoDe(c: Cadastro): Rascunho {
@@ -141,9 +140,13 @@ function rascunhoDe(c: Cadastro): Rascunho {
     turnosDisponiveis: [...(c.turnosDisponiveis ?? [])],
     publicoAlvo: [...(c.publicoAlvo ?? [])],
     publicoAlvoOutro: c.publicoAlvoOutro ?? '',
-    especificarNecessidades: Boolean(c.especificarNecessidades),
-    necessidadesAtendidas: [...(c.necessidadesAtendidas ?? [])],
-    necessidadesOutro: c.necessidadesOutro ?? '',
+    especificarNecessidades: Boolean(
+      c.especificarNecessidades || c.necessidadesAtendidas?.length || c.necessidadesOutro
+    ),
+    necessidadesAtendidas: Array.from(new Set([
+      ...(c.necessidadesAtendidas ?? []),
+      ...(c.necessidadesOutro ? ['Outros'] : []),
+    ])),
   };
 }
 
@@ -240,7 +243,7 @@ export default function MeuCadastroPage() {
       const response = await fetch('/api/application/credenciamento-psicologo/me', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(rascunho),
+        body: JSON.stringify({ ...rascunho, necessidadesOutro: null }),
       });
       const body = (await response.json()) as { success: boolean; data?: Cadastro; error?: string };
       if (!response.ok || !body.success) throw new Error(body.error ?? 'Não foi possível salvar.');
@@ -482,7 +485,8 @@ export default function MeuCadastroPage() {
           </div>
 
           <div>
-            <label className="text-[10px] uppercase tracking-wider font-extrabold text-muted block mb-2">Atendo demandas específicas</label>
+            <label className="text-[10px] uppercase tracking-wider font-extrabold text-muted block mb-1">Atendo demandas específicas</label>
+            <p className="mb-2 text-[11px] text-muted">Selecione “Outros” se você atende demandas variadas, sem uma especificação principal.</p>
             <div className="flex gap-2 mb-3">
               {[{ v: true, l: 'Sim' }, { v: false, l: 'Não' }].map((opcao) => (
                 <label key={String(opcao.v)} className={chipClasse(rascunho.especificarNecessidades === opcao.v)}>
@@ -501,7 +505,6 @@ export default function MeuCadastroPage() {
                     </label>
                   ))}
                 </div>
-                <input value={rascunho.necessidadesOutro} onChange={(e) => setRascunho({ ...rascunho, necessidadesOutro: e.target.value })} placeholder="Outra demanda que você atende" className={`${campoClasse} mt-3`} />
               </>
             )}
           </div>

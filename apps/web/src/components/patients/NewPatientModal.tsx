@@ -77,7 +77,6 @@ export default function NewPatientModal({ isOpen, onClose, onPatientCreated }: P
           // foi preenchido, como na triagem da vitrine.
           especificarNecessidades: form.especificarNecessidades,
           necessidadesPaciente: form.necessidadesPaciente,
-          necessidadesOutro: form.necessidadesOutro || undefined,
           idade: form.idade || undefined,
         }),
       });

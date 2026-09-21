@@ -42,6 +42,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           endsAt: body.endsAt ? String(body.endsAt) : undefined,
           modalidade: opcao<UpdateAppointmentInput['modalidade'] & string>(body.modalidade, MODALIDADES),
           status: opcao<UpdateAppointmentInput['status'] & string>(body.status, STATUS),
+          custeadoPelaEmpresa: typeof body.custeadoPelaEmpresa === 'boolean'
+            ? body.custeadoPelaEmpresa
+            : undefined,
         })
       );
     }

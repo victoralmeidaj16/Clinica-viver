@@ -194,8 +194,7 @@ export function textoCancelamentoPaciente(sessao: ContatosDaSessao): string {
   return [
     `Olá, ${sessao.pacienteNome}. Sua sessão de ${quandoPorExtenso(sessao.inicio)} com ${sessao.profissionalNome} foi cancelada.`,
     '',
-    'Você pode escolher um novo horário pelo link de marcação que recebeu.',
-    'Em caso de dúvida, responda esta mensagem.',
+    'Entre em contato com seu(sua) psicólogo(a) para realizar um novo agendamento.',
   ].join('\n');
 }
 

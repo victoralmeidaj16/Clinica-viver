@@ -146,6 +146,8 @@ describe('e-mails de confirmação de agendamento/triagem', () => {
       expect(conteudo.text).toContain('5548988887777');
       expect(conteudo.text).toContain('confirmar-contato/triagem-123');
       expect(conteudo.text).toContain('encaminhar-contato/triagem-123');
+      expect(conteudo.text).toContain('CONFIRMAR - quando já tiver falado com o paciente.');
+      expect(conteudo.text).not.toContain('CONTATO - quando já tiver falado com o paciente.');
 
       expect(conteudo.html).toContain('Paciente escolheu você diretamente');
       expect(conteudo.html).toContain('Prazo de Ação: até 24 Horas');
@@ -153,6 +155,8 @@ describe('e-mails de confirmação de agendamento/triagem', () => {
       expect(conteudo.html).toContain('Confirmar Primeiro Contato');
       expect(conteudo.html).toContain('Encaminhar para a Fila');
       expect(conteudo.html).toContain('wa.me/5548988887777');
+      expect(conteudo.html).toContain('Digite <strong>CONFIRMAR</strong>');
+      expect(conteudo.html).not.toContain('Digite <strong>CONTATO</strong>');
     });
 
     it('formata e-mail de rodízio inteligente informando a seleção pelo sistema', () => {

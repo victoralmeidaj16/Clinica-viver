@@ -41,7 +41,6 @@ interface Props {
   onBloquearDia: (data: string) => Promise<void>;
   onRemoverBloqueio: (id: string) => Promise<void>;
   onRemoverData: (data: string) => void;
-  hoje?: string;
 }
 
 export function SelectedDayAccordion({
@@ -58,7 +57,6 @@ export function SelectedDayAccordion({
   onBloquearDia,
   onRemoverBloqueio,
   onRemoverData,
-  hoje,
 }: Props) {
   const [agora] = useState(() => Date.now());
   const [bloqueandoDia, setBloqueandoDia] = useState(false);
@@ -113,7 +111,7 @@ export function SelectedDayAccordion({
               <h4 className="truncate text-xs font-black capitalize text-ink">
                 {dataPorExtenso(data)}
               </h4>
-              {data === dataLocal(Date.now()) && (
+              {data === dataLocal(agora) && (
                 <span className="shrink-0 rounded-md bg-psi-vibrant/10 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-psi-vibrant">
                   Hoje
                 </span>

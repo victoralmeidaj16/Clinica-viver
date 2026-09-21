@@ -62,6 +62,7 @@ export const LISTA_NECESSIDADES = [
   'Envelhecimento',
   'Paternidade',
   'Masculinidade',
+  'Outros',
 ] as const;
 
 export const OPCOES_AVALIACAO_PSICOLOGICA = [
@@ -84,8 +85,6 @@ export function NecessidadesSelector({
   onEspecificarChange,
   selecionados,
   onSelecionadosChange,
-  outro,
-  onOutroChange,
 }: {
   prefix: string;
   titulo?: React.ReactNode;
@@ -94,8 +93,6 @@ export function NecessidadesSelector({
   onEspecificarChange: (val: boolean) => void;
   selecionados: readonly string[];
   onSelecionadosChange: (lista: string[]) => void;
-  outro: string;
-  onOutroChange: (val: string) => void;
 }) {
   return (
     <div className="space-y-3 p-4 bg-slate-50 border border-slate-200 rounded-2xl">
@@ -129,7 +126,6 @@ export function NecessidadesSelector({
             onChange={() => {
               onEspecificarChange(false);
               onSelecionadosChange([]);
-              onOutroChange('');
             }}
             className="w-4 h-4 accent-purple-600 cursor-pointer"
           />
@@ -169,18 +165,6 @@ export function NecessidadesSelector({
             })}
           </div>
 
-          <div className="pt-2 border-t border-slate-200/60 space-y-1">
-            <label className="font-semibold text-xs text-slate-700 block">
-              Outro <span className="text-slate-400 font-normal">(opcional)</span>
-            </label>
-            <input
-              type="text"
-              value={outro}
-              onChange={(e) => onOutroChange(e.target.value)}
-              placeholder="Escrever outra necessidade..."
-              className="w-full border border-slate-300 rounded-xl p-2.5 text-xs bg-white focus:outline-none focus:border-purple-600"
-            />
-          </div>
         </div>
       )}
     </div>

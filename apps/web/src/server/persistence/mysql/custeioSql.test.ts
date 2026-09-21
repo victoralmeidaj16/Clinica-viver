@@ -44,7 +44,7 @@ describe('custeioDoAgendamentoSql', () => {
 
   it('reserva saldo apenas para sessões anteriores elegíveis, com desempate estável', () => {
     expect(sql).toContain('cota_ag.custeado_pela_empresa IS NULL');
-    expect(sql).toContain('cota_ag.cobranca_ref IS NULL');
+    expect(sql).toContain('NOT EXISTS (SELECT 1 FROM financeiro_cobrancas cota_fc');
     expect(sql).toContain("cota_ag.status IN ('agendado', 'confirmado', 'realizado')");
     expect(sql).toContain('cota_ag.inicio < a.inicio');
     expect(sql).toContain('cota_ag.inicio = a.inicio AND cota_ag.id < a.id');

@@ -40,7 +40,10 @@ export function custeioEfetivoSql(alias: {
   const referencia = alias.referencia ?? 'CURRENT_TIMESTAMP(3)';
   const a = alias.agendamento;
   const reservaAnterior = a ? `OR (cota_ag.custeado_pela_empresa IS NULL
-               AND cota_ag.cobranca_ref IS NULL
+               AND NOT EXISTS (SELECT 1 FROM financeiro_cobrancas cota_fc
+                                WHERE cota_fc.instituicao_id = cota_ag.instituicao_id
+                                  AND cota_fc.sessao_ref IN (cota_ag.ref_core, cota_ag.id)
+                                  AND cota_fc.status <> 'cancelled')
                AND cota_ag.status IN ('agendado', 'confirmado', 'realizado')
                AND (cota_ag.inicio < ${a}.inicio
                     OR (cota_ag.inicio = ${a}.inicio AND cota_ag.id < ${a}.id)))` : '';

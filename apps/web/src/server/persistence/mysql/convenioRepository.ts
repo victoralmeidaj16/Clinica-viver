@@ -238,7 +238,7 @@ export async function pacientesDoConvenio(organizationId: string, convenioId: st
        ) fc ON fc.instituicao_id = p.instituicao_id
         AND fc.organizacao_ref = o.ref_core AND fc.paciente_ref = p.ref_core
       WHERE p.instituicao_id = ? AND o.ref_core = ? AND c.ref_core = ?
-      GROUP BY p.id ORDER BY nome`,
+      GROUP BY p.id, c.empresa_paga_sessoes, pr.nome ORDER BY COALESCE(p.nome_social, p.nome)`,
     params
   );
   return rows.map((row) => ({
@@ -284,7 +284,7 @@ export async function sessoesDoConvenio(organizationId: string, convenioId: stri
     chargeId: String(row.ref_core), sessionId: String(row.sessao_ref), patientId: String(row.paciente_ref),
     pacienteNome: String(row.paciente_nome), professionalId: String(row.profissional_ref),
     psicologoNome: String(row.psicologo_nome ?? row.profissional_ref),
-    realizadaEm: fromSqlTimestamp(row.realizada_em)!, valorCents: Number(row.valor_centavos),
+    realizadaEm: fromSqlTimestamp(row.realizada_em) ?? new Date().toISOString(), valorCents: Number(row.valor_centavos),
     status: String(row.status), faturaId: row.fatura_convenio_ref ? String(row.fatura_convenio_ref) : undefined,
     custeadoPelaEmpresa: Boolean(row.custeado_efetivo),
   }));

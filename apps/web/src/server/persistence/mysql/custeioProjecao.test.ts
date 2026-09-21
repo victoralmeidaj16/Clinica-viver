@@ -25,15 +25,18 @@ describe.skipIf(!sqlite)('projeção da cota por agendamento', () => {
       );
       CREATE TABLE clinica_convenios (empresa_paga_sessoes INTEGER);
       CREATE TABLE clinica_agendamentos (
-        id TEXT, instituicao_id TEXT, paciente_id TEXT, inicio TEXT,
-        status TEXT, custeado_pela_empresa INTEGER, cobranca_ref TEXT
+        id TEXT, ref_core TEXT, instituicao_id TEXT, paciente_id TEXT, inicio TEXT,
+        status TEXT, custeado_pela_empresa INTEGER
+      );
+      CREATE TABLE financeiro_cobrancas (
+        instituicao_id TEXT, sessao_ref TEXT, status TEXT
       );
       INSERT INTO clinica_pacientes VALUES ('p', 'i', 'c', 1, 2, 'total');
       INSERT INTO clinica_convenios VALUES (1);
     `);
     const insert = db.prepare(`INSERT INTO clinica_agendamentos
-      VALUES (?, 'i', 'p', ?, 'agendado', NULL, NULL)`);
-    for (let n = 1; n <= 4; n++) insert.run(String(n), `2026-10-${String(n * 7).padStart(2, '0')} 10:00:00`);
+      VALUES (?, ?, 'i', 'p', ?, 'agendado', NULL)`);
+    for (let n = 1; n <= 4; n++) insert.run(String(n), String(n), `2026-10-${String(n * 7).padStart(2, '0')} 10:00:00`);
   });
 
   afterEach(() => db.close());
@@ -82,7 +85,7 @@ describe.skipIf(!sqlite)('projeção da cota por agendamento', () => {
   });
 
   it('não reserva cota para cobrança individual ou decisão de paciente pagante', () => {
-    db.exec(`UPDATE clinica_agendamentos SET cobranca_ref = 'charge' WHERE id = '1';
+    db.exec(`INSERT INTO financeiro_cobrancas VALUES ('i', '1', 'pending');
       UPDATE clinica_agendamentos SET custeado_pela_empresa = 0 WHERE id = '2';`);
     expect(custeios().slice(2)).toEqual([1, 1]);
   });

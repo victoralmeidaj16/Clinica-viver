@@ -1,16 +1,21 @@
 'use client';
 
 import { useState } from 'react';
-import { Building2, CalendarCheck2, Mail, Pencil, ShieldCheck, UsersRound, X } from 'lucide-react';
+import { AlertCircle, Building2, CalendarCheck2, Loader2, Mail, Pencil, ShieldCheck, UsersRound, X } from 'lucide-react';
 import type { ConvenioDetailView } from './types';
 import type { PeriodoFaturamento } from './periodo';
 import { FaturamentoPanel } from './FaturamentoPanel';
 
 const money = (cents: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
-const date = (iso: string) => new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeZone: 'America/Sao_Paulo' }).format(new Date(iso));
+const date = (iso?: string) => {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '-';
+  return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeZone: 'America/Sao_Paulo' }).format(d);
+};
 
-export function ConvenioDetailDrawer({ detail, loading, periodo, onPeriodoChange, onClose, onEdit, onRefresh }: {
-  detail?: ConvenioDetailView; loading: boolean; onClose: () => void; onEdit: () => void;
+export function ConvenioDetailDrawer({ detail, loading, error, periodo, onPeriodoChange, onClose, onEdit, onRefresh }: {
+  detail?: ConvenioDetailView; loading: boolean; error?: string; onClose: () => void; onEdit: () => void;
   periodo: PeriodoFaturamento;
   onPeriodoChange: (periodo: PeriodoFaturamento) => void;
   onRefresh: (period?: PeriodoFaturamento) => Promise<void>;
@@ -19,7 +24,50 @@ export function ConvenioDetailDrawer({ detail, loading, periodo, onPeriodoChange
   return (
     <aside className="fixed inset-0 z-50 flex justify-end bg-psi-darkest/60 backdrop-blur-[2px]" onMouseDown={onClose}>
       <div className="h-full w-full max-w-3xl overflow-y-auto border-l border-white/10 bg-surface shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
-        {loading || !detail ? <div className="flex h-full items-center justify-center text-sm font-bold text-muted">Carregando convênio…</div> : <>
+        {loading && !detail ? (
+          <div className="flex h-full flex-col">
+            <header className="flex items-center justify-end border-b border-psi-soft p-4">
+              <button type="button" onClick={onClose} className="rounded-full p-2 text-muted hover:bg-psi-soft hover:text-ink" aria-label="Fechar">
+                <X className="h-5 w-5" />
+              </button>
+            </header>
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+              <Loader2 className="h-8 w-8 animate-spin text-psi-vibrant" />
+              <p className="text-sm font-bold text-ink">Carregando convênio…</p>
+              <p className="text-xs text-muted">Buscando detalhes, faturamento e pacientes vinculados.</p>
+            </div>
+          </div>
+        ) : error && !detail ? (
+          <div className="flex h-full flex-col">
+            <header className="flex items-center justify-between border-b border-psi-soft p-4">
+              <h3 className="text-sm font-black text-ink">Convênio empresarial</h3>
+              <button type="button" onClick={onClose} className="rounded-full p-2 text-muted hover:bg-psi-soft hover:text-ink" aria-label="Fechar">
+                <X className="h-5 w-5" />
+              </button>
+            </header>
+            <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
+              <div className="rounded-full bg-rose-100 p-4 text-rose-600">
+                <AlertCircle className="h-8 w-8" />
+              </div>
+              <div className="max-w-md">
+                <p className="text-base font-black text-ink">Não foi possível carregar o convênio</p>
+                <p className="mt-2 text-xs font-semibold text-rose-700">{error}</p>
+              </div>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => void onRefresh()} className="btn-accent px-4 py-2 text-xs">
+                  Tentar novamente
+                </button>
+                <button type="button" onClick={onClose} className="btn-outline px-4 py-2 text-xs">
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : !detail ? (
+          <div className="flex h-full items-center justify-center text-sm font-bold text-muted">
+            Nenhum detalhe disponível.
+          </div>
+        ) : <>
           <header className="sticky top-0 z-20 overflow-hidden border-b border-white/10 bg-psi-darkest p-5 text-white shadow-lg sm:p-6">
             <div className="absolute -right-12 -top-16 h-44 w-44 rounded-full border-[30px] border-psi-vibrant/15" />
             <div className="relative flex items-start justify-between gap-3">

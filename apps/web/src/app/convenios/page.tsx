@@ -26,6 +26,7 @@ export default function ConveniosPage() {
   const [editing, setEditing] = useState<ConvenioView>();
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [error, setError] = useState('');
+  const [detailError, setDetailError] = useState('');
   // O período de faturamento vive aqui porque o painel que o edita é desmontado
   // a cada recarga do detalhe. Ele também é o filtro enviado à API, então o que
   // está na tela e o que foi carregado são sempre o mesmo intervalo.
@@ -38,12 +39,16 @@ export default function ConveniosPage() {
 
   const loadDetail = useCallback(async (id: string, period?: PeriodoFaturamento) => {
     setLoadingDetail(true);
+    setDetailError('');
     try {
       const query = period ? `?inicio=${period.inicio}&fim=${period.fim}` : '';
       setDetail(await applicationRequest<ConvenioDetailView>(`/convenios/${encodeURIComponent(id)}${query}`));
       await load();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Não foi possível carregar o convênio.'); }
-    finally { setLoadingDetail(false); }
+    } catch (cause) {
+      setDetailError(cause instanceof Error ? cause.message : 'Não foi possível carregar o convênio.');
+    } finally {
+      setLoadingDetail(false);
+    }
   }, [load]);
 
   useEffect(() => {
@@ -61,10 +66,10 @@ export default function ConveniosPage() {
 
   const select = (id: string) => {
     const inicial = periodoPadrao();
-    setSelectedId(id); setDetail(undefined); setPeriodo(inicial);
+    setSelectedId(id); setDetail(undefined); setDetailError(''); setPeriodo(inicial);
     void loadDetail(id, inicial);
   };
-  const close = () => { setSelectedId(undefined); setDetail(undefined); };
+  const close = () => { setSelectedId(undefined); setDetail(undefined); setDetailError(''); };
   const save = async (payload: ConvenioPayload) => {
     const path = editing ? `/convenios/${encodeURIComponent(editing.id)}` : '/convenios';
     await applicationRequest(path, { method: editing ? 'PATCH' : 'POST', headers: commandHeaders(), body: JSON.stringify(payload) });
@@ -97,7 +102,7 @@ export default function ConveniosPage() {
         </div>
       </>}
 
-      {selectedId && <ConvenioDetailDrawer detail={detail} loading={loadingDetail} periodo={periodo} onPeriodoChange={setPeriodo} onClose={close} onEdit={() => { if (detail) { setEditing(detail.convenio); setFormOpen(true); } }} onRefresh={(period) => loadDetail(selectedId, period ?? periodo)} />}
+      {selectedId && <ConvenioDetailDrawer detail={detail} loading={loadingDetail} error={detailError} periodo={periodo} onPeriodoChange={setPeriodo} onClose={close} onEdit={() => { if (detail) { setEditing(detail.convenio); setFormOpen(true); } }} onRefresh={(period) => loadDetail(selectedId, period ?? periodo)} />}
       {formOpen && <ConvenioFormModal convenio={editing} onClose={() => setFormOpen(false)} onSave={save} />}
     </div>
   );

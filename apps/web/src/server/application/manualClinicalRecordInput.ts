@@ -14,6 +14,17 @@ export const MANUAL_SOAP_FIELDS = [
   ['plan', 'Plano'],
 ] as const;
 
+/**
+ * Junta os campos SOAP preenchidos num só texto, cada um sob seu rótulo.
+ * Subjetivo, objetivo, avaliação e plano são partes do mesmo prontuário.
+ */
+export function manualSoapExcerpt(input: ManualClinicalRecordInput): string {
+  return MANUAL_SOAP_FIELDS
+    .filter(([field]) => input[field])
+    .map(([field, label]) => `${label}: ${input[field]}`)
+    .join('\n\n');
+}
+
 function text(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }

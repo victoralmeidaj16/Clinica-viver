@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseManualClinicalRecordInput } from './manualClinicalRecordInput';
+import { manualSoapExcerpt, parseManualClinicalRecordInput } from './manualClinicalRecordInput';
 
 describe('parseManualClinicalRecordInput', () => {
   it('normaliza um prontuário manual válido', () => {
@@ -33,5 +33,18 @@ describe('parseManualClinicalRecordInput', () => {
       title: 'Sessão semanal',
       subjective: 'x'.repeat(2_001),
     })).toThrow('Subjetivo deve ter no máximo 2000 caracteres.');
+  });
+});
+
+describe('manualSoapExcerpt', () => {
+  it('reúne os campos SOAP preenchidos num único prontuário, na ordem clínica', () => {
+    expect(manualSoapExcerpt({
+      patientId: 'paciente-1',
+      title: 'Sessão semanal',
+      subjective: 'Relato',
+      objective: '',
+      assessment: 'Hipótese',
+      plan: 'Retorno',
+    })).toBe('Subjetivo: Relato\n\nAvaliação: Hipótese\n\nPlano: Retorno');
   });
 });

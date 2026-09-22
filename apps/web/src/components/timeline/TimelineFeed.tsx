@@ -107,7 +107,7 @@ function TimelineEventCard({ entry }: { entry: ClinicalTimelineEntry }) {
 
         <p className="mt-2 text-xs leading-relaxed text-muted">{entry.summary}</p>
         {entry.evidenceExcerpt ? (
-          <blockquote className="mt-3 border-l-2 border-capri bg-canvas/60 px-3 py-2 font-serif text-[13px] italic leading-relaxed text-ink">
+          <blockquote className="mt-3 whitespace-pre-line border-l-2 border-capri bg-canvas/60 px-3 py-2 font-serif text-[13px] italic leading-relaxed text-ink">
             “{entry.evidenceExcerpt}”
           </blockquote>
         ) : null}

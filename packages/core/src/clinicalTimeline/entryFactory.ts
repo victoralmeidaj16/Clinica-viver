@@ -55,8 +55,9 @@ export function createClinicalTimelineEntry(
     throw new Error('summary deve ter no máximo 500 caracteres.');
   }
   const evidenceExcerpt = input.evidenceExcerpt?.trim();
-  if (evidenceExcerpt && evidenceExcerpt.length > 2_000) {
-    throw new Error('evidenceExcerpt deve ter no máximo 2000 caracteres.');
+  // Um prontuário manual reúne os quatro campos SOAP (até 2000 cada) num só trecho.
+  if (evidenceExcerpt && evidenceExcerpt.length > 10_000) {
+    throw new Error('evidenceExcerpt deve ter no máximo 10000 caracteres.');
   }
 
   return {

@@ -6,6 +6,7 @@ import { getMysqlPool } from '@/server/oci/runtime';
 import { fromSqlTimestamp, instituicaoId, rowId } from './mappers';
 import { normalizarCicloCusteio, ratearFatura, type CusteioCiclo } from '@/lib/convenioBilling';
 import { custeioDoAgendamentoSql, custeioEfetivoSql } from './custeioSql';
+import { cobrancaVisivelNoConvenioSql } from './convenioChargeSql';
 
 export type StatusFaturaConvenio = 'aberta' | 'boleto_gerado' | 'paga' | 'cancelada';
 
@@ -105,7 +106,8 @@ const CONVENIO_SELECT = `
        WHERE o.instituicao_id = c.instituicao_id AND o.ref_core = c.organizacao_ref LIMIT 1)
     LEFT JOIN financeiro_cobrancas fc
       ON fc.instituicao_id = c.instituicao_id AND fc.organizacao_ref = c.organizacao_ref
-     AND fc.paciente_ref = p.ref_core`;
+     AND fc.paciente_ref = p.ref_core
+     AND ${cobrancaVisivelNoConvenioSql('fc')}`;
 
 const FATURA_SELECT = `SELECT ref_core, organizacao_ref, convenio_ref, competencia, periodo_inicio, periodo_fim,
   total_sessoes, valor_centavos, status, vence_em, provedor_ref, boleto_url,
@@ -203,7 +205,7 @@ export async function atualizarConvenio(organizationId: string, id: string, inpu
 
 export async function pacientesDoConvenio(organizationId: string, convenioId: string, inicio?: string, fim?: string): Promise<PacienteConvenio[]> {
   const periodo = inicio && fim
-    ? `WHERE COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc_base.emitida_em) >= ?
+    ? `AND COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc_base.emitida_em) >= ?
          AND COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc_base.emitida_em) < DATE_ADD(?, INTERVAL 1 DAY)`
     : '';
   // O recorte vive na subconsulta de cobranças, que aparece antes do WHERE
@@ -234,6 +236,7 @@ export async function pacientesDoConvenio(organizationId: string, convenioId: st
              ON s.instituicao_id = fc_base.instituicao_id
             AND s.organizacao_ref = fc_base.organizacao_ref
             AND s.ref_core = fc_base.sessao_ref
+           WHERE ${cobrancaVisivelNoConvenioSql('fc_base')}
            ${periodo}
        ) fc ON fc.instituicao_id = p.instituicao_id
         AND fc.organizacao_ref = o.ref_core AND fc.paciente_ref = p.ref_core
@@ -259,7 +262,7 @@ export async function sessoesDoConvenio(organizationId: string, convenioId: stri
   // Algumas cobranças apontam para o agendamento, não para a sessão clínica;
   // por isso o agendamento precisa entrar antes de `fc.emitida_em`.
   const dataAtendimento = 'COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc.emitida_em)';
-  const clauses = ['fc.instituicao_id = ?', 'fc.organizacao_ref = ?', 'p.convenio_ref = ?'];
+  const clauses = ['fc.instituicao_id = ?', 'fc.organizacao_ref = ?', 'p.convenio_ref = ?', cobrancaVisivelNoConvenioSql('fc')];
   const params: unknown[] = [instituicaoId(), organizationId, convenioId];
   if (inicio) { clauses.push(`${dataAtendimento} >= ?`); params.push(inicio); }
   if (fim) { clauses.push(`${dataAtendimento} < DATE_ADD(?, INTERVAL 1 DAY)`); params.push(fim); }
@@ -325,6 +328,7 @@ export async function fecharFatura(
       'fc.organizacao_ref = ?',
       'p.convenio_ref = ?',
       'fc.fatura_convenio_ref IS NULL',
+      cobrancaVisivelNoConvenioSql('fc'),
       "fc.status IN ('pending','overdue')",
       'COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc.emitida_em) >= ?',
       'COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc.emitida_em) < DATE_ADD(?, INTERVAL 1 DAY)',

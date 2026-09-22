@@ -66,7 +66,6 @@ function FormularioReagendamento({
   const [iniciais] = useState(() => camposIniciais(appointment));
   const [data, setData] = useState(iniciais.data);
   const [hora, setHora] = useState(iniciais.hora);
-  const [duracaoMin, setDuracaoMin] = useState(iniciais.duracaoMin);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
 
@@ -84,7 +83,8 @@ function FormularioReagendamento({
       return;
     }
 
-    const endsAtDate = new Date(startsAtDate.getTime() + duracaoMin * 60_000);
+    // Reagendar altera apenas data e hora, preservando a duração do atendimento.
+    const endsAtDate = new Date(startsAtDate.getTime() + iniciais.duracaoMin * 60_000);
     const endsAtIso = endsAtDate.toISOString();
 
     setLoading(true);
@@ -168,20 +168,6 @@ function FormularioReagendamento({
                 />
               </div>
             </div>
-          </div>
-
-          <div>
-            <label className="text-xs font-bold text-ink block mb-1">Duração da Sessão</label>
-            <select
-              value={duracaoMin}
-              onChange={(e) => setDuracaoMin(Number(e.target.value))}
-              className="input text-xs font-bold w-full bg-white"
-            >
-              <option value={50}>50 minutos (Padrão)</option>
-              <option value={30}>30 minutos</option>
-              <option value={60}>60 minutos (1 hora)</option>
-              <option value={90}>90 minutos (1h30)</option>
-            </select>
           </div>
 
           <p className="text-[11px] text-muted">

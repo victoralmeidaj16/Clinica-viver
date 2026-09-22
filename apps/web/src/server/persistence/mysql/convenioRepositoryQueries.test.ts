@@ -24,6 +24,8 @@ vi.mock('./mappers', () => ({
 
 import {
   fecharFatura,
+  listarConvenios,
+  obterConvenio,
   pacientesDoConvenio,
   reconcileConvenioInvoicePayment,
   sessoesDoConvenio,
@@ -140,5 +142,49 @@ describe('reconcileConvenioInvoicePayment', () => {
     expect(escritas.some((sql) => sql.includes("'boleto', 'confirmed'"))).toBe(true);
     expect(escritas.some((sql) => sql.includes("forma_pagamento = 'boleto'"))).toBe(true);
     expect(connection.commit).toHaveBeenCalled();
+  });
+});
+
+
+describe('cancelamentos no faturamento de convênios', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function expectCancellationGuard(sql: string, alias: string) {
+    expect(sql).toContain(`${alias}.status <> 'cancelled'`);
+    expect(sql).toContain(`cancelado.instituicao_id = ${alias}.instituicao_id`);
+    expect(sql).toContain(`cancelado_org.ref_core = ${alias}.organizacao_ref`);
+    expect(sql).toContain(`${alias}.sessao_ref IN (cancelado.ref_core, cancelado.sessao_clinica_ref)`);
+    expect(sql).toContain("cancelado.status = 'cancelado'");
+    expect(sql).toContain(`cancelada.organizacao_ref = ${alias}.organizacao_ref`);
+    expect(sql).toContain("cancelada.status = 'cancelled'");
+    // Cancelar a agenda não apaga o histórico já faturado/recebido.
+    expect(sql).toContain(`${alias}.fatura_convenio_ref IS NOT NULL`);
+    expect(sql).toContain(`${alias}.status IN ('paid', 'partially_paid', 'refunded')`);
+  }
+
+  it('retira cancelamentos da lista, relatórios e totais sem remover pacientes', async () => {
+    await listarConvenios('org-1');
+    await obterConvenio('org-1', 'conv-1');
+    await sessoesDoConvenio('org-1', 'conv-1');
+    await pacientesDoConvenio('org-1', 'conv-1');
+    const calls = query.mock.calls as unknown as Array<[string, unknown[]]>;
+    for (const [sql] of calls.slice(0, 3)) expectCancellationGuard(sql, 'fc');
+    expectCancellationGuard(calls[3][0], 'fc_base');
+    expect(calls[0][0]).toContain('LEFT JOIN financeiro_cobrancas fc');
+    expect(calls[3][0]).toContain('LEFT JOIN (');
+  });
+
+  it('bloqueia cobrança pendente de consulta cancelada mesmo com seleção explícita', async () => {
+    await expect(fecharFatura('org-1', 'conv-1', {
+      competencia: '2026-09', periodoInicio: '2026-09-01', periodoFim: '2026-09-30',
+      cobrancaRefs: ['cancelled-appointment-charge'],
+    })).rejects.toThrow(/Nenhum atendimento/);
+    const [sql, values] = connection.query.mock.calls[0] as unknown as [string, unknown[]];
+    expectCancellationGuard(sql, 'fc');
+    expect(sql).toContain('fc.fatura_convenio_ref IS NULL');
+    expect(sql).toContain("fc.status IN ('pending','overdue')");
+    expect(values.at(-1)).toEqual(['cancelled-appointment-charge']);
+    expect(connection.execute).not.toHaveBeenCalled();
+    expect(connection.rollback).toHaveBeenCalled();
   });
 });

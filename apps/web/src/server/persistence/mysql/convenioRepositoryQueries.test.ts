@@ -188,3 +188,22 @@ describe('cancelamentos no faturamento de convênios', () => {
     expect(connection.rollback).toHaveBeenCalled();
   });
 });
+
+
+describe('provisionamento empresarial', () => {
+  beforeEach(() => vi.clearAllMocks());
+  it('aplica aos dois totais a mesma regra de custeio do fechamento', async () => {
+    await listarConvenios('org-1');
+    const [sql] = query.mock.calls[0] as unknown as [string, unknown[]];
+    const count = sql.slice(sql.indexOf('COUNT(DISTINCT CASE WHEN fc.fatura_convenio_ref'), sql.indexOf('AS sessoes_provisionadas'));
+    const sum = sql.slice(sql.indexOf('COALESCE(SUM(CASE WHEN fc.fatura_convenio_ref'), sql.indexOf('AS valor_provisionado_centavos'));
+    for (const aggregate of [count, sum]) {
+      expect(aggregate).toContain("fc.status IN ('pending','overdue')");
+      expect(aggregate).toContain('COALESCE(ag.custeado_pela_empresa,');
+      expect(aggregate).toContain('COALESCE(p.custeado_pela_empresa, c.empresa_paga_sessoes, 1) = 0 THEN 0');
+      expect(aggregate).toContain('< p.custeio_sessoes_cota THEN 1');
+      expect(aggregate).toContain('= 1');
+    }
+    expect(sql).toContain('ag.organizacao_id = p.organizacao_id');
+  });
+});

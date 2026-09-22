@@ -32,9 +32,13 @@ import {
 import { cancelarCobrancaDaSessao, garantirCobrancaDaSessao } from '@/server/payments/sessionCharge';
 import type { RequestContext } from './context';
 
-const context = {
-  actor: { organizationId: 'org-1', professionalProfileId: 'pro-1' },
-} as RequestContext;
+const context: RequestContext = {
+  actor: { actorType: 'staff', userId: 'user-1', membershipId: 'member-1', membershipStatus: 'active',
+    organizationId: 'org-1', professionalProfileId: 'pro-1', roles: ['professional'] },
+  correlationId: 'test-correlation',
+};
+
+const adminContext = { ...context, actor: { ...context.actor, roles: ['admin'] } } as RequestContext;
 
 /**
  * A edição ajusta horário e modalidade; a realização é um fato clínico que
@@ -45,6 +49,23 @@ describe('editAgendaAppointment', () => {
     vi.clearAllMocks();
     vi.mocked(updateAppointmentDetails).mockResolvedValue('ok');
     vi.mocked(completeAppointment).mockResolvedValue('completed');
+  });
+
+  it.each([true, false])('bloqueia alteração de pagador pelo psicólogo: %s', async (custeadoPelaEmpresa) => {
+    await expect(editAgendaAppointment(context, 'apt-1', { custeadoPelaEmpresa }))
+      .rejects.toMatchObject({ code: 'FORBIDDEN', status: 403 });
+    expect(updateAppointmentDetails).not.toHaveBeenCalled();
+    expect(garantirCobrancaDaSessao).not.toHaveBeenCalled();
+    expect(completeAppointment).not.toHaveBeenCalled();
+  });
+
+  it.each(['admin', 'owner'])('permite alteração do pagador pelo perfil %s', async (role) => {
+    const authorized = { ...context, actor: { ...context.actor, roles: [role] } } as RequestContext;
+    await expect(editAgendaAppointment(authorized, 'apt-1', { custeadoPelaEmpresa: true }))
+      .resolves.toEqual({ appointments: [] });
+    expect(updateAppointmentDetails).toHaveBeenCalledWith(
+      'org-1', 'pro-1', 'apt-1', { custeadoPelaEmpresa: true }, { concluirDepois: false }
+    );
   });
 
   it('delega a realização ao fluxo de conclusão em vez de gravar o status', async () => {
@@ -97,7 +118,7 @@ describe('editAgendaAppointment', () => {
   });
 
   it('cria a cobrança quando a sessão passa a ser paga pela paciente', async () => {
-    await editAgendaAppointment(context, 'apt-1', {
+    await editAgendaAppointment(adminContext, 'apt-1', {
       startsAt: '2026-10-01T12:00:00.000Z',
       custeadoPelaEmpresa: false,
     });
@@ -119,7 +140,7 @@ describe('editAgendaAppointment', () => {
     vi.mocked(updateAppointmentDetails).mockResolvedValueOnce('funding_locked');
 
     await expect(
-      editAgendaAppointment(context, 'apt-1', { custeadoPelaEmpresa: true })
+      editAgendaAppointment(adminContext, 'apt-1', { custeadoPelaEmpresa: true })
     ).rejects.toMatchObject({ code: 'APPOINTMENT_FUNDING_LOCKED', status: 409 });
     expect(garantirCobrancaDaSessao).not.toHaveBeenCalled();
   });
@@ -128,7 +149,7 @@ describe('editAgendaAppointment', () => {
     vi.mocked(updateAppointmentDetails).mockResolvedValueOnce('funding_quota_exceeded');
 
     await expect(
-      editAgendaAppointment(context, 'apt-1', { custeadoPelaEmpresa: true })
+      editAgendaAppointment(adminContext, 'apt-1', { custeadoPelaEmpresa: true })
     ).rejects.toMatchObject({ code: 'APPOINTMENT_FUNDING_QUOTA_EXCEEDED', status: 409 });
   });
 });

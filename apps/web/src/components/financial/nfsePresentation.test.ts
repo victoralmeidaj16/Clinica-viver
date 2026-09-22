@@ -7,6 +7,13 @@ describe('ação fiscal na linha financeira', () => {
       .toEqual({ label: 'Aguardando pagamento', clickable: false, tone: 'muted' });
   });
 
+  it.each(['cancelled', 'refunded'])('não mostra "aguardando pagamento" em cobrança %s sem nota', (paymentStatus) => {
+    for (const isAdmin of [true, false]) {
+      expect(nfseRowAction({ paymentStatus, nfseStatus: 'none', isAdmin }))
+        .toEqual({ label: 'Não se aplica', clickable: false, tone: 'muted' });
+    }
+  });
+
   it('restringe uma cobrança paga para quem não é administrador', () => {
     expect(nfseRowAction({ paymentStatus: 'paid', nfseStatus: 'none', isAdmin: false }).clickable)
       .toBe(false);

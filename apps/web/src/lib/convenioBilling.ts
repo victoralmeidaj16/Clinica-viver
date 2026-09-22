@@ -67,3 +67,26 @@ export function quitadaPelaEmpresa(input: {
     || Boolean(input.faturaConvenioId)
     || input.paymentMethod === 'boleto';
 }
+
+interface SituacaoSessaoConvenio {
+  faturaId?: string;
+  custeadoPelaEmpresa: boolean;
+  status: string;
+}
+
+/** Mesma elegibilidade do fechamento: empresa, pendente/vencida e sem fatura. */
+export function podeFaturarSessaoConvenio(sessao: SituacaoSessaoConvenio): boolean {
+  return !sessao.faturaId && sessao.custeadoPelaEmpresa
+    && ['pending', 'overdue'].includes(sessao.status);
+}
+
+export function rotuloSessaoConvenio(sessao: SituacaoSessaoConvenio): string {
+  if (sessao.faturaId) return 'Faturada';
+  if (sessao.status === 'cancelled') return 'Cancelada';
+  if (sessao.status === 'refunded') return 'Estornada';
+  if (!sessao.custeadoPelaEmpresa) return 'Pagamento individual';
+  if (podeFaturarSessaoConvenio(sessao)) return 'A faturar';
+  if (sessao.status === 'paid') return 'Paga';
+  if (sessao.status === 'partially_paid') return 'Paga parcialmente';
+  return 'Não disponível para faturar';
+}

@@ -2,21 +2,17 @@
 
 import React, { useState } from 'react';
 import {
-  Calendar,
-  Clock,
-  Globe,
-  MapPin,
   CheckCircle2,
   CalendarDays,
   AlertCircle,
   Loader2,
   X,
   Pencil,
-  Building2,
-  UserRound,
 } from 'lucide-react';
 import { clinicDateTimeToIso } from '@/lib/manualAppointment';
 import { applicationRequest } from '@/lib/applicationApi';
+import { EditSessionFields } from './EditSessionFields';
+import { SessionPayerField } from './SessionPayerField';
 
 export interface SessionEditableData {
   id: string;
@@ -30,6 +26,7 @@ export interface SessionEditableData {
 }
 
 interface Props {
+  admin?: boolean;
   session?: SessionEditableData;
   isOpen: boolean;
   onClose: () => void;
@@ -42,7 +39,6 @@ const FORMATTER = new Intl.DateTimeFormat('pt-BR', {
   timeZone: 'America/Sao_Paulo',
 });
 
-/** Campos do formulário na hora da clínica, a partir da sessão selecionada. */
 function camposIniciais(session: SessionEditableData) {
   const parts = Object.fromEntries(
     new Intl.DateTimeFormat('en-CA', {
@@ -69,25 +65,21 @@ function camposIniciais(session: SessionEditableData) {
       session.status === 'realizado' || session.status === 'completed'
         ? ('realizado' as const)
         : ('agendado' as const),
-    custeadoPelaEmpresa: Boolean(session.custeadoPelaEmpresa),
   };
 }
 
-/**
- * O modal fechado desmonta o formulário; reabrir o remonta já preenchido com a
- * sessão. É o mesmo "resetar ao abrir" de antes, sem um efeito que escreve
- * estado logo depois de renderizar.
- */
-export function EditSessionModal({ session, isOpen, onClose, onSaved }: Props) {
+export function EditSessionModal({ session, isOpen, onClose, onSaved, admin = false }: Props) {
   if (!isOpen || !session) return null;
-  return <FormularioEdicao session={session} onClose={onClose} onSaved={onSaved} />;
+  return <FormularioEdicao admin={admin} session={session} onClose={onClose} onSaved={onSaved} />;
 }
 
 function FormularioEdicao({
+  admin,
   session,
   onClose,
   onSaved,
 }: {
+  admin: boolean;
   session: SessionEditableData;
   onClose: () => void;
   onSaved: Props['onSaved'];
@@ -99,7 +91,7 @@ function FormularioEdicao({
   const [duracaoMin, setDuracaoMin] = useState(iniciais.duracaoMin);
   const [modalidade, setModalidade] = useState<'online' | 'presencial'>(iniciais.modalidade);
   const [status, setStatus] = useState<'agendado' | 'realizado'>(iniciais.status);
-  const [custeadoPelaEmpresa, setCusteadoPelaEmpresa] = useState(iniciais.custeadoPelaEmpresa);
+  const [pagadorEmpresa, setPagadorEmpresa] = useState(Boolean(session.custeadoPelaEmpresa));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
 
@@ -129,19 +121,18 @@ function FormularioEdicao({
     setError(undefined);
     try {
       await applicationRequest(
-        `/agenda/agendamentos/${encodeURIComponent(session.id)}`,
+        `${admin ? '/gestao/agenda' : '/agenda/agendamentos'}/${encodeURIComponent(session.id)}`,
         {
           method: 'PATCH',
           body: JSON.stringify({
             action: 'edit',
             startsAt: startsAtIso,
             endsAt: endsAtIso,
-            modalidade,
+            modalidade: modalidade === iniciais.modalidade ? undefined : modalidade,
+            custeadoPelaEmpresa: admin && session.convenioNome && pagadorEmpresa !== Boolean(session.custeadoPelaEmpresa)
+              ? pagadorEmpresa : undefined,
             status: status === statusInicial ? undefined : status,
-            custeadoPelaEmpresa: session.convenioNome
-              && custeadoPelaEmpresa !== iniciais.custeadoPelaEmpresa
-              ? custeadoPelaEmpresa
-              : undefined,
+
           }),
         }
       );
@@ -166,7 +157,7 @@ function FormularioEdicao({
             </div>
             <div>
               <h2 className="text-base font-black text-ink">Editar Atendimento</h2>
-              <p className="text-xs text-muted">Ajuste horário, modalidade, pagamento ou status</p>
+              <p className="text-xs text-muted">{admin ? 'Ajuste horário, modalidade, pagamento ou status' : 'Ajuste horário, modalidade ou status'}</p>
             </div>
           </div>
           <button
@@ -216,137 +207,13 @@ function FormularioEdicao({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Data e Horário */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-bold text-ink block mb-1">Data *</label>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-3 w-4 h-4 text-muted" />
-                <input
-                  type="date"
-                  required
-                  value={data}
-                  onChange={(e) => setData(e.target.value)}
-                  className="input pl-9 text-xs font-bold w-full"
-                />
-              </div>
-            </div>
+          <EditSessionFields
+            data={data} hora={hora} duracaoMin={duracaoMin} modalidade={modalidade} status={status}
+            setData={setData} setHora={setHora} setDuracaoMin={setDuracaoMin} setModalidade={setModalidade} setStatus={setStatus}
+          />
 
-            <div>
-              <label className="text-xs font-bold text-ink block mb-1">Horário *</label>
-              <div className="relative">
-                <Clock className="absolute left-3 top-3 w-4 h-4 text-muted" />
-                <input
-                  type="time"
-                  required
-                  value={hora}
-                  onChange={(e) => setHora(e.target.value)}
-                  className="input pl-9 text-xs font-bold w-full"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Duração & Modalidade */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-bold text-ink block mb-1">Duração</label>
-              <select
-                value={duracaoMin}
-                onChange={(e) => setDuracaoMin(Number(e.target.value))}
-                className="input text-xs font-bold w-full bg-white"
-              >
-                <option value={30}>30 minutos</option>
-                <option value={50}>50 minutos (Padrão)</option>
-                <option value={60}>60 minutos (1 hora)</option>
-                <option value={90}>90 minutos (1h 30m)</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-ink block mb-1">Modalidade</label>
-              <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 rounded-2xl border border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setModalidade('online')}
-                  className={`py-1.5 text-xs font-bold rounded-xl flex items-center justify-center gap-1 transition ${
-                    modalidade === 'online'
-                      ? 'bg-white text-psi-deep shadow-sm'
-                      : 'text-muted hover:text-ink'
-                  }`}
-                >
-                  <Globe className="w-3.5 h-3.5" /> Online
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setModalidade('presencial')}
-                  className={`py-1.5 text-xs font-bold rounded-xl flex items-center justify-center gap-1 transition ${
-                    modalidade === 'presencial'
-                      ? 'bg-white text-psi-deep shadow-sm'
-                      : 'text-muted hover:text-ink'
-                  }`}
-                >
-                  <MapPin className="w-3.5 h-3.5" /> Presencial
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {session.convenioNome && status !== 'realizado' && (
-            <fieldset>
-              <legend className="mb-1 text-xs font-bold text-ink">Responsável pelo pagamento</legend>
-              <p className="mb-2 text-[11px] text-muted">Esta escolha vale somente para esta sessão e substitui a ordem automática da cota.</p>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  aria-pressed={custeadoPelaEmpresa}
-                  onClick={() => setCusteadoPelaEmpresa(true)}
-                  className={`rounded-2xl border px-3 py-2.5 text-xs font-bold transition ${custeadoPelaEmpresa ? 'border-emerald-300 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-400/20' : 'border-line bg-white text-muted hover:bg-slate-50'}`}
-                >
-                  <Building2 className="mr-1.5 inline h-4 w-4" /> Empresa
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={!custeadoPelaEmpresa}
-                  onClick={() => setCusteadoPelaEmpresa(false)}
-                  className={`rounded-2xl border px-3 py-2.5 text-xs font-bold transition ${!custeadoPelaEmpresa ? 'border-amber-300 bg-amber-50 text-amber-950 ring-2 ring-amber-400/20' : 'border-line bg-white text-muted hover:bg-slate-50'}`}
-                >
-                  <UserRound className="mr-1.5 inline h-4 w-4" /> Paciente
-                </button>
-              </div>
-              <p className="mt-2 text-[11px] font-semibold text-muted">Convênio: {session.convenioNome}</p>
-            </fieldset>
-          )}
-
-          {/* Status do Atendimento */}
-          <div>
-            <label className="text-xs font-bold text-ink block mb-1">Status do Atendimento</label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setStatus('agendado')}
-                className={`py-2.5 px-3 rounded-2xl border text-xs font-bold flex items-center justify-center gap-2 transition ${
-                  status === 'agendado'
-                    ? 'border-sky-300 bg-sky-50 text-sky-900 shadow-sm ring-2 ring-sky-400/20'
-                    : 'border-line bg-white text-muted hover:bg-slate-50'
-                }`}
-              >
-                <CalendarDays className="w-4 h-4 text-sky-600" /> Agendado
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatus('realizado')}
-                className={`py-2.5 px-3 rounded-2xl border text-xs font-bold flex items-center justify-center gap-2 transition ${
-                  status === 'realizado'
-                    ? 'border-emerald-300 bg-emerald-50 text-emerald-900 shadow-sm ring-2 ring-emerald-400/20'
-                    : 'border-line bg-white text-muted hover:bg-slate-50'
-                }`}
-              >
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Realizado
-              </button>
-            </div>
-          </div>
-
+          {admin && session.convenioNome && status !== 'realizado' && <SessionPayerField
+            value={pagadorEmpresa} onChange={setPagadorEmpresa} convenio={session.convenioNome} />}
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-line">
             <button
               type="button"

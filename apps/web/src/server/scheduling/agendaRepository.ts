@@ -765,6 +765,7 @@ export type ResultadoEdicaoAgendamento =
   | 'invalid_status';
 
 export interface UpdateAppointmentOptions {
+  somenteAgendadas?: boolean;
   /**
    * O chamador vai concluir o atendimento logo depois desta edição.
    *
@@ -812,6 +813,11 @@ export async function updateAppointmentDetails(
     if (!agendamento) {
       await connection.rollback();
       return 'not_found';
+    }
+
+    if (opcoes.somenteAgendadas && !['agendado', 'confirmado'].includes(String(agendamento.status))) {
+      await connection.rollback();
+      return 'invalid_status';
     }
 
     // A conclusão de um atendimento não é uma troca de status: ela cria a

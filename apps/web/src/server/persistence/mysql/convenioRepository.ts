@@ -95,9 +95,11 @@ const CONVENIO_SELECT = `
            WHEN p.convenio_ref IS NOT NULL
             AND COALESCE(p.custeado_pela_empresa, c.empresa_paga_sessoes, 1) = 1
            THEN p.id END) AS pacientes_custeados,
-         COUNT(DISTINCT CASE WHEN fc.fatura_convenio_ref IS NULL AND fc.status IN ('pending','overdue') THEN fc.id END)
+         COUNT(DISTINCT CASE WHEN fc.fatura_convenio_ref IS NULL AND fc.status IN ('pending','overdue')
+           AND ${custeioDoAgendamentoSql({ agendamento: 'ag', paciente: 'p', convenio: 'c' })} = 1 THEN fc.id END)
            AS sessoes_provisionadas,
          COALESCE(SUM(CASE WHEN fc.fatura_convenio_ref IS NULL AND fc.status IN ('pending','overdue')
+           AND ${custeioDoAgendamentoSql({ agendamento: 'ag', paciente: 'p', convenio: 'c' })} = 1
                            THEN fc.valor_centavos ELSE 0 END), 0) AS valor_provisionado_centavos
     FROM clinica_convenios c
     LEFT JOIN clinica_pacientes p
@@ -107,7 +109,10 @@ const CONVENIO_SELECT = `
     LEFT JOIN financeiro_cobrancas fc
       ON fc.instituicao_id = c.instituicao_id AND fc.organizacao_ref = c.organizacao_ref
      AND fc.paciente_ref = p.ref_core
-     AND ${cobrancaVisivelNoConvenioSql('fc')}`;
+     AND ${cobrancaVisivelNoConvenioSql('fc')}
+    LEFT JOIN clinica_agendamentos ag ON ag.instituicao_id = fc.instituicao_id
+      AND ag.organizacao_id = p.organizacao_id
+      AND fc.sessao_ref IN (ag.ref_core, ag.sessao_clinica_ref)`;
 
 const FATURA_SELECT = `SELECT ref_core, organizacao_ref, convenio_ref, competencia, periodo_inicio, periodo_fim,
   total_sessoes, valor_centavos, status, vence_em, provedor_ref, boleto_url,

@@ -33,6 +33,7 @@ const psicologoItems = [
 ];
 
 const gestaoItems = [
+  { label: 'Agenda da Clínica', href: '/gestao/agenda', icon: CalendarDays },
   { label: 'Gestão de Psicólogos', href: '/gestao/psicologos', icon: UserCheck },
   { label: 'Gestão de Pacientes', href: '/gestao/pacientes', icon: Users },
   { label: 'Cockpit da Clínica (Prazos)', href: '/gestao/cockpit', icon: Shield },

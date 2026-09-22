@@ -62,6 +62,22 @@ describe('updateAppointmentDetails', () => {
     comAgendamento();
   });
 
+  it.each(['realizado', 'cancelado'])('bloqueia edição administrativa de sessão %s sob trava', async (status) => {
+    comAgendamento({ status });
+    expect(await updateAppointmentDetails('org-1', 'pro-1', 'apt-1',
+      { modalidade: 'presencial' }, { somenteAgendadas: true })).toBe('invalid_status');
+    expect(connection.execute).not.toHaveBeenCalled();
+    expect(connection.rollback).toHaveBeenCalled();
+    expect(connection.query.mock.calls[0][0]).toContain('FOR UPDATE');
+  });
+
+  it.each(['agendado', 'confirmado'])('permite edição administrativa de sessão %s', async (status) => {
+    comAgendamento({ status });
+    expect(await updateAppointmentDetails('org-1', 'pro-1', 'apt-1',
+      { modalidade: 'presencial' }, { somenteAgendadas: true })).toBe('ok');
+    expect(connection.commit).toHaveBeenCalled();
+  });
+
   it('recusa marcar como realizado sem passar pelo fluxo de conclusão', async () => {
     expect(await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', { status: 'realizado' })).toBe(
       'requires_completion'

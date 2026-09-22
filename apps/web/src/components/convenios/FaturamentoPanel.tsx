@@ -6,6 +6,7 @@ import { applicationRequest, commandHeaders } from '@/lib/applicationApi';
 import type { ConvenioDetailView, SessaoConvenioView } from './types';
 import type { PeriodoFaturamento } from './periodo';
 import { FaturaNfsePanel } from './FaturaNfsePanel';
+import { podeFaturarSessaoConvenio } from '@/lib/convenioBilling';
 
 const money = (cents: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
@@ -40,7 +41,7 @@ export function FaturamentoPanel({
   // paga a própria sessão já tem cobrança individual: incluí-la aqui cobraria
   // o mesmo atendimento duas vezes.
   const sessoesAFaturar = useMemo(
-    () => detail.sessoes.filter((s) => !s.faturaId && s.custeadoPelaEmpresa),
+    () => detail.sessoes.filter(podeFaturarSessaoConvenio),
     [detail.sessoes]
   );
 
@@ -189,9 +190,9 @@ export function FaturamentoPanel({
               <p className="text-[11px] font-semibold text-amber-700">
                 {sessoesIndividuais}{' '}
                 {sessoesIndividuais === 1
-                  ? 'atendimento pago pelo próprio paciente ficou'
-                  : 'atendimentos pagos pelos próprios pacientes ficaram'}{' '}
-                fora desta fatura.
+                  ? 'atendimento com pagamento atribuído ao paciente ficou'
+                  : 'atendimentos com pagamento atribuído ao paciente ficaram'}{' '}
+                fora desta fatura. Confira na aba Sessões quais atendimentos estão como pagamento individual.
               </p>
             )}
           </div>

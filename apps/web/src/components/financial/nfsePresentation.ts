@@ -25,6 +25,11 @@ export function nfseRowAction(input: {
   if (!input.isAdmin && (input.paymentStatus === 'paid' || possuiRegistroFiscal)) {
     return { label: 'Restrito à administração', clickable: false, tone: 'muted' };
   }
+  // Consulta cancelada ou estornada não tem o que receber nem o que emitir.
+  // Uma nota já emitida continua visível para a revisão fiscal.
+  if (!possuiRegistroFiscal && (input.paymentStatus === 'cancelled' || input.paymentStatus === 'refunded')) {
+    return { label: 'Não se aplica', clickable: false, tone: 'muted' };
+  }
   if (!possuiRegistroFiscal && input.paymentStatus !== 'paid') {
     return { label: 'Aguardando pagamento', clickable: false, tone: 'muted' };
   }

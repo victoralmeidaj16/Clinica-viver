@@ -318,9 +318,18 @@ export async function rescheduleAgendaAppointment(
 export async function editAgendaAppointment(
   context: RequestContext,
   appointmentId: string,
-  input: UpdateAppointmentInput
+  input: UpdateAppointmentInput,
+  opcoes: { somenteAgendadas?: boolean } = {}
 ) {
   const { organizationId, professionalId } = perfilDaSessao(context);
+  if (input.custeadoPelaEmpresa !== undefined
+    && !context.actor.roles?.some((role) => role === 'owner' || role === 'admin')) {
+    throw new ApplicationError(
+      'FORBIDDEN',
+      'A alteração do responsável pelo pagamento é exclusiva do perfil administrador.',
+      403
+    );
+  }
   if (input.startsAt) {
     const startsAtDate = new Date(input.startsAt);
     if (isNaN(startsAtDate.getTime())) {
@@ -337,7 +346,7 @@ export async function editAgendaAppointment(
     professionalId,
     appointmentId,
     querRealizar ? { ...input, status: undefined } : input,
-    { concluirDepois: querRealizar }
+    { concluirDepois: querRealizar, ...opcoes }
   );
 
   if (outcome === 'not_found') {

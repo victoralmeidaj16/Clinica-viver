@@ -1,11 +1,31 @@
 import { NextResponse } from 'next/server';
 import PDFDocument from 'pdfkit';
 import { certificadosRepo } from '@/server/certificados/certificadosRepository';
-import { formatCertificateVersoText } from '@thats-life/core';
+import qrcode from 'qrcode-generator';
+import { certificatePublicValidationUrl, resolveCertificateStampText } from '@thats-life/core';
 import { proxyToPersistentBackend } from '@/server/http/persistentBackendProxy';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+/** Desenha o QR em vetor (um retângulo por módulo), com a zona silenciosa branca. */
+function drawQr(doc: PDFKit.PDFDocument, value: string, x: number, y: number, size: number) {
+  const qr = qrcode(0, 'M');
+  qr.addData(value);
+  qr.make();
+  const modules = qr.getModuleCount();
+  const margin = 2;
+  const cell = size / (modules + margin * 2);
+  doc.rect(x, y, size, size).fill('#ffffff');
+  for (let row = 0; row < modules; row += 1) {
+    for (let col = 0; col < modules; col += 1) {
+      if (qr.isDark(row, col)) {
+        doc.rect(x + (col + margin) * cell, y + (row + margin) * cell, cell, cell);
+      }
+    }
+  }
+  doc.fill('#1e1b4b');
+}
 
 function extractBase64Buffer(dataUrl: string): Buffer | null {
   try {
@@ -35,13 +55,7 @@ export async function GET(
       return NextResponse.json({ ok: false, error: 'Certificado não encontrado' }, { status: 404 });
     }
 
-    const versoText = formatCertificateVersoText({
-      signerInfo: record.signerInfo,
-      durationHours: record.durationHours,
-      issueDate: record.issueDate,
-      validationUrl: record.validationUrl,
-      code: record.code,
-    });
+    const versoText = resolveCertificateStampText(record);
 
     const doc = new PDFDocument({
       size: 'A4',
@@ -117,9 +131,33 @@ export async function GET(
     const fontSizePt = Math.max(7, Math.min(24, ((record.stampFontSize || 11) * PAGE_WIDTH) / 1000));
     const alignPdf = record.stampAlign === 'left' ? 'left' : record.stampAlign === 'right' ? 'right' : 'center';
 
+    const stampWidthPt = record.stampWidth ? (PAGE_WIDTH * record.stampWidth) / 100 : PAGE_WIDTH * 0.85;
+    // Mesma proporção do editor (`STAMP_QR_FONT_RATIO`): o QR cresce com a fonte.
+    const qrSizePt = fontSizePt * 7;
+    const gapPt = fontSizePt * 0.6;
+    let textX = stampXPt;
+    let textY = stampYPt;
+    let textWidth = stampWidthPt;
+
+    if (record.stampQr === 'left') {
+      drawQr(doc, certificatePublicValidationUrl(record.code), stampXPt, stampYPt, qrSizePt);
+      textX += qrSizePt + gapPt;
+      textWidth = Math.max(fontSizePt * 6, stampWidthPt - qrSizePt - gapPt);
+      doc.font('Courier').fontSize(fontSizePt);
+      const textHeight = doc.heightOfString(versoText, { width: textWidth, lineGap: 2 });
+      textY += Math.max(0, (qrSizePt - textHeight) / 2);
+    } else if (record.stampQr === 'top') {
+      const qrX =
+        alignPdf === 'left' ? stampXPt
+          : alignPdf === 'right' ? stampXPt + stampWidthPt - qrSizePt
+          : stampXPt + (stampWidthPt - qrSizePt) / 2;
+      drawQr(doc, certificatePublicValidationUrl(record.code), qrX, stampYPt, qrSizePt);
+      textY += qrSizePt + gapPt;
+    }
+
     doc.font('Courier').fontSize(fontSizePt).fillColor('#111827')
-      .text(versoText, stampXPt, stampYPt, {
-        width: PAGE_WIDTH * 0.85,
+      .text(versoText, textX, textY, {
+        width: textWidth,
         align: alignPdf,
         lineGap: 2,
       });

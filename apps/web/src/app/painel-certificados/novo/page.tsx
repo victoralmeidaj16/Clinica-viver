@@ -12,20 +12,23 @@ import {
   FileText,
   Loader2,
   Lock,
-  Minus,
   Move,
-  Plus,
   Save,
   Trash2,
   Upload,
   UploadCloud,
 } from 'lucide-react';
 import {
+  certificatePublicValidationUrl,
   formatCertificateVersoText,
   generateCertificateCode,
-  type CertificateRecord,
+  STAMP_WIDTH_MAX,
+  STAMP_WIDTH_MIN,
+  type CertificateStampQr,
 } from '@thats-life/core';
 import { convertPdfToImages } from '@/lib/pdfRenderer';
+import { CertificateStampContent } from '@/components/certificados/CertificateStampContent';
+import { StampSettingsCard } from '@/components/certificados/StampSettingsCard';
 
 const STORAGE_KEY = 'cert_admin_pin';
 
@@ -65,13 +68,19 @@ export default function AnexarCertificadoPage() {
   const [stampY, setStampY] = useState<number>(75);
   const [stampFontSize, setStampFontSize] = useState<number>(11);
   const [stampAlign, setStampAlign] = useState<'left' | 'center' | 'right'>('center');
+  const [stampWidth, setStampWidth] = useState<number>(50);
+  const [stampQr, setStampQr] = useState<CertificateStampQr | null>('left');
+  // null = texto gerado dos dados do certificado; string = editado à mão
+  const [stampTextCustom, setStampTextCustom] = useState<string | null>(null);
 
   // Drag & Resize state do carimbo
   const [isDraggingStamp, setIsDraggingStamp] = useState(false);
   const [isResizingStamp, setIsResizingStamp] = useState(false);
   const dragStartRef = useRef<{ mouseX: number; mouseY: number; startX: number; startY: number } | null>(null);
-  const resizeStartRef = useRef<{ mouseX: number; initialFontSize: number } | null>(null);
+  const resizeStartRef = useRef<{ mouseX: number; initialWidth: number } | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const stampRef = useRef<HTMLDivElement>(null);
+  const stampContentRef = useRef<HTMLDivElement>(null);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -275,7 +284,7 @@ export default function AnexarCertificadoPage() {
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     resizeStartRef.current = {
       mouseX: clientX,
-      initialFontSize: stampFontSize,
+      initialWidth: stampWidth,
     };
   };
 
@@ -293,22 +302,52 @@ export default function AnexarCertificadoPage() {
         const deltaXPct = (deltaX / rect.width) * 100;
         const deltaYPct = (deltaY / rect.height) * 100;
 
-        const newX = Math.max(1, Math.min(85, dragStartRef.current.startX + deltaXPct));
+        const newX = Math.max(1, Math.min(100 - stampWidth, dragStartRef.current.startX + deltaXPct));
         const newY = Math.max(1, Math.min(85, dragStartRef.current.startY + deltaYPct));
 
         setStampX(Math.round(newX * 10) / 10);
         setStampY(Math.round(newY * 10) / 10);
       }
 
+      // A alça muda a largura: o texto quebra dentro dela e a altura acompanha.
       if (isResizingStamp && resizeStartRef.current) {
-        const deltaX = clientX - resizeStartRef.current.mouseX;
-        const deltaFontSize = Math.round(deltaX / 12);
-        const newFontSize = Math.max(8, Math.min(32, resizeStartRef.current.initialFontSize + deltaFontSize));
-        setStampFontSize(newFontSize);
+        const rect = canvasRef.current.getBoundingClientRect();
+        const deltaPct = ((clientX - resizeStartRef.current.mouseX) / rect.width) * 100;
+        const newWidth = Math.max(STAMP_WIDTH_MIN, Math.min(STAMP_WIDTH_MAX, resizeStartRef.current.initialWidth + deltaPct));
+        setStampWidth(Math.round(newWidth * 10) / 10);
       }
     },
-    [isDraggingStamp, isResizingStamp]
+    [isDraggingStamp, isResizingStamp, stampWidth]
   );
+
+  // Procura a largura em que o miolo do carimbo fica tão largo quanto alto.
+  // Mede direto no DOM (layout síncrono) antes de devolver a largura ao React.
+  const handleMakeSquare = () => {
+    const box = stampRef.current;
+    const content = stampContentRef.current;
+    if (!box || !content) return;
+    const original = box.style.width;
+    // Sem isso a transição da caixa faz a medida ler a largura antiga.
+    box.style.transition = 'none';
+    let lo = STAMP_WIDTH_MIN;
+    let hi = STAMP_WIDTH_MAX;
+    for (let i = 0; i < 20; i += 1) {
+      const mid = (lo + hi) / 2;
+      box.style.width = `${mid}%`;
+      if (content.offsetWidth < content.offsetHeight) lo = mid;
+      else hi = mid;
+    }
+    box.style.width = `${hi}%`;
+    // Quadrado costuma ficar mais alto que a faixa: sobe o bloco se ele passar do pé da página.
+    const canvasHeight = canvasRef.current?.clientHeight || 0;
+    const heightPct = canvasHeight ? (box.offsetHeight / canvasHeight) * 100 : 0;
+    box.style.width = original;
+    box.style.transition = '';
+    const square = Math.round(hi * 10) / 10;
+    setStampWidth(square);
+    setStampX((x) => Math.min(x, Math.round((100 - square) * 10) / 10));
+    if (heightPct) setStampY((y) => Math.max(1, Math.min(y, Math.floor(100 - heightPct - 1))));
+  };
 
   const handlePointerUp = useCallback(() => {
     setIsDraggingStamp(false);
@@ -332,13 +371,15 @@ export default function AnexarCertificadoPage() {
     };
   }, [isDraggingStamp, isResizingStamp, handlePointerMove, handlePointerUp]);
 
-  const versoText = formatCertificateVersoText({
-    signerInfo,
-    durationHours,
-    issueDate,
-    validationUrl,
-    code,
-  });
+  const versoText =
+    stampTextCustom ??
+    formatCertificateVersoText({
+      signerInfo,
+      durationHours,
+      issueDate,
+      validationUrl,
+      code,
+    });
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -371,6 +412,9 @@ export default function AnexarCertificadoPage() {
           stampY,
           stampFontSize,
           stampAlign,
+          stampWidth,
+          stampText: stampTextCustom?.trim() ? stampTextCustom : undefined,
+          stampQr: stampQr ?? undefined,
         }),
       });
 
@@ -698,61 +742,27 @@ export default function AnexarCertificadoPage() {
                 </div>
               </div>
 
-              {/* CARD 3: AJUSTES RÁPIDOS DO CARIMBO */}
-              <div className="rounded-3xl border border-line bg-white p-5 shadow-card space-y-3">
-                <div className="border-b border-line pb-2 flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-psi-deep flex items-center gap-1.5">
-                    <Move className="w-3.5 h-3.5 text-psi-vibrant" />
-                    3. Ajustes do Carimbo
-                  </span>
-                  <span className="font-mono text-[10px] font-bold text-muted">
-                    X: {stampX}% | Y: {stampY}%
-                  </span>
-                </div>
-
-                <div className="space-y-2 text-xs">
-                  <div className="flex items-center justify-between bg-[#FAF8FC] p-2 rounded-xl border border-line/60">
-                    <span className="text-muted font-bold text-[11px]">Tamanho da Fonte:</span>
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => setStampFontSize((s) => Math.max(8, s - 1))}
-                        className="h-6 w-6 rounded bg-white hover:bg-psi-deep hover:text-white font-bold text-xs border border-line grid place-items-center"
-                      >
-                        <Minus className="w-3 h-3" />
-                      </button>
-                      <span className="font-mono font-bold px-2">{stampFontSize}px</span>
-                      <button
-                        type="button"
-                        onClick={() => setStampFontSize((s) => Math.min(32, s + 1))}
-                        className="h-6 w-6 rounded bg-white hover:bg-psi-deep hover:text-white font-bold text-xs border border-line grid place-items-center"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between bg-[#FAF8FC] p-2 rounded-xl border border-line/60">
-                    <span className="text-muted font-bold text-[11px]">Alinhamento:</span>
-                    <div className="flex gap-1">
-                      {(['left', 'center', 'right'] as const).map((align) => (
-                        <button
-                          key={align}
-                          type="button"
-                          onClick={() => setStampAlign(align)}
-                          className={`px-2.5 py-1 rounded text-[10px] font-bold border transition-colors ${
-                            stampAlign === align
-                              ? 'bg-psi-deep text-white border-psi-deep'
-                              : 'bg-white text-muted border-line hover:text-ink'
-                          }`}
-                        >
-                          {align === 'left' ? '⬅ Esq' : align === 'center' ? '↔ Cent' : 'Dir ➡'}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
+              {/* CARD 3: AJUSTES DO CARIMBO */}
+              <StampSettingsCard
+                stampX={stampX}
+                stampY={stampY}
+                fontSize={stampFontSize}
+                onFontSize={setStampFontSize}
+                width={stampWidth}
+                onWidth={(w) => {
+                  setStampWidth(w);
+                  setStampX((x) => Math.min(x, 100 - w));
+                }}
+                onMakeSquare={handleMakeSquare}
+                align={stampAlign}
+                onAlign={setStampAlign}
+                qr={stampQr}
+                onQr={setStampQr}
+                text={versoText}
+                isCustomText={stampTextCustom !== null}
+                onText={setStampTextCustom}
+                onResetText={() => setStampTextCustom(null)}
+              />
 
               {error && (
                 <div className="p-3 rounded-2xl bg-red-50 border border-red-200 text-xs font-bold text-red-800 flex items-center gap-2">
@@ -845,6 +855,7 @@ export default function AnexarCertificadoPage() {
 
                     {/* BLOCO DO CARIMBO DIGITAL: ARRASTE E REDIMENSIONAMENTO DIRETO SOBRE A ARTE */}
                     <div
+                      ref={stampRef}
                       onMouseDown={handleDragStart}
                       onTouchStart={handleDragStart}
                       style={{
@@ -852,11 +863,10 @@ export default function AnexarCertificadoPage() {
                         left: `${stampX}%`,
                         top: `${stampY}%`,
                         fontSize: `${stampFontSize}px`,
-                        textAlign: stampAlign,
-                        maxWidth: '92%',
+                        width: `${stampWidth}%`,
                         cursor: isDraggingStamp ? 'grabbing' : 'grab',
                       }}
-                      className={`group rounded-xl p-2.5 transition-all ${
+                      className={`group rounded-xl p-2.5 transition-[background-color,border-color,box-shadow,transform] ${
                         isDraggingStamp
                           ? 'bg-white/70 border-2 border-psi-deep shadow-lg ring-2 ring-psi-vibrant/30 scale-[1.01]'
                           : isResizingStamp
@@ -901,16 +911,22 @@ export default function AnexarCertificadoPage() {
                         </div>
                       </div>
 
-                      {/* Texto Oficial Formatado */}
-                      <p className="font-mono text-ink whitespace-pre-line leading-tight font-medium select-none">
-                        {versoText}
-                      </p>
+                      {/* Texto Oficial (+ QR de conferência) */}
+                      <div ref={stampContentRef} className="select-none">
+                        <CertificateStampContent
+                          text={versoText}
+                          fontSize={stampFontSize}
+                          align={stampAlign}
+                          qr={stampQr ?? undefined}
+                          qrValue={certificatePublicValidationUrl(code)}
+                        />
+                      </div>
 
                       {/* ALÇA DE REDIMENSIONAMENTO DIRETO NO CANTO INFERIOR DIREITO DO BLOCO */}
                       <div
                         onMouseDown={handleResizeStart}
                         onTouchStart={handleResizeStart}
-                        title="Clique e arraste este canto para maximizar ou diminuir o carimbo"
+                        title="Arraste para os lados para alargar ou estreitar o carimbo"
                         className="absolute -bottom-2 -right-2 h-6 w-6 rounded-full bg-psi-deep text-white flex items-center justify-center cursor-nwse-resize shadow-md hover:scale-125 transition-transform text-[11px] font-bold z-20"
                       >
                         ⤡
@@ -922,7 +938,7 @@ export default function AnexarCertificadoPage() {
 
               <div className="p-4 rounded-2xl bg-[#FAF8FC] border border-line text-xs text-muted leading-relaxed flex items-center justify-between">
                 <span>
-                  👆 <strong>Como funciona:</strong> Arraste o carimbo com o mouse para a posição desejada no verso e use o puxador <strong>⤡</strong> no canto para redimensionar.
+                  👆 <strong>Como funciona:</strong> Arraste o carimbo com o mouse para a posição desejada no verso e use o puxador <strong>⤡</strong> no canto para alargar ou estreitar (ou o botão <strong>Quadrado</strong> nos ajustes).
                 </span>
                 <span className="font-mono font-bold text-psi-deep shrink-0 ml-2">
                   X: {stampX}% | Y: {stampY}%

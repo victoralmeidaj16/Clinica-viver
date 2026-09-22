@@ -3,12 +3,14 @@ import 'server-only';
 import type { Pool, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import {
   CertificateRecord,
+  CertificateStampQr,
   CertificateStatus,
   CertificateTemplate,
   blankCertificateTemplate,
   generateCertificateCode,
   getMockCertificate,
   initialCertificates,
+  sanitizeCertificateStamp,
 } from '@thats-life/core';
 import { getMysqlPool, isMysqlConfigured } from '@/server/oci/runtime';
 
@@ -37,6 +39,9 @@ interface CertificadoRow extends RowDataPacket {
   carimbo_y: number | null;
   carimbo_font_size: number | null;
   carimbo_align: 'left' | 'center' | 'right' | null;
+  carimbo_largura: number | null;
+  carimbo_texto: string | null;
+  carimbo_qr: string | null;
   criado_por: string | null;
   criado_em: string;
 }
@@ -84,6 +89,11 @@ function toCertificateRecord(row: CertificadoRow): CertificateRecord {
     stampY: row.carimbo_y != null ? Number(row.carimbo_y) : undefined,
     stampFontSize: row.carimbo_font_size != null ? Number(row.carimbo_font_size) : undefined,
     stampAlign: row.carimbo_align ?? undefined,
+    ...sanitizeCertificateStamp({
+      stampWidth: row.carimbo_largura,
+      stampText: row.carimbo_texto,
+      stampQr: row.carimbo_qr,
+    }),
     createdBy: row.criado_por ?? undefined,
     createdAt: String(row.criado_em),
   };
@@ -193,6 +203,9 @@ export class CertificadosRepository {
           carimbo_y DECIMAL(5,2) NULL,
           carimbo_font_size DECIMAL(4,1) NULL,
           carimbo_align VARCHAR(16) NULL DEFAULT 'center',
+          carimbo_largura DECIMAL(5,2) NULL,
+          carimbo_texto TEXT NULL,
+          carimbo_qr VARCHAR(8) NULL,
           criado_por VARCHAR(128) NULL,
           criado_em TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
           atualizado_em TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
@@ -209,6 +222,9 @@ export class CertificadosRepository {
         'ALTER TABLE clinica_certificados ADD COLUMN carimbo_y DECIMAL(5,2) NULL',
         'ALTER TABLE clinica_certificados ADD COLUMN carimbo_font_size DECIMAL(4,1) NULL',
         'ALTER TABLE clinica_certificados ADD COLUMN carimbo_align VARCHAR(16) NULL DEFAULT "center"',
+        'ALTER TABLE clinica_certificados ADD COLUMN carimbo_largura DECIMAL(5,2) NULL',
+        'ALTER TABLE clinica_certificados ADD COLUMN carimbo_texto TEXT NULL',
+        'ALTER TABLE clinica_certificados ADD COLUMN carimbo_qr VARCHAR(8) NULL',
       ];
       for (const alterSql of alterCols) {
         try {
@@ -240,6 +256,9 @@ export class CertificadosRepository {
     stampY?: number;
     stampFontSize?: number;
     stampAlign?: 'left' | 'center' | 'right';
+    stampWidth?: number;
+    stampText?: string;
+    stampQr?: CertificateStampQr;
     signerInfo?: string;
     validationUrl?: string;
     createdBy?: string;
@@ -265,6 +284,7 @@ export class CertificadosRepository {
       stampY: dados.stampY,
       stampFontSize: dados.stampFontSize || 11,
       stampAlign: dados.stampAlign || 'center',
+      ...sanitizeCertificateStamp(dados),
       signerInfo: dados.signerInfo || 'VIVIANE OLIVEIRA DE ALMEIDA JEREMIAS:19440737000153',
       validationUrl: dados.validationUrl || 'www.vivermaispsicologia.com.br',
       status: 'valid',
@@ -277,8 +297,8 @@ export class CertificadosRepository {
       try {
         await this.pool.query<ResultSetHeader>(
           `INSERT INTO clinica_certificados 
-            (id, codigo, aluno_nome, aluno_cpf, aluno_email, curso_titulo, carga_horaria, data_emissao, data_inicio, data_conclusao, status, frente_imagem_url, verso_imagem_url, carimbo_x, carimbo_y, carimbo_font_size, carimbo_align, criado_por, criado_em)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'valid', ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, codigo, aluno_nome, aluno_cpf, aluno_email, curso_titulo, carga_horaria, data_emissao, data_inicio, data_conclusao, status, frente_imagem_url, verso_imagem_url, carimbo_x, carimbo_y, carimbo_font_size, carimbo_align, carimbo_largura, carimbo_texto, carimbo_qr, criado_por, criado_em)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'valid', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON DUPLICATE KEY UPDATE
              aluno_nome = VALUES(aluno_nome),
              curso_titulo = VALUES(curso_titulo),
@@ -289,7 +309,10 @@ export class CertificadosRepository {
              carimbo_x = VALUES(carimbo_x),
              carimbo_y = VALUES(carimbo_y),
              carimbo_font_size = VALUES(carimbo_font_size),
-             carimbo_align = VALUES(carimbo_align)`,
+             carimbo_align = VALUES(carimbo_align),
+             carimbo_largura = VALUES(carimbo_largura),
+             carimbo_texto = VALUES(carimbo_texto),
+             carimbo_qr = VALUES(carimbo_qr)`,
           [
             record.id,
             record.code,
@@ -307,6 +330,9 @@ export class CertificadosRepository {
             record.stampY ?? null,
             record.stampFontSize ?? 11,
             record.stampAlign ?? 'center',
+            record.stampWidth ?? null,
+            record.stampText ?? null,
+            record.stampQr ?? null,
             record.createdBy ?? null,
             createdAt.slice(0, 19).replace('T', ' '),
           ]

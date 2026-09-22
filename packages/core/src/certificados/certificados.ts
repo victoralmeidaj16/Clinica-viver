@@ -4,6 +4,11 @@
  */
 
 export type CertificateStatus = 'valid' | 'revoked' | 'cancelled';
+export type CertificateStampQr = 'left' | 'top';
+
+export const STAMP_WIDTH_MIN = 10;
+export const STAMP_WIDTH_MAX = 90;
+export const STAMP_TEXT_MAX = 2000;
 
 export interface CertificateRecord {
   id: string;
@@ -30,6 +35,12 @@ export interface CertificateRecord {
   stampY?: number;
   stampFontSize?: number;
   stampAlign?: 'left' | 'center' | 'right';
+  /** Largura do carimbo em % da largura da página; ausente = ajusta ao texto. */
+  stampWidth?: number;
+  /** Texto livre do carimbo; ausente = texto gerado por `formatCertificateVersoText`. */
+  stampText?: string;
+  /** Posição do QR de conferência dentro do carimbo; ausente = sem QR. */
+  stampQr?: CertificateStampQr;
   createdAt: string;
   createdBy?: string;
 }
@@ -137,6 +148,37 @@ export function formatCertificateVersoText(cert: {
     `Duração e data: ${cert.durationHours}, ${cert.issueDate}. Para verificar autenticidade acesse: ${url}`,
     `Vá na aba certificados e adicione o código: ${cert.code}`,
   ].join('\n');
+}
+
+/** Texto que o carimbo exibe: o editado à mão, ou o gerado dos dados do certificado. */
+export function resolveCertificateStampText(
+  record: Pick<CertificateRecord, 'stampText' | 'signerInfo' | 'durationHours' | 'issueDate' | 'validationUrl' | 'code'>
+): string {
+  if (record.stampText && record.stampText.trim()) return record.stampText;
+  return formatCertificateVersoText(record);
+}
+
+/** Endereço público de conferência — o destino do QR impresso no carimbo. */
+export function certificatePublicValidationUrl(code: string): string {
+  return `https://${DEFAULT_VALIDATION_URL}/validar-certificado/${encodeURIComponent(code.trim())}`;
+}
+
+/** Normaliza os campos livres do carimbo vindos do formulário. */
+export function sanitizeCertificateStamp(input: {
+  stampWidth?: unknown;
+  stampText?: unknown;
+  stampQr?: unknown;
+}): Pick<CertificateRecord, 'stampWidth' | 'stampText' | 'stampQr'> {
+  const width = Number(input.stampWidth);
+  const text = typeof input.stampText === 'string' ? input.stampText.replace(/\r\n/g, '\n').trim() : '';
+  return {
+    stampWidth:
+      input.stampWidth != null && Number.isFinite(width)
+        ? Math.round(Math.max(STAMP_WIDTH_MIN, Math.min(STAMP_WIDTH_MAX, width)) * 10) / 10
+        : undefined,
+    stampText: text ? text.slice(0, STAMP_TEXT_MAX) : undefined,
+    stampQr: input.stampQr === 'left' || input.stampQr === 'top' ? input.stampQr : undefined,
+  };
 }
 
 export function generateCertificateCode(): string {

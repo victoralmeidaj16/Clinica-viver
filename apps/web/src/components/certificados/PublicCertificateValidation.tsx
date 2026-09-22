@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Loader2, ShieldCheck, XCircle } from 'lucide-react';
-import type { CertificateRecord } from '@thats-life/core';
+import { certificatePublicValidationUrl, type CertificateRecord } from '@thats-life/core';
 import { CertificateDocumentView } from '@/components/certificados/CertificateDocumentView';
 
 type State =
@@ -48,7 +48,7 @@ export function PublicCertificateValidation({ code }: { code: string }) {
   }
 
   if (state.phase === 'found') {
-    const publicUrl = `https://www.vivermaispsicologia.com.br/validar-certificado/${encodeURIComponent(state.record.code)}`;
+    const publicUrl = certificatePublicValidationUrl(state.record.code);
     return (
       <div className="min-h-screen bg-[#F9F5FC] text-ink py-6 sm:py-8 px-4 sm:px-6">
         <div className="mx-auto max-w-4xl space-y-4">

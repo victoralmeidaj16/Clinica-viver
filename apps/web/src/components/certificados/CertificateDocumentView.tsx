@@ -5,10 +5,11 @@ import Link from 'next/link';
 import { Award, Check, Copy, Download, FileText, Printer } from 'lucide-react';
 import {
   CertificateRecord,
-  formatCertificateVersoText,
-  formatLongDate,
+  certificatePublicValidationUrl,
+  resolveCertificateStampText,
 } from '@thats-life/core';
 import { QrCodeConferencia } from '@/components/declaracao/QrCodeConferencia';
+import { CertificateStampContent } from '@/components/certificados/CertificateStampContent';
 
 interface Props {
   record: CertificateRecord;
@@ -18,13 +19,7 @@ interface Props {
 export function CertificateDocumentView({ record, publicValidationUrl }: Props) {
   const [copied, setCopied] = useState(false);
 
-  const versoText = formatCertificateVersoText({
-    signerInfo: record.signerInfo,
-    durationHours: record.durationHours,
-    issueDate: record.issueDate,
-    validationUrl: record.validationUrl,
-    code: record.code,
-  });
+  const versoText = resolveCertificateStampText(record);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(publicValidationUrl);
@@ -214,14 +209,18 @@ export function CertificateDocumentView({ record, publicValidationUrl }: Props) 
                   left: `${record.stampX}%`,
                   top: `${record.stampY}%`,
                   fontSize: `${record.stampFontSize || 11}px`,
-                  textAlign: record.stampAlign || 'center',
+                  width: record.stampWidth ? `${record.stampWidth}%` : undefined,
                   maxWidth: '90%',
                 }}
                 className="bg-transparent border-0 shadow-none p-0 z-10 select-text"
               >
-                <p className="font-mono text-ink whitespace-pre-line leading-tight font-medium">
-                  {versoText}
-                </p>
+                <CertificateStampContent
+                  text={versoText}
+                  fontSize={record.stampFontSize || 11}
+                  align={record.stampAlign || 'center'}
+                  qr={record.stampQr}
+                  qrValue={certificatePublicValidationUrl(record.code)}
+                />
               </div>
             ) : null}
           </div>

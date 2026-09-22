@@ -8,6 +8,11 @@ import {
   generateCertificateCode,
   getMockCertificate,
   renderCertificateText,
+  resolveCertificateStampText,
+  certificatePublicValidationUrl,
+  sanitizeCertificateStamp,
+  STAMP_WIDTH_MAX,
+  STAMP_WIDTH_MIN,
 } from './certificados';
 
 const certificateFixture: CertificateRecord = {
@@ -65,5 +70,31 @@ describe('Módulo de Certificados (Core)', () => {
     expect(verso).toContain('Assinado de forma digital por VIVIANE OLIVEIRA DE ALMEIDA JEREMIAS:19440737000153');
     expect(verso).toContain('CERT-TESTE');
     expect(verso).toContain('www.vivermaispsicologia.com.br');
+  });
+
+  it('usa o texto editado do carimbo e volta ao gerado quando ele está vazio', () => {
+    expect(resolveCertificateStampText({ ...certificateFixture, stampText: 'Texto livre' })).toBe('Texto livre');
+    expect(resolveCertificateStampText({ ...certificateFixture, stampText: '   ' })).toContain('CERT-TESTE');
+    expect(resolveCertificateStampText(certificateFixture)).toBe(formatCertificateVersoText(certificateFixture));
+  });
+
+  it('aponta o QR para a página pública de conferência do código', () => {
+    expect(certificatePublicValidationUrl(' AB c1 ')).toBe(
+      'https://www.vivermaispsicologia.com.br/validar-certificado/AB%20c1'
+    );
+  });
+
+  it('normaliza largura, texto e QR do carimbo vindos do formulário', () => {
+    expect(sanitizeCertificateStamp({ stampWidth: 3, stampText: ' a\r\nb ', stampQr: 'top' })).toEqual({
+      stampWidth: STAMP_WIDTH_MIN,
+      stampText: 'a\nb',
+      stampQr: 'top',
+    });
+    expect(sanitizeCertificateStamp({ stampWidth: 'x', stampText: '', stampQr: 'meio' })).toEqual({
+      stampWidth: undefined,
+      stampText: undefined,
+      stampQr: undefined,
+    });
+    expect(sanitizeCertificateStamp({ stampWidth: 200 }).stampWidth).toBe(STAMP_WIDTH_MAX);
   });
 });

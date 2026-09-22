@@ -62,8 +62,19 @@ export async function createAppointmentFlow(context: RequestContext, input: Sche
 export async function changeAppointment(context: RequestContext, id: string, body: Record<string, unknown>) {
   const store = getApplicationStore(); const metadata = { actorUserId: context.actor.userId, occurredAt: String(body.occurredAt ?? new Date().toISOString()), correlationId: context.correlationId, commandId: context.idempotencyKey! };
   const dependencies = { appointments: store.appointments, identities: store.identities };
+  const cancelled = body.action === 'cancel'
+    ? await store.appointments.getById(context.actor.organizationId, id)
+    : null;
+  if (cancelled?.status === 'cancelled') {
+    assertStaffAuthorized(context.actor, 'schedule.write', {
+      organizationId: cancelled.organizationId, patientId: cancelled.patientId,
+      assignedProfessionalIds: [cancelled.professionalId],
+    });
+  }
   const result =
-    body.action === 'confirm'
+    cancelled?.status === 'cancelled'
+      ? { appointment: cancelled, idempotentReplay: true }
+      : body.action === 'confirm'
       ? await confirmAppointmentCommand(dependencies, context.actor, id, metadata)
       : body.action === 'cancel'
         ? await cancelAppointmentCommand(dependencies, context.actor, id, String(body.reasonCode ?? 'USER_REQUEST'), metadata)
@@ -72,7 +83,9 @@ export async function changeAppointment(context: RequestContext, id: string, bod
           : null;
   if (!result) throw new ApplicationError('INVALID_ACTION', 'Ação de agendamento inválida.', 400);
   await persistApplicationState();
-  if (body.action === 'cancel') await cancelarCobrancaDaSessao(id);
+  if (body.action === 'cancel' && await cancelarCobrancaDaSessao(id) === 'failed') {
+    throw new ApplicationError('CHARGE_CANCELLATION_FAILED', 'A sessão foi cancelada, mas a cobrança ainda não. Tente cancelar novamente para concluir.', 502);
+  }
   if (body.action === 'reschedule' && result?.appointment) {
     const professionalId = result.appointment.professionalId;
     const dueAt = result.appointment.startsAt;

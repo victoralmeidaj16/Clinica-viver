@@ -66,6 +66,16 @@ function registrationSource(identities: unknown): PatientRegistrationCapable | n
 export async function listPatientDirectory(context: RequestContext): Promise<readonly PatientDirectoryEntry[]> {
   assertStaffAuthorized(context.actor, 'patients.read', { organizationId: context.actor.organizationId });
 
+  // Papel clínico enxerga apenas os pacientes atribuídos a si. Papéis
+  // administrativos veem a lista inteira — cadastro não é prontuário.
+  const professionalId = context.actor.professionalProfileId;
+  const clinicalOnly =
+    context.actor.roles.includes('professional') &&
+    !context.actor.roles.some((role) => role === 'owner' || role === 'admin' || role === 'clinical_director');
+  if (clinicalOnly && !professionalId) {
+    throw new ApplicationError('FORBIDDEN', 'Perfil profissional ativo não encontrado.', 403);
+  }
+
   const store = getApplicationStore();
   const organizationId = context.actor.organizationId;
   const contacts = contactSource(store.identities);
@@ -101,12 +111,6 @@ export async function listPatientDirectory(context: RequestContext): Promise<rea
       .map((lead) => [lead.pacienteRef!, lead])
   );
 
-  // Papel clínico enxerga apenas os pacientes atribuídos a si. Papéis
-  // administrativos veem a lista inteira — cadastro não é prontuário.
-  const professionalId = context.actor.professionalProfileId;
-  const clinicalOnly =
-    context.actor.roles.includes('professional') &&
-    !context.actor.roles.some((role) => role === 'owner' || role === 'admin' || role === 'clinical_director');
   const visible =
     clinicalOnly && professionalId
       ? patients.filter((patient) => patient.assignedProfessionalIds.includes(professionalId))
@@ -384,49 +388,58 @@ export async function createPatient(
       if (state.triagensPacientes.some((lead) => lead.id === leadId || lead.pacienteRef === patient.id)) {
         return { next: state, result: null };
       }
+      const cadastro = state.cadastrosPsicologos.find((item) => item.profissionalRef === professionalId);
+      const next = recalcularPacientesAtivos({
+        ...captureStateAsSnapshot(state),
+        triagensPacientes: [...state.triagensPacientes, {
+          id: leadId,
+          protocolo: `VM-MANUAL-${patient.id.slice(-8).toUpperCase()}`,
+          nomePaciente: String(body.legalName ?? body.nome ?? displayName),
+          nomeSocial: data.nomeSocial,
+          idade: data.idade,
+          telefone: data.telefone,
+          dataNascimento: data.dataNascimento,
+          email: data.email,
+          cpf: data.cpf,
+          cep: data.cep,
+          logradouro: data.logradouro,
+          numeroResidencia: data.numeroResidencia,
+          complemento: data.complemento,
+          bairro: data.bairro,
+          cidade: data.cidade,
+          estadoUf: data.estadoUf,
+          possuiConvenio: data.possuiConvenio,
+          convenioSelecionado: data.convenioSelecionado,
+          origem: data.origem,
+          turno: data.turno,
+          servico: data.servico,
+          servicoKey: data.servicoKey,
+          modalidade: data.modalidade,
+          paraQuemE: data.paraQuemE,
+          opcaoAvaliacaoPsicologica: data.opcaoAvaliacaoPsicologica,
+          genero: data.genero,
+          generoOutro: data.generoOutro,
+          especificarNecessidades: data.especificarNecessidades,
+          necessidadesPaciente: data.necessidadesPaciente,
+          necessidadesOutro: data.necessidadesOutro,
+          status: 'CONTATO_CONFIRMADO' as const,
+          // O rodízio referencia o cadastro público, não o perfil clínico.
+          psicologoAlocadoId: cadastro?.id,
+          psicologoNome: professional?.displayName,
+          pacienteRef: patient.id,
+          alocadoEm: now,
+          confirmadoEm: now,
+          slaExpirado: false,
+          transbordos: 0,
+          psicologosJaTentados: cadastro ? [cadastro.id] : [],
+          criadoEm: now,
+        }],
+      });
       return {
         next: {
           ...state,
-          triagensPacientes: [...state.triagensPacientes, {
-            id: leadId,
-            protocolo: `VM-MANUAL-${patient.id.slice(-8).toUpperCase()}`,
-            nomePaciente: String(body.legalName ?? body.nome ?? displayName),
-            telefone: data.telefone,
-            dataNascimento: data.dataNascimento,
-            email: data.email,
-            cpf: data.cpf,
-            cep: data.cep,
-            logradouro: data.logradouro,
-            numeroResidencia: data.numeroResidencia,
-            complemento: data.complemento,
-            bairro: data.bairro,
-            cidade: data.cidade,
-            estadoUf: data.estadoUf,
-            possuiConvenio: data.possuiConvenio,
-            convenioSelecionado: data.convenioSelecionado,
-            origem: data.origem,
-            turno: data.turno,
-            servico: data.servico,
-            servicoKey: data.servicoKey,
-            modalidade: data.modalidade,
-            paraQuemE: data.paraQuemE,
-            opcaoAvaliacaoPsicologica: data.opcaoAvaliacaoPsicologica,
-            genero: data.genero,
-            generoOutro: data.generoOutro,
-            especificarNecessidades: data.especificarNecessidades,
-            necessidadesPaciente: data.necessidadesPaciente,
-            necessidadesOutro: data.necessidadesOutro,
-            status: 'CONTATO_CONFIRMADO' as const,
-            psicologoAlocadoId: professionalId,
-            psicologoNome: professional?.displayName,
-            pacienteRef: patient.id,
-            alocadoEm: now,
-            confirmadoEm: now,
-            slaExpirado: false,
-            transbordos: 0,
-            psicologosJaTentados: [professionalId],
-            criadoEm: now,
-          }],
+          triagensPacientes: next.triagensPacientes ?? [],
+          cadastrosPsicologos: next.cadastrosPsicologos ?? [],
         },
         result: null,
       };

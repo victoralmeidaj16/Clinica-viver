@@ -22,7 +22,6 @@ import { reconcileSettledInterPixCharge } from '@/server/payments/paymentLinkRep
 import { isAsaasPaymentSettled, isFutureChargeDueAt } from '@/lib/chargeDue';
 
 type ChargeOutcome = 'created' | 'existing' | 'skipped' | 'failed';
-type CancelOutcome = 'cancelled' | 'kept' | 'not_found' | 'failed';
 
 /**
  * Materializa a cobrança operacional assim que o agendamento existe.
@@ -143,86 +142,7 @@ export async function garantirCobrancaDaSessao(
   }
 }
 
-export type UpdateChargeDueOutcome = 'updated' | 'not_found' | 'paid' | 'invalid';
-
-/** Troca o vencimento e invalida qualquer QR/link remoto emitido com a regra anterior. */
-export async function atualizarVencimentoCobrancaSessao(input: {
-  organizationId: string; professionalId: string; appointmentId: string; dueAt: string;
-}): Promise<UpdateChargeDueOutcome> {
-  if (!isFutureChargeDueAt(input.dueAt)) return 'invalid';
-  const [rows] = await getMysqlPool().query<RowDataPacket[]>(
-    `SELECT c.ref_core AS cobranca_ref, c.status, c.provedor_ref,
-            x.id AS checkout_id, x.provedor_pagamento_ref, x.provedor AS checkout_provedor
-       FROM clinica_agendamentos a
-       JOIN clinica_organizacoes o ON o.id = a.organizacao_id
-       JOIN clinica_profissionais p ON p.id = a.profissional_id
-       JOIN financeiro_cobrancas c
-         ON c.instituicao_id = a.instituicao_id AND c.organizacao_ref = o.ref_core
-        AND c.sessao_ref IN (a.ref_core, COALESCE(a.sessao_clinica_ref, a.ref_core))
-       LEFT JOIN financeiro_checkouts_asaas x
-         ON x.instituicao_id = c.instituicao_id AND x.cobranca_ref = c.ref_core
-      WHERE a.instituicao_id = ? AND o.ref_core = ? AND p.ref_core = ?
-        AND (a.id = ? OR a.ref_core = ?) AND c.status <> 'cancelled'
-      ORDER BY c.criado_em DESC LIMIT 1`,
-    [instituicaoId(), input.organizationId, input.professionalId,
-      input.appointmentId, input.appointmentId]
-  );
-  const row = rows[0];
-  if (!row) return 'not_found';
-  if (['paid', 'partially_paid', 'refunded'].includes(String(row.status))) return 'paid';
-  const providerId = row.provedor_pagamento_ref ?? row.provedor_ref;
-  if (providerId) {
-    const provider = String(row.checkout_provedor ?? 'asaas');
-    if (provider === 'inter') {
-      const remote = await getInterPixCharge(String(providerId));
-      if (await reconcileSettledInterPixCharge(remote)) return 'paid';
-      await cancelInterPixCharge(String(providerId));
-    } else {
-      try {
-        const remote = await getAsaasPayment(String(providerId));
-        if (isAsaasPaymentSettled(remote.status)) return 'paid';
-        await deleteAsaasPayment(String(providerId));
-      } catch {
-        // Uma remoção anterior pode ter sido concluída antes de a transação local
-        // falhar. DELETE trata 404 como estado final e torna a retomada segura.
-        await deleteAsaasPayment(String(providerId));
-      }
-    }
-  }
-
-  const connection = await getMysqlPool().getConnection();
-  try {
-    await connection.beginTransaction();
-    const [paymentRows] = await connection.query<RowDataPacket[]>(
-      `SELECT id FROM financeiro_pagamentos WHERE instituicao_id = ? AND cobranca_ref = ?
-        AND status = 'confirmed' LIMIT 1 FOR UPDATE`,
-      [instituicaoId(), row.cobranca_ref]
-    );
-    if (paymentRows[0]) { await connection.rollback(); return 'paid'; }
-    await connection.execute(
-      `UPDATE financeiro_cobrancas SET vence_em = ?, status = 'pending', provedor_ref = NULL,
-          forma_pagamento = NULL, atualizado_em = CURRENT_TIMESTAMP(3)
-        WHERE instituicao_id = ? AND ref_core = ?`,
-      [toSqlTimestamp(input.dueAt), instituicaoId(), row.cobranca_ref]
-    );
-    if (row.checkout_id) {
-      const externalReference = `VM-${String(row.checkout_id).replaceAll('-', '')}-${Date.now()}`;
-      await connection.execute(
-        `UPDATE financeiro_checkouts_asaas
-            SET referencia_externa = ?, provedor_pagamento_ref = NULL, provedor = NULL,
-                status = 'creating',
-                erro_codigo = NULL, expirado_em = NULL, atualizado_em = CURRENT_TIMESTAMP(3)
-          WHERE instituicao_id = ? AND id = ?`,
-        [externalReference, instituicaoId(), row.checkout_id]
-      );
-    }
-    await connection.commit();
-    return 'updated';
-  } catch (error) {
-    await connection.rollback();
-    throw error;
-  } finally { connection.release(); }
-}
+export { atualizarVencimentoCobrancaSessao, type UpdateChargeDueOutcome } from './sessionChargeDue';
 
 export async function expirarCobrancasPendentes(limit = 100): Promise<{
   expired: number; paid: number; failed: number;
@@ -283,60 +203,4 @@ export async function expirarCobrancasPendentes(limit = 100): Promise<{
   return result;
 }
 
-/** Cancela somente cobranças sem pagamento confirmado. */
-export async function cancelarCobrancaDaSessao(
-  agendamentoId: string
-): Promise<CancelOutcome> {
-  let connection: PoolConnection | undefined;
-  try {
-    connection = await getMysqlPool().getConnection();
-    await connection.beginTransaction();
-    const [rows] = await connection.query<RowDataPacket[]>(
-      `SELECT a.ref_core AS agendamento_ref, a.sessao_clinica_ref,
-              o.ref_core AS organizacao_ref
-         FROM clinica_agendamentos a
-         JOIN clinica_organizacoes o ON o.id = a.organizacao_id
-        WHERE a.instituicao_id = ? AND (a.ref_core = ? OR a.id = ?)
-        LIMIT 1 FOR UPDATE`,
-      [instituicaoId(), agendamentoId, agendamentoId]
-    );
-    const appointment = rows[0];
-    if (!appointment) {
-      await connection.rollback();
-      return 'not_found';
-    }
-    const clinicalSessionRef = String(
-      appointment.sessao_clinica_ref ?? appointment.agendamento_ref
-    );
-    const [result] = await connection.execute<ResultSetHeader>(
-      `UPDATE financeiro_cobrancas c
-          SET c.status = 'cancelled', c.atualizado_em = CURRENT_TIMESTAMP(3)
-        WHERE c.instituicao_id = ? AND c.organizacao_ref = ?
-          AND c.sessao_ref IN (?, ?)
-          AND c.status NOT IN ('cancelled', 'refunded')
-          AND NOT EXISTS (
-            SELECT 1 FROM financeiro_pagamentos p
-             WHERE p.instituicao_id = c.instituicao_id
-               AND p.organizacao_ref = c.organizacao_ref
-               AND p.cobranca_ref = c.ref_core AND p.status = 'confirmed'
-          )`,
-      [
-        instituicaoId(),
-        appointment.organizacao_ref,
-        appointment.agendamento_ref,
-        clinicalSessionRef,
-      ]
-    );
-    await connection.commit();
-    return result.affectedRows > 0 ? 'cancelled' : 'kept';
-  } catch (error) {
-    await connection?.rollback().catch(() => undefined);
-    console.error(
-      `[financeiro] Sessão ${agendamentoId} foi cancelada, mas a cobrança não pôde ser atualizada:`,
-      error instanceof Error ? error.message : error
-    );
-    return 'failed';
-  } finally {
-    connection?.release();
-  }
-}
+export { cancelarCobrancaDaSessao } from './sessionChargeCancellation';

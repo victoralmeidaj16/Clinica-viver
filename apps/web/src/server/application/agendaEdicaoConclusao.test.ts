@@ -22,12 +22,14 @@ vi.mock('@/server/scheduling/agendaRepository', () => ({
   updateAppointmentDetails: vi.fn(async () => 'ok'),
 }));
 
-import { editAgendaAppointment } from './agendaService';
+import { cancelAgendaAppointment, rescheduleAgendaAppointment, editAgendaAppointment } from './agendaService';
 import {
   completeAppointment,
+  cancelAppointment,
+  rescheduleAppointmentProfessional,
   updateAppointmentDetails,
 } from '@/server/scheduling/agendaRepository';
-import { garantirCobrancaDaSessao } from '@/server/payments/sessionCharge';
+import { cancelarCobrancaDaSessao, garantirCobrancaDaSessao } from '@/server/payments/sessionCharge';
 import type { RequestContext } from './context';
 
 const context = {
@@ -128,5 +130,25 @@ describe('editAgendaAppointment', () => {
     await expect(
       editAgendaAppointment(context, 'apt-1', { custeadoPelaEmpresa: true })
     ).rejects.toMatchObject({ code: 'APPOINTMENT_FUNDING_QUOTA_EXCEEDED', status: 409 });
+  });
+});
+
+
+describe('validação e falha financeira na agenda', () => {
+  beforeEach(() => vi.clearAllMocks());
+  it.each([
+    ['2099-01-01T15:00:00Z', '2099-01-01T14:00:00Z'],
+    ['2099-01-01T15:00:00Z', '2099-01-01T15:00:00Z'],
+    ['invalid', '2099-01-01T14:00:00Z'],
+    ['2099-01-01T15:00:00Z', 'invalid'],
+  ])('recusa intervalo inválido antes de acessar a persistência', async (start, end) => {
+    await expect(rescheduleAgendaAppointment(context, 'apt', start, end)).rejects.toMatchObject({ status: 400 });
+    expect(rescheduleAppointmentProfessional).not.toHaveBeenCalled();
+  });
+  it('informa falha do cancelamento remoto e permite nova tentativa', async () => {
+    vi.mocked(cancelAppointment).mockResolvedValue(true);
+    vi.mocked(cancelarCobrancaDaSessao).mockResolvedValueOnce('failed').mockResolvedValueOnce('cancelled');
+    await expect(cancelAgendaAppointment(context, 'apt', 'Solicitado')).rejects.toMatchObject({ code: 'CHARGE_CANCELLATION_FAILED', status: 502 });
+    await expect(cancelAgendaAppointment(context, 'apt', 'Solicitado')).resolves.toEqual({ appointments: [] });
   });
 });

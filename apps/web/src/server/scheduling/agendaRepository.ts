@@ -1,5 +1,8 @@
 import 'server-only';
 
+import { resetAppointmentChargeDue } from '@/server/payments/sessionChargeDue';
+
+import { CPF_CADASTRO_SQL } from '@/server/persistence/mysql/patientCpfSql';
 import { randomUUID } from 'node:crypto';
 import type { RowDataPacket } from 'mysql2';
 import { getMysqlPool, isMysqlConfigured } from '@/server/oci/runtime';
@@ -647,7 +650,17 @@ export async function cancelAppointment(
         AND a.id = ? AND a.status <> 'cancelado'`,
     [motivo, instituicaoId(), organizationId, professionalId, appointmentId]
   );
-  return (result as { affectedRows: number }).affectedRows > 0;
+  if ((result as { affectedRows: number }).affectedRows > 0) return true;
+  // Permite retomar o cancelamento financeiro após uma falha do provedor.
+  const [existing] = await getMysqlPool().query<RowDataPacket[]>(
+    `SELECT a.id FROM clinica_agendamentos a
+       JOIN clinica_profissionais p ON p.id = a.profissional_id
+       JOIN clinica_organizacoes o ON o.id = p.organizacao_id
+      WHERE a.instituicao_id = ? AND o.ref_core = ? AND p.ref_core = ?
+        AND a.id = ? AND a.status = 'cancelado' LIMIT 1`,
+    [instituicaoId(), organizationId, professionalId, appointmentId]
+  );
+  return existing.length > 0;
 }
 
 export async function rescheduleAppointmentProfessional(
@@ -656,7 +669,11 @@ export async function rescheduleAppointmentProfessional(
   appointmentId: string,
   startsAtIso: string,
   endsAtIso: string
-): Promise<'ok' | 'not_found' | 'conflict'> {
+): Promise<'ok' | 'not_found' | 'conflict' | 'invalid'> {
+  const novoInicio = new Date(startsAtIso);
+  const novoFim = new Date(endsAtIso);
+  if (!Number.isFinite(novoInicio.getTime()) || !Number.isFinite(novoFim.getTime())
+      || novoFim.getTime() <= novoInicio.getTime()) return 'invalid';
   const connection = await getMysqlPool().getConnection();
   try {
     await connection.beginTransaction();
@@ -676,9 +693,6 @@ export async function rescheduleAppointmentProfessional(
       await connection.rollback();
       return 'not_found';
     }
-
-    const novoInicio = new Date(startsAtIso);
-    const novoFim = new Date(endsAtIso);
 
     const [conflitos] = await connection.query<RowDataPacket[]>(
       `SELECT a.id FROM clinica_agendamentos a
@@ -712,12 +726,7 @@ export async function rescheduleAppointmentProfessional(
       [novoInicio, novoFim, instituicaoId(), agendamento.id]
     );
 
-    await connection.execute(
-      `UPDATE financeiro_cobrancas
-          SET vence_em = ?, atualizado_em = CURRENT_TIMESTAMP(3)
-        WHERE instituicao_id = ? AND sessao_ref IN (?, ?) AND status IN ('pending', 'overdue')`,
-      [novoInicio, instituicaoId(), agendamento.id, agendamento.ref_core]
-    );
+    await resetAppointmentChargeDue(connection, String(agendamento.id), novoInicio.toISOString());
 
     await connection.commit();
     return 'ok';
@@ -954,12 +963,7 @@ export async function updateAppointmentDetails(
     );
 
     if (input.startsAt && novoInicio) {
-      await connection.execute(
-        `UPDATE financeiro_cobrancas
-            SET vence_em = ?, atualizado_em = CURRENT_TIMESTAMP(3)
-          WHERE instituicao_id = ? AND sessao_ref IN (?, ?) AND status IN ('pending', 'overdue')`,
-        [novoInicio, instituicaoId(), agendamento.id, agendamento.ref_core]
-      );
+      await resetAppointmentChargeDue(connection, String(agendamento.id), novoInicio.toISOString());
     }
 
     await connection.commit();
@@ -1051,7 +1055,7 @@ export async function identifyPatient(
        JOIN clinica_pacientes pa
          ON pa.instituicao_id = t.instituicao_id AND pa.ref_core = t.paciente_ref
       WHERE p.instituicao_id = ? AND p.token_link_agenda = ? AND p.ativo = 1
-        AND REPLACE(REPLACE(REPLACE(t.cpf, '.', ''), '-', ''), ' ', '') = ?
+        AND COALESCE(${CPF_CADASTRO_SQL}, REPLACE(REPLACE(REPLACE(t.cpf, '.', ''), '-', ''), ' ', '')) = ?
         AND (pa.profissional_id = p.id OR EXISTS (
           SELECT 1 FROM clinica_pacientes_profissionais pp
            WHERE pp.paciente_id = pa.id AND pp.profissional_id = p.id
@@ -1427,12 +1431,7 @@ export async function rescheduleAppointmentPublic(
       [novoInicio, novoFim, duracaoMin, slot.modalidade, tokenPagamento, instituicaoId(), agendamento.id]
     );
 
-    await connection.execute(
-      `UPDATE financeiro_cobrancas
-          SET vence_em = ?, atualizado_em = CURRENT_TIMESTAMP(3)
-        WHERE instituicao_id = ? AND sessao_ref IN (?, ?) AND status IN ('pending', 'overdue')`,
-      [novoInicio, instituicaoId(), agendamento.id, agendamento.ref_core]
-    );
+    await resetAppointmentChargeDue(connection, String(agendamento.id), novoInicio.toISOString());
 
     await connection.commit();
 

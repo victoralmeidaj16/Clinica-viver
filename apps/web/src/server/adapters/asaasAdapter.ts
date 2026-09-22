@@ -309,8 +309,11 @@ export async function findAsaasPaymentByExternalReference(
   return body.data?.[0] ? withPixQrCode(body.data[0]) : null;
 }
 
+export class AsaasPaymentNotFoundError extends Error {}
+
 export async function getAsaasPayment(id: string): Promise<AsaasPaymentResult> {
   const response = await asaasFetch(`/payments/${encodeURIComponent(id)}`);
+  if (response.status === 404) throw new AsaasPaymentNotFoundError('Cobrança não encontrada no Asaas.');
   if (!response.ok) throw new Error('Falha ao consultar a cobrança no Asaas.');
   return withPixQrCode(await response.json());
 }

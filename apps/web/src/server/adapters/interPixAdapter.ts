@@ -238,10 +238,10 @@ export async function getInterPixCharge(txid: string): Promise<InterPixCharge> {
   });
   const location = response.location ?? response.loc?.location;
   const payload = response.pixCopiaECola || (location ? dynamicPixPayload(location) : '');
-  if (!payload) throw new Error('Banco Inter não retornou o Pix Copia e Cola.');
+  if (!payload && response.status === 'ATIVA') throw new Error('Banco Inter não retornou o Pix Copia e Cola.');
   return {
     id: txid, status: response.status, value: Number(response.valor?.original ?? 0),
-    pixCopiaECola: payload, pixQrCode: qrDataUrl(payload),
+    pixCopiaECola: payload, pixQrCode: payload ? qrDataUrl(payload) : '',
     settlements: parseInterPixSettlements(response.pix),
   };
 }

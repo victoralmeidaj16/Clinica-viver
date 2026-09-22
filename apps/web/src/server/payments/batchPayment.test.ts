@@ -10,7 +10,7 @@ vi.mock('@/server/persistence/mysql/mappers', () => ({
   fromSqlTimestamp: (value: string) => new Date(value).toISOString(),
   toSqlTimestamp: (value: string) => value,
 }));
-import { reserveAppointmentCharge, reserveAppointmentChargeBatch, reconcileInterPix, reconcileAsaasPayment } from './paymentLinkRepository';
+import { claimCheckoutProvider, reserveAppointmentCharge, reserveAppointmentChargeBatch, reconcileInterPix, reconcileAsaasPayment } from './paymentLinkRepository';
 
 beforeEach(() => { vi.clearAllMocks(); vi.useFakeTimers(); vi.setSystemTime(new Date('2026-09-01T12:00:00Z')); });
 afterEach(() => vi.useRealTimers());
@@ -83,5 +83,55 @@ describe('proteção contra cobrar novamente uma sessão quitada', () => {
     );
     expect(connection.execute).not.toHaveBeenCalled();
     expect(connection.rollback).toHaveBeenCalled();
+  });
+});
+
+
+describe('checkout invalidado pelo cancelamento', () => {
+  it.each(['expired', 'paid', 'refunded'])('não reserva provedor para checkout %s', async (status) => {
+    connection.query.mockResolvedValue([[{ provedor: 'asaas', status }], []]);
+    await expect(claimCheckoutProvider('VM-old', 'asaas')).rejects.toThrow('não está mais disponível');
+    expect(connection.rollback).toHaveBeenCalled();
+  });
+  it('continua permitindo checkout ativo', async () => {
+    connection.query.mockResolvedValue([[{ provedor: 'inter', status: 'creating' }], []]);
+    expect(await claimCheckoutProvider('VM-active', 'inter')).toBe('inter');
+  });
+});
+
+describe('retomada de pagamento agrupado', () => {
+  function existingGroup(provider: 'asaas' | 'inter', grouped = true) {
+    connection.query.mockImplementation(async (sql: string, values: unknown[]) => {
+      if (sql.includes('FROM clinica_agendamentos a')) return [[{
+        agendamento_ref: values[1], inicio: '2026-09-10T12:00:00Z', valor_centavos: 10000,
+        organizacao_ref: 'org', paciente_ref: 'patient', profissional_ref: 'pro',
+      }], []];
+      if (sql.includes('FROM financeiro_cobrancas c')) {
+        const token = String(values[2]);
+        return [[{ cobranca_ref: token, cobranca_status: 'pending', vence_em: '2026-09-10T12:00:00Z',
+          checkout_ref: `checkout-${token}`, referencia_externa: `VM-${token}`,
+          checkout_provedor: token === 'a' ? provider : undefined,
+          provedor_pagamento_ref: token === 'a' ? 'remote-existing' : undefined }], []];
+      }
+      if (sql.includes('SELECT referencia_externa')) return [grouped ? [{ referencia_externa: 'VM-a' }, { referencia_externa: 'VM-a' }] : [], []];
+      if (sql.includes('SELECT cobranca_ref, valor_centavos')) return [grouped ? [
+        { cobranca_ref: 'a', valor_centavos: 10000 }, { cobranca_ref: 'b', valor_centavos: 10000 },
+      ] : [], []];
+      return [[], []];
+    });
+  }
+  it.each(['asaas', 'inter'] as const)('recupera pagamento %s e aceita ordem invertida', async (provider) => {
+    existingGroup(provider);
+    expect(await reserveAppointmentChargeBatch({ tokens: ['b', 'a'], cpf: '123' })).toMatchObject({
+      externalReference: 'VM-a', providerPaymentId: 'remote-existing', provider, amountCents: 20000,
+    });
+  });
+  it('não transforma pagamento individual já emitido em grupo', async () => {
+    existingGroup('asaas', false);
+    await expect(reserveAppointmentChargeBatch({ tokens: ['a', 'b'], cpf: '123' })).rejects.toThrow('individual iniciado');
+  });
+  it('recusa adicionar sessão a um grupo já emitido', async () => {
+    existingGroup('inter');
+    await expect(reserveAppointmentChargeBatch({ tokens: ['a', 'b', 'c'], cpf: '123' })).rejects.toThrow('grupo original');
   });
 });

@@ -709,6 +709,12 @@ export class MysqlIdentityRepository implements IdentityRepository, PatientConta
             toSqlTimestamp(input.changedAt)]
         );
       }
+      // A triagem também é lida pelos links públicos; não pode guardar um CPF antigo.
+      await connection.execute(
+        `UPDATE clinica_triagens_pacientes SET cpf = ?, atualizado_em = ?
+          WHERE instituicao_id = ? AND organizacao_ref = ? AND paciente_ref = ?`,
+        [next.cpf, toSqlTimestamp(input.changedAt), instituicaoId(), input.organizationId, input.patientId]
+      );
       await connection.commit();
       return this.getPatientRegistration(input.organizationId, input.patientId);
     } catch (error) {

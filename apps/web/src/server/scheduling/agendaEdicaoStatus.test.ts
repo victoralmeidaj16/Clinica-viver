@@ -25,6 +25,7 @@ vi.mock('@/server/oci/runtime', () => ({
 }));
 vi.mock('@/server/persistence/mysql/mappers', () => ({
   instituicaoId: () => 'inst-1',
+  toSqlTimestamp: (value: string) => value,
   rowId: (prefix: string, ref: string) => `${prefix}:${ref}`,
 }));
 
@@ -96,6 +97,10 @@ describe('updateAppointmentDetails', () => {
   });
 
   it('reagenda a cobrança pela coluna que existe no esquema', async () => {
+    const previousQuery = connection.query.getMockImplementation()!;
+    connection.query.mockImplementation(async (sql, values) => sql.includes('SELECT c.ref_core')
+      ? [[{ ref_core: 'charge', organizacao_ref: 'org-1', status: 'overdue', possui_pagamento: 0 }], []]
+      : previousQuery(sql, values));
     await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', {
       startsAt: '2099-02-01T12:00:00.000Z',
       endsAt: '2099-02-01T12:50:00.000Z',

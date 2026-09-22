@@ -189,7 +189,9 @@ export async function cancelAgendaAppointment(
   if (!cancelado) {
     throw new ApplicationError('NOT_FOUND', 'Agendamento não encontrado ou já cancelado.', 404);
   }
-  await cancelarCobrancaDaSessao(appointmentId);
+  if (await cancelarCobrancaDaSessao(appointmentId) === 'failed') {
+    throw new ApplicationError('CHARGE_CANCELLATION_FAILED', 'A sessão foi cancelada, mas a cobrança ainda não. Tente cancelar novamente para concluir.', 502);
+  }
   if (sessao) await avisarSessaoCancelada(sessao);
 
   const desde = new Date(Date.now() - 90 * 24 * 60 * 60_000);
@@ -285,6 +287,10 @@ export async function rescheduleAgendaAppointment(
     throw new ApplicationError('INVALID_INPUT', 'Envie o início e o fim da sessão.', 400);
   }
   const startsAtDate = new Date(startsAt);
+  const end = Date.parse(endsAt);
+  if (!Number.isFinite(startsAtDate.getTime()) || !Number.isFinite(end) || end <= startsAtDate.getTime()) {
+    throw new ApplicationError('INVALID_INPUT', 'Informe datas válidas e término posterior ao início.', 400);
+  }
   if (startsAtDate.getTime() <= Date.now()) {
     throw new ApplicationError('INVALID_INPUT', 'O novo horário deve estar no futuro.', 400);
   }
@@ -297,6 +303,7 @@ export async function rescheduleAgendaAppointment(
     endsAt
   );
 
+  if (outcome === 'invalid') throw new ApplicationError('INVALID_INPUT', 'O término deve ser posterior ao início.', 400);
   if (outcome === 'not_found') {
     throw new ApplicationError('NOT_FOUND', 'Agendamento não encontrado.', 404);
   }

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createAsaasPayment, getOrCreateAsaasCustomer } from '@/server/adapters/asaasAdapter';
-import { createInterPixCharge } from '@/server/adapters/interPixAdapter';
+import { createAsaasPayment, getOrCreateAsaasCustomer, getAsaasPayment, findAsaasPaymentByExternalReference } from '@/server/adapters/asaasAdapter';
+import { createInterPixCharge, getInterPixCharge } from '@/server/adapters/interPixAdapter';
 import { rateLimited, validCpf } from '@/server/http/publicRequest';
 import {
   bindBatchProviderPayment,
@@ -36,7 +36,9 @@ export async function POST(request: Request) {
     if (claimed !== provider) return NextResponse.json({ error: 'Este pagamento já foi iniciado por outra forma.' }, { status: 409 });
 
     if (paymentMethod === 'PIX') {
-      const pix = await createInterPixCharge({
+      const pix = checkout.providerPaymentId
+        ? await getInterPixCharge(checkout.providerPaymentId)
+        : await createInterPixCharge({
         externalReference: checkout.externalReference,
         amountCents: checkout.amountCents,
         patientName: checkout.patientName,
@@ -51,11 +53,16 @@ export async function POST(request: Request) {
         pixQrCode: pix.pixQrCode, pixCopiaECola: pix.pixCopiaECola });
     }
 
-    const customerId = await getOrCreateAsaasCustomer({ name: checkout.patientName,
-      cpfCnpj: checkout.patientCpf, mobilePhone: checkout.patientPhone, email: checkout.patientEmail });
-    const payment = await createAsaasPayment({ customerId, value: checkout.amountCents / 100,
-      dueDate: asaasDueDate(checkout.dueAt), description: checkout.description!,
-      billingType: 'CREDIT_CARD', externalReference: checkout.externalReference });
+    let payment = checkout.providerPaymentId
+      ? await getAsaasPayment(checkout.providerPaymentId)
+      : await findAsaasPaymentByExternalReference(checkout.externalReference);
+    if (!payment) {
+      const customerId = await getOrCreateAsaasCustomer({ name: checkout.patientName,
+        cpfCnpj: checkout.patientCpf, mobilePhone: checkout.patientPhone, email: checkout.patientEmail });
+      payment = await createAsaasPayment({ customerId, value: checkout.amountCents / 100,
+        dueDate: asaasDueDate(checkout.dueAt), description: checkout.description!,
+        billingType: 'CREDIT_CARD', externalReference: checkout.externalReference });
+    }
     await bindBatchProviderPayment(checkout, payment.id, 'asaas');
     return NextResponse.json({ success: true, provider: 'asaas', paymentMethod: 'CREDIT_CARD',
       pacienteNome: checkout.patientName, quantidade: tokens.length, descontoCentavos: checkout.discountCents, subtotalCentavos: checkout.subtotalCents, valor: payment.value,

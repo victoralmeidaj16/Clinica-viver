@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { CPF_CADASTRO_SQL } from '@/server/persistence/mysql/patientCpfSql';
+
 import { randomUUID } from 'node:crypto';
 import type { RowDataPacket } from 'mysql2';
 import type { PoolConnection } from 'mysql2/promise';
@@ -154,11 +156,11 @@ export async function listPayablePatientSessions(input: {
          ON c.instituicao_id = future.instituicao_id AND c.sessao_ref = future.ref_core
       WHERE anchor.instituicao_id = ? AND anchor.token_pagamento_sessao = ? AND anchor.status <> 'cancelado'
         AND (REPLACE(REPLACE(REPLACE(COALESCE(pa.documento, ''), '.', ''), '-', ''), ' ', '') = ?
-          OR EXISTS (SELECT 1 FROM clinica_triagens_pacientes t
+          OR (${CPF_CADASTRO_SQL} IS NULL AND EXISTS (SELECT 1 FROM clinica_triagens_pacientes t
             JOIN clinica_organizacoes o ON o.id = anchor.organizacao_id
             WHERE t.instituicao_id = anchor.instituicao_id AND t.organizacao_ref = o.ref_core
               AND t.paciente_ref = pa.ref_core
-              AND REPLACE(REPLACE(REPLACE(COALESCE(t.cpf, ''), '.', ''), '-', ''), ' ', '') = ?))
+              AND REPLACE(REPLACE(REPLACE(COALESCE(t.cpf, ''), '.', ''), '-', ''), ' ', '') = ?)))
         AND future.status IN ('agendado', 'confirmado') AND future.inicio >= UTC_TIMESTAMP(3)
         AND future.token_pagamento_sessao IS NOT NULL
         AND ${custeioDoAgendamentoSql({ agendamento: 'future', paciente: 'pa', convenio: 'conv' })} = 0
@@ -192,7 +194,7 @@ export async function reserveAppointmentCharge(input: {
               conv.nome AS convenio_nome,
               ${custeioDoAgendamentoSql({ agendamento: 'a', paciente: 'pa', convenio: 'conv' })}
                 AS custeado_pela_empresa,
-              COALESCE(pa.documento, (SELECT t.cpf FROM clinica_triagens_pacientes t
+              COALESCE(${CPF_CADASTRO_SQL}, (SELECT t.cpf FROM clinica_triagens_pacientes t
                 WHERE t.instituicao_id = a.instituicao_id AND t.organizacao_ref = o.ref_core
                   AND t.paciente_ref = pa.ref_core AND t.cpf IS NOT NULL
                 ORDER BY t.atualizado_em DESC LIMIT 1)) AS paciente_cpf,
@@ -219,12 +221,12 @@ export async function reserveAppointmentCharge(input: {
           AND a.status <> 'cancelado'
           AND (
             REPLACE(REPLACE(REPLACE(COALESCE(pa.documento, ''), '.', ''), '-', ''), ' ', '') = ?
-            OR EXISTS (
+            OR (${CPF_CADASTRO_SQL} IS NULL AND EXISTS (
               SELECT 1 FROM clinica_triagens_pacientes tc
                WHERE tc.instituicao_id = a.instituicao_id
                  AND tc.organizacao_ref = o.ref_core AND tc.paciente_ref = pa.ref_core
                  AND REPLACE(REPLACE(REPLACE(COALESCE(tc.cpf, ''), '.', ''), '-', ''), ' ', '') = ?
-            )
+            ))
           )
         LIMIT 1 FOR UPDATE`,
       [instituicaoId(), input.token, input.cpf, input.cpf]
@@ -382,15 +384,13 @@ export async function reserveAppointmentChargeBatch(input: {
     const reservation = await reserveAppointmentCharge({ token, cpf: input.cpf }, true);
     if (!reservation || isCompanyFundedReservation(reservation)) throw new Error('Uma das sessões não possui cobrança individual.');
     if (isExpiredReservation(reservation)) throw new Error('O prazo de uma das cobranças selecionadas terminou.');
-    if (reservation.providerPaymentId) throw new Error('Uma das sessões já possui um pagamento iniciado.');
     reservations.push(reservation);
   }
-  const first = reservations[0];
-  if (reservations.slice(1).some((item) => item.provider)) throw new Error('Uma das sessões já possui um pagamento iniciado.');
+  let first = reservations[0];
   if (reservations.some((item) => item.patientId !== first.patientId || item.organizationId !== first.organizationId)) {
     throw new Error('As sessões precisam pertencer ao mesmo paciente e à mesma clínica.');
   }
-  const pricing = priceSessionBatch(reservations.map((item) => ({
+  let pricing = priceSessionBatch(reservations.map((item) => ({
     sessionStart: item.sessionStart!, amountCents: item.amountCents,
   })));
   const dueAt = reservations.map((item) => item.dueAt).sort()[0];
@@ -402,18 +402,34 @@ export async function reserveAppointmentChargeBatch(input: {
         WHERE instituicao_id = ? AND cobranca_ref IN (?) FOR UPDATE`,
       [instituicaoId(), reservations.map((item) => item.chargeId)]
     );
-    if (existingMappings.some((row) => String(row.referencia_externa) !== first.externalReference)) {
-      throw new Error('Uma das sessões já está incluída em outro pagamento agrupado.');
+    if (existingMappings.length) {
+      const references = new Set(existingMappings.map((row) => String(row.referencia_externa)));
+      const anchor = reservations.find((item) => references.has(item.externalReference));
+      if (references.size !== 1 || !anchor) {
+        throw new Error('Uma das sessões já está incluída em outro pagamento agrupado. Utilize o grupo original.');
+      }
+      first = anchor;
+    }
+    if (reservations.some((item) => item !== first && (item.provider || item.providerPaymentId))) {
+      throw new Error('Uma das sessões já possui um pagamento iniciado.');
     }
     const [groupMappings] = await connection.query<RowDataPacket[]>(
       `SELECT cobranca_ref, valor_centavos FROM financeiro_checkout_cobrancas
         WHERE instituicao_id = ? AND referencia_externa = ? FOR UPDATE`,
       [instituicaoId(), first.externalReference]
     );
-    if (groupMappings.length && (groupMappings.length !== reservations.length ||
-      reservations.some((item, index) => !groupMappings.some((row) =>
-        String(row.cobranca_ref) === item.chargeId && Number(row.valor_centavos) === pricing.amounts[index])))) {
-      throw new Error('Este pagamento agrupado já foi reservado com outra seleção ou valor. Utilize o grupo original.');
+    if (groupMappings.length) {
+      if (groupMappings.length !== reservations.length || reservations.some((item) =>
+        !groupMappings.some((row) => String(row.cobranca_ref) === item.chargeId))) {
+        throw new Error('Este pagamento agrupado já foi reservado com outra seleção. Utilize o grupo original.');
+      }
+      // A retomada preserva o rateio original, inclusive com os tokens em outra ordem.
+      const amounts = reservations.map((item) => Number(groupMappings.find((row) =>
+        String(row.cobranca_ref) === item.chargeId)!.valor_centavos));
+      const amountCents = amounts.reduce((sum, value) => sum + value, 0);
+      pricing = { ...pricing, amounts, amountCents, discountCents: pricing.subtotalCents - amountCents };
+    } else if (first.provider || first.providerPaymentId) {
+      throw new Error('Uma das sessões já possui um pagamento individual iniciado.');
     }
     for (const [index, item] of reservations.entries()) {
       await connection.execute(
@@ -540,14 +556,17 @@ export async function claimCheckoutProvider(
     await connection.execute(
       `UPDATE financeiro_checkouts_asaas SET provedor = ?
         WHERE instituicao_id = ? AND referencia_externa = ? AND provedor IS NULL
-          AND provedor_pagamento_ref IS NULL`,
+          AND provedor_pagamento_ref IS NULL AND status IN ('creating', 'pending')`,
       [requested, instituicaoId(), externalReference]
     );
     const [rows] = await connection.query<RowDataPacket[]>(
-      `SELECT provedor FROM financeiro_checkouts_asaas
+      `SELECT provedor, status FROM financeiro_checkouts_asaas
         WHERE instituicao_id = ? AND referencia_externa = ? LIMIT 1 FOR UPDATE`,
       [instituicaoId(), externalReference]
     );
+    if (!rows[0] || !['creating', 'pending'].includes(String(rows[0].status))) {
+      throw new Error('Este checkout não está mais disponível. Atualize a página.');
+    }
     const provider = String(rows[0]?.provedor ?? '');
     if (provider !== 'asaas' && provider !== 'inter') {
       throw new Error('Não foi possível reservar o provedor deste checkout.');

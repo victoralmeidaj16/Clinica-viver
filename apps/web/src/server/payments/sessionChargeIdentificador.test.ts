@@ -77,6 +77,7 @@ const PLACEHOLDER = /\ba\.(id|ref_core|instituicao_id)\s*=\s*\?/g;
  */
 function bancoComAgendamento() {
   connection.query.mockImplementation(async (sql: string, values: unknown[] = []) => {
+    if (sql.trimStart().startsWith('SELECT c.ref_core, c.status')) return [[{ ref_core: 'charge-1', status: 'pending', possui_pagamento: 0 }], []];
     if (!sql.includes('FROM clinica_agendamentos a')) return [[], []];
     const colunas = [...sql.matchAll(PLACEHOLDER)].map((match) => match[1]);
     const encontrou = colunas.some(

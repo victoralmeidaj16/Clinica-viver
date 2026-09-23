@@ -1,4 +1,5 @@
 import 'server-only';
+import { hasPendingChargeDueReset } from './sessionChargeDueQueue';
 
 import { CPF_CADASTRO_SQL } from '@/server/persistence/mysql/patientCpfSql';
 
@@ -271,6 +272,10 @@ export async function reserveAppointmentCharge(input: {
         appointment.sessao_clinica_ref ?? appointment.agendamento_ref]
     );
 
+    if (chargeRows[0]?.cobranca_ref && await hasPendingChargeDueReset(connection, [String(chargeRows[0].cobranca_ref)])) {
+      throw new SessionChargeUnavailableError('A cobrança está sendo atualizada após a remarcação. Tente novamente em instantes.');
+    }
+
     if (['paid', 'refunded', 'partially_paid'].includes(String(chargeRows[0]?.cobranca_status))) {
       throw new SessionChargeUnavailableError(
         chargeRows[0]?.cobranca_status === 'paid'
@@ -397,6 +402,9 @@ export async function reserveAppointmentChargeBatch(input: {
   const connection = await getMysqlPool().getConnection();
   try {
     await connection.beginTransaction();
+    if (await hasPendingChargeDueReset(connection, reservations.map((item) => item.chargeId))) {
+      throw new SessionChargeUnavailableError('Uma das cobranças está sendo atualizada após a remarcação.');
+    }
     const [existingMappings] = await connection.query<RowDataPacket[]>(
       `SELECT referencia_externa FROM financeiro_checkout_cobrancas
         WHERE instituicao_id = ? AND cobranca_ref IN (?) FOR UPDATE`,
@@ -560,12 +568,15 @@ export async function claimCheckoutProvider(
       [requested, instituicaoId(), externalReference]
     );
     const [rows] = await connection.query<RowDataPacket[]>(
-      `SELECT provedor, status FROM financeiro_checkouts_asaas
+      `SELECT provedor, status, cobranca_ref FROM financeiro_checkouts_asaas
         WHERE instituicao_id = ? AND referencia_externa = ? LIMIT 1 FOR UPDATE`,
       [instituicaoId(), externalReference]
     );
     if (!rows[0] || !['creating', 'pending'].includes(String(rows[0].status))) {
       throw new Error('Este checkout não está mais disponível. Atualize a página.');
+    }
+    if (await hasPendingChargeDueReset(connection, [String(rows[0].cobranca_ref)])) {
+      throw new SessionChargeUnavailableError('A cobrança está sendo atualizada após a remarcação.');
     }
     const provider = String(rows[0]?.provedor ?? '');
     if (provider !== 'asaas' && provider !== 'inter') {

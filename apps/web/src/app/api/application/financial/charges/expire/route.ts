@@ -1,3 +1,4 @@
+import { processPendingChargeDueResets } from '@/server/payments/sessionChargeDueWorker';
 import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { expirarCobrancasPendentes } from '@/server/payments/sessionCharge';
@@ -16,7 +17,8 @@ function authorized(request: Request): boolean {
 export async function POST(request: Request) {
   if (!authorized(request)) return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
   try {
-    return NextResponse.json({ success: true, ...(await expirarCobrancasPendentes()) });
+    const dueResets = await processPendingChargeDueResets();
+    return NextResponse.json({ success: true, dueResets, ...(await expirarCobrancasPendentes()) });
   } catch (error) {
     console.error('[financeiro] Falha na varredura de vencimentos:', error);
     return NextResponse.json({ error: 'Falha ao expirar cobranças.' }, { status: 500 });

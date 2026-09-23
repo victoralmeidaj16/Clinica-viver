@@ -94,7 +94,8 @@ describe('checkout invalidado pelo cancelamento', () => {
     expect(connection.rollback).toHaveBeenCalled();
   });
   it('continua permitindo checkout ativo', async () => {
-    connection.query.mockResolvedValue([[{ provedor: 'inter', status: 'creating' }], []]);
+    connection.query.mockImplementation(async (sql: string) => [sql.includes('SELECT provedor, status')
+      ? [{ provedor: 'inter', status: 'creating', cobranca_ref: 'charge' }] : [], []]);
     expect(await claimCheckoutProvider('VM-active', 'inter')).toBe('inter');
   });
 });
@@ -133,5 +134,15 @@ describe('retomada de pagamento agrupado', () => {
   it('recusa adicionar sessão a um grupo já emitido', async () => {
     existingGroup('inter');
     await expect(reserveAppointmentChargeBatch({ tokens: ['a', 'b', 'c'], cpf: '123' })).rejects.toThrow('grupo original');
+  });
+});
+
+
+describe('checkout durante ajuste de vencimento', () => {
+  it('bloqueia o provedor antes de permitir o uso de uma referência desatualizada', async () => {
+    connection.query.mockImplementation(async (sql: string) => [sql.includes('JSON_CONTAINS')
+      ? [{ id: 'pending-reset' }] : [{ provedor: 'asaas', status: 'pending', cobranca_ref: 'charge' }], []]);
+    await expect(claimCheckoutProvider('VM-old', 'asaas')).rejects.toThrow('atualizada');
+    expect(connection.rollback).toHaveBeenCalled();
   });
 });

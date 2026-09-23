@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
+vi.mock('./agendaReagendamentoEffects', () => ({ concluirReagendamento: vi.fn(async () => {}) }));
 
 type Linha = Record<string, unknown>;
 
@@ -133,10 +134,10 @@ describe('updateAppointmentDetails', () => {
 
     const cobranca = connection.execute.mock.calls
       .map(([sql]) => sql)
-      .find((sql) => sql.includes('UPDATE financeiro_cobrancas'));
+      .find((sql) => sql.includes('INSERT INTO financeiro_ajustes_vencimento'));
     expect(cobranca).toBeDefined();
     // `financeiro_cobrancas` tem `vence_em`; `vencimento_em` nunca existiu.
-    expect(cobranca).toContain('SET vence_em = ?');
+    expect(cobranca).toContain('vence_em');
     expect(cobranca).not.toContain('vencimento_em');
   });
 

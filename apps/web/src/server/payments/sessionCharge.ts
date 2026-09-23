@@ -1,4 +1,5 @@
 import 'server-only';
+import { hasPendingChargeDueReset } from './sessionChargeDueQueue';
 
 import { randomUUID } from 'node:crypto';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
@@ -162,6 +163,7 @@ export async function expirarCobrancasPendentes(limit = 100): Promise<{
   const result = { expired: 0, paid: 0, failed: 0 };
   for (const row of rows) {
     try {
+      if (await hasPendingChargeDueReset(getMysqlPool(), [String(row.cobranca_ref)])) continue;
       if (row.provedor_ref) {
         const provider = String(row.checkout_provedor ?? 'asaas');
         if (provider === 'inter') {

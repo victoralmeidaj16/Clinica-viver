@@ -1,4 +1,5 @@
 import 'server-only';
+import { hasPendingChargeDueReset } from './sessionChargeDueQueue';
 
 import { randomUUID } from 'node:crypto';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
@@ -10,6 +11,20 @@ import { AsaasPaymentNotFoundError, deleteAsaasPayment, getAsaasPayment } from '
 import { cancelInterPixCharge, getInterPixCharge } from '@/server/adapters/interPixAdapter';
 
 export type CancelOutcome = 'cancelled' | 'kept' | 'not_found' | 'failed';
+
+/** Distingue cancelamento já concluído de pagamento: necessário ao retomar um ajuste. */
+export async function remoteCancellationState(provider: string, id: string): Promise<'pending' | 'paid' | 'cancelled'> {
+  if (provider === 'inter') {
+    const charge = await getInterPixCharge(id);
+    if (charge.status === 'CONCLUIDA' || charge.settlements.length > 0) return 'paid';
+    if (['REMOVIDA_PELO_USUARIO_RECEBEDOR', 'REMOVIDA_PELO_PSP'].includes(charge.status)) return 'cancelled';
+    if (charge.status !== 'ATIVA') throw new Error('Situação da cobrança Inter não permite cancelamento.');
+    return 'pending';
+  }
+  if (provider !== 'asaas') throw new Error('Provedor de cobrança desconhecido.');
+  try { return isAsaasPaymentSettled((await getAsaasPayment(id)).status) ? 'paid' : 'pending'; }
+  catch (error) { if (error instanceof AsaasPaymentNotFoundError) return 'cancelled'; throw error; }
+}
 
 /** Não trata falha de consulta como autorização para remover um pagamento. */
 export async function cancelRemote(provider: string, id: string): Promise<boolean> {
@@ -66,6 +81,9 @@ export async function cancelarCobrancaDaSessao(appointmentId: string): Promise<C
     }
 
     const refs = charges.map((charge) => String(charge.ref_core));
+    if (await hasPendingChargeDueReset(connection, refs)) {
+      throw new Error('A cobrança está sendo atualizada após a remarcação. Tente novamente em instantes.');
+    }
     // Uma sessão pode ser membro (e não a titular) de um checkout agrupado.
     const [checkouts] = await connection.query<RowDataPacket[]>(
       `SELECT x.id, x.cobranca_ref, x.referencia_externa, x.provedor,

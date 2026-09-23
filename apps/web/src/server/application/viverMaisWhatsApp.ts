@@ -39,6 +39,8 @@ export type FinalidadeMensagem =
   | 'resposta_psicologo'
   | 'agenda_confirmacao_paciente'
   | 'agenda_confirmacao_psicologo'
+  | 'agenda_remarcacao_paciente'
+  | 'agenda_remarcacao_psicologo'
   | 'agenda_cancelamento_paciente'
   | 'transbordo_paciente';
 

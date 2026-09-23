@@ -24,11 +24,11 @@ import type { ContatosDaSessao } from './agendaRepository';
  *   2. **A allowlist do piloto vale.** Todo envio passa por `enviarTexto`, que
  *      consulta a trava antes de qualquer chamada de rede.
  *   3. **A reserva vem antes do envio.** `clinica_agenda_avisos` tem UNIQUE por
- *      (agendamento, tipo): quem insere manda, os outros desistem. É o que
+ *      (agendamento, tipo, versão): quem insere manda, os outros desistem. É o que
  *      impede a mesma confirmação de sair duas vezes de duas instâncias.
  */
 
-export type TipoAviso = 'confirmacao_paciente' | 'confirmacao_psicologo' | 'cancelamento_paciente';
+export type TipoAviso = 'confirmacao_paciente' | 'confirmacao_psicologo' | 'cancelamento_paciente' | 'remarcacao_paciente' | 'remarcacao_psicologo';
 
 /**
  * Reserva o aviso. `true` significa "é sua vez de enviar".
@@ -37,11 +37,11 @@ export type TipoAviso = 'confirmacao_paciente' | 'confirmacao_psicologo' | 'canc
  * deixaria a janela entre as duas aberta, que é exatamente onde duas instâncias
  * decidiriam ambas que ninguém tinha enviado ainda.
  */
-async function reservar(agendamentoId: string, tipo: TipoAviso): Promise<boolean> {
+async function reservar(agendamentoId: string, tipo: TipoAviso, versao: number): Promise<boolean> {
   const [resultado] = await getMysqlPool().execute<ResultSetHeader>(
-    `INSERT IGNORE INTO clinica_agenda_avisos (id, instituicao_id, agendamento_id, tipo, situacao)
-     VALUES (?, ?, ?, ?, 'reservado')`,
-    [randomUUID(), instituicaoId(), agendamentoId, tipo]
+    `INSERT IGNORE INTO clinica_agenda_avisos (id, instituicao_id, agendamento_id, tipo, versao, situacao)
+     VALUES (?, ?, ?, ?, ?, 'reservado')`,
+    [randomUUID(), instituicaoId(), agendamentoId, tipo, versao]
   );
   return resultado.affectedRows > 0;
 }
@@ -58,20 +58,21 @@ async function reservar(agendamentoId: string, tipo: TipoAviso): Promise<boolean
 async function encerrar(
   agendamentoId: string,
   tipo: TipoAviso,
-  situacao: ResultadoEnvio['situacao']
+  situacao: ResultadoEnvio['situacao'],
+  versao: number
 ): Promise<void> {
   const pool = getMysqlPool();
   if (situacao === 'falha') {
     await pool.execute(
-      'DELETE FROM clinica_agenda_avisos WHERE instituicao_id = ? AND agendamento_id = ? AND tipo = ?',
-      [instituicaoId(), agendamentoId, tipo]
+      'DELETE FROM clinica_agenda_avisos WHERE instituicao_id = ? AND agendamento_id = ? AND tipo = ? AND versao = ?',
+      [instituicaoId(), agendamentoId, tipo, versao]
     );
     return;
   }
   await pool.execute(
     `UPDATE clinica_agenda_avisos SET situacao = ?
-      WHERE instituicao_id = ? AND agendamento_id = ? AND tipo = ?`,
-    [situacao, instituicaoId(), agendamentoId, tipo]
+      WHERE instituicao_id = ? AND agendamento_id = ? AND tipo = ? AND versao = ?`,
+    [situacao, instituicaoId(), agendamentoId, tipo, versao]
   );
 }
 
@@ -90,10 +91,11 @@ async function despachar(
   tipo: TipoAviso,
   telefone: string | null,
   finalidade: Parameters<typeof enviarTexto>[2],
-  texto: string
+  texto: string,
+  versao = 0
 ): Promise<SituacaoAviso> {
   try {
-    return await tentarDespachar(agendamentoId, tipo, telefone, finalidade, texto);
+    return await tentarDespachar(agendamentoId, tipo, telefone, finalidade, texto, versao);
   } catch (erro) {
     console.error(`[agenda] Falha ao processar aviso "${tipo}":`, erro);
     return 'erro';
@@ -105,16 +107,17 @@ async function tentarDespachar(
   tipo: TipoAviso,
   telefone: string | null,
   finalidade: Parameters<typeof enviarTexto>[2],
-  texto: string
+  texto: string,
+  versao = 0
 ): Promise<SituacaoAviso> {
   if (!telefone?.trim()) {
     console.warn(`[agenda] Aviso "${tipo}" não enviado: contato sem telefone cadastrado.`);
     return 'sem_telefone';
   }
-  if (!(await reservar(agendamentoId, tipo))) return 'ja_enviado';
+  if (!(await reservar(agendamentoId, tipo, versao))) return 'ja_enviado';
 
-  const resultado = await enviarTexto(telefone, texto, finalidade, `agenda:${tipo}:${agendamentoId}`);
-  await encerrar(agendamentoId, tipo, resultado.situacao);
+  const resultado = await enviarTexto(telefone, texto, finalidade, `agenda:${tipo}:${agendamentoId}:${versao}`);
+  await encerrar(agendamentoId, tipo, resultado.situacao, versao);
   return resultado.situacao;
 }
 
@@ -228,4 +231,21 @@ export async function avisarSessaoCancelada(sessao: ContatosDaSessao): Promise<v
     'agenda_cancelamento_paciente',
     textoCancelamentoPaciente(sessao)
   );
+}
+
+/** Cada versão da sessão pode avisar os dois destinatários uma vez. */
+export async function avisarSessaoRemarcada(sessao: ContatosDaSessao, inicioAnterior: string, versao: number): Promise<void> {
+  const detalhes = [
+    `Horário anterior: ${quandoPorExtenso(inicioAnterior)}`,
+    `Novo horário: ${quandoPorExtenso(sessao.inicio)}`,
+    rotuloModalidade(sessao.modalidade),
+  ].join('\n');
+  await despachar(sessao.agendamentoId, 'remarcacao_paciente', sessao.pacienteTelefone,
+    'agenda_remarcacao_paciente',
+    `Olá, ${sessao.pacienteNome}! Sua sessão com ${sessao.profissionalNome} foi remarcada.\n\n${detalhes}`,
+    versao);
+  await despachar(sessao.agendamentoId, 'remarcacao_psicologo', sessao.profissionalTelefone,
+    'agenda_remarcacao_psicologo',
+    `Olá, ${sessao.profissionalNome}! A sessão de ${sessao.pacienteNome} foi remarcada.\n\n${detalhes}`,
+    versao);
 }

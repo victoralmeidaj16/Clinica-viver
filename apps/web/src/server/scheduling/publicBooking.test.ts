@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
+vi.mock('./agendaReagendamentoEffects', () => ({ concluirReagendamento: vi.fn(async () => {}) }));
+import { concluirReagendamento } from './agendaReagendamentoEffects';
 const { connection, poolQuery } = vi.hoisted(() => ({
   poolQuery: vi.fn(),
   connection: { beginTransaction: vi.fn(), commit: vi.fn(), rollback: vi.fn(), release: vi.fn(), query: vi.fn(), execute: vi.fn() },
@@ -17,7 +19,7 @@ const patient = { patientRef: 'p', patientRowId: 'p', nome: 'Teste', organizatio
 const now = new Date('2026-09-14T10:00:00Z');
 const start = '2026-09-15T12:00:00.000Z';
 const appointment = { id: 'a', ref_core: 'ref-a', inicio: '2026-09-16T12:00:00Z',
-  duracao_min: 50, modalidade: 'online', token_pagamento_sessao: null };
+  duracao_min: 50, modalidade: 'online', token_pagamento_sessao: null, versao: 2 };
 const window = { dia_semana: 2, hora_inicio: '09:00:00', hora_fim: '12:00:00', duracao_min: 60, modalidade: 'presencial' };
 beforeEach(() => {
   vi.clearAllMocks();
@@ -43,6 +45,10 @@ describe('reagendamento público', () => {
     expect(update[1]).toEqual([new Date(start), new Date('2026-09-15T13:00:00Z'), 60, 'presencial', result.linkPagamento.split('/').at(-1), 'inst', 'a']);
     expect(connection.query.mock.calls[0][0]).toContain('FROM clinica_profissionais');
     expect(connection.commit).toHaveBeenCalledOnce();
+    expect(concluirReagendamento).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'a', inicioAnterior: '2026-09-16T12:00:00.000Z', inicio: start, versao: 3,
+    }));
+    expect(connection.commit.mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(concluirReagendamento).mock.invocationCallOrder[0]);
   });
   it('preserva token existente', async () => {
     connection.query.mockImplementation(async (sql: string) => [sql.includes('SELECT a.id, a.ref_core, a.inicio') ? [{ ...appointment, token_pagamento_sessao: 'existing' }] : [], []]);
@@ -57,6 +63,7 @@ describe('reagendamento público', () => {
     connection.query.mockImplementation(async (sql: string) => [sql.includes('SELECT a.id, a.ref_core, a.inicio') ? [appointment] : sql.includes('FROM clinica_agenda_bloqueios') ? [{ id: 'b' }] : [], []]);
     expect(await rescheduleAppointmentPublic(patient, 'a', start, now)).toEqual({ ok: false, motivo: 'INDISPONIVEL' });
     expect(connection.execute).not.toHaveBeenCalled();
+    expect(concluirReagendamento).not.toHaveBeenCalled();
   });
 });
 describe('reserva múltipla', () => {

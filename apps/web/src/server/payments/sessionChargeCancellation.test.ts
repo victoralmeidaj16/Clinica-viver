@@ -28,7 +28,8 @@ beforeEach(() => {
   state.checkouts = [{ id: 'checkout', cobranca_ref: 'charge', referencia_externa: 'VM-old', status: 'pending', provedor: 'asaas', provedor_pagamento_ref: 'pay-1' }];
   state.connection.query.mockImplementation(async (sql) => [sql.includes('FROM clinica_agendamentos')
     ? [{ agendamento_ref: 'appt', organizacao_ref: 'org' }]
-    : sql.includes('FROM financeiro_cobrancas c') ? state.charges : state.checkouts, []]);
+    : sql.includes('FROM financeiro_cobrancas c') ? state.charges
+      : sql.includes('FROM financeiro_checkouts_asaas') ? state.checkouts : [], []]);
   vi.mocked(getAsaasPayment).mockResolvedValue({ id: 'pay-1', status: 'PENDING' } as Awaited<ReturnType<typeof getAsaasPayment>>);
   vi.mocked(deleteAsaasPayment).mockResolvedValue(true);
   vi.mocked(getInterPixCharge).mockResolvedValue({ id: 'tx', status: 'ATIVA', settlements: [], value: 100, pixCopiaECola: 'pix', pixQrCode: 'qr' } as Awaited<ReturnType<typeof getInterPixCharge>>);

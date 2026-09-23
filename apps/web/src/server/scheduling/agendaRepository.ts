@@ -1,4 +1,5 @@
 import 'server-only';
+import { concluirReagendamento } from './agendaReagendamentoEffects';
 
 import { resetAppointmentChargeDue } from '@/server/payments/sessionChargeDue';
 
@@ -679,7 +680,7 @@ export async function rescheduleAppointmentProfessional(
     await connection.beginTransaction();
 
     const [rows] = await connection.query<RowDataPacket[]>(
-      `SELECT a.id, a.ref_core, a.profissional_id
+      `SELECT a.id, a.ref_core, a.profissional_id, a.inicio, a.versao
          FROM clinica_agendamentos a
          JOIN clinica_profissionais p ON p.id = a.profissional_id
          JOIN clinica_organizacoes o ON o.id = p.organizacao_id
@@ -726,9 +727,17 @@ export async function rescheduleAppointmentProfessional(
       [novoInicio, novoFim, instituicaoId(), agendamento.id]
     );
 
-    await resetAppointmentChargeDue(connection, String(agendamento.id), novoInicio.toISOString());
+    if (novoInicio.getTime() !== new Date(agendamento.inicio).getTime()) {
+      await resetAppointmentChargeDue(connection, String(agendamento.id), novoInicio.toISOString());
+    }
 
     await connection.commit();
+    if (novoInicio.getTime() !== new Date(agendamento.inicio).getTime()) {
+      await concluirReagendamento({ id: String(agendamento.id),
+        inicioAnterior: new Date(agendamento.inicio).toISOString(), inicio: novoInicio.toISOString(),
+        fim: novoFim.toISOString(), versao: Number(agendamento.versao ?? 0) + 1,
+      });
+    }
     return 'ok';
   } catch (error) {
     await connection.rollback();
@@ -796,7 +805,7 @@ export async function updateAppointmentDetails(
     await connection.beginTransaction();
 
     const [rows] = await connection.query<RowDataPacket[]>(
-      `SELECT a.id, a.ref_core, a.profissional_id, a.status, a.inicio, a.fim, a.duracao_min,
+      `SELECT a.id, a.ref_core, a.profissional_id, a.status, a.inicio, a.fim, a.duracao_min, a.versao,
               a.modalidade, a.sessao_clinica_ref, a.custeado_pela_empresa,
               ${custeioEfetivoSql({ paciente: 'pa', convenio: 'conv', agendamento: 'a', referencia: 'a.inicio' })}
                 AS custeio_disponivel
@@ -975,11 +984,17 @@ export async function updateAppointmentDetails(
       values
     );
 
-    if (input.startsAt && novoInicio) {
+    if (input.startsAt && novoInicio && novoInicio.getTime() !== new Date(agendamento.inicio).getTime()) {
       await resetAppointmentChargeDue(connection, String(agendamento.id), novoInicio.toISOString());
     }
 
     await connection.commit();
+    if (input.startsAt && novoInicio && novoFim && novoInicio.getTime() !== new Date(agendamento.inicio).getTime()) {
+      await concluirReagendamento({ id: String(agendamento.id),
+        inicioAnterior: new Date(agendamento.inicio).toISOString(), inicio: novoInicio.toISOString(),
+        fim: novoFim.toISOString(), versao: Number(agendamento.versao ?? 0) + 1,
+      });
+    }
     return 'ok';
   } catch (error) {
     await connection.rollback();
@@ -1382,7 +1397,7 @@ export async function rescheduleAppointmentPublic(
     );
 
     const [rows] = await connection.query<RowDataPacket[]>(
-      `SELECT a.id, a.ref_core, a.inicio, a.token_pagamento_sessao, a.duracao_min, a.modalidade
+      `SELECT a.id, a.ref_core, a.inicio, a.token_pagamento_sessao, a.duracao_min, a.modalidade, a.versao
          FROM clinica_agendamentos a
         WHERE a.instituicao_id = ? AND a.profissional_id = ? AND a.paciente_id = ?
           AND (a.id = ? OR a.ref_core = ?) AND a.status IN ('agendado', 'confirmado')
@@ -1444,9 +1459,17 @@ export async function rescheduleAppointmentPublic(
       [novoInicio, novoFim, duracaoMin, slot.modalidade, tokenPagamento, instituicaoId(), agendamento.id]
     );
 
-    await resetAppointmentChargeDue(connection, String(agendamento.id), novoInicio.toISOString());
+    if (novoInicio.getTime() !== new Date(agendamento.inicio).getTime()) {
+      await resetAppointmentChargeDue(connection, String(agendamento.id), novoInicio.toISOString());
+    }
 
     await connection.commit();
+    if (novoInicio.getTime() !== new Date(agendamento.inicio).getTime()) {
+      await concluirReagendamento({ id: String(agendamento.id),
+        inicioAnterior: new Date(agendamento.inicio).toISOString(), inicio: novoInicio.toISOString(),
+        fim: novoFim.toISOString(), versao: Number(agendamento.versao ?? 0) + 1,
+      });
+    }
 
     return {
       ok: true,

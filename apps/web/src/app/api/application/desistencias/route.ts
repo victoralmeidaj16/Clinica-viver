@@ -127,7 +127,7 @@ export async function POST(request: Request) {
         throw new RequisicaoInvalida('Registro de desistência não encontrado.', 404);
       }
       if (registro.reengajado) throw new RequisicaoInvalida('Este paciente já foi alocado novamente.', 409);
-      if (!registro.pacienteId || !registro.leadId) {
+      if (!registro.pacienteId) {
         throw new RequisicaoInvalida('A nova alocação exige um paciente confirmado.', 409);
       }
 
@@ -136,7 +136,11 @@ export async function POST(request: Request) {
 
       const captureRepository = getCaptureRepository();
       const captura = await captureRepository.read();
-      const lead = captura.triagensPacientes.find((item) => item.id === registro.leadId);
+      // Desistências antigas do psicólogo não guardavam leadId. Recuperar
+      // pelo vínculo persistido do paciente, sem confiar em um id do cliente.
+      const lead = captura.triagensPacientes.find((item) =>
+        item.pacienteRef === registro.pacienteId && (!registro.leadId || item.id === registro.leadId)
+      );
       if (!lead) throw new RequisicaoInvalida('Triagem vinculada ao paciente não encontrada.', 404);
       if (!registro.permitirTrocaPsicologo && lead.psicologoAlocadoId && lead.psicologoAlocadoId !== psicologoId) {
         throw new RequisicaoInvalida('O paciente não autorizou a troca para outro psicólogo.', 409);
@@ -165,7 +169,9 @@ export async function POST(request: Request) {
       await store.identities.savePatient({ ...reatribuido, status: 'active', updatedAt: agora });
 
       await captureRepository.mutate((state) => {
-        const atual = state.triagensPacientes.find((item) => item.id === registro.leadId);
+        const atual = state.triagensPacientes.find((item) =>
+          item.id === lead.id && item.pacienteRef === registro.pacienteId
+        );
         if (!atual) throw new RequisicaoInvalida('Triagem vinculada ao paciente não encontrada.', 404);
         const resultado = alocarLeadParaPsicologo(captureStateAsSnapshot(state), atual, psicologoId, agora);
         if (!resultado.psicologo) {
@@ -182,6 +188,7 @@ export async function POST(request: Request) {
 
       registros[indice] = {
         ...registro,
+        leadId: lead.id,
         reengajado: true,
         observacoesReengajamento: `Paciente alocado para ${compativel.nomeSocial || compativel.nomeCompleto}.`,
       };

@@ -33,9 +33,11 @@ vi.mock('@/server/oci/runtime', () => ({ isMysqlConfigured: () => false, getMysq
 
 vi.mock('./persistence', async (importOriginal) => ({
   ...await importOriginal<typeof import('./persistence')>(), readSnapshot: () => null,
+  writeSnapshot: vi.fn(async () => {}),
 }));
 
-import { createPatient, listPatientDirectory } from './patientDirectory';
+import { createPatient, listPatientDirectory, registerPatientDropout } from './patientDirectory';
+import { writeSnapshot } from './persistence';
 
 const context: RequestContext = {
   actor: {
@@ -54,6 +56,7 @@ const body = {
 };
 
 beforeEach(() => {
+  vi.mocked(writeSnapshot).mockClear();
   state.patients.clear();
   state.listPatients.mockClear();
   state.listPatients.mockImplementation(async () => [...state.patients.values()]);
@@ -65,6 +68,32 @@ beforeEach(() => {
       criadoEm: '2026-01-01T12:00:00.000Z', pacientesAtivosCount: 0,
     })),
   };
+});
+
+describe('desistência registrada pelo psicólogo', () => {
+  it('persiste a triagem vinculada e libera a vaga, ignorando leadId do cliente', async () => {
+    const patient = await createPatient(context, body);
+    const leadId = state.capture.triagensPacientes[0].id;
+    const dropout = await registerPatientDropout(context, {
+      patientId: patient.id, motivo: 'FINANCEIRO', leadId: 'triagem-de-outro-paciente',
+    });
+
+    expect(dropout).toMatchObject({ pacienteId: patient.id, leadId });
+    expect(writeSnapshot).toHaveBeenCalledWith(expect.objectContaining({
+      auditoriaDesistencias: [expect.objectContaining({ pacienteId: patient.id, leadId })],
+    }));
+    expect(state.patients.get(patient.id)?.status).toBe('discharged');
+    expect(state.capture.triagensPacientes[0].status).toBe('DESISTENTE');
+    expect(state.capture.cadastrosPsicologos[0].pacientesAtivosCount).toBe(0);
+  });
+
+  it('permite registrar saída sem inventar triagem quando o paciente não tem vínculo', async () => {
+    const patient = await createPatient(context, body);
+    state.capture.triagensPacientes = [];
+    const dropout = await registerPatientDropout(context, { patientId: patient.id, motivo: 'FINANCEIRO' });
+    expect(dropout.leadId).toBeUndefined();
+    expect(state.patients.get(patient.id)?.status).toBe('discharged');
+  });
 });
 
 describe('cadastro manual de paciente', () => {

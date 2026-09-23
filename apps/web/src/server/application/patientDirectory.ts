@@ -261,6 +261,9 @@ export async function registerPatientDropout(
   );
   if (!professional) throw new ApplicationError('NOT_FOUND', 'Perfil profissional não encontrado.', 404);
 
+  const captureRepository = getCaptureRepository();
+  const capture = await captureRepository.read();
+  const lead = capture.triagensPacientes.find((item) => item.pacienteRef === patient.id);
   const description = String(body.descricaoDetalhada ?? '').trim().slice(0, 2000);
   const suggestedAction = String(body.acaoSugestao ?? '').trim().slice(0, 500);
   const now = new Date().toISOString();
@@ -268,6 +271,7 @@ export async function registerPatientDropout(
     id: recordId,
     organizationId: context.actor.organizationId,
     pacienteId: patient.id,
+    leadId: lead?.id,
     pacienteNome: patient.displayName,
     psicologoId: professionalId,
     psicologoNome: professional.displayName,
@@ -288,7 +292,7 @@ export async function registerPatientDropout(
 
   // A triagem guarda o vínculo pelo `pacienteRef`. Marcar a saída aqui libera
   // imediatamente a capacidade sem atribuir o prontuário a outra pessoa.
-  await getCaptureRepository().mutate((state) => {
+  await captureRepository.mutate((state) => {
     const next = recalcularPacientesAtivos({
       ...captureStateAsSnapshot(state),
       triagensPacientes: state.triagensPacientes.map((lead) =>

@@ -3,6 +3,7 @@ import 'server-only';
 import { createHash, randomBytes } from 'node:crypto';
 import type { RowDataPacket } from 'mysql2/promise';
 import { hashPassword } from '@/server/auth';
+import { ApplicationError } from './http';
 import { getMysqlPool } from '@/server/oci/runtime';
 import { instituicaoId, rowId, toSqlTimestamp } from '@/server/persistence/mysql/mappers';
 
@@ -14,13 +15,13 @@ function tokenHash(token: string): string {
 
 function normalizeEmail(value: string): string {
   const email = value.trim().toLocaleLowerCase('pt-BR');
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Informe um e-mail válido.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new ApplicationError('INVALID_INPUT', 'Informe um e-mail válido.', 400);
   return email;
 }
 
 function validatePassword(password: string): void {
   if (password.length < 10 || !/[A-Za-zÀ-ÿ]/.test(password) || !/\d/.test(password)) {
-    throw new Error('A senha deve ter pelo menos 10 caracteres, incluindo letra e número.');
+    throw new ApplicationError('WEAK_PASSWORD', 'A senha deve ter pelo menos 10 caracteres, incluindo letra e número.', 400);
   }
 }
 
@@ -45,7 +46,7 @@ export async function createPsychologistPasswordReset(emailInput: string) {
       [instituicaoId(), email]
     );
     const user = rows[0];
-    if (!user) throw new Error('Não foi encontrada uma conta ativa de psicólogo com este e-mail.');
+    if (!user) throw new ApplicationError('NOT_FOUND', 'Não foi encontrada uma conta ativa de psicólogo com este e-mail.', 404);
 
     const token = randomBytes(32).toString('base64url');
     const now = new Date();
@@ -75,7 +76,7 @@ export async function createPsychologistPasswordReset(emailInput: string) {
 }
 
 export async function resetPsychologistPassword(token: string, password: string) {
-  if (!token) throw new Error('Link de redefinição inválido.');
+  if (!token) throw new ApplicationError('INVALID_RESET_TOKEN', 'Link de redefinição inválido.', 400);
   validatePassword(password);
   const connection = await getMysqlPool().getConnection();
   try {
@@ -90,7 +91,7 @@ export async function resetPsychologistPassword(token: string, password: string)
       [instituicaoId(), tokenHash(token)]
     );
     const reset = rows[0];
-    if (!reset) throw new Error('Este link é inválido, já foi utilizado ou expirou.');
+    if (!reset) throw new ApplicationError('INVALID_RESET_TOKEN', 'Este link é inválido, já foi utilizado ou expirou.', 400);
     const now = toSqlTimestamp(new Date().toISOString());
     await connection.execute(
       `UPDATE clinica_usuarios SET senha_hash = ?, senha_definida_em = ?, atualizado_em = ?

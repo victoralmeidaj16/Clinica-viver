@@ -12,7 +12,10 @@ export async function POST(request: Request) {
     await startSession(account);
     return success({ reset: true, destination: '/cockpit' });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Não foi possível redefinir a senha.';
-    return failure(new ApplicationError('PASSWORD_RESET_FAILED', message, 400));
+    // Só as recusas previstas (senha fraca, link vencido) chegam ao navegador;
+    // falha de banco ou de sessão fica no log, sem expor detalhe interno.
+    if (error instanceof ApplicationError) return failure(error);
+    console.error('[redefinir-senha] Falha ao redefinir a senha:', error);
+    return failure(new ApplicationError('PASSWORD_RESET_FAILED', 'Não foi possível redefinir a senha agora. Tente novamente em instantes.', 500));
   }
 }

@@ -20,7 +20,12 @@ export async function listarAgendaGestao(organizationId: string, busca: string, 
       ${JOINS}
       WHERE a.instituicao_id = ? AND o.ref_core = ? AND a.status IN ('agendado', 'confirmado')
         AND (COALESCE(pa.nome_social, pa.nome) LIKE ? OR pr.nome LIKE ?)
-      ORDER BY a.inicio, a.id LIMIT 51 OFFSET ?`,
+      -- Próximas sessões primeiro (da mais perto para a mais longe); as já
+      -- encerradas sem conclusão vão para o fim, das mais recentes às antigas.
+      ORDER BY a.fim < UTC_TIMESTAMP(3),
+        CASE WHEN a.fim >= UTC_TIMESTAMP(3) THEN a.inicio END,
+        a.inicio DESC, a.id
+      LIMIT 51 OFFSET ?`,
     [instituicaoId(), organizationId, `%${busca}%`, `%${busca}%`, pagina * 50]
   );
   return {

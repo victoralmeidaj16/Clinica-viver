@@ -87,6 +87,15 @@ describe('updateAppointmentDetails', () => {
     expect(connection.commit).not.toHaveBeenCalled();
   });
 
+  it.each([{ status: 'agendado' as const }, { modalidade: 'presencial' as const }])(
+    'recusa editar sessão já cancelada (%o)', async (input) => {
+      comAgendamento({ status: 'cancelado' });
+      expect(await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', input)).toBe('cancelled_locked');
+      expect(connection.execute).not.toHaveBeenCalled();
+      expect(connection.rollback).toHaveBeenCalled();
+      expect(connection.commit).not.toHaveBeenCalled();
+    });
+
   it('recusa reverter um atendimento já concluído', async () => {
     comAgendamento({ status: 'realizado' });
 

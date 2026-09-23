@@ -393,6 +393,13 @@ export async function editAgendaAppointment(
       409
     );
   }
+  if (outcome === 'cancelled_locked') {
+    throw new ApplicationError(
+      'APPOINTMENT_CANCELLED',
+      'Esta sessão já foi cancelada e não pode ser editada. Agende uma nova sessão, se for o caso.',
+      409
+    );
+  }
   if (outcome === 'invalid_status') {
     throw new ApplicationError(
       'INVALID_APPOINTMENT_STATUS',

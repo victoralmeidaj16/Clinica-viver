@@ -10,7 +10,9 @@ import { failure, readJson, success } from '@/server/application/http';
 import type { UpdateAppointmentInput } from '@/server/scheduling/agendaRepository';
 
 const MODALIDADES = ['online', 'presencial', 'telefone'] as const;
-const STATUS = ['agendado', 'confirmado', 'realizado', 'cancelado'] as const;
+// 'cancelado' fica de fora de propósito: cancelar passa pelo fluxo próprio
+// (sem action), que exige motivo, cancela a cobrança e avisa o paciente.
+const STATUS = ['agendado', 'confirmado', 'realizado'] as const;
 
 /** Aceita só os valores que o domínio conhece; o resto vira ausência de mudança. */
 function opcao<T extends string>(value: unknown, permitidos: readonly T[]): T | undefined {

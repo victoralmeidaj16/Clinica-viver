@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { clinicDateTimeToIso } from '@/lib/manualAppointment';
 import { applicationRequest } from '@/lib/applicationApi';
-import { EditSessionFields } from './EditSessionFields';
+import { EditSessionFields, type StatusEdicao } from './EditSessionFields';
 import { SessionPayerField } from './SessionPayerField';
 
 export interface SessionEditableData {
@@ -64,7 +64,9 @@ function camposIniciais(session: SessionEditableData) {
     status:
       session.status === 'realizado' || session.status === 'completed'
         ? ('realizado' as const)
-        : ('agendado' as const),
+        : session.status === 'confirmado'
+          ? ('confirmado' as const)
+          : ('agendado' as const),
   };
 }
 
@@ -90,7 +92,7 @@ function FormularioEdicao({
   const [hora, setHora] = useState(iniciais.hora);
   const [duracaoMin, setDuracaoMin] = useState(iniciais.duracaoMin);
   const [modalidade, setModalidade] = useState<'online' | 'presencial'>(iniciais.modalidade);
-  const [status, setStatus] = useState<'agendado' | 'realizado'>(iniciais.status);
+  const [status, setStatus] = useState<StatusEdicao>(iniciais.status);
   const [pagadorEmpresa, setPagadorEmpresa] = useState(Boolean(session.custeadoPelaEmpresa));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
@@ -99,6 +101,7 @@ function FormularioEdicao({
   // confirmação. Só mandamos o status quando o usuário realmente o altera —
   // do contrário, salvar um ajuste de horário confirmaria a realização sozinho.
   const statusInicial = iniciais.status;
+  const statusPendente = session.status === 'confirmado' ? 'confirmado' : 'agendado';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -188,7 +191,7 @@ function FormularioEdicao({
                 </>
               ) : (
                 <>
-                  <CalendarDays className="w-3 h-3" /> Agendado
+                  <CalendarDays className="w-3 h-3" /> {statusPendente === 'confirmado' ? 'Confirmado' : 'Agendado'}
                 </>
               )}
             </span>
@@ -208,7 +211,7 @@ function FormularioEdicao({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <EditSessionFields
-            data={data} hora={hora} duracaoMin={duracaoMin} modalidade={modalidade} status={status}
+            data={data} hora={hora} duracaoMin={duracaoMin} modalidade={modalidade} status={status} statusPendente={statusPendente}
             setData={setData} setHora={setHora} setDuracaoMin={setDuracaoMin} setModalidade={setModalidade} setStatus={setStatus}
           />
 

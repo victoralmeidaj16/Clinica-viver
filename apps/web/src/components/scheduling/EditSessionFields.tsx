@@ -7,15 +7,21 @@ interface Props {
   hora: string;
   duracaoMin: number;
   modalidade: 'online' | 'presencial';
-  status: 'agendado' | 'realizado';
+  status: StatusEdicao;
+  /** Estado pendente atual da sessão: o botão da esquerda o preserva em vez de rebaixar uma confirmação. */
+  statusPendente: 'agendado' | 'confirmado';
   setData: (value: string) => void;
   setHora: (value: string) => void;
   setDuracaoMin: (value: number) => void;
   setModalidade: (value: 'online' | 'presencial') => void;
-  setStatus: (value: 'agendado' | 'realizado') => void;
+  setStatus: (value: StatusEdicao) => void;
 }
 
-export function EditSessionFields({ data, hora, duracaoMin, modalidade, status, setData, setHora, setDuracaoMin, setModalidade, setStatus }: Props) {
+const DURACOES_PADRAO = [30, 50, 60, 90];
+
+export type StatusEdicao = 'agendado' | 'confirmado' | 'realizado';
+
+export function EditSessionFields({ data, hora, duracaoMin, modalidade, status, statusPendente, setData, setHora, setDuracaoMin, setModalidade, setStatus }: Props) {
   return <>
           {/* Data e Horário */}
           <div className="grid grid-cols-2 gap-3">
@@ -57,6 +63,11 @@ export function EditSessionFields({ data, hora, duracaoMin, modalidade, status, 
                 onChange={(e) => setDuracaoMin(Number(e.target.value))}
                 className="input text-xs font-bold w-full bg-white"
               >
+                {/* Uma duração fora da lista (ex.: 45 min) entra como opção própria;
+                    sem ela o seletor exibiria "30 minutos" e salvaria outro valor. */}
+                {!DURACOES_PADRAO.includes(duracaoMin) && (
+                  <option value={duracaoMin}>{duracaoMin} minutos (atual)</option>
+                )}
                 <option value={30}>30 minutos</option>
                 <option value={50}>50 minutos (Padrão)</option>
                 <option value={60}>60 minutos (1 hora)</option>
@@ -99,14 +110,14 @@ export function EditSessionFields({ data, hora, duracaoMin, modalidade, status, 
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => setStatus('agendado')}
+                onClick={() => setStatus(statusPendente)}
                 className={`py-2.5 px-3 rounded-2xl border text-xs font-bold flex items-center justify-center gap-2 transition ${
-                  status === 'agendado'
+                  status !== 'realizado'
                     ? 'border-sky-300 bg-sky-50 text-sky-900 shadow-sm ring-2 ring-sky-400/20'
                     : 'border-line bg-white text-muted hover:bg-slate-50'
                 }`}
               >
-                <CalendarDays className="w-4 h-4 text-sky-600" /> Agendado
+                <CalendarDays className="w-4 h-4 text-sky-600" /> {statusPendente === 'confirmado' ? 'Confirmado' : 'Agendado'}
               </button>
               <button
                 type="button"

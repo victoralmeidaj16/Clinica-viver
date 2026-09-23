@@ -5,7 +5,7 @@ import { applicationRequest } from '@/lib/applicationApi';
 import { EditSessionModal, type SessionEditableData } from '@/components/scheduling/EditSessionModal';
 
 type Appointment = SessionEditableData & { profissionalNome: string };
-type Result = { appointments: Appointment[]; temMais: boolean };
+type Result = { appointments: Appointment[]; temMais: boolean; carregadoEm?: number };
 const format = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' });
 
 export default function GestaoAgendaPage() {
@@ -23,7 +23,7 @@ export default function GestaoAgendaPage() {
       setErro('');
       applicationRequest<Result>(`/gestao/agenda?${new URLSearchParams({ busca, pagina: String(pagina) })}`,
         { signal: controller.signal })
-        .then((data) => { if (!controller.signal.aborted) setResultado(data); })
+        .then((data) => { if (!controller.signal.aborted) setResultado({ ...data, carregadoEm: Date.now() }); })
         .catch((error) => { if (!controller.signal.aborted) setErro(error instanceof Error ? error.message : 'Não foi possível carregar a agenda.'); })
         .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     }, 250);
@@ -55,7 +55,9 @@ export default function GestaoAgendaPage() {
             <p className="text-xs text-muted">Psicólogo: {item.profissionalNome}</p>
             {item.convenioNome && <p className="text-xs font-semibold text-psi-deep">{item.convenioNome} · {item.custeadoPelaEmpresa ? 'Pago pela empresa' : 'Pago pelo paciente'}</p>}
           </div>
-          <div className="flex items-center gap-3"><span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-bold text-sky-800">{item.status === 'confirmado' ? 'Confirmada' : 'Agendada'}</span>
+          <div className="flex items-center gap-3">{item.fim && new Date(item.fim).getTime() < (resultado.carregadoEm ?? 0)
+            ? <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800">Aguardando conclusão</span>
+            : <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-bold text-sky-800">{item.status === 'confirmado' ? 'Confirmada' : 'Agendada'}</span>}
             <button type="button" className="btn-outline gap-2 text-xs" onClick={() => setEdicao(item)} aria-label={`Editar sessão de ${item.pacienteNome}`}><Pencil className="h-3.5 w-3.5" />Editar</button></div>
         </li>)}</ul>}
       <div className="flex items-center justify-between border-t border-line p-4">

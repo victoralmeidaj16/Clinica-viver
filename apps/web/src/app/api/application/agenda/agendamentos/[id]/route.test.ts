@@ -63,6 +63,18 @@ describe('PATCH /api/application/agenda/agendamentos/[id]', () => {
     expect(body.data.status).toBe('realizado');
   });
 
+  it('ignora status cancelado na edição: cancelar exige o fluxo próprio', async () => {
+    const req = new Request('http://localhost/api/application/agenda/agendamentos/123', {
+      method: 'PATCH',
+      body: JSON.stringify({ action: 'edit', status: 'cancelado' }),
+    });
+    const res = await PATCH(req, { params: Promise.resolve({ id: '123' }) });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.data.edited).toBe(true);
+    expect(body.data.status).toBeUndefined();
+  });
+
   it('processa action: reschedule com sucesso', async () => {
     const req = new Request('http://localhost/api/application/agenda/agendamentos/123', {
       method: 'PATCH',

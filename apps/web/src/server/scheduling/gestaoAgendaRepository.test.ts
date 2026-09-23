@@ -11,6 +11,7 @@ it('limita sessões à organização e aos estados editáveis com paginação', 
   expect(sql).toContain("a.status IN ('agendado', 'confirmado')");
   expect(sql).toContain('a.instituicao_id = ? AND o.ref_core = ?');
   expect(sql).toContain('LIMIT 51 OFFSET ?');
+  expect(sql).toMatch(/ORDER BY a\.fim < UTC_TIMESTAMP\(3\),\s+CASE WHEN a\.fim >= UTC_TIMESTAMP\(3\) THEN a\.inicio END,\s+a\.inicio DESC, a\.id/);
   expect(values).toEqual(['inst', 'org', '%Maria%', '%Maria%', 100]);
 });
 it('resolve profissional somente dentro da organização autenticada', async () => {

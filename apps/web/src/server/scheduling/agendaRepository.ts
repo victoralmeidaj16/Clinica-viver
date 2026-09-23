@@ -742,7 +742,8 @@ export interface UpdateAppointmentInput {
   startsAt?: string;
   endsAt?: string;
   modalidade?: 'online' | 'presencial' | 'telefone';
-  status?: 'agendado' | 'confirmado' | 'realizado' | 'cancelado';
+  /** Cancelar não é edição: só o fluxo de cancelamento registra o motivo, cancela a cobrança e avisa o paciente. */
+  status?: 'agendado' | 'confirmado' | 'realizado';
   /** Decisão explícita desta sessão: true empresa, false paciente. */
   custeadoPelaEmpresa?: boolean;
 }
@@ -762,7 +763,9 @@ export type ResultadoEdicaoAgendamento =
   /** A conclusão pedida junto da edição não vale antes do fim do atendimento. */
   | 'not_finished'
   /** O atendimento está num status que a conclusão não aceita. */
-  | 'invalid_status';
+  | 'invalid_status'
+  /** Sessão cancelada não volta por edição: a cobrança dela já foi cancelada. */
+  | 'cancelled_locked';
 
 export interface UpdateAppointmentOptions {
   somenteAgendadas?: boolean;
@@ -818,6 +821,10 @@ export async function updateAppointmentDetails(
     if (opcoes.somenteAgendadas && !['agendado', 'confirmado'].includes(String(agendamento.status))) {
       await connection.rollback();
       return 'invalid_status';
+    }
+    if (String(agendamento.status) === 'cancelado') {
+      await connection.rollback();
+      return 'cancelled_locked';
     }
 
     // A conclusão de um atendimento não é uma troca de status: ela cria a

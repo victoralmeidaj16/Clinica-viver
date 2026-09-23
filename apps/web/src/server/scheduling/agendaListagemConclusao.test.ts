@@ -239,7 +239,7 @@ describe('updateAppointmentDetails com conclusão em seguida', () => {
       AGORA
     );
 
-    expect(resultado).toBe('invalid_status');
+    expect(resultado).toBe('cancelled_locked');
     expect(connection.execute).not.toHaveBeenCalled();
     expect(connection.commit).not.toHaveBeenCalled();
   });

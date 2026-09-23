@@ -55,7 +55,7 @@ export function StampSettingsCard({
       <div className="border-b border-line pb-2 flex items-center justify-between">
         <span className="text-xs font-bold uppercase tracking-wider text-psi-deep flex items-center gap-1.5">
           <Move className="w-3.5 h-3.5 text-psi-vibrant" />
-          3. Ajustes do Carimbo
+          4. Ajustes do Carimbo (Verso)
         </span>
         <span className="font-mono text-[10px] font-bold text-muted">
           X: {stampX}% | Y: {stampY}%

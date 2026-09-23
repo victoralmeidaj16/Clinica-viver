@@ -11,6 +11,7 @@ import {
   getMockCertificate,
   initialCertificates,
   sanitizeCertificateStamp,
+  sanitizeFrontQr,
 } from '@thats-life/core';
 import { getMysqlPool, isMysqlConfigured } from '@/server/oci/runtime';
 
@@ -42,6 +43,10 @@ interface CertificadoRow extends RowDataPacket {
   carimbo_largura: number | null;
   carimbo_texto: string | null;
   carimbo_qr: string | null;
+  qr_frente_ativo: number | boolean | null;
+  qr_frente_x: number | null;
+  qr_frente_y: number | null;
+  qr_frente_tamanho: number | null;
   criado_por: string | null;
   criado_em: string;
 }
@@ -93,6 +98,12 @@ function toCertificateRecord(row: CertificadoRow): CertificateRecord {
       stampWidth: row.carimbo_largura,
       stampText: row.carimbo_texto,
       stampQr: row.carimbo_qr,
+    }),
+    ...sanitizeFrontQr({
+      frontQrEnabled: row.qr_frente_ativo,
+      frontQrX: row.qr_frente_x,
+      frontQrY: row.qr_frente_y,
+      frontQrSize: row.qr_frente_tamanho,
     }),
     createdBy: row.criado_por ?? undefined,
     createdAt: String(row.criado_em),
@@ -206,6 +217,10 @@ export class CertificadosRepository {
           carimbo_largura DECIMAL(5,2) NULL,
           carimbo_texto TEXT NULL,
           carimbo_qr VARCHAR(8) NULL,
+          qr_frente_ativo TINYINT(1) NULL DEFAULT 1,
+          qr_frente_x DECIMAL(5,2) NULL,
+          qr_frente_y DECIMAL(5,2) NULL,
+          qr_frente_tamanho DECIMAL(4,1) NULL,
           criado_por VARCHAR(128) NULL,
           criado_em TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
           atualizado_em TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
@@ -225,6 +240,10 @@ export class CertificadosRepository {
         'ALTER TABLE clinica_certificados ADD COLUMN carimbo_largura DECIMAL(5,2) NULL',
         'ALTER TABLE clinica_certificados ADD COLUMN carimbo_texto TEXT NULL',
         'ALTER TABLE clinica_certificados ADD COLUMN carimbo_qr VARCHAR(8) NULL',
+        'ALTER TABLE clinica_certificados ADD COLUMN qr_frente_ativo TINYINT(1) NULL DEFAULT 1',
+        'ALTER TABLE clinica_certificados ADD COLUMN qr_frente_x DECIMAL(5,2) NULL',
+        'ALTER TABLE clinica_certificados ADD COLUMN qr_frente_y DECIMAL(5,2) NULL',
+        'ALTER TABLE clinica_certificados ADD COLUMN qr_frente_tamanho DECIMAL(4,1) NULL',
       ];
       for (const alterSql of alterCols) {
         try {
@@ -259,6 +278,10 @@ export class CertificadosRepository {
     stampWidth?: number;
     stampText?: string;
     stampQr?: CertificateStampQr;
+    frontQrEnabled?: boolean;
+    frontQrX?: number;
+    frontQrY?: number;
+    frontQrSize?: number;
     signerInfo?: string;
     validationUrl?: string;
     createdBy?: string;
@@ -285,6 +308,7 @@ export class CertificadosRepository {
       stampFontSize: dados.stampFontSize || 11,
       stampAlign: dados.stampAlign || 'center',
       ...sanitizeCertificateStamp(dados),
+      ...sanitizeFrontQr(dados),
       signerInfo: dados.signerInfo || 'VIVIANE OLIVEIRA DE ALMEIDA JEREMIAS:19440737000153',
       validationUrl: dados.validationUrl || 'www.vivermaispsicologia.com.br',
       status: 'valid',
@@ -297,8 +321,8 @@ export class CertificadosRepository {
       try {
         await this.pool.query<ResultSetHeader>(
           `INSERT INTO clinica_certificados 
-            (id, codigo, aluno_nome, aluno_cpf, aluno_email, curso_titulo, carga_horaria, data_emissao, data_inicio, data_conclusao, status, frente_imagem_url, verso_imagem_url, carimbo_x, carimbo_y, carimbo_font_size, carimbo_align, carimbo_largura, carimbo_texto, carimbo_qr, criado_por, criado_em)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'valid', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, codigo, aluno_nome, aluno_cpf, aluno_email, curso_titulo, carga_horaria, data_emissao, data_inicio, data_conclusao, status, frente_imagem_url, verso_imagem_url, carimbo_x, carimbo_y, carimbo_font_size, carimbo_align, carimbo_largura, carimbo_texto, carimbo_qr, qr_frente_ativo, qr_frente_x, qr_frente_y, qr_frente_tamanho, criado_por, criado_em)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'valid', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON DUPLICATE KEY UPDATE
              aluno_nome = VALUES(aluno_nome),
              curso_titulo = VALUES(curso_titulo),
@@ -312,7 +336,11 @@ export class CertificadosRepository {
              carimbo_align = VALUES(carimbo_align),
              carimbo_largura = VALUES(carimbo_largura),
              carimbo_texto = VALUES(carimbo_texto),
-             carimbo_qr = VALUES(carimbo_qr)`,
+             carimbo_qr = VALUES(carimbo_qr),
+             qr_frente_ativo = VALUES(qr_frente_ativo),
+             qr_frente_x = VALUES(qr_frente_x),
+             qr_frente_y = VALUES(qr_frente_y),
+             qr_frente_tamanho = VALUES(qr_frente_tamanho)`,
           [
             record.id,
             record.code,
@@ -333,6 +361,10 @@ export class CertificadosRepository {
             record.stampWidth ?? null,
             record.stampText ?? null,
             record.stampQr ?? null,
+            record.frontQrEnabled != null ? (record.frontQrEnabled ? 1 : 0) : null,
+            record.frontQrX ?? null,
+            record.frontQrY ?? null,
+            record.frontQrSize ?? null,
             record.createdBy ?? null,
             createdAt.slice(0, 19).replace('T', ' '),
           ]

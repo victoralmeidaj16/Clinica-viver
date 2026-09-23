@@ -86,6 +86,14 @@ export async function GET(
           valign: 'center',
         });
       }
+
+      // Sobreposição do QR code oficial de conferência na Frente (se habilitado)
+      if (record.frontQrEnabled !== false && record.frontQrX != null && record.frontQrY != null) {
+        const qrFrontXPt = (PAGE_WIDTH * record.frontQrX) / 100;
+        const qrFrontYPt = (PAGE_HEIGHT * record.frontQrY) / 100;
+        const qrFrontSizePt = (PAGE_WIDTH * (record.frontQrSize || 8.5)) / 100;
+        drawQr(doc, certificatePublicValidationUrl(record.code), qrFrontXPt, qrFrontYPt, qrFrontSizePt);
+      }
     } else {
       // Template padrão limpo se não tiver imagem
       doc.rect(0, 0, PAGE_WIDTH, PAGE_HEIGHT).fill('#ffffff');

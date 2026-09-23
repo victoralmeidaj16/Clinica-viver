@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { sanitizeCertificateStamp, type CertificateStatus } from '@thats-life/core';
+import { sanitizeCertificateStamp, sanitizeFrontQr, type CertificateStatus } from '@thats-life/core';
 import { certificadosRepo } from '@/server/certificados/certificadosRepository';
 import { proxyToPersistentBackend } from '@/server/http/persistentBackendProxy';
 
@@ -71,6 +71,7 @@ export async function POST(request: Request) {
       stampFontSize: body.stampFontSize,
       stampAlign: body.stampAlign || 'center',
       ...sanitizeCertificateStamp(body),
+      ...sanitizeFrontQr(body),
       signerInfo: body.signerInfo,
       validationUrl: body.validationUrl,
       createdBy: body.createdBy || 'diretoria@viver.com',

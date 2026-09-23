@@ -10,6 +10,12 @@ export const STAMP_WIDTH_MIN = 10;
 export const STAMP_WIDTH_MAX = 90;
 export const STAMP_TEXT_MAX = 2000;
 
+export const DEFAULT_FRONT_QR_X = 81.5;
+export const DEFAULT_FRONT_QR_Y = 68.5;
+export const DEFAULT_FRONT_QR_SIZE = 8.5;
+export const FRONT_QR_SIZE_MIN = 4;
+export const FRONT_QR_SIZE_MAX = 25;
+
 export interface CertificateRecord {
   id: string;
   code: string;
@@ -31,6 +37,14 @@ export interface CertificateRecord {
   revokedBy?: string;
   frontImageUrl?: string;
   backImageUrl?: string;
+  /** Ativa ou desativa a exibição do QR de conferência na frente; padrão true quando coordenadas fornecidas */
+  frontQrEnabled?: boolean;
+  /** Posição horizontal do QR na frente (% a partir da esquerda) */
+  frontQrX?: number;
+  /** Posição vertical do QR na frente (% a partir do topo) */
+  frontQrY?: number;
+  /** Tamanho (largura/altura) do QR na frente em % da largura do documento */
+  frontQrSize?: number;
   stampX?: number;
   stampY?: number;
   stampFontSize?: number;
@@ -178,6 +192,35 @@ export function sanitizeCertificateStamp(input: {
         : undefined,
     stampText: text ? text.slice(0, STAMP_TEXT_MAX) : undefined,
     stampQr: input.stampQr === 'left' || input.stampQr === 'top' ? input.stampQr : undefined,
+  };
+}
+
+/** Normaliza os campos do QR da frente vindos do formulário. */
+export function sanitizeFrontQr(input: {
+  frontQrEnabled?: unknown;
+  frontQrX?: unknown;
+  frontQrY?: unknown;
+  frontQrSize?: unknown;
+}): Pick<CertificateRecord, 'frontQrEnabled' | 'frontQrX' | 'frontQrY' | 'frontQrSize'> {
+  const enabled = input.frontQrEnabled === true || input.frontQrEnabled === 'true' || input.frontQrEnabled === 1;
+  const x = Number(input.frontQrX);
+  const y = Number(input.frontQrY);
+  const size = Number(input.frontQrSize);
+
+  return {
+    frontQrEnabled: input.frontQrEnabled != null ? enabled : undefined,
+    frontQrX:
+      input.frontQrX != null && Number.isFinite(x)
+        ? Math.round(Math.max(0, Math.min(100, x)) * 10) / 10
+        : undefined,
+    frontQrY:
+      input.frontQrY != null && Number.isFinite(y)
+        ? Math.round(Math.max(0, Math.min(100, y)) * 10) / 10
+        : undefined,
+    frontQrSize:
+      input.frontQrSize != null && Number.isFinite(size)
+        ? Math.round(Math.max(FRONT_QR_SIZE_MIN, Math.min(FRONT_QR_SIZE_MAX, size)) * 10) / 10
+        : undefined,
   };
 }
 

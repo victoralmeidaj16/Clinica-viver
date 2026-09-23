@@ -19,16 +19,23 @@ import {
   UploadCloud,
 } from 'lucide-react';
 import {
+  DEFAULT_FRONT_QR_SIZE,
+  DEFAULT_FRONT_QR_X,
+  DEFAULT_FRONT_QR_Y,
+  FRONT_QR_SIZE_MAX,
+  FRONT_QR_SIZE_MIN,
+  STAMP_WIDTH_MAX,
+  STAMP_WIDTH_MIN,
   certificatePublicValidationUrl,
   formatCertificateVersoText,
   generateCertificateCode,
-  STAMP_WIDTH_MAX,
-  STAMP_WIDTH_MIN,
   type CertificateStampQr,
 } from '@thats-life/core';
 import { convertPdfToImages } from '@/lib/pdfRenderer';
 import { CertificateStampContent } from '@/components/certificados/CertificateStampContent';
 import { StampSettingsCard } from '@/components/certificados/StampSettingsCard';
+import { FrontQrSettingsCard } from '@/components/certificados/FrontQrSettingsCard';
+import { QrCodeConferencia } from '@/components/declaracao/QrCodeConferencia';
 
 const STORAGE_KEY = 'cert_admin_pin';
 
@@ -72,6 +79,17 @@ export default function AnexarCertificadoPage() {
   const [stampQr, setStampQr] = useState<CertificateStampQr | null>('left');
   // null = texto gerado dos dados do certificado; string = editado à mão
   const [stampTextCustom, setStampTextCustom] = useState<string | null>(null);
+
+  // Posição e tamanho do QR na Frente
+  const [frontQrEnabled, setFrontQrEnabled] = useState<boolean>(true);
+  const [frontQrX, setFrontQrX] = useState<number>(DEFAULT_FRONT_QR_X);
+  const [frontQrY, setFrontQrY] = useState<number>(DEFAULT_FRONT_QR_Y);
+  const [frontQrSize, setFrontQrSize] = useState<number>(DEFAULT_FRONT_QR_SIZE);
+  const [isDraggingFrontQr, setIsDraggingFrontQr] = useState(false);
+  const [isResizingFrontQr, setIsResizingFrontQr] = useState(false);
+  const dragFrontQrStartRef = useRef<{ mouseX: number; mouseY: number; startX: number; startY: number } | null>(null);
+  const resizeFrontQrStartRef = useRef<{ mouseX: number; initialSize: number } | null>(null);
+  const frontQrRef = useRef<HTMLDivElement>(null);
 
   // Drag & Resize state do carimbo
   const [isDraggingStamp, setIsDraggingStamp] = useState(false);
@@ -288,12 +306,37 @@ export default function AnexarCertificadoPage() {
     };
   };
 
+  // --- Handlers de Arraste e Redimensionamento do QR Code da Frente ---
+  const handleDragFrontQrStart = (e: React.MouseEvent | React.TouchEvent) => {
+    e.stopPropagation();
+    setIsDraggingFrontQr(true);
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    dragFrontQrStartRef.current = {
+      mouseX: clientX,
+      mouseY: clientY,
+      startX: frontQrX,
+      startY: frontQrY,
+    };
+  };
+
+  const handleResizeFrontQrStart = (e: React.MouseEvent | React.TouchEvent) => {
+    e.stopPropagation();
+    setIsResizingFrontQr(true);
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    resizeFrontQrStartRef.current = {
+      mouseX: clientX,
+      initialSize: frontQrSize,
+    };
+  };
+
   const handlePointerMove = useCallback(
     (e: MouseEvent | TouchEvent) => {
       if (!canvasRef.current) return;
       const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
       const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
 
+      // Arraste do carimbo do verso
       if (isDraggingStamp && dragStartRef.current) {
         const rect = canvasRef.current.getBoundingClientRect();
         const deltaX = clientX - dragStartRef.current.mouseX;
@@ -309,15 +352,39 @@ export default function AnexarCertificadoPage() {
         setStampY(Math.round(newY * 10) / 10);
       }
 
-      // A alça muda a largura: o texto quebra dentro dela e a altura acompanha.
+      // Redimensionamento do carimbo do verso
       if (isResizingStamp && resizeStartRef.current) {
         const rect = canvasRef.current.getBoundingClientRect();
         const deltaPct = ((clientX - resizeStartRef.current.mouseX) / rect.width) * 100;
         const newWidth = Math.max(STAMP_WIDTH_MIN, Math.min(STAMP_WIDTH_MAX, resizeStartRef.current.initialWidth + deltaPct));
         setStampWidth(Math.round(newWidth * 10) / 10);
       }
+
+      // Arraste do QR code da frente
+      if (isDraggingFrontQr && dragFrontQrStartRef.current) {
+        const rect = canvasRef.current.getBoundingClientRect();
+        const deltaX = clientX - dragFrontQrStartRef.current.mouseX;
+        const deltaY = clientY - dragFrontQrStartRef.current.mouseY;
+
+        const deltaXPct = (deltaX / rect.width) * 100;
+        const deltaYPct = (deltaY / rect.height) * 100;
+
+        const newX = Math.max(0.5, Math.min(100 - frontQrSize, dragFrontQrStartRef.current.startX + deltaXPct));
+        const newY = Math.max(0.5, Math.min(95, dragFrontQrStartRef.current.startY + deltaYPct));
+
+        setFrontQrX(Math.round(newX * 10) / 10);
+        setFrontQrY(Math.round(newY * 10) / 10);
+      }
+
+      // Redimensionamento do QR code da frente
+      if (isResizingFrontQr && resizeFrontQrStartRef.current) {
+        const rect = canvasRef.current.getBoundingClientRect();
+        const deltaPct = ((clientX - resizeFrontQrStartRef.current.mouseX) / rect.width) * 100;
+        const newSize = Math.max(FRONT_QR_SIZE_MIN, Math.min(FRONT_QR_SIZE_MAX, resizeFrontQrStartRef.current.initialSize + deltaPct));
+        setFrontQrSize(Math.round(newSize * 10) / 10);
+      }
     },
-    [isDraggingStamp, isResizingStamp, stampWidth]
+    [isDraggingStamp, isResizingStamp, stampWidth, isDraggingFrontQr, isResizingFrontQr, frontQrSize]
   );
 
   // Procura a largura em que o miolo do carimbo fica tão largo quanto alto.
@@ -352,12 +419,16 @@ export default function AnexarCertificadoPage() {
   const handlePointerUp = useCallback(() => {
     setIsDraggingStamp(false);
     setIsResizingStamp(false);
+    setIsDraggingFrontQr(false);
+    setIsResizingFrontQr(false);
     dragStartRef.current = null;
     resizeStartRef.current = null;
+    dragFrontQrStartRef.current = null;
+    resizeFrontQrStartRef.current = null;
   }, []);
 
   useEffect(() => {
-    if (isDraggingStamp || isResizingStamp) {
+    if (isDraggingStamp || isResizingStamp || isDraggingFrontQr || isResizingFrontQr) {
       window.addEventListener('mousemove', handlePointerMove);
       window.addEventListener('mouseup', handlePointerUp);
       window.addEventListener('touchmove', handlePointerMove);
@@ -369,7 +440,7 @@ export default function AnexarCertificadoPage() {
       window.removeEventListener('touchmove', handlePointerMove);
       window.removeEventListener('touchend', handlePointerUp);
     };
-  }, [isDraggingStamp, isResizingStamp, handlePointerMove, handlePointerUp]);
+  }, [isDraggingStamp, isResizingStamp, isDraggingFrontQr, isResizingFrontQr, handlePointerMove, handlePointerUp]);
 
   const versoText =
     stampTextCustom ??
@@ -408,6 +479,10 @@ export default function AnexarCertificadoPage() {
           validationUrl: validationUrl.trim(),
           frontImageUrl: frontImageUrl || undefined,
           backImageUrl: backImageUrl || undefined,
+          frontQrEnabled,
+          frontQrX: frontQrEnabled ? frontQrX : undefined,
+          frontQrY: frontQrEnabled ? frontQrY : undefined,
+          frontQrSize: frontQrEnabled ? frontQrSize : undefined,
           stampX,
           stampY,
           stampFontSize,
@@ -742,7 +817,28 @@ export default function AnexarCertificadoPage() {
                 </div>
               </div>
 
-              {/* CARD 3: AJUSTES DO CARIMBO */}
+              {/* CARD 3: AJUSTES DO QR CODE DA FRENTE */}
+              <FrontQrSettingsCard
+                enabled={frontQrEnabled}
+                onToggle={(en) => {
+                  setFrontQrEnabled(en);
+                  if (en && activeTab !== 'front') {
+                    setActiveTab('front');
+                  }
+                }}
+                frontQrX={frontQrX}
+                frontQrY={frontQrY}
+                size={frontQrSize}
+                onSize={setFrontQrSize}
+                onResetPosition={() => {
+                  setFrontQrX(DEFAULT_FRONT_QR_X);
+                  setFrontQrY(DEFAULT_FRONT_QR_Y);
+                  setFrontQrSize(DEFAULT_FRONT_QR_SIZE);
+                  if (activeTab !== 'front') setActiveTab('front');
+                }}
+              />
+
+              {/* CARD 4: AJUSTES DO CARIMBO OFICIAL (VERSO) */}
               <StampSettingsCard
                 stampX={stampX}
                 stampY={stampY}
@@ -797,7 +893,7 @@ export default function AnexarCertificadoPage() {
                         : 'text-muted hover:text-ink'
                     }`}
                   >
-                    📜 Verso Oficial (Arraste o Carimbo)
+                    📜 Verso Oficial (Carimbo)
                   </button>
                   <button
                     type="button"
@@ -808,12 +904,14 @@ export default function AnexarCertificadoPage() {
                         : 'text-muted hover:text-ink'
                     }`}
                   >
-                    📄 Frente (Conferência)
+                    📄 Frente (QR Code & Arte)
                   </button>
                 </div>
 
                 <span className="text-[11px] text-muted italic">
-                  💡 Arraste o carimbo com o mouse para posicioná-lo sobre a arte.
+                  {activeTab === 'front'
+                    ? '💡 Arraste o QR Code com o mouse para posicioná-lo sobre a arte da frente.'
+                    : '💡 Arraste o carimbo com o mouse para posicioná-lo sobre a arte do verso.'}
                 </span>
               </div>
 
@@ -824,14 +922,65 @@ export default function AnexarCertificadoPage() {
                 className="relative mx-auto w-full max-h-[75vh] rounded-2xl bg-white border-2 border-psi-deep/30 overflow-hidden shadow-card select-none flex items-center justify-center"
               >
                 {activeTab === 'front' ? (
-                  /* FRENTE */
+                  /* FRENTE COM QR CODE ARRASTÁVEL */
                   frontImageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={frontImageUrl}
-                      alt="Frente do Certificado"
-                      className="w-full h-full object-contain pointer-events-none"
-                    />
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={frontImageUrl}
+                        alt="Frente do Certificado"
+                        className="w-full h-full object-contain pointer-events-none"
+                      />
+
+                      {/* QR CODE DA FRENTE ARRASTÁVEL E REDIMENSIONÁVEL */}
+                      {frontQrEnabled && (
+                        <div
+                          ref={frontQrRef}
+                          onMouseDown={handleDragFrontQrStart}
+                          onTouchStart={handleDragFrontQrStart}
+                          style={{
+                            position: 'absolute',
+                            left: `${frontQrX}%`,
+                            top: `${frontQrY}%`,
+                            width: `${frontQrSize}%`,
+                            aspectRatio: '1 / 1',
+                            cursor: isDraggingFrontQr ? 'grabbing' : 'grab',
+                          }}
+                          className={`group rounded-xl p-1 bg-white/95 transition-[border-color,box-shadow,transform] ${
+                            isDraggingFrontQr
+                              ? 'border-2 border-psi-deep shadow-xl ring-4 ring-psi-vibrant/30 scale-105 z-30'
+                              : isResizingFrontQr
+                              ? 'border-2 border-psi-vibrant ring-4 ring-psi-vibrant/40 z-30'
+                              : 'border-2 border-dashed border-psi-vibrant/80 hover:border-psi-deep hover:shadow-md z-20'
+                          }`}
+                          title="Arraste para posicionar o QR code na frente"
+                        >
+                          {/* Mini Barra Superior com Ação */}
+                          <div className="absolute -top-6 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-psi-deep text-white px-2 py-0.5 rounded-lg text-[9px] font-bold flex items-center gap-1 shadow-md whitespace-nowrap pointer-events-none">
+                            <Move className="w-2.5 h-2.5" />
+                            <span>Arraste o QR</span>
+                          </div>
+
+                          {/* QR Code SVG */}
+                          <div className="w-full h-full flex items-center justify-center select-none pointer-events-none">
+                            <QrCodeConferencia
+                              valor={certificatePublicValidationUrl(code)}
+                              className="w-full h-full object-contain"
+                            />
+                          </div>
+
+                          {/* Alça de Redimensionamento no canto inferior direito */}
+                          <div
+                            onMouseDown={handleResizeFrontQrStart}
+                            onTouchStart={handleResizeFrontQrStart}
+                            title="Arraste para aumentar ou diminuir o QR code"
+                            className="absolute -bottom-2 -right-2 h-5 w-5 rounded-full bg-psi-deep text-white flex items-center justify-center cursor-nwse-resize shadow-md hover:scale-125 transition-transform text-[10px] font-bold z-30 pointer-events-auto"
+                          >
+                            ⤡
+                          </div>
+                        </div>
+                      )}
+                    </>
                   ) : (
                     <div className="absolute inset-0 grid place-items-center bg-psi-soft/20 text-xs font-semibold text-muted p-6 text-center">
                       Nenhuma arte carregada (anexe o PDF ou imagens na lateral esquerda)
@@ -938,10 +1087,20 @@ export default function AnexarCertificadoPage() {
 
               <div className="p-4 rounded-2xl bg-[#FAF8FC] border border-line text-xs text-muted leading-relaxed flex items-center justify-between">
                 <span>
-                  👆 <strong>Como funciona:</strong> Arraste o carimbo com o mouse para a posição desejada no verso e use o puxador <strong>⤡</strong> no canto para alargar ou estreitar (ou o botão <strong>Quadrado</strong> nos ajustes).
+                  {activeTab === 'front' ? (
+                    <>
+                      👆 <strong>Como funciona:</strong> Arraste o QR Code com o mouse para a posição desejada na frente (ex: logo acima de &quot;Autenticidade do Certificado&quot;) e use a alça <strong>⤡</strong> no canto para redimensionar.
+                    </>
+                  ) : (
+                    <>
+                      👆 <strong>Como funciona:</strong> Arraste o carimbo com o mouse para a posição desejada no verso e use o puxador <strong>⤡</strong> no canto para alargar ou estreitar (ou o botão <strong>Quadrado</strong> nos ajustes).
+                    </>
+                  )}
                 </span>
                 <span className="font-mono font-bold text-psi-deep shrink-0 ml-2">
-                  X: {stampX}% | Y: {stampY}%
+                  {activeTab === 'front'
+                    ? `X: ${frontQrX}% | Y: ${frontQrY}% | Tam: ${frontQrSize}%`
+                    : `X: ${stampX}% | Y: ${stampY}%`}
                 </span>
               </div>
             </div>

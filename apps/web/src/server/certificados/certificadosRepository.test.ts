@@ -48,4 +48,30 @@ describe('CertificadosRepository', () => {
     expect(consultado?.status).toBe('revoked');
     expect(consultado?.revocationReason).toBe('Cancelamento de matrícula solicitado pelo aluno');
   });
+
+  it('deve emitir certificado com QR code da frente e preservar configurações', async () => {
+    const repo = new CertificadosRepository();
+    const emitido = await repo.emitir({
+      studentName: 'Mariana Souza',
+      courseTitle: 'Psicologia Hospitalar',
+      durationHours: '360h',
+      issueDate: '22/09/2026',
+      frontQrEnabled: true,
+      frontQrX: 81.5,
+      frontQrY: 68.5,
+      frontQrSize: 8.5,
+    });
+
+    expect(emitido.frontQrEnabled).toBe(true);
+    expect(emitido.frontQrX).toBe(81.5);
+    expect(emitido.frontQrY).toBe(68.5);
+    expect(emitido.frontQrSize).toBe(8.5);
+
+    const consultado = await repo.porCodigo(emitido.code);
+    expect(consultado).not.toBeNull();
+    expect(consultado?.frontQrEnabled).toBe(true);
+    expect(consultado?.frontQrX).toBe(81.5);
+    expect(consultado?.frontQrY).toBe(68.5);
+    expect(consultado?.frontQrSize).toBe(8.5);
+  });
 });

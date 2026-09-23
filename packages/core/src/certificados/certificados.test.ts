@@ -11,6 +11,12 @@ import {
   resolveCertificateStampText,
   certificatePublicValidationUrl,
   sanitizeCertificateStamp,
+  sanitizeFrontQr,
+  DEFAULT_FRONT_QR_X,
+  DEFAULT_FRONT_QR_Y,
+  DEFAULT_FRONT_QR_SIZE,
+  FRONT_QR_SIZE_MAX,
+  FRONT_QR_SIZE_MIN,
   STAMP_WIDTH_MAX,
   STAMP_WIDTH_MIN,
 } from './certificados';
@@ -96,5 +102,48 @@ describe('Módulo de Certificados (Core)', () => {
       stampQr: undefined,
     });
     expect(sanitizeCertificateStamp({ stampWidth: 200 }).stampWidth).toBe(STAMP_WIDTH_MAX);
+  });
+
+  it('normaliza campos do QR da frente vindos do formulário', () => {
+    expect(
+      sanitizeFrontQr({
+        frontQrEnabled: 'true',
+        frontQrX: 81.54,
+        frontQrY: 68.49,
+        frontQrSize: 8.52,
+      })
+    ).toEqual({
+      frontQrEnabled: true,
+      frontQrX: 81.5,
+      frontQrY: 68.5,
+      frontQrSize: 8.5,
+    });
+
+    expect(
+      sanitizeFrontQr({
+        frontQrEnabled: false,
+        frontQrX: 'invalid',
+        frontQrY: null,
+        frontQrSize: 50,
+      })
+    ).toEqual({
+      frontQrEnabled: false,
+      frontQrX: undefined,
+      frontQrY: undefined,
+      frontQrSize: FRONT_QR_SIZE_MAX,
+    });
+
+    expect(
+      sanitizeFrontQr({
+        frontQrSize: 1,
+      }).frontQrSize
+    ).toBe(FRONT_QR_SIZE_MIN);
+  });
+
+  it('exporta coordenadas padrão adequadas para o canto inferior direito da frente', () => {
+    expect(DEFAULT_FRONT_QR_X).toBeGreaterThan(70);
+    expect(DEFAULT_FRONT_QR_Y).toBeGreaterThan(60);
+    expect(DEFAULT_FRONT_QR_SIZE).toBeGreaterThanOrEqual(FRONT_QR_SIZE_MIN);
+    expect(DEFAULT_FRONT_QR_SIZE).toBeLessThanOrEqual(FRONT_QR_SIZE_MAX);
   });
 });

@@ -92,12 +92,32 @@ export function CertificateDocumentView({ record, publicValidationUrl }: Props) 
 
           <div className="cert-page relative aspect-[1.414/1] w-full bg-white rounded-2xl md:rounded-3xl border border-line overflow-hidden shadow-card flex items-center justify-center">
             {record.frontImageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={record.frontImageUrl}
-                alt="Frente do Certificado"
-                className="w-full h-full object-contain"
-              />
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={record.frontImageUrl}
+                  alt="Frente do Certificado"
+                  className="w-full h-full object-contain"
+                />
+                {record.frontQrEnabled !== false && record.frontQrX != null && record.frontQrY != null && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: `${record.frontQrX}%`,
+                      top: `${record.frontQrY}%`,
+                      width: `${record.frontQrSize || 8.5}%`,
+                      aspectRatio: '1 / 1',
+                    }}
+                    className="z-10 bg-white/95 p-0.5 rounded shadow-xs"
+                    title={`Validação Oficial: ${record.code}`}
+                  >
+                    <QrCodeConferencia
+                      valor={publicValidationUrl}
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                )}
+              </>
             ) : (
               <div className="p-8 md:p-12 w-full h-full flex flex-col justify-between">
                 {/* Faixa superior estética */}

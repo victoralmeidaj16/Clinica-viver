@@ -14,6 +14,7 @@ import PublicHeader from '@/components/layout/PublicHeader';
 import PublicFooter from '@/components/layout/PublicFooter';
 import FloatingWhatsAppButton from '@/components/layout/FloatingWhatsAppButton';
 import { BookingProgress, type BookingStep } from '@/components/vitrine/BookingProgress';
+import { LandingEspecialista } from '@/components/vitrine/LandingEspecialista';
 import { SecaoVitrineNav, SECOES_VITRINE, type SecaoVitrine } from '@/components/vitrine/SecaoVitrineNav';
 import {
   Sparkles,
@@ -23,7 +24,6 @@ import {
   Clock,
   ArrowRight,
   Check,
-  Building2,
   Send,
   ChevronDown,
   PhoneCall,
@@ -99,30 +99,6 @@ const PASSOS_AGENDAMENTO: PassoJornada[] = [
       'Somente no último passo você informa seus dados. O psicólogo entrará em contato pelo WhatsApp em até 24 horas úteis, de segunda a sexta, das 8h às 17h.',
     ],
     observacao: 'Solicitações feitas fora desse horário começam a contar a partir das 8h do próximo dia útil.',
-  },
-];
-
-const PASSOS_CREDENCIAMENTO: PassoJornada[] = [
-  {
-    titulo: 'Perfil & CRP',
-    resumo: 'Preencha seu cadastro',
-    detalhes: [
-      'Informe seus dados profissionais, serviços prestados, turnos disponíveis e cidades de atendimento.',
-    ],
-  },
-  {
-    titulo: 'Validação',
-    resumo: 'Conferência ética',
-    detalhes: [
-      'Nossa equipe confere as credenciais junto ao Conselho e valida o alinhamento com a diretriz clínica.',
-    ],
-  },
-  {
-    titulo: 'Ativação',
-    resumo: 'Entrada no rodízio',
-    detalhes: [
-      'Você passa a receber novos pacientes automaticamente e ganha acesso ao cockpit com prontuários via IA.',
-    ],
   },
 ];
 
@@ -383,14 +359,19 @@ export default function ViverMaisLandingPage() {
 
   const isPsicologo = step === 'CADASTRO_PSICOLOGO' || step === 'SUCESSO_PSICOLOGO';
 
+  // Pelo header, abre a landing do especialista do topo; o formulário fica logo abaixo dela.
   const handleIrParaCadastroPsicologo = (e?: React.MouseEvent) => {
     if (e) e.preventDefault();
     setStep('CADASTRO_PSICOLOGO');
     setTimeout(() => {
-      const el = document.getElementById('modalidades');
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 50);
+  };
+
+  const handleIrParaFormularioPsicologo = () => {
+    setStep('CADASTRO_PSICOLOGO');
+    setTimeout(() => {
+      document.getElementById('modalidades')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 50);
   };
 
@@ -571,147 +552,110 @@ export default function ViverMaisLandingPage() {
         }
       />
 
-      {/* Hero Banner Card Section com Imagem Premium e Conteúdo Personalizado */}
-      <section className="px-6 pt-8 pb-4">
-        <div className="max-w-6xl mx-auto space-y-4">
-          <div className="relative overflow-hidden bg-slate-950 text-white rounded-3xl p-8 sm:p-14 shadow-2xl border border-purple-900/40 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-            {/* Background Decorativo */}
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(158,107,207,0.3),transparent_60%)] pointer-events-none"></div>
+      {isPsicologo ? (
+        <LandingEspecialista onQueroFazerParte={handleIrParaFormularioPsicologo} />
+      ) : (
+        <>
+        {/* Hero Banner Card Section com Imagem Premium e Conteúdo Personalizado */}
+        <section className="px-6 pt-8 pb-4">
+          <div className="max-w-6xl mx-auto space-y-4">
+            <div className="relative overflow-hidden bg-slate-950 text-white rounded-3xl p-8 sm:p-14 shadow-2xl border border-purple-900/40 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+              {/* Background Decorativo */}
+              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(158,107,207,0.3),transparent_60%)] pointer-events-none"></div>
 
-            {/* Conteúdo Dinâmico do Hero */}
-            <div className="space-y-6 relative z-10 lg:col-span-7 animate-in fade-in duration-300">
-              {isPsicologo ? (
-                <>
-                  <div className="inline-flex items-center gap-2 bg-psi-deep/50 backdrop-blur-md text-purple-200 border border-purple-400/30 text-[11px] font-extrabold px-3.5 py-1.5 rounded-full">
-                    <Building2 className="w-4 h-4 text-psi-vibrant" />
-                    Credenciamento Aberto • Faça Parte da Rede Clínica
-                  </div>
-                  <h2 className="text-3xl sm:text-5xl font-black tracking-tight leading-[1.1] text-white">
-                    Expanda seus Atendimentos com a Clínica Viver Mais
-                  </h2>
-                  <p className="text-sm sm:text-base text-purple-100/90 leading-relaxed max-w-xl font-normal">
-                    Conecte-se a novos pacientes com o apoio da nossa plataforma integrada: rodízio inteligente de triagem, prontuário estruturado com inteligência artificial (SOAP), gestão de cobranças descomplicada e total autonomia da sua agenda clínica.
-                  </p>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-                    <div className="rounded-xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm">
-                      <p className="text-[10px] font-extrabold uppercase text-psi-vibrant">Captação</p>
-                      <p className="mt-0.5 text-xs font-bold text-white">Rodízio Contínuo</p>
+              {/* Conteúdo Dinâmico do Hero */}
+              <div className="space-y-6 relative z-10 lg:col-span-7 animate-in fade-in duration-300">
+                  <>
+                    <div className="inline-flex items-center gap-2 bg-psi-deep/40 backdrop-blur-md text-purple-200 border border-purple-400/30 text-[11px] font-extrabold px-3.5 py-1.5 rounded-full">
+                      <Sparkles className="w-4 h-4 text-psi-vibrant" />
+                      Cuidar da mente é Viver Mais!
                     </div>
-                    <div className="rounded-xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm">
-                      <p className="text-[10px] font-extrabold uppercase text-psi-vibrant">Prontuário</p>
-                      <p className="mt-0.5 text-xs font-bold text-white">IA Clínica (SOAP)</p>
+                    <h2 className="text-3xl sm:text-5xl font-black tracking-tight leading-[1.1] text-white">
+                      Cuidado Psicológico Pensado para Você
+                    </h2>
+                    <p className="text-sm sm:text-base text-purple-100/90 leading-relaxed max-w-xl font-normal">
+                      Encontre a modalidade de atendimento que faz sentido para você. Escolha o psicólogo da sua preferência ou, se preferir, conte com a nossa equipe para fazer o direcionamento.
+                    </p>
+
+                    <div className="pt-2 flex flex-wrap items-center gap-4">
+                      <a
+                        href="#secao-escolha-servico"
+                        onClick={handleAgendarConsultaScroll}
+                        className="bg-psi-vibrant hover:bg-psi-deep text-white font-black text-sm sm:text-base px-6 py-3.5 rounded-2xl transition-all shadow-lift flex items-center gap-2 active:scale-95"
+                      >
+                        Ver Modalidades & Agendar <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
+                      </a>
                     </div>
-                    <div className="rounded-xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm">
-                      <p className="text-[10px] font-extrabold uppercase text-psi-vibrant">Flexibilidade</p>
-                      <p className="mt-0.5 text-xs font-bold text-white">100% Autônomo</p>
-                    </div>
-                  </div>
+                  </>
+              </div>
 
-                  <div className="pt-2 flex flex-wrap items-center gap-4">
-                    <button
-                      type="button"
-                      onClick={handleIrParaCadastroPsicologo}
-                      className="bg-psi-vibrant hover:bg-psi-deep text-white font-black text-sm sm:text-base px-6 py-3.5 rounded-2xl transition-all shadow-lift flex items-center gap-2 active:scale-95"
-                    >
-                      Preencher Cadastro de Credenciamento <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="inline-flex items-center gap-2 bg-psi-deep/40 backdrop-blur-md text-purple-200 border border-purple-400/30 text-[11px] font-extrabold px-3.5 py-1.5 rounded-full">
-                    <Sparkles className="w-4 h-4 text-psi-vibrant" />
-                    Cuidar da mente é Viver Mais!
-                  </div>
-                  <h2 className="text-3xl sm:text-5xl font-black tracking-tight leading-[1.1] text-white">
-                    Cuidado Psicológico Pensado para Você
-                  </h2>
-                  <p className="text-sm sm:text-base text-purple-100/90 leading-relaxed max-w-xl font-normal">
-                    Encontre a modalidade de atendimento que faz sentido para você. Escolha o psicólogo da sua preferência ou, se preferir, conte com a nossa equipe para fazer o direcionamento.
-                  </p>
-
-                  <div className="pt-2 flex flex-wrap items-center gap-4">
-                    <a
-                      href="#secao-escolha-servico"
-                      onClick={handleAgendarConsultaScroll}
-                      className="bg-psi-vibrant hover:bg-psi-deep text-white font-black text-sm sm:text-base px-6 py-3.5 rounded-2xl transition-all shadow-lift flex items-center gap-2 active:scale-95"
-                    >
-                      Ver Modalidades & Agendar <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
-                    </a>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Imagem Premium de Consultório na Hero */}
-            <div className="relative z-10 lg:col-span-5">
-              <div className="relative rounded-2xl overflow-hidden border-2 border-white/10 shadow-2xl group">
-                <img
-                  src={isPsicologo ? '/hero_psychologist.jpg' : '/hero_patient.jpg'}
-                  alt={isPsicologo ? 'Psicóloga credenciada em consultório acolhedor' : 'Sessão de acolhimento psicológico Viver Mais'}
-                  className="w-full h-72 lg:h-80 object-cover group-hover:scale-105 transition-transform duration-700"
-                />
+              {/* Imagem Premium de Consultório na Hero */}
+              <div className="relative z-10 lg:col-span-5">
+                <div className="relative rounded-2xl overflow-hidden border-2 border-white/10 shadow-2xl group">
+                  <img
+                    src="/hero_patient.jpg"
+                    alt="Sessão de acolhimento psicológico Viver Mais"
+                    className="w-full h-72 lg:h-80 object-cover group-hover:scale-105 transition-transform duration-700"
+                  />
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Seção da Jornada — espelha as etapas do header */}
-      <section className="px-6 py-8">
-        <div className="max-w-6xl mx-auto">
-          <div className="rounded-3xl border border-line bg-surface p-6 shadow-card sm:p-8">
-            <div className="mx-auto max-w-2xl space-y-2 text-center">
-              {isPsicologo && <span className="chip-accent text-[11px]">Jornada do Psicólogo</span>}
-              <h3 className="text-xl font-black text-ink sm:text-2xl">
-                {isPsicologo
-                  ? `Como Funciona o Credenciamento em ${PASSOS_CREDENCIAMENTO.length} Passos`
-                  : `Como Funciona o Seu Agendamento em ${PASSOS_AGENDAMENTO.length} Passos`}
-              </h3>
-            </div>
+        {/* Seção da Jornada — espelha as etapas do header */}
+        <section className="px-6 py-8">
+          <div className="max-w-6xl mx-auto">
+            <div className="rounded-3xl border border-line bg-surface p-6 shadow-card sm:p-8">
+              <div className="mx-auto max-w-2xl space-y-2 text-center">
+                <h3 className="text-xl font-black text-ink sm:text-2xl">
+                  {`Como Funciona o Seu Agendamento em ${PASSOS_AGENDAMENTO.length} Passos`}
+                </h3>
+              </div>
 
-            <ol className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {(isPsicologo ? PASSOS_CREDENCIAMENTO : PASSOS_AGENDAMENTO).map((passo, indice, passos) => (
-                <li
-                  key={passo.titulo}
-                  className="relative flex flex-col gap-3 rounded-2xl border border-psi-soft/60 bg-canvas p-5 transition-all hover:border-psi-vibrant/50 hover:shadow-card"
-                >
-                  {/* Fio ligando um passo ao seguinte, só onde eles ficam lado a lado */}
-                  {indice < passos.length - 1 && (
-                    <span
-                      aria-hidden="true"
-                      className="absolute -right-4 top-[2.25rem] hidden h-px w-4 bg-psi-soft lg:block"
-                    />
-                  )}
-
-                  <div className="flex items-center gap-3">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-psi-vibrant text-xs font-black text-white shadow-sm shadow-psi-vibrant/30">
-                      {indice + 1}
-                    </span>
-                    <div className="min-w-0">
-                      <h4 className="text-sm font-extrabold text-ink">{passo.titulo}</h4>
-                      <p className="text-[11px] font-bold text-psi-vibrant">{passo.resumo}</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 border-t border-line/60 pt-3 text-xs leading-relaxed text-muted">
-                    {passo.detalhes.map((detalhe) => (
-                      <p key={detalhe}>{detalhe}</p>
-                    ))}
-                    {passo.observacao && (
-                      <p className="text-[10px] italic text-muted/80">{passo.observacao}</p>
+              <ol className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {PASSOS_AGENDAMENTO.map((passo, indice, passos) => (
+                  <li
+                    key={passo.titulo}
+                    className="relative flex flex-col gap-3 rounded-2xl border border-psi-soft/60 bg-canvas p-5 transition-all hover:border-psi-vibrant/50 hover:shadow-card"
+                  >
+                    {/* Fio ligando um passo ao seguinte, só onde eles ficam lado a lado */}
+                    {indice < passos.length - 1 && (
+                      <span
+                        aria-hidden="true"
+                        className="absolute -right-4 top-[2.25rem] hidden h-px w-4 bg-psi-soft lg:block"
+                      />
                     )}
-                  </div>
-                </li>
-              ))}
-            </ol>
+
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-psi-vibrant text-xs font-black text-white shadow-sm shadow-psi-vibrant/30">
+                        {indice + 1}
+                      </span>
+                      <div className="min-w-0">
+                        <h4 className="text-sm font-extrabold text-ink">{passo.titulo}</h4>
+                        <p className="text-[11px] font-bold text-psi-vibrant">{passo.resumo}</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 border-t border-line/60 pt-3 text-xs leading-relaxed text-muted">
+                      {passo.detalhes.map((detalhe) => (
+                        <p key={detalhe}>{detalhe}</p>
+                      ))}
+                      {passo.observacao && (
+                        <p className="text-[10px] italic text-muted/80">{passo.observacao}</p>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+        </>
+      )}
 
       {/* Main Flow Section */}
-      <main id="modalidades" className="max-w-6xl mx-auto px-6 py-8">
+      <main id="modalidades" className="max-w-6xl mx-auto px-6 py-8 scroll-mt-20">
         {step === 'SERVICOS' && (
           <div id="servicos-cards" className="space-y-16 animate-in fade-in slide-in-from-bottom-4 duration-300">
             {/* Escolha Seu Serviço & Agende - Menu Sanfona (Accordion) */}

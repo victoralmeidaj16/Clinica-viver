@@ -31,12 +31,15 @@ export interface ManualAppointmentPatient {
   id: string;
   displayName: string;
   status: string;
+  primaryProfessionalId?: string;
+  professionalName?: string;
 }
 
 interface Props {
   patients: readonly ManualAppointmentPatient[];
   servicosHabilitados?: readonly string[];
   initialPatientId?: string;
+  adminMode?: boolean;
   onClose: () => void;
   onScheduled?: () => void | Promise<void>;
 }
@@ -46,7 +49,14 @@ const MODES: Array<{ value: ManualAppointmentMode; label: string }> = [
   { value: 'in_person', label: 'Presencial' },
 ];
 
-export function ManualAppointmentDialog({ patients, servicosHabilitados = [], initialPatientId, onClose, onScheduled }: Props) {
+export function ManualAppointmentDialog({
+  patients,
+  servicosHabilitados = [],
+  initialPatientId,
+  adminMode = false,
+  onClose,
+  onScheduled,
+}: Props) {
   const eligible = useMemo(
     () =>
       patients
@@ -56,6 +66,10 @@ export function ManualAppointmentDialog({ patients, servicosHabilitados = [], in
   );
 
   const [patientId, setPatientId] = useState(initialPatientId ?? '');
+  const selectedPatient = useMemo(
+    () => eligible.find((p) => p.id === patientId),
+    [eligible, patientId]
+  );
   const servicosDisponiveis = useMemo(
     () => servicosHabilitados.length === 0
       ? CLINICAL_SERVICES
@@ -96,6 +110,13 @@ export function ManualAppointmentDialog({ patients, servicosHabilitados = [], in
       setMessage({ kind: 'error', text: 'Selecione um paciente para continuar.' });
       return;
     }
+    if (adminMode && !selectedPatient?.primaryProfessionalId) {
+      setMessage({
+        kind: 'error',
+        text: 'O paciente selecionado precisa ter um psicólogo atribuído para agendar o atendimento.',
+      });
+      return;
+    }
     if (!validDuration) {
       setMessage({ kind: 'error', text: 'Informe a duração da sessão, entre 15 e 240 minutos.' });
       return;
@@ -108,20 +129,35 @@ export function ManualAppointmentDialog({ patients, servicosHabilitados = [], in
         const dayOffset = civilDaysBetween(date, occurrenceDate);
         const occurrenceDueDate = shiftCivilDate(chargeDueDate, dayOffset);
         await applicationRequest('/appointments', {
-          method: 'POST', headers: commandHeaders(),
-          body: JSON.stringify({ id: `appointment-manual-${crypto.randomUUID()}`, patientId, startsAt, endsAt,
-            timezone: FUSO_CLINICA, mode, createdAt: new Date().toISOString(), serviceKey,
-            chargeDueAt: clinicDateTimeToIso(occurrenceDueDate, chargeDueTime) }),
+          method: 'POST',
+          headers: commandHeaders(),
+          body: JSON.stringify({
+            id: `appointment-manual-${crypto.randomUUID()}`,
+            patientId,
+            ...(selectedPatient?.primaryProfessionalId
+              ? { professionalId: selectedPatient.primaryProfessionalId }
+              : {}),
+            startsAt,
+            endsAt,
+            timezone: FUSO_CLINICA,
+            mode,
+            createdAt: new Date().toISOString(),
+            serviceKey,
+            chargeDueAt: clinicDateTimeToIso(occurrenceDueDate, chargeDueTime),
+          }),
         });
         createdCount += 1;
       }
-      setMessage({ kind: 'success', text: `${createdCount} ${createdCount === 1 ? 'sessão adicionada' : 'sessões adicionadas'} à agenda com sucesso.` });
+      setMessage({
+        kind: 'success',
+        text: `${createdCount} ${createdCount === 1 ? 'atendimento adicionado' : 'atendimentos adicionados'} à agenda com sucesso.`,
+      });
       await onScheduled?.();
     } catch (error) {
       if (createdCount > 0) await onScheduled?.();
       setMessage({
         kind: 'error',
-        text: `${createdCount > 0 ? `${createdCount} sessão(ões) foram criadas. ` : ''}${error instanceof Error ? error.message : 'Não foi possível criar o agendamento.'}`,
+        text: `${createdCount > 0 ? `${createdCount} atendimento(s) foram criados. ` : ''}${error instanceof Error ? error.message : 'Não foi possível criar o agendamento.'}`,
       });
     } finally {
       setSaving(false);
@@ -155,12 +191,36 @@ export function ManualAppointmentDialog({ patients, servicosHabilitados = [], in
               >
                 <option value="">Selecione um paciente</option>
                 {eligible.map((patient) => (
-                  <option key={patient.id} value={patient.id}>{patient.displayName}</option>
+                  <option
+                    key={patient.id}
+                    value={patient.id}
+                    disabled={adminMode && !patient.primaryProfessionalId}
+                  >
+                    {patient.displayName}
+                    {patient.professionalName
+                      ? ` — Psicólogo: ${patient.professionalName}`
+                      : adminMode
+                        ? ' — (Sem psicólogo atribuído)'
+                        : ''}
+                  </option>
                 ))}
               </select>
               <ChevronDown className="pointer-events-none absolute right-3.5 top-3.5 h-4 w-4 text-muted" />
             </span>
           </label>
+
+          {selectedPatient?.professionalName && (
+            <div className="flex items-center gap-2 rounded-xl border border-psi-soft bg-psi-light/60 px-3.5 py-2.5 text-xs font-semibold text-psi-deep">
+              <UserRound className="h-4 w-4 shrink-0 text-psi-vibrant" />
+              <span>Psicólogo atribuído: <strong>{selectedPatient.professionalName}</strong></span>
+            </div>
+          )}
+
+          {adminMode && selectedPatient && !selectedPatient.primaryProfessionalId && (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-bold text-rose-800">
+              Este paciente ainda não possui um psicólogo atribuído. Atribua um psicólogo no cadastro do paciente antes de agendar.
+            </div>
+          )}
 
           <label className="block text-xs font-bold text-ink">
             Serviço *
@@ -252,11 +312,20 @@ export function ManualAppointmentDialog({ patients, servicosHabilitados = [], in
           <p className="rounded-2xl border border-psi-soft bg-psi-light/60 px-4 py-3 text-[11px] leading-relaxed text-psi-deep">
             Os horários serão registrados em Brasília com duração de <strong>{validDuration ? `${durationMinutes} min` : 'a definir'}</strong> ({selectedService.label}). Cada sessão receberá sua própria cobrança e aparecerá nas notificações do sino.
           </p>
-
           </div>
-          <ManualAppointmentActions success={message?.kind === 'success'} saving={saving}
-            disabled={saving || eligible.length === 0 || recurrenceDates.length === 0}
-            count={recurrenceDates.length} onClose={onClose} />
+
+          <ManualAppointmentActions
+            success={message?.kind === 'success'}
+            saving={saving}
+            disabled={
+              saving ||
+              eligible.length === 0 ||
+              recurrenceDates.length === 0 ||
+              (adminMode && (!selectedPatient || !selectedPatient.primaryProfessionalId))
+            }
+            count={recurrenceDates.length}
+            onClose={onClose}
+          />
         </form>
       </section>
     </div>

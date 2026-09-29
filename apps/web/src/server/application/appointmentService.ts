@@ -26,29 +26,48 @@ export async function createAppointmentFlow(context: RequestContext, input: Sche
   if (!serviceKey?.trim()) {
     throw new ApplicationError('INVALID_INPUT', 'Informe o serviço do agendamento.', 400);
   }
-  if (context.actor.roles.includes('professional') && context.actor.professionalProfileId !== input.professionalId) {
+  const store = getApplicationStore();
+  let professionalId = input.professionalId?.trim();
+  if (!professionalId) {
+    const patient = await store.identities.getPatient(context.actor.organizationId, input.patientId);
+    if (patient?.primaryProfessionalId) {
+      professionalId = patient.primaryProfessionalId;
+    } else if (patient?.assignedProfessionalIds?.length) {
+      professionalId = patient.assignedProfessionalIds[0];
+    }
+  }
+  if (!professionalId) {
+    throw new ApplicationError('INVALID_INPUT', 'O paciente selecionado não possui um psicólogo atribuído.', 400);
+  }
+
+  const resolvedInput: ScheduleAppointmentInput = {
+    ...input,
+    professionalId,
+  };
+
+  const isManagement = context.actor.roles.some((role) => role === 'owner' || role === 'admin' || role === 'clinical_director');
+  if (!isManagement && context.actor.roles.includes('professional') && context.actor.professionalProfileId !== resolvedInput.professionalId) {
     throw new ApplicationError('FORBIDDEN', 'Um psicólogo só pode agendar para o próprio perfil.', 403);
   }
-  const profile = await getProfessionalAgendaProfile(context.actor.organizationId, input.professionalId);
+  const profile = await getProfessionalAgendaProfile(context.actor.organizationId, resolvedInput.professionalId);
   if (!profile) throw new ApplicationError('NOT_FOUND', 'Perfil profissional ativo não encontrado.', 404);
-  if (profile.servicosHabilitados.length > 0 && !profile.servicosHabilitados.includes(serviceKey.trim())) {
+  if (!isManagement && profile.servicosHabilitados.length > 0 && !profile.servicosHabilitados.includes(serviceKey.trim())) {
     throw new ApplicationError('FORBIDDEN', 'Este serviço não está habilitado para o perfil profissional.', 403);
   }
-  const effectiveDueAt = chargeDueAt || input.startsAt;
+  const effectiveDueAt = chargeDueAt || resolvedInput.startsAt;
   if (!isFutureChargeDueAt(effectiveDueAt)) {
     throw new ApplicationError('INVALID_INPUT', 'O vencimento da cobrança deve estar no futuro.', 400);
   }
-  const store = getApplicationStore();
-  const result = await scheduleAppointmentCommand({ appointments: store.appointments, identities: store.identities }, context.actor, input, { actorUserId: context.actor.userId, occurredAt: input.createdAt, correlationId: context.correlationId, commandId: context.idempotencyKey! });
-  const preference = store.preferences.find((item) => item.organizationId === input.organizationId && item.patientId === input.patientId);
+  const result = await scheduleAppointmentCommand({ appointments: store.appointments, identities: store.identities }, context.actor, resolvedInput, { actorUserId: context.actor.userId, occurredAt: resolvedInput.createdAt, correlationId: context.correlationId, commandId: context.idempotencyKey! });
+  const preference = store.preferences.find((item) => item.organizationId === resolvedInput.organizationId && item.patientId === resolvedInput.patientId);
   let reminder: { id?: string; status: string } = { status: 'skipped' };
   // O lembrete externo é complementar. Ausência de preferência ou consentimento
   // não pode transformar um agendamento já persistido em erro para a interface.
   if (preference) {
     try {
-      const scheduledFor = new Date(Date.parse(input.startsAt) - 60 * 60 * 1000).toISOString();
-      const professional = await store.identities.getProfessional(input.organizationId, input.professionalId);
-      const notification = await enqueueNotification({ id: `notification-${result.appointment.id}`, organizationId: input.organizationId, patientId: input.patientId, recipientReference: `contact-${input.patientId}`, channel: 'whatsapp', template: { category: 'appointment_reminder', professionalName: professional?.displayName ?? 'Profissional', appointmentLabel: new Date(input.startsAt).toLocaleString('pt-BR', { timeZone: input.timezone }) }, preference, consents: store.consents, scheduledFor, idempotencyKey: `${context.idempotencyKey}:reminder`, createdAt: input.createdAt }, store.notifications, store.communicationAudit);
+      const scheduledFor = new Date(Date.parse(resolvedInput.startsAt) - 60 * 60 * 1000).toISOString();
+      const professional = await store.identities.getProfessional(resolvedInput.organizationId, resolvedInput.professionalId);
+      const notification = await enqueueNotification({ id: `notification-${result.appointment.id}`, organizationId: resolvedInput.organizationId, patientId: resolvedInput.patientId, recipientReference: `contact-${resolvedInput.patientId}`, channel: 'whatsapp', template: { category: 'appointment_reminder', professionalName: professional?.displayName ?? 'Profissional', appointmentLabel: new Date(resolvedInput.startsAt).toLocaleString('pt-BR', { timeZone: resolvedInput.timezone }) }, preference, consents: store.consents, scheduledFor, idempotencyKey: `${context.idempotencyKey}:reminder`, createdAt: resolvedInput.createdAt }, store.notifications, store.communicationAudit);
       reminder = { id: notification.message.id, status: notification.message.status };
     } catch (error) {
       console.error('[agenda] Agendamento criado sem lembrete externo:', error instanceof Error ? error.message : error);

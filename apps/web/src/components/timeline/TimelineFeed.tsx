@@ -30,17 +30,6 @@ const CATEGORY_META: Readonly<
   alert: { label: 'Alerta', icon: AlertTriangle, color: 'bg-coral text-white' },
 };
 
-const SOURCE_LABELS: Readonly<Record<string, string>> = {
-  clinical_record_revision: 'Revisão do prontuário',
-  clinical_session_event: 'Evento da sessão',
-  assessment_response: 'Resposta de escala',
-  mood_check_in: 'Registro de humor',
-  habit_observation: 'Registro de hábito',
-  care_plan: 'Plano terapêutico',
-  pre_session_check_in: 'Check-in pré-sessão',
-  appointment_event: 'Evento da agenda',
-  care_alert: 'Alerta clínico',
-};
 
 interface TimelineFeedProps {
   entries: readonly ClinicalTimelineEntry[];
@@ -112,20 +101,6 @@ function TimelineEventCard({ entry }: { entry: ClinicalTimelineEntry }) {
           </blockquote>
         ) : null}
 
-        <details className="mt-3 border-t border-line pt-3">
-          <summary className="cursor-pointer select-none text-[10px] font-bold uppercase tracking-wider text-primary">
-            Ver origem verificável
-          </summary>
-          <div className="mt-2 grid gap-1 rounded-xl bg-ink px-3 py-2 font-mono text-[9px] text-white/70 sm:grid-cols-2">
-            <span>{SOURCE_LABELS[entry.evidence.sourceType]}</span>
-            <span>ID: {entry.evidence.sourceId}</span>
-            {entry.evidence.sourceField ? <span>Campo: {entry.evidence.sourceField}</span> : null}
-            {entry.evidence.sourceRevisionId ? <span>Revisão: {entry.evidence.sourceRevisionId}</span> : null}
-            {entry.evidence.contentHashSha256 ? (
-              <span className="sm:col-span-2">SHA-256: {entry.evidence.contentHashSha256}</span>
-            ) : null}
-          </div>
-        </details>
       </article>
     </li>
   );

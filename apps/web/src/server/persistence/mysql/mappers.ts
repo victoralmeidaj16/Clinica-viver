@@ -213,6 +213,9 @@ export interface PacienteRow {
 
 export function toPatientProfile(row: PacienteRow): PatientProfile {
   const assigned = row.atribuidos ? row.atribuidos.split(',').filter(Boolean) : [];
+  if (row.profissional_ref && !assigned.includes(row.profissional_ref)) {
+    assigned.push(row.profissional_ref);
+  }
   return {
     id: row.ref_core,
     organizationId: row.organizacao_ref,

@@ -15,7 +15,6 @@ import {
   Shield,
   Briefcase,
   BarChart3,
-  Sparkles,
   UserPlus,
   LogOut,
   X,
@@ -29,7 +28,6 @@ const psicologoItems = [
   { label: 'Prontuários dos Pacientes', href: '/linha-do-tempo', icon: FileText },
   { label: 'Meu Financeiro', href: '/meu-financeiro', icon: CreditCard },
   { label: 'Agenda & Horários', href: '/agenda', icon: CalendarDays },
-  { label: 'Site / Vitrine de Serviços', href: '/vitrine', icon: Sparkles },
 ];
 
 const gestaoItems = [
@@ -38,7 +36,6 @@ const gestaoItems = [
   { label: 'Gestão de Pacientes', href: '/gestao/pacientes', icon: Users },
   { label: 'Cockpit da Clínica (Prazos)', href: '/gestao/cockpit', icon: Shield },
   { label: 'Financeiro & Repasses', href: '/gestao/financeiro', icon: CreditCard },
-  { label: 'Site / Vitrine de Serviços', href: '/vitrine', icon: Sparkles },
   { label: '11 Indicadores Mensais', href: '/relatorios', icon: BarChart3 },
   { label: 'Convênios PJ', href: '/convenios', icon: Briefcase },
   { label: 'Integrações (Asaas/Wpp)', href: '/configuracoes/integracoes', icon: Brain },

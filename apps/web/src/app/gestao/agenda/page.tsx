@@ -1,8 +1,10 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { CalendarDays, Loader2, Pencil, Search } from 'lucide-react';
+import { CalendarDays, CalendarPlus, Loader2, Pencil, Search } from 'lucide-react';
 import { applicationRequest } from '@/lib/applicationApi';
 import { EditSessionModal, type SessionEditableData } from '@/components/scheduling/EditSessionModal';
+import { ManualAppointmentDialog } from '@/components/scheduling/ManualAppointmentDialog';
+import type { PatientDirectoryEntry } from '@/server/application/patientDirectory';
 
 type Appointment = SessionEditableData & { profissionalNome: string };
 type Result = { appointments: Appointment[]; temMais: boolean; carregadoEm?: number };
@@ -16,6 +18,15 @@ export default function GestaoAgendaPage() {
   const [erro, setErro] = useState('');
   const [edicao, setEdicao] = useState<Appointment>();
   const [versao, setVersao] = useState(0);
+  const [agendamentoAberto, setAgendamentoAberto] = useState(false);
+  const [pacientes, setPacientes] = useState<readonly PatientDirectoryEntry[]>([]);
+
+  useEffect(() => {
+    applicationRequest<PatientDirectoryEntry[]>('/patients')
+      .then((lista) => setPacientes(lista))
+      .catch((error) => console.error('Erro ao carregar pacientes para agendamento:', error));
+  }, [versao]);
+
   useEffect(() => {
     const controller = new AbortController();
     const timer = setTimeout(() => {
@@ -31,10 +42,21 @@ export default function GestaoAgendaPage() {
   }, [busca, pagina, versao]);
 
   return <main className="mx-auto max-w-6xl space-y-6 p-4 md:p-8">
-    <header className="flex items-center gap-3">
-      <div className="rounded-2xl bg-psi-vibrant/10 p-3 text-psi-deep"><CalendarDays className="h-6 w-6" /></div>
-      <div><h1 className="text-2xl font-black text-ink">Agenda da Clínica</h1>
-        <p className="text-sm text-muted">Gerencie os atendimentos agendados e confirmados de todos os profissionais.</p></div>
+    <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center gap-3">
+        <div className="rounded-2xl bg-psi-vibrant/10 p-3 text-psi-deep"><CalendarDays className="h-6 w-6" /></div>
+        <div>
+          <h1 className="text-2xl font-black text-ink">Agenda da Clínica</h1>
+          <p className="text-sm text-muted">Gerencie os atendimentos agendados e confirmados de todos os profissionais.</p>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={() => setAgendamentoAberto(true)}
+        className="btn-accent shrink-0 px-5 py-3 text-xs shadow-md"
+      >
+        <CalendarPlus className="h-4 w-4" /> Cadastrar atendimento
+      </button>
     </header>
     <section className="rounded-3xl border border-line bg-surface p-5">
       <label htmlFor="busca-agenda" className="mb-2 block text-xs font-bold text-ink">Buscar por paciente ou psicólogo</label>
@@ -68,5 +90,15 @@ export default function GestaoAgendaPage() {
     </section>
     <EditSessionModal admin session={edicao} isOpen={Boolean(edicao)} onClose={() => setEdicao(undefined)}
       onSaved={() => setVersao((value) => value + 1)} />
+    {agendamentoAberto && (
+      <ManualAppointmentDialog
+        adminMode
+        patients={pacientes}
+        onClose={() => setAgendamentoAberto(false)}
+        onScheduled={() => {
+          setVersao((value) => value + 1);
+        }}
+      />
+    )}
   </main>;
 }

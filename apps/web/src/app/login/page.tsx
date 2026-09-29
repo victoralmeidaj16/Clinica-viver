@@ -3,16 +3,51 @@
 import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   ArrowRight,
-  Brain,
-  CheckCircle2,
+  CalendarDays,
   Eye,
   EyeOff,
+  FileText,
+  Hand,
+  Lock,
   LockKeyhole,
   Mail,
-  ShieldCheck,
+  User,
+  type LucideIcon,
 } from 'lucide-react';
+
+const RECURSOS: { icone: LucideIcon; label: string }[] = [
+  { icone: User, label: 'Pacientes' },
+  { icone: CalendarDays, label: 'Atendimentos' },
+  { icone: FileText, label: 'Processos da clínica' },
+];
+
+function Marca({ claro }: { claro?: boolean }) {
+  return (
+    <div className="flex items-center gap-3.5">
+      <Image
+        src={claro ? '/logo-viver-mais-white.png' : '/logo-viver-mais.png'}
+        alt="Viver Mais Psicologia"
+        width={190}
+        height={36}
+        className="h-8 w-auto object-contain sm:h-9"
+        priority
+      />
+      <span className={`h-8 w-px ${claro ? 'bg-white/30' : 'bg-psi-soft'}`} />
+      <p
+        className={`text-[11px] font-semibold uppercase leading-relaxed tracking-[0.16em] ${
+          claro ? 'text-white/85' : 'text-psi-deep'
+        }`}
+      >
+        Ambiente do
+        <br />
+        profissional
+      </p>
+    </div>
+  );
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -48,294 +83,150 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen w-full grid grid-cols-1 lg:grid-cols-12 bg-white">
-      {/* ============================================================ */}
-      {/* LADO ESQUERDO: Branding e Tons de Roxo (Estilo Showcase)     */}
-      {/* ============================================================ */}
-      <section className="hidden lg:flex lg:col-span-6 xl:col-span-6 bg-gradient-to-br from-psi-darkest via-[#502f74] to-psi-deep text-white p-10 xl:p-14 flex-col justify-between relative overflow-hidden select-none">
-        {/* Elementos decorativos de fundo */}
-        <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-psi-vibrant/25 blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -right-24 w-96 h-96 rounded-full bg-[#c38cff]/20 blur-3xl pointer-events-none" />
+    <main className="flex min-h-screen items-center justify-center bg-psi-light px-4 py-8 sm:px-6 lg:py-12">
+      <div className="grid w-full max-w-7xl overflow-hidden rounded-3xl bg-white shadow-contrast lg:grid-cols-2">
+        {/* Painel roxo: imagem de ambientação e identidade visual */}
+        <section className="relative hidden min-h-[700px] overflow-hidden bg-[#3b1d5a] p-12 text-white lg:flex lg:flex-col lg:justify-between xl:min-h-[740px] xl:p-16">
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 bg-cover bg-bottom bg-no-repeat"
+            style={{ backgroundImage: `url('/capa-login-viver-mais.png')` }}
+          />
+          {/* Suave camada de contraste para legibilidade */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#3b1d5a]/20 via-transparent to-[#240e38]/50"
+          />
 
-        {/* Grade de pontos decorativos (Top Right) */}
-        <div className="absolute top-8 right-8 grid grid-cols-4 gap-2 opacity-25" aria-hidden="true">
-          {Array.from({ length: 16 }).map((_, i) => (
-            <div key={i} className="w-1.5 h-1.5 rounded-full bg-white" />
-          ))}
-        </div>
+          <div className="relative z-10 space-y-10">
+            <Marca claro />
 
-        {/* Grade de pontos decorativos (Bottom Left) */}
-        <div className="absolute bottom-8 left-8 grid grid-cols-4 gap-2 opacity-20" aria-hidden="true">
-          {Array.from({ length: 16 }).map((_, i) => (
-            <div key={i} className="w-1.5 h-1.5 rounded-full bg-white" />
-          ))}
-        </div>
-
-        {/* Topo: Logo & Identidade Clínica */}
-        <div className="relative z-10 flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-psi-deep shadow-md shadow-black/10">
-            <Brain className="h-6 w-6 text-psi-deep" />
-          </div>
-          <div>
-            <p className="text-lg font-black tracking-tight text-white flex items-center gap-1.5">
-              Viver Mais
-              <span className="rounded-lg bg-psi-vibrant/40 border border-psi-vibrant/40 px-2 py-0.5 text-xs font-black text-white">
-                Psi
-              </span>
-            </p>
-            <p className="text-xs text-purple-200/80 font-medium">Clínica &amp; Inteligência Clínica</p>
-          </div>
-        </div>
-
-        {/* Centro: Mockup Ilustrativo da Plataforma (Cards Flutuantes) */}
-        <div className="relative my-auto py-10 max-w-sm xl:max-w-md mx-auto w-full z-10">
-          {/* Efeito de brilho ambiente */}
-          <div className="absolute -inset-4 bg-psi-vibrant/30 rounded-3xl blur-2xl -z-10" />
-
-          {/* Card Flutuante Superior Direito (Pílula de Status) */}
-          <div className="absolute -top-2 -right-2 xl:-right-4 z-20 bg-white/95 backdrop-blur-md rounded-2xl px-4 py-2.5 shadow-2xl border border-purple-100 flex items-center gap-3">
-            <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
-              <CheckCircle2 className="w-4 h-4" />
-            </div>
-            <div>
-              <p className="text-xs font-black text-slate-800 leading-tight">Prontuário SOAP</p>
-              <p className="text-[10px] font-extrabold text-emerald-600">Emitido com Sucesso</p>
-            </div>
-          </div>
-
-          {/* Card Central Branco (Simulando Dashboard do Psicólogo) */}
-          <div className="bg-white rounded-3xl p-6 xl:p-7 shadow-2xl text-slate-800 border border-purple-100 relative z-10 space-y-4">
-            <div className="flex items-center justify-between pb-1">
-              <div>
-                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                  Atendimentos do Mês
-                </span>
-                <p className="text-2xl font-black text-psi-darkest tracking-tight">118 sessões</p>
-              </div>
-              <div className="text-right">
-                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                  Pacientes Ativos
-                </span>
-                <p className="text-2xl font-black text-emerald-600 tracking-tight">32 ativos</p>
-              </div>
+            <div className="space-y-5">
+              <h2 className="text-4xl font-extrabold leading-[1.15] tracking-tight drop-shadow-sm xl:text-[2.65rem]">
+                Sua rotina na Clínica Viver Mais Psicologia,{' '}
+                <span className="text-[#d8bcf5]">em um só lugar.</span>
+              </h2>
+              <p className="max-w-md text-base leading-relaxed text-white/90 drop-shadow-sm">
+                Acesse sua plataforma para acompanhar seus pacientes, atendimentos e processos da clínica de forma
+                simples e organizada.
+              </p>
             </div>
 
-            {/* Gráfico Vetorial de Evolução Clínica */}
-            <div className="relative h-20 w-full pt-2">
-              <svg viewBox="0 0 280 70" className="w-full h-full overflow-visible">
-                <defs>
-                  <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#9E6BCF" stopOpacity="0.35" />
-                    <stop offset="100%" stopColor="#9E6BCF" stopOpacity="0.0" />
-                  </linearGradient>
-                </defs>
-                <path
-                  d="M 0 55 Q 50 20, 90 40 T 170 15 T 230 35 T 280 10 L 280 70 L 0 70 Z"
-                  fill="url(#chartGrad)"
-                />
-                <path
-                  d="M 0 55 Q 50 20, 90 40 T 170 15 T 230 35 T 280 10"
-                  fill="none"
-                  stroke="#9E6BCF"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                />
-                <circle cx="170" cy="15" r="4.5" fill="#5C397D" stroke="#ffffff" strokeWidth="2" />
-              </svg>
-              <div className="flex justify-between text-[9px] font-bold text-slate-400 pt-1">
-                <span>Semana 1</span>
-                <span>Semana 2</span>
-                <span>Semana 3</span>
-                <span>Semana 4</span>
-              </div>
+            <ul className="flex flex-wrap gap-x-12 gap-y-6">
+              {RECURSOS.map(({ icone: Icone, label }) => (
+                <li key={label} className="space-y-3">
+                  <Icone className="h-7 w-7 text-white/90 drop-shadow-sm" strokeWidth={1.5} />
+                  <p className="text-sm font-medium text-white/90 drop-shadow-sm">{label}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        {/* Formulário de login */}
+        <section className="flex flex-col justify-center px-6 py-12 sm:px-12 lg:px-14 xl:px-20">
+          <div className="mb-10 lg:hidden">
+            <Marca />
+          </div>
+
+          <div className="mx-auto w-full max-w-md space-y-8">
+            <div className="space-y-3">
+              <h1 className="flex items-center gap-2 text-4xl font-black tracking-tight text-psi-darkest">
+                Olá! <Hand className="h-8 w-8 -rotate-12 text-psi-vibrant" aria-hidden="true" />
+              </h1>
+              <p className="text-xl font-extrabold text-psi-darkest">Acesse seu ambiente profissional</p>
+              <p className="text-sm leading-relaxed text-muted">
+                Entre com seus dados para acompanhar sua rotina e gerenciar seus atendimentos na Viver Mais.
+              </p>
             </div>
 
-            {/* Resumo de Atividades Recentes */}
-            <div className="space-y-2 pt-2 border-t border-slate-100">
-              <div className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-psi-deep" />
-                  <span className="font-bold text-slate-700">Psicoterapia Individual</span>
-                </div>
-                <span className="font-extrabold text-slate-900">Hoje às 14h</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                  <span className="font-bold text-slate-700">Repasses Clínicos</span>
-                </div>
-                <span className="font-bold text-emerald-600">100% em dia</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Card Flutuante Inferior Esquerdo (Garantia de Ética e Sigilo) */}
-          <div className="absolute -bottom-3 -left-2 xl:-left-4 z-20 bg-white/95 backdrop-blur-md rounded-2xl px-4 py-2.5 shadow-2xl border border-purple-100 flex items-center gap-3">
-            <div className="w-7 h-7 rounded-full bg-purple-100 text-psi-deep flex items-center justify-center shrink-0">
-              <ShieldCheck className="w-4 h-4 text-psi-deep" />
-            </div>
-            <div>
-              <p className="text-xs font-black text-slate-800 leading-tight">Sigilo CFP &amp; LGPD</p>
-              <p className="text-[10px] font-semibold text-slate-500">Criptografia em Repouso</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Rodapé do lado esquerdo: Chamada e Paginação visual */}
-        <div className="relative z-10 space-y-4">
-          <h2 className="text-2xl xl:text-3xl font-black text-white leading-tight tracking-tight">
-            Prática clínica com clareza, ética e agilidade.
-          </h2>
-          <p className="text-xs xl:text-sm text-purple-200/90 leading-relaxed max-w-lg">
-            O cockpit inteligente para psicólogos e gestão acompanharem prontuários automatizados,
-            agenda integrada e repasses transparentes.
-          </p>
-
-          {/* Indicadores estilo carrossel */}
-          <div className="pt-2 flex items-center gap-2">
-            <div className="w-7 h-1.5 rounded-full bg-white" />
-            <div className="w-1.5 h-1.5 rounded-full bg-white/40" />
-            <div className="w-1.5 h-1.5 rounded-full bg-white/40" />
-          </div>
-        </div>
-      </section>
-
-      {/* ============================================================ */}
-      {/* LADO DIREITO: Fundo Branco & Formulário de Login              */}
-      {/* ============================================================ */}
-      <section className="col-span-1 lg:col-span-6 xl:col-span-6 min-h-screen bg-white flex flex-col justify-between px-6 py-8 sm:px-12 sm:py-12 lg:px-14 xl:px-20">
-        {/* Cabeçalho mobile (oculto no desktop) */}
-        <div className="lg:hidden flex items-center gap-2.5 pt-2 pb-6">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-psi-deep text-white shadow-sm">
-            <Brain className="h-5 w-5 text-white" />
-          </div>
-          <div>
-            <p className="font-black text-base text-psi-darkest tracking-tight flex items-center gap-1">
-              Viver Mais
-              <span className="rounded bg-psi-soft px-1.5 py-0.2 text-xs font-bold text-psi-deep">
-                Psi
-              </span>
-            </p>
-          </div>
-        </div>
-
-        {/* Container Central do Formulário */}
-        <div className="my-auto w-full max-w-md mx-auto py-6 space-y-8">
-          {/* Header do Form */}
-          <div className="space-y-2">
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-psi-deep bg-psi-soft px-3 py-1 rounded-full">
-              Cockpit Profissional
-            </span>
-            <h1 className="text-3xl sm:text-4xl font-black text-ink tracking-tight font-sans">
-              Acesse sua conta
-            </h1>
-            <p className="text-sm text-muted leading-relaxed">
-              Entre com suas credenciais para gerenciar seus atendimentos e prontuários.
-            </p>
-          </div>
-
-          {/* Formulário */}
-          <form onSubmit={submit} className="space-y-5">
-            {/* Campo de E-mail */}
-            <div className="space-y-1.5">
-              <label htmlFor="login-email" className="block text-xs font-extrabold text-ink uppercase tracking-wider">
-                E-mail Profissional
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-                <input
-                  id="login-email"
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="seu@email.com"
-                  required
-                  autoComplete="email"
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-ink placeholder:text-slate-400 outline-none transition-all focus:border-psi-deep focus:ring-4 focus:ring-purple-100 hover:border-slate-300"
-                />
-              </div>
-            </div>
-
-            {/* Campo de Senha */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label htmlFor="login-password" className="block text-xs font-extrabold text-ink uppercase tracking-wider">
-                  Senha
+            <form onSubmit={submit} className="space-y-6">
+              <div className="space-y-2">
+                <label htmlFor="login-email" className="block text-sm font-bold text-psi-darkest">
+                  E-mail profissional
                 </label>
-                <Link
-                  href="/redefinir-senha"
-                  className="text-xs font-bold text-psi-deep hover:text-psi-darkest hover:underline transition-colors"
-                >
-                  Esqueceu a senha?
-                </Link>
+                <div className="relative">
+                  <Mail className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+                  <input
+                    id="login-email"
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder="seu@email.com"
+                    required
+                    autoComplete="email"
+                    className="w-full rounded-xl border border-psi-soft bg-psi-light px-4 py-3.5 pl-11 text-sm text-ink outline-none transition-all placeholder:text-muted/70 hover:border-psi-vibrant/40 focus:border-psi-deep focus:bg-white focus:ring-4 focus:ring-psi-soft"
+                  />
+                </div>
               </div>
-              <div className="relative">
-                <LockKeyhole className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-                <input
-                  id="login-password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder="••••••••"
-                  required
-                  autoComplete="current-password"
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 pl-11 pr-11 text-sm text-ink placeholder:text-slate-400 outline-none transition-all focus:border-psi-deep focus:ring-4 focus:ring-purple-100 hover:border-slate-300"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((prev) => !prev)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1"
-                  aria-label={showPassword ? 'Ocultar senha' : 'Exibir senha'}
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-            </div>
 
-            {/* Alerta de Erro */}
-            {error && (
-              <div
-                role="alert"
-                className="rounded-2xl border border-rose-200 bg-rose-50/80 p-3.5 text-xs font-bold text-rose-800 flex items-start gap-2.5 animate-in fade-in duration-200"
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="login-password" className="block text-sm font-bold text-psi-darkest">
+                    Senha
+                  </label>
+                  <Link
+                    href="/redefinir-senha"
+                    className="text-xs font-bold text-psi-deep transition-colors hover:text-psi-darkest hover:underline"
+                  >
+                    Esqueceu a senha?
+                  </Link>
+                </div>
+                <div className="relative">
+                  <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+                  <input
+                    id="login-password"
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    placeholder="Digite sua senha"
+                    required
+                    autoComplete="current-password"
+                    className="w-full rounded-xl border border-psi-soft bg-psi-light px-4 py-3.5 pl-11 pr-11 text-sm text-ink outline-none transition-all placeholder:text-muted/70 hover:border-psi-vibrant/40 focus:border-psi-deep focus:bg-white focus:ring-4 focus:ring-psi-soft"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 p-1 text-muted transition-colors hover:text-psi-deep"
+                    aria-label={showPassword ? 'Ocultar senha' : 'Exibir senha'}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {error && (
+                <div
+                  role="alert"
+                  className="flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50/80 p-3.5 text-xs font-bold text-rose-800 animate-in fade-in duration-200"
+                >
+                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-rose-500" />
+                  <span className="flex-1 leading-snug">{error}</span>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-psi-deep px-5 py-3.5 text-sm font-bold text-white shadow-lift transition-all hover:bg-psi-darkest active:scale-[0.99] disabled:cursor-wait disabled:opacity-60"
               >
-                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mt-1.5 shrink-0" />
-                <span className="flex-1 leading-snug">{error}</span>
-              </div>
-            )}
+                <span>{loading ? 'Validando acesso…' : 'Entrar na plataforma'}</span>
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </form>
 
-            {/* Botão de Submissão */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full rounded-2xl bg-psi-deep hover:bg-psi-darkest active:scale-[0.99] text-white py-3.5 px-5 font-black text-sm transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 disabled:cursor-wait disabled:opacity-60"
-            >
-              <span>{loading ? 'Validando acesso…' : 'Entrar na plataforma'}</span>
-              <ArrowRight className="h-4 w-4" />
-            </button>
-          </form>
-
-          {/* Nota de Segurança e Sigilo */}
-          <div className="pt-2 text-center">
-            <p className="text-xs text-muted/70 flex items-center justify-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-psi-deep shrink-0" />
-              <span>Acesso restrito a profissionais autorizados • CFP &amp; LGPD</span>
-            </p>
+            <div className="space-y-4">
+              <p className="flex items-center gap-2.5 text-sm text-muted">
+                <Lock className="h-4 w-4 shrink-0 text-psi-deep" />
+                Acesso exclusivo para profissionais Viver Mais
+              </p>
+              <Link href="/vitrine" className="inline-block text-xs text-muted transition-colors hover:text-psi-deep">
+                ← Voltar para a página inicial
+              </Link>
+            </div>
           </div>
-        </div>
-
-        {/* Rodapé do lado direito */}
-        <div className="pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-muted">
-          <div className="flex items-center gap-4">
-            <Link href="/vitrine" className="hover:text-psi-deep transition-colors">
-              Página Inicial
-            </Link>
-            <span>•</span>
-            <span className="text-slate-400">Ambiente Seguro</span>
-          </div>
-          <p className="text-slate-400">© 2026 Clínica Viver Mais</p>
-        </div>
-      </section>
+        </section>
+      </div>
     </main>
   );
 }
-

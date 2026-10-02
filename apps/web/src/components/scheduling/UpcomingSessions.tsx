@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import {
-  CalendarClock, CalendarDays, CheckCircle2, Copy, CreditCard, Globe, Loader2, MapPin, Pencil, RefreshCw, XCircle,
+  CalendarClock, CalendarDays, CheckCircle2, Copy, CreditCard, FileText, Globe, Loader2, MapPin, Pencil, RefreshCw, XCircle,
 } from 'lucide-react';
 import { clinicDateTimeToIso } from '@/lib/manualAppointment';
 import { focoSessao } from '@/lib/focoNotificacao';
@@ -11,6 +12,8 @@ import { RescheduleModal } from './RescheduleModal';
 import { EditSessionModal, type SessionEditableData } from './EditSessionModal';
 
 export interface AgendamentoResumo {
+  pacienteRef?: string;
+  agendamentoRef?: string;
   id: string;
   pacienteNome: string;
   inicio: string;
@@ -180,6 +183,10 @@ export function UpcomingSessions({ agendamentos, filtroPaciente, onCancelar, onC
             !item.custeadoPelaEmpresa && permiteNovoPagamento(item.pagamentoStatus);
           return (
             <li key={item.id} data-foco={focoSessao(item.id)} className="space-y-3 px-6 py-4">
+              {item.status === 'realizado' && item.pacienteRef && item.agendamentoRef && <Link
+                href={`/pacientes/${encodeURIComponent(item.pacienteRef)}/documentos?atendimento=${encodeURIComponent(item.agendamentoRef)}`}
+                className="inline-flex items-center gap-2 text-xs font-semibold text-emerald-700"
+              ><FileText size={14} />Gerar declaração</Link>}
               <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className={`text-sm font-extrabold ${cancelado ? 'text-muted line-through' : 'text-ink'}`}>

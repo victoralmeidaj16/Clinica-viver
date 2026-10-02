@@ -1,4 +1,5 @@
 import React from 'react';
+import Link from 'next/link';
 import { FileText, Pencil, User } from 'lucide-react';
 
 export interface TimelinePatientOption {
@@ -56,7 +57,8 @@ export default function TimelineHeader({
             </select>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {selectedPatientId && <Link href={`/pacientes/${encodeURIComponent(selectedPatientId)}/documentos`} className="flex min-h-10 items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-3 text-xs font-bold"><FileText className="h-3.5 w-3.5" /> Documentos</Link>}
             <span className="hidden text-xs font-medium text-slate-300 sm:inline">Seus Pacientes em Acompanhamento</span>
             {onEditPatient && <button type="button" onClick={onEditPatient} className="flex min-h-10 items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-3 text-[11px] font-bold text-white transition hover:bg-white/20"><Pencil className="h-3.5 w-3.5" /> Editar dados</button>}
           </div>

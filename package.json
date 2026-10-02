@@ -11,6 +11,7 @@
     "build": "npm run web:build",
     "vercel-build": "npm run web:build",
     "web:dev": "npm run dev --workspace @thats-life/web",
+    "demo:documentos": "node scripts/dev-documentos.mjs",
     "web:build": "npm run build --workspace @thats-life/web",
     "lint": "npm run lint --workspace @thats-life/web",
     "typecheck": "npm run check --workspace @thats-life/core && npm run typecheck --workspace @thats-life/web",

@@ -55,3 +55,7 @@ transcriptions/
 # Estado local de demonstração (contém dados de sessões da demo)
 .demo-state/
 .vercel
+
+# Materiais e referências externas não versionadas
+APOSTILA*.pdf
+*.pdf · versão*.pdf

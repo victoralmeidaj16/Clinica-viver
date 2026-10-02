@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 import {
   Building2,
   Calendar,
@@ -149,6 +151,9 @@ export function PatientCard({
 
       {/* AÇÕES COMPACTAS EM GRADE MINIMALISTA (3 BOTÕES) */}
       <div className="space-y-2 border-t border-slate-100 pt-2.5">
+        <Link href={`/pacientes/${encodeURIComponent(patient.id)}/documentos`} className="flex items-center gap-2 py-1 text-xs font-semibold text-emerald-700">
+          <FileText className="h-3.5 w-3.5" /> Documentos
+        </Link>
         <div className="grid grid-cols-3 gap-2">
           <button
             type="button"

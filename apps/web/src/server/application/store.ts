@@ -12,6 +12,8 @@ import {
   type PatientHandoff,
 } from '@thats-life/core';
 import { isMysqlConfigured } from '@/server/oci/runtime';
+import { isDocumentDemo } from '@/server/documents/demoMode';
+import { documentDemoSeed } from '@/server/documents/demoSeed';
 import { MysqlAppointmentRepository } from '@/server/persistence/mysql/appointmentRepository';
 import { MysqlIdentityRepository } from '@/server/persistence/mysql/identityRepository';
 import { MysqlClinicalAccessAudit } from '@/server/persistence/mysql/clinicalAccessAuditRepository';
@@ -60,10 +62,11 @@ function createState(): DemoApplicationState {
   const adminUser = createIdentityUser({ id: 'admin-demo', displayName: 'Coordenação Viver Mais', normalizedEmail: 'admin@vivermais.local', createdAt });
   const adminMembership = { ...createOrganizationMembership({ id: 'membership-admin-demo', organizationId: organization.id, userId: adminUser.id, roles: ['owner', 'admin'], createdAt }), status: 'active' as const };
   const membership: OrganizationMembership = { id: 'membership-demo', organizationId: organization.id, userId: professional.userId, roles: ['professional', 'billing'], status: 'active', professionalProfileId: professional.id, createdAt, updatedAt: createdAt };
+  const documentSeed = isDocumentDemo() ? documentDemoSeed() : { patients: [], appointments: [] };
 
   return {
-    identities: new InMemoryIdentityRepository({ organizations: [organization], users: [adminUser], memberships: [membership, adminMembership], professionals: [professional], patients: [] }),
-    appointments: new InMemoryAppointmentRepository([]), notifications: new InMemoryNotificationRepository(), communicationAudit: new InMemoryCommunicationAudit(),
+    identities: new InMemoryIdentityRepository({ organizations: [organization], users: [adminUser], memberships: [membership, adminMembership], professionals: [professional], patients: documentSeed.patients }),
+    appointments: new InMemoryAppointmentRepository(documentSeed.appointments), notifications: new InMemoryNotificationRepository(), communicationAudit: new InMemoryCommunicationAudit(),
     sessions: new InMemoryClinicalSessionRepository([]), records: new InMemoryClinicalRecordRepository([]),
     timeline: new InMemoryClinicalTimelineRepository([]),
     timelineAudit: new InMemoryClinicalTimelineAccessAudit(),
@@ -206,7 +209,7 @@ export function getApplicationStore(): DemoApplicationState {
       globalStore.__thatsLifeApplication = createMysqlBackedState();
     } else {
       const snapshot = readSnapshot();
-      globalStore.__thatsLifeApplication = snapshot ? stateFromSnapshot(snapshot) : createState();
+      globalStore.__thatsLifeApplication = snapshot && !isDocumentDemo() ? stateFromSnapshot(snapshot) : createState();
     }
   }
   return globalStore.__thatsLifeApplication;

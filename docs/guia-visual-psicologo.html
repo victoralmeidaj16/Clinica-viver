@@ -1,0 +1,1084 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#43265E">
+  <title>Guia Rápido da Plataforma da Clínica | Clínica Viver Mais</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Inter+Tight:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --dark: #43265E;
+      --deep: #5C397D;
+      --vibrant: #9E6BCF;
+      --vibrant-light: #CBA4EE;
+      --soft: #EDE6F4;
+      --canvas: #FAF6FC;
+      --ink: #1E1528;
+      --muted: #6F627E;
+      --line: #E5DBEB;
+      --white: #FFFFFF;
+      --green: #18724D;
+      --green-light: #E9F6F0;
+      --amber: #9A5D00;
+      --amber-light: #FEF7EC;
+      --rose: #9D3659;
+      --rose-light: #FFF0F4;
+      --blue: #1D5DA3;
+      --blue-light: #EFF6FF;
+      --shadow-sm: 0 4px 12px rgba(67, 38, 94, .06);
+      --shadow-md: 0 12px 32px rgba(67, 38, 94, .10);
+      --shadow-lg: 0 20px 48px rgba(67, 38, 94, .16);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: "Inter", system-ui, -apple-system, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 10% 0%, rgba(158, 107, 207, .16), transparent 30rem),
+        radial-gradient(circle at 90% 12%, rgba(92, 57, 125, .10), transparent 32rem),
+        var(--canvas);
+      line-height: 1.55;
+      font-size: 14px;
+    }
+
+    /* Top bar */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 14px clamp(16px, 4vw, 48px);
+      background: rgba(67, 38, 94, 0.96);
+      backdrop-filter: blur(14px);
+      color: white;
+      box-shadow: 0 2px 14px rgba(30, 21, 40, .18);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: white;
+    }
+    .brand-logo {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #cdaff0, #9e6bcf);
+      color: var(--dark);
+      font-family: "Inter Tight", sans-serif;
+      font-weight: 800;
+      font-size: 15px;
+    }
+    .brand-titles h1 {
+      font-family: "Inter Tight", sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: -.02em;
+    }
+    .brand-titles p {
+      font-size: 11px;
+      color: #dbcde8;
+    }
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border-radius: 999px;
+      font-family: "Inter Tight", sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all .2s ease;
+      border: 1px solid transparent;
+    }
+    .btn-light {
+      background: rgba(255, 255, 255, .15);
+      color: white;
+      border-color: rgba(255, 255, 255, .25);
+    }
+    .btn-light:hover {
+      background: rgba(255, 255, 255, .25);
+    }
+    .btn-solid {
+      background: var(--vibrant);
+      color: white;
+    }
+    .btn-solid:hover {
+      background: #8b55c2;
+    }
+
+    /* Container */
+    .container {
+      width: min(1200px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 32px 0 80px;
+    }
+
+    /* Hero Section */
+    .hero {
+      position: relative;
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: clamp(28px, 4vw, 48px);
+      box-shadow: var(--shadow-md);
+      margin-bottom: 32px;
+      overflow: hidden;
+    }
+    .hero::after {
+      content: "";
+      position: absolute;
+      right: -60px;
+      bottom: -60px;
+      width: 280px;
+      height: 280px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(158, 107, 207, .18), transparent 70%);
+      pointer-events: none;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      background: var(--soft);
+      color: var(--deep);
+      margin-bottom: 14px;
+    }
+    .hero h2 {
+      font-family: "Inter Tight", sans-serif;
+      font-size: clamp(26px, 3.8vw, 42px);
+      font-weight: 800;
+      letter-spacing: -.03em;
+      line-height: 1.15;
+      color: var(--dark);
+      margin-bottom: 12px;
+    }
+    .hero p.lead {
+      color: var(--muted);
+      font-size: clamp(14px, 1.4vw, 17px);
+      max-width: 760px;
+      margin-bottom: 24px;
+    }
+
+    /* 4 Pillars Grid */
+    .pillars-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-top: 24px;
+    }
+    .pillar-card {
+      padding: 16px;
+      background: var(--canvas);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      transition: transform .2s ease;
+    }
+    .pillar-card:hover {
+      transform: translateY(-2px);
+    }
+    .pillar-icon {
+      font-size: 20px;
+      margin-bottom: 8px;
+    }
+    .pillar-card strong {
+      display: block;
+      font-family: "Inter Tight", sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--dark);
+      margin-bottom: 4px;
+    }
+    .pillar-card span {
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.4;
+      display: block;
+    }
+
+    /* Section Styles */
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 44px 0 20px;
+    }
+    .section-title h3 {
+      font-family: "Inter Tight", sans-serif;
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--dark);
+      letter-spacing: -.02em;
+    }
+    .section-title .pill {
+      font-size: 11px;
+      padding: 3px 8px;
+      background: var(--soft);
+      color: var(--deep);
+      border-radius: 999px;
+      font-weight: 700;
+    }
+
+    /* Platform Architecture Mindmap (6 Cards) */
+    .mindmap-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .menu-card {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+      transition: all .2s ease;
+    }
+    .menu-card:hover {
+      box-shadow: var(--shadow-md);
+      border-color: var(--vibrant-light);
+    }
+    .menu-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: var(--line);
+    }
+    .menu-card.primary::before { background: var(--vibrant); }
+    .menu-card.green::before { background: var(--green); }
+    .menu-card.blue::before { background: var(--blue); }
+    .menu-card.amber::before { background: var(--amber); }
+
+    .menu-card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .menu-icon-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .card-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      font-size: 18px;
+      background: var(--soft);
+    }
+    .menu-card-header h4 {
+      font-family: "Inter Tight", sans-serif;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--dark);
+    }
+    .route-badge {
+      font-family: monospace;
+      font-size: 11px;
+      background: #f4ecf9;
+      color: var(--deep);
+      padding: 2px 7px;
+      border-radius: 6px;
+      font-weight: 600;
+    }
+    .card-desc {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 14px;
+      line-height: 1.45;
+    }
+    .card-actions {
+      border-top: 1px dashed var(--line);
+      padding-top: 12px;
+    }
+    .card-actions ul {
+      list-style: none;
+    }
+    .card-actions li {
+      font-size: 12px;
+      color: #3b2c4c;
+      padding: 3px 0 3px 14px;
+      position: relative;
+    }
+    .card-actions li::before {
+      content: "•";
+      position: absolute;
+      left: 2px;
+      color: var(--vibrant);
+      font-weight: bold;
+    }
+
+    /* Macro Journey / Flow Steps */
+    .journey-container {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 24px;
+    }
+    .journey-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    .journey-head h4 {
+      font-family: "Inter Tight", sans-serif;
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--dark);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .journey-head .sla-tag {
+      font-size: 11px;
+      font-weight: 800;
+      background: #fef3c7;
+      color: #92400e;
+      padding: 3px 9px;
+      border-radius: 999px;
+      border: 1px solid #fde68a;
+    }
+
+    .flow-steps {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+      position: relative;
+    }
+    .flow-steps.four {
+      grid-template-columns: repeat(4, 1fr);
+    }
+    .flow-box {
+      background: var(--canvas);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px 14px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+    }
+    .flow-box:not(:last-child)::after {
+      content: "→";
+      position: absolute;
+      right: -13px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 18px;
+      color: var(--vibrant);
+      z-index: 2;
+      font-weight: bold;
+    }
+    .flow-num {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--deep);
+      color: white;
+      font-size: 11px;
+      font-weight: 800;
+      display: grid;
+      place-items: center;
+      margin-bottom: 8px;
+    }
+    .flow-box.highlight {
+      background: #fdf5e8;
+      border-color: #f7d8a6;
+    }
+    .flow-box.highlight .flow-num {
+      background: var(--amber);
+    }
+    .flow-box.success {
+      background: #eef8f2;
+      border-color: #b9e3cb;
+    }
+    .flow-box.success .flow-num {
+      background: var(--green);
+    }
+    .flow-box strong {
+      font-family: "Inter Tight", sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--dark);
+      margin-bottom: 4px;
+      line-height: 1.3;
+    }
+    .flow-box p {
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    /* Quick Guide Table */
+    .bussola-table-wrap {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+    table.bussola-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+    table.bussola-table th {
+      background: var(--deep);
+      color: white;
+      padding: 14px 18px;
+      font-family: "Inter Tight", sans-serif;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    table.bussola-table td {
+      padding: 13px 18px;
+      font-size: 12px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: middle;
+    }
+    table.bussola-table tr:last-child td {
+      border-bottom: none;
+    }
+    table.bussola-table tr:hover td {
+      background: #fbf9fc;
+    }
+    .destaque-onde {
+      font-weight: 700;
+      color: var(--deep);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Alert / Callouts */
+    .callout-box {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 18px 20px;
+      border-radius: 14px;
+      background: var(--soft);
+      border-left: 5px solid var(--deep);
+      margin: 24px 0;
+    }
+    .callout-icon {
+      font-size: 22px;
+      line-height: 1;
+    }
+    .callout-text h5 {
+      font-family: "Inter Tight", sans-serif;
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--dark);
+      margin-bottom: 4px;
+    }
+    .callout-text p {
+      font-size: 12px;
+      color: #493b57;
+      line-height: 1.45;
+    }
+
+    /* FAQ / Regras de Ouro Grid */
+    .golden-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+    .golden-card {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: var(--shadow-sm);
+    }
+    .golden-card h5 {
+      font-family: "Inter Tight", sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--dark);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .golden-card p {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* Footer */
+    footer {
+      margin-top: 48px;
+      padding-top: 24px;
+      border-top: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    /* Responsive */
+    @media (max-width: 960px) {
+      .pillars-grid { grid-template-columns: repeat(2, 1fr); }
+      .mindmap-grid { grid-template-columns: repeat(2, 1fr); }
+      .flow-steps, .flow-steps.four { grid-template-columns: 1fr; }
+      .flow-box:not(:last-child)::after { display: none; }
+      .golden-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      body { font-size: 15px; -webkit-text-size-adjust: 100%; }
+      .mindmap-grid { grid-template-columns: 1fr; }
+      .pillars-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+      .topbar { padding: 10px 16px; }
+      .brand-titles p { display: none; }
+      .btn { padding: 8px 12px; min-height: 36px; }
+      .btn-label-long { display: none; }
+
+      .container { width: calc(100% - 32px); padding: 16px 0 40px; }
+      .hero { padding: 22px 18px; border-radius: 18px; margin-bottom: 8px; }
+      .hero h2 { font-size: 26px; }
+      .hero p.lead { font-size: 15px; margin-bottom: 8px; }
+      .pillar-card { padding: 12px; }
+      .pillar-card strong { font-size: 13px; }
+      .pillar-card span { font-size: 12px; }
+
+      .section-title { flex-wrap: wrap; gap: 8px; margin: 32px 0 14px; }
+      .section-title h3 { font-size: 20px; }
+
+      .menu-card, .golden-card { padding: 18px 16px; }
+      .card-desc, .card-actions li, .golden-card p { font-size: 14px; }
+      .card-actions li { padding: 5px 0 5px 14px; }
+
+      .journey-container { padding: 18px 14px; border-radius: 16px; }
+      .journey-head { flex-direction: column; align-items: flex-start; gap: 8px; }
+      .journey-head h4 { font-size: 16px; }
+      .flow-steps, .flow-steps.four { gap: 22px; }
+      .flow-box { padding: 14px; }
+      .flow-box:not(:last-child)::after {
+        display: block;
+        content: "↓";
+        right: auto;
+        left: 50%;
+        top: auto;
+        bottom: -21px;
+        transform: translateX(-50%);
+      }
+      .flow-box strong { font-size: 14px; }
+      .flow-box p { font-size: 13px; }
+
+      /* Tabela vira lista de cartões */
+      .bussola-table-wrap { background: transparent; border: 0; box-shadow: none; border-radius: 0; }
+      table.bussola-table, .bussola-table tbody, .bussola-table tr, .bussola-table td { display: block; width: 100%; }
+      .bussola-table thead { display: none; }
+      .bussola-table tr {
+        background: white;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 14px 16px;
+        margin-bottom: 10px;
+        box-shadow: var(--shadow-sm);
+      }
+      table.bussola-table td { padding: 0; border: 0; font-size: 14px; }
+      table.bussola-table td:first-child { font-size: 15px; color: var(--dark); margin-bottom: 10px; }
+      table.bussola-table td:nth-child(2) { margin-bottom: 6px; }
+      table.bussola-table td:nth-child(2)::before,
+      table.bussola-table td:nth-child(3)::before {
+        display: block;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 2px;
+      }
+      table.bussola-table td:nth-child(2)::before { content: "Para onde ir"; }
+      table.bussola-table td:nth-child(3)::before { content: "Ação na tela"; }
+      table.bussola-table tr:hover td { background: transparent; }
+
+      .callout-box { padding: 14px 16px; gap: 10px; }
+      .callout-text h5 { font-size: 14px; }
+      .callout-text p { font-size: 14px; }
+
+      footer { flex-direction: column; align-items: flex-start; gap: 6px; margin-top: 32px; font-size: 12px; }
+    }
+    @media (max-width: 380px) {
+      .pillars-grid { grid-template-columns: 1fr; }
+    }
+
+    /* Print styles */
+    @page { size: A4; margin: 12mm; }
+    @media print {
+      * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      html { scroll-behavior: auto; }
+      body { background: white; color: black; }
+      .topbar, .btn { display: none !important; }
+      .container { width: 100%; margin: 0; padding: 0; }
+      .hero, .menu-card, .journey-container, .bussola-table-wrap, .golden-card {
+        box-shadow: none;
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      .hero { padding: 20px; margin-bottom: 20px; }
+      .hero::after { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Barra Superior -->
+  <header class="topbar">
+    <a href="#" class="brand">
+      <div class="brand-logo">VM</div>
+      <div class="brand-titles">
+        <h1>Clínica Viver Mais</h1>
+        <p>Guia de Uso e Navegação</p>
+      </div>
+    </a>
+    <div class="top-actions">
+      <button class="btn btn-light" onclick="window.print()">
+        🖨️ <span class="btn-label-long">Imprimir / </span>Salvar PDF
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- Hero / Boas-vindas -->
+    <section class="hero">
+      <div class="badge">Guia Rápido da Plataforma da Clínica</div>
+      <h2>Mapa & Caminhos da Plataforma</h2>
+      <p class="lead">
+        Tudo o que você precisa saber para gerenciar seus atendimentos, organizar horários, registrar prontuários com agilidade e acompanhar seu repasse financeiro de 70%.
+      </p>
+
+      <!-- 4 Pilares -->
+      <div class="pillars-grid">
+        <div class="pillar-card">
+          <div class="pillar-icon">📥</div>
+          <strong>1. Receber Pacientes</strong>
+          <span>Rodízio inteligente com confirmação em até 24 h direto no WhatsApp.</span>
+        </div>
+        <div class="pillar-card">
+          <div class="pillar-icon">🗓️</div>
+          <strong>2. Agenda Inteligente</strong>
+          <span>Link exclusivo para o paciente escolher horários livres ou marcação direta.</span>
+        </div>
+        <div class="pillar-card">
+          <div class="pillar-icon">📋</div>
+          <strong>3. Prontuário</strong>
+          <span>Evolução clínica padronizada, segura e com sigilo estrito pelo CFP.</span>
+        </div>
+        <div class="pillar-card">
+          <div class="pillar-icon">💰</div>
+          <strong>4. Financeiro 70%</strong>
+          <span>Conciliação automática via Pix/cartão e crédito transparente de 70%.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- MAPA MENTAL DAS TELAS (6 MÓDULOS) -->
+    <section>
+      <div class="section-title">
+        <h3>1. Mapa Mental da Plataforma</h3>
+        <span class="pill">6 Módulos Principais</span>
+      </div>
+
+      <div class="mindmap-grid">
+        <!-- 1. Meu Painel -->
+        <div class="menu-card primary">
+          <div>
+            <div class="menu-card-header">
+              <div class="menu-icon-title">
+                <div class="card-icon">⚡</div>
+                <h4>Meu Painel</h4>
+              </div>
+            </div>
+            <p class="card-desc">O ponto de partida do seu dia. Atalhos rápidos para o que você mais utiliza.</p>
+            <div class="card-actions">
+              <ul>
+                <li><strong>Link da Sua Agenda:</strong> copiar URL ou enviar direto no WhatsApp do paciente.</li>
+                <li><strong>Prontuário Rápido:</strong> atalho direto para a evolução do paciente.</li>
+                <li><strong>Próximas Sessões:</strong> botão "Lembrar Wpp" com mensagem pronta.</li>
+                <li><strong>Calendário:</strong> bloqueios rápidos de horários pontuais.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Meus Pacientes -->
+        <div class="menu-card green">
+          <div>
+            <div class="menu-card-header">
+              <div class="menu-icon-title">
+                <div class="card-icon">👥</div>
+                <h4>Meus Pacientes</h4>
+              </div>
+            </div>
+            <p class="card-desc">Sua carteira ativa de clientes. Apenas você visualiza seus pacientes (sigilo total).</p>
+            <div class="card-actions">
+              <ul>
+                <li><strong>+ Cadastrar Paciente:</strong> vincular novo paciente particular ou convênio.</li>
+                <li><strong>Prontuário:</strong> abre a ficha e a linha do tempo clínica.</li>
+                <li><strong>Agendar / Enviar Agenda:</strong> marcação em 1 clique.</li>
+                <li><strong>Registrar Desistência:</strong> encerra e devolve vaga ao rodízio.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Agenda & Horários -->
+        <div class="menu-card blue">
+          <div>
+            <div class="menu-card-header">
+              <div class="menu-icon-title">
+                <div class="card-icon">🗓️</div>
+                <h4>Agenda & Horários</h4>
+              </div>
+            </div>
+            <p class="card-desc">Defina quando você atende, marque sessões e confirme atendimentos realizados.</p>
+            <div class="card-actions">
+              <ul>
+                <li><strong>Grade Semanal:</strong> configure dias e janelas de atendimento.</li>
+                <li><strong>Períodos Bloqueados:</strong> trave férias e ausências para sumir do link.</li>
+                <li><strong>Confirmar Sessão:</strong> marque "Confirmar que ocorreu" pós-atendimento.</li>
+                <li><strong>Reagendamento & Pix:</strong> altere data e o Pix acompanha a nova data.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. Prontuários dos Pacientes -->
+        <div class="menu-card primary">
+          <div>
+            <div class="menu-card-header">
+              <div class="menu-icon-title">
+                <div class="card-icon">📝</div>
+                <h4>Prontuário</h4>
+              </div>
+            </div>
+            <p class="card-desc">Registro e acompanhamento contínuo da evolução clínica de cada paciente.</p>
+            <div class="card-actions">
+              <ul>
+                <li><strong>Evolução Clínica:</strong> anotações estruturadas da sessão e conduta terapêutica.</li>
+                <li><strong>Demanda & Queixa Principal:</strong> histórico do paciente e motivos da busca por atendimento.</li>
+                <li><strong>Linha do Tempo:</strong> histórico de todas as sessões e anotações cronológicas.</li>
+                <li><strong>Sigilo & Segurança:</strong> prontuário privativo com acesso exclusivo ao profissional.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. Meu Financeiro -->
+        <div class="menu-card amber">
+          <div>
+            <div class="menu-card-header">
+              <div class="menu-icon-title">
+                <div class="card-icon">💰</div>
+                <h4>Meu Financeiro</h4>
+              </div>
+            </div>
+            <p class="card-desc">Acompanhamento transparente de sessões pagas, pendentes e crédito de 70%.</p>
+            <div class="card-actions">
+              <ul>
+                <li><strong>Crédito 70%:</strong> valor líquido de cada sessão realizada.</li>
+                <li><strong>Conciliação Pix / Cartão:</strong> atualização automática de pagamentos.</li>
+                <li><strong>Filtro por Mês:</strong> consulte meses anteriores e exporte relatório CSV.</li>
+                <li><strong>Abatimento de Mensalidade:</strong> crédito pode abater sua pós-graduação.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- 6. Meu Cadastro -->
+        <div class="menu-card">
+          <div>
+            <div class="menu-card-header">
+              <div class="menu-icon-title">
+                <div class="card-icon">⚙️</div>
+                <h4>Meu Cadastro</h4>
+              </div>
+            </div>
+            <p class="card-desc">Seu perfil clínico e critérios que definem quais pacientes você recebe no rodízio.</p>
+            <div class="card-actions">
+              <ul>
+                <li><strong>Editar Perfil:</strong> turnos, público-alvo e modalidade (online/presencial).</li>
+                <li><strong>Status de Credenciamento:</strong> confirma se o perfil está publicado e elegível.</li>
+                <li><strong>Solicitar Alteração:</strong> pedir ajuste de capacidade ou turmas à gestão.</li>
+                <li><strong>Termos & Políticas:</strong> regras de split 70/30, sigilo CFP e LGPD.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FLUXOGRAMAS DAS JORNADAS CHAVE -->
+    <section>
+      <div class="section-title">
+        <h3>2. Fluxogramas de Ação (Jornadas do Dia a Dia)</h3>
+        <span class="pill">Passo a Passo</span>
+      </div>
+
+      <!-- Jornada A: Novo Paciente -->
+      <div class="journey-container">
+        <div class="journey-head">
+          <h4>📥 Jornada A: Chegada de Paciente do Rodízio</h4>
+          <span class="sla-tag">⏰ Prazo de 24 h</span>
+        </div>
+        <div class="flow-steps">
+          <div class="flow-box">
+            <div class="flow-num">1</div>
+            <strong>Triagem na Vitrine</strong>
+            <p>O paciente escolhe serviço, turno e modalidade no site da clínica.</p>
+          </div>
+          <div class="flow-box highlight">
+            <div class="flow-num">2</div>
+            <strong>Aviso no WhatsApp</strong>
+            <p>Você recebe mensagem com dados do caso e telefone do paciente.</p>
+          </div>
+          <div class="flow-box highlight">
+            <div class="flow-num">3</div>
+            <strong>Decisão em 24 h</strong>
+            <p>Clique no link do WhatsApp para confirmar o 1º contato ou devolver o caso.</p>
+          </div>
+          <div class="flow-box success">
+            <div class="flow-num">4</div>
+            <strong>Entrada na Carteira</strong>
+            <p>O paciente aparece ativo na sua tela "Meus Pacientes".</p>
+          </div>
+          <div class="flow-box success">
+            <div class="flow-num">5</div>
+            <strong>Enviar Link da Agenda</strong>
+            <p>Envie seu link público exclusivo para o paciente escolher o horário.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Jornada B: O Ciclo da Sessão -->
+      <div class="journey-container">
+        <div class="journey-head">
+          <h4>🩺 Jornada B: O Ciclo de Atendimento (1-Clique Workflow)</h4>
+          <span class="sla-tag">Pós-Sessão</span>
+        </div>
+        <div class="flow-steps">
+          <div class="flow-box">
+            <div class="flow-num">1</div>
+            <strong>Agendamento</strong>
+            <p>Sessão marcada pelo psicólogo ou agendada pelo próprio paciente.</p>
+          </div>
+          <div class="flow-box">
+            <div class="flow-num">2</div>
+            <strong>Cobrança Automática</strong>
+            <p>Link Pix e Cartão gerado com data limite de vencimento.</p>
+          </div>
+          <div class="flow-box">
+            <div class="flow-num">3</div>
+            <strong>Sessão Realizada</strong>
+            <p>Após o atendimento, surge o aviso "Confirme se a sessão ocorreu".</p>
+          </div>
+          <div class="flow-box highlight">
+            <div class="flow-num">4</div>
+            <strong>Confirmar na Agenda</strong>
+            <p>Em "Agenda & Horários", clique em <strong>"Confirmar que ocorreu"</strong>.</p>
+          </div>
+          <div class="flow-box success">
+            <div class="flow-num">5</div>
+            <strong>Prontuário + 70%</strong>
+            <p>Lance a evolução no prontuário e o crédito de 70% é liberado no seu Financeiro.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Jornada C: Autonomia do Paciente -->
+      <div class="journey-container">
+        <div class="journey-head">
+          <h4>🔗 Jornada C: Como o Paciente Agenda Sozinho (Link Público)</h4>
+          <span class="sla-tag">Autonomia</span>
+        </div>
+        <div class="flow-steps four">
+          <div class="flow-box">
+            <div class="flow-num">1</div>
+            <strong>Acessa seu Link</strong>
+            <p>O paciente clica no link exclusivo de agendamento enviado por você.</p>
+          </div>
+          <div class="flow-box">
+            <div class="flow-num">2</div>
+            <strong>Identificação por CPF</strong>
+            <p>Informa o CPF para garantir vínculo à sua carteira.</p>
+          </div>
+          <div class="flow-box">
+            <div class="flow-num">3</div>
+            <strong>Escolhe os Horários</strong>
+            <p>Visualiza apenas suas janelas livres (bloqueios e sessões são ocultados).</p>
+          </div>
+          <div class="flow-box success">
+            <div class="flow-num">4</div>
+            <strong>Pagamento com Desconto</strong>
+            <p>Paga via Pix ou Cartão. Pacientes que pagam 4+ sessões ganham 10% de desconto.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- BÚSSOLA RÁPIDA -->
+    <section>
+      <div class="section-title">
+        <h3>3. Bússola Rápida: O que você precisa fazer agora?</h3>
+        <span class="pill">Guia de Bolso</span>
+      </div>
+
+      <div class="bussola-table-wrap">
+        <table class="bussola-table">
+          <thead>
+            <tr>
+              <th>O que você quer fazer?</th>
+              <th>Para onde ir?</th>
+              <th>Ação exata na tela</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Recebi um paciente novo do rodízio</strong></td>
+              <td><span class="destaque-onde">📱 WhatsApp / E-mail</span></td>
+              <td>Clique no link recebido para confirmar o 1º contato em até 24 h. <em>(Não fica no painel)</em></td>
+            </tr>
+            <tr>
+              <td><strong>Passar horários para o paciente escolher</strong></td>
+              <td><span class="destaque-onde">⚡ Meu Painel ou Agenda</span></td>
+              <td>Clique em <strong>Copiar Link</strong> ou <strong>Enviar Wpp</strong> do seu Link Público exclusivo.</td>
+            </tr>
+            <tr>
+              <td><strong>Agendar uma sessão diretamente</strong></td>
+              <td><span class="destaque-onde">🗓️ Agenda & Horários</span></td>
+              <td>Clique no botão <strong>+ Agendar sessão</strong>, escolha o paciente, dia e horário.</td>
+            </tr>
+            <tr>
+              <td><strong>Lembrar o paciente do atendimento de hoje</strong></td>
+              <td><span class="destaque-onde">⚡ Meu Painel</span></td>
+              <td>Na lista "Suas Próximas Sessões", clique no botão <strong>Lembrar Wpp</strong>.</td>
+            </tr>
+            <tr>
+              <td><strong>A sessão acabou de terminar</strong></td>
+              <td><span class="destaque-onde">🗓️ Agenda & Horários</span></td>
+              <td>Localize a sessão e clique em <strong>"Confirmar que ocorreu"</strong>.</td>
+            </tr>
+            <tr>
+              <td><strong>Evoluir o prontuário clínico</strong></td>
+              <td><span class="destaque-onde">📝 Prontuário</span></td>
+              <td>Selecione o paciente e registre a evolução clínica do atendimento realizado.</td>
+            </tr>
+            <tr>
+              <td><strong>Conferir repasse e valores recebidos</strong></td>
+              <td><span class="destaque-onde">💰 Meu Financeiro</span></td>
+              <td>Selecione o mês para ver os pagamentos conciliados e a coluna <strong>Crédito 70%</strong>.</td>
+            </tr>
+            <tr>
+              <td><strong>Vou tirar férias ou participar de congresso</strong></td>
+              <td><span class="destaque-onde">🗓️ Agenda & Horários</span></td>
+              <td>Em "Períodos bloqueados", adicione a data inicial e final para sumir do seu link público.</td>
+            </tr>
+            <tr>
+              <td><strong>Paciente desistiu ou encerrou o processo</strong></td>
+              <td><span class="destaque-onde">👥 Meus Pacientes</span></td>
+              <td>No cartão do paciente, clique em <strong>Registrar desistência</strong> para liberar sua vaga.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- REGRAS DE OURO & COMPLIANCE -->
+    <section>
+      <div class="section-title">
+        <h3>4. Regras de Ouro & Dúvidas Frequentes</h3>
+        <span class="pill">CFP & LGPD</span>
+      </div>
+
+      <div class="golden-grid">
+        <div class="golden-card">
+          <h5>🔒 Sigilo Absoluto e CFP</h5>
+          <p>
+            Cada especialista tem visão estrita e isolada dos seus pacientes. Nenhum outro psicólogo da clínica tem acesso aos seus prontuários. Registros são criptografados em repouso conforme exigências do Conselho Federal de Psicologia e da LGPD.
+          </p>
+        </div>
+
+        <div class="golden-card">
+          <h5>⏰ O que acontece se passar de 24 h?</h5>
+          <p>
+            O rodízio da clínica preza pela agilidade de acolhimento. Caso você não confirme o primeiro contato em 24 h pelo link do WhatsApp, o sistema repassa o paciente para o próximo colega da fila para não deixar o paciente desamparado.
+          </p>
+        </div>
+
+        <div class="golden-card">
+          <h5>💵 Como funciona o repasse de 70%?</h5>
+          <p>
+            O valor de 70% de cada sessão é creditado para você assim que o pagamento é conciliado e a sessão é confirmada. Você pode acompanhar pelo módulo <strong>Meu Financeiro</strong>. O abatimento na mensalidade da pós-graduação é processado pelo setor financeiro da clínica.
+          </p>
+        </div>
+
+        <div class="golden-card">
+          <h5>🔄 Reagendamentos e cancelamentos</h5>
+          <p>
+            Ao reagendar uma sessão na Agenda, a data de vencimento da cobrança Pix acompanha automaticamente o novo dia e horário. Cancelamentos exigem motivo justificado para registro histórico.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Rodapé -->
+    <footer>
+      <div>
+        <strong>Clínica Viver Mais</strong> — Plataforma de Inteligência Clínica & Cockpit do Especialista.
+      </div>
+      <div>
+        Atualizado em Outubro/2026 • Documento Oficial de Orientação
+      </div>
+    </footer>
+
+  </main>
+
+</body>
+</html>

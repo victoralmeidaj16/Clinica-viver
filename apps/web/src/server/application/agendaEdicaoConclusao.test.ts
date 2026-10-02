@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 vi.mock('@/server/scheduling/agendaAvisos', () => ({ avisarSessaoCancelada: vi.fn() }));
@@ -47,8 +47,14 @@ const adminContext = { ...context, actor: { ...context.actor, roles: ['admin'] }
 describe('editAgendaAppointment', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-01T12:00:00Z'));
     vi.mocked(updateAppointmentDetails).mockResolvedValue('ok');
     vi.mocked(completeAppointment).mockResolvedValue('completed');
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it.each([true, false])('bloqueia alteração de pagador pelo psicólogo: %s', async (custeadoPelaEmpresa) => {

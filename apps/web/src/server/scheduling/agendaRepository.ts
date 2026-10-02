@@ -60,6 +60,8 @@ export interface BloqueioAgenda {
 }
 
 export interface AgendamentoResumo {
+  pacienteRef?: string;
+  agendamentoRef?: string;
   id: string;
   pacienteNome: string;
   inicio: string;
@@ -414,7 +416,7 @@ export async function listAppointments(
   const connection = await getMysqlPool().getConnection();
   try {
     const [rows] = await connection.query<RowDataPacket[]>(
-      `SELECT a.id, a.inicio, a.fim, a.duracao_min, a.modalidade, a.status,
+      `SELECT a.id, a.ref_core AS agendamento_ref, pa.ref_core AS paciente_ref, a.inicio, a.fim, a.duracao_min, a.modalidade, a.status,
               a.sessao_clinica_ref,
               a.origem_criacao, a.criado_em, a.realizado_em, a.token_pagamento_sessao,
               COALESCE(pa.nome_social, pa.nome) AS paciente_nome,
@@ -462,6 +464,8 @@ export async function listAppointments(
       return {
         id: String(row.id),
         pacienteNome: String(row.paciente_nome ?? 'Paciente'),
+        pacienteRef: row.paciente_ref ? String(row.paciente_ref) : undefined,
+        agendamentoRef: row.agendamento_ref ? String(row.agendamento_ref) : undefined,
         inicio: new Date(row.inicio).toISOString(),
         fim: fim.toISOString(),
         modalidade: row.modalidade,

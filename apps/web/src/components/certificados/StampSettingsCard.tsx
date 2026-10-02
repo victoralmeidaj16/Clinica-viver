@@ -1,7 +1,7 @@
 'use client';
 
 import { Minus, Move, Plus, RotateCcw, Square } from 'lucide-react';
-import { STAMP_WIDTH_MAX, STAMP_WIDTH_MIN, type CertificateStampQr } from '@thats-life/core';
+import { STAMP_FONT_MAX, STAMP_FONT_MIN, STAMP_WIDTH_MAX, STAMP_WIDTH_MIN, type CertificateStampQr } from '@thats-life/core';
 
 type Align = 'left' | 'center' | 'right';
 
@@ -66,11 +66,11 @@ export function StampSettingsCard({
         <div className={rowClass}>
           <span className={labelClass}>Tamanho da Fonte:</span>
           <div className="flex items-center gap-1">
-            <button type="button" onClick={() => onFontSize(Math.max(8, fontSize - 1))} className={stepButtonClass}>
+            <button type="button" onClick={() => onFontSize(Math.max(STAMP_FONT_MIN, fontSize - 1))} className={stepButtonClass}>
               <Minus className="w-3 h-3" />
             </button>
             <span className="font-mono font-bold px-2">{fontSize}px</span>
-            <button type="button" onClick={() => onFontSize(Math.min(32, fontSize + 1))} className={stepButtonClass}>
+            <button type="button" onClick={() => onFontSize(Math.min(STAMP_FONT_MAX, fontSize + 1))} className={stepButtonClass}>
               <Plus className="w-3 h-3" />
             </button>
           </div>

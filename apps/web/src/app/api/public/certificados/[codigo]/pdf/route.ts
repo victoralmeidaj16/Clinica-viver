@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import PDFDocument from 'pdfkit';
 import { certificadosRepo } from '@/server/certificados/certificadosRepository';
 import qrcode from 'qrcode-generator';
-import { certificatePublicValidationUrl, resolveCertificateStampText } from '@thats-life/core';
+import { STAMP_FONT_MIN, certificatePublicValidationUrl, resolveCertificateStampText } from '@thats-life/core';
 import { proxyToPersistentBackend } from '@/server/http/persistentBackendProxy';
 
 export const runtime = 'nodejs';
@@ -136,7 +136,7 @@ export async function GET(
     const stampYPercent = record.stampY !== undefined ? record.stampY : 75;
     const stampXPt = (PAGE_WIDTH * stampXPercent) / 100;
     const stampYPt = (PAGE_HEIGHT * stampYPercent) / 100;
-    const fontSizePt = Math.max(7, Math.min(24, ((record.stampFontSize || 11) * PAGE_WIDTH) / 1000));
+    const fontSizePt = Math.max((STAMP_FONT_MIN * PAGE_WIDTH) / 1000, Math.min(24, ((record.stampFontSize || 11) * PAGE_WIDTH) / 1000));
     const alignPdf = record.stampAlign === 'left' ? 'left' : record.stampAlign === 'right' ? 'right' : 'center';
 
     const stampWidthPt = record.stampWidth ? (PAGE_WIDTH * record.stampWidth) / 100 : PAGE_WIDTH * 0.85;

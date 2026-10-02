@@ -9,6 +9,8 @@ export type CertificateStampQr = 'left' | 'top';
 export const STAMP_WIDTH_MIN = 10;
 export const STAMP_WIDTH_MAX = 90;
 export const STAMP_TEXT_MAX = 2000;
+export const STAMP_FONT_MIN = 2;
+export const STAMP_FONT_MAX = 32;
 
 export const DEFAULT_FRONT_QR_X = 81.5;
 export const DEFAULT_FRONT_QR_Y = 68.5;

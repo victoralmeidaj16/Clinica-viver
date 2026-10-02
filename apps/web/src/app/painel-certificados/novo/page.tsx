@@ -12,7 +12,9 @@ import {
   FileText,
   Loader2,
   Lock,
+  Minus,
   Move,
+  Plus,
   Save,
   Trash2,
   Upload,
@@ -24,6 +26,8 @@ import {
   DEFAULT_FRONT_QR_Y,
   FRONT_QR_SIZE_MAX,
   FRONT_QR_SIZE_MIN,
+  STAMP_FONT_MAX,
+  STAMP_FONT_MIN,
   STAMP_WIDTH_MAX,
   STAMP_WIDTH_MIN,
   certificatePublicValidationUrl,
@@ -1010,40 +1014,38 @@ export default function AnexarCertificadoPage() {
                           : 'bg-transparent border border-dashed border-psi-vibrant/70 hover:bg-white/40 hover:border-psi-deep'
                       }`}
                     >
-                      {/* Barra Superior do Bloco do Carimbo (Mover + Controles Rápidos de Tamanho) */}
-                      <div className="flex items-center justify-between gap-2 pb-1 mb-1 border-b border-psi-vibrant/30 bg-white/80 px-1.5 py-0.5 rounded-lg backdrop-blur-xs">
-                        <div className="flex items-center gap-1 text-[9px] font-mono font-bold text-psi-deep">
-                          <Move className="w-2.5 h-2.5" />
-                          <span>Arraste</span>
-                        </div>
-
-                        {/* Botões de Aumentar / Diminuir Direto no Bloco */}
-                        <div className="flex items-center gap-1">
+                      {/* Controles flutuantes acima do carimbo: mover + tamanho da fonte, fora do texto */}
+                      <div
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onTouchStart={(e) => e.stopPropagation()}
+                        className="absolute -top-3 right-2 z-20 flex items-center gap-0.5 rounded-full bg-white/95 p-0.5 shadow-md ring-1 ring-psi-vibrant/30 text-psi-deep"
+                      >
+                        <div className="flex items-center gap-0.5 overflow-hidden max-w-0 opacity-0 group-hover:max-w-[6rem] group-hover:opacity-100 transition-all">
                           <button
                             type="button"
                             title="Diminuir tamanho do carimbo"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setStampFontSize((s) => Math.max(8, s - 1));
-                            }}
-                            className="h-4 w-4 rounded bg-psi-soft hover:bg-psi-deep hover:text-white grid place-items-center text-[10px] font-bold transition-colors"
+                            onClick={() => setStampFontSize((s) => Math.max(STAMP_FONT_MIN, s - 1))}
+                            className="h-5 w-5 rounded-full hover:bg-psi-soft grid place-items-center"
                           >
-                            -
+                            <Minus className="w-3 h-3" />
                           </button>
-                          <span className="text-[9px] font-mono font-bold text-muted px-1">
-                            {stampFontSize}px
-                          </span>
+                          <span className="text-[9px] font-mono font-bold text-muted">{stampFontSize}px</span>
                           <button
                             type="button"
                             title="Aumentar tamanho do carimbo"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setStampFontSize((s) => Math.min(32, s + 1));
-                            }}
-                            className="h-4 w-4 rounded bg-psi-soft hover:bg-psi-deep hover:text-white grid place-items-center text-[10px] font-bold transition-colors"
+                            onClick={() => setStampFontSize((s) => Math.min(STAMP_FONT_MAX, s + 1))}
+                            className="h-5 w-5 rounded-full hover:bg-psi-soft grid place-items-center"
                           >
-                            +
+                            <Plus className="w-3 h-3" />
                           </button>
+                        </div>
+                        <div
+                          onMouseDown={handleDragStart}
+                          onTouchStart={handleDragStart}
+                          title="Arraste para posicionar o carimbo"
+                          className="h-5 w-5 rounded-full bg-psi-deep text-white grid place-items-center cursor-grab active:cursor-grabbing"
+                        >
+                          <Move className="w-3 h-3" />
                         </div>
                       </div>
 

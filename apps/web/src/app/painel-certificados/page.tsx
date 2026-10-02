@@ -220,7 +220,7 @@ export default function PainelCertificadosPage() {
                   <th className="p-4">Curso / Formação</th>
                   <th className="p-4 text-center">Carga</th>
                   <th className="p-4">Data Emissão</th>
-                  <th className="p-4 text-right">Validador Público & 2ª Via</th>
+                  <th className="p-4 text-right">Validador Público & Certificado</th>
                 </tr>
               </thead>
               <tbody>
@@ -237,7 +237,7 @@ export default function PainelCertificadosPage() {
                         target="_blank"
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-psi-soft hover:bg-psi-deep hover:text-white text-psi-deep font-bold transition-all text-xs shadow-xs"
                       >
-                        <span>Visualizar / 2ª Via PDF</span>
+                        <span>Visualizar / Baixar Certificado</span>
                         <ExternalLink className="w-3.5 h-3.5" />
                       </Link>
                     </td>

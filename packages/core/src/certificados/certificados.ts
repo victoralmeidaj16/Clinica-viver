@@ -13,6 +13,15 @@ export const STAMP_FONT_MIN = 2;
 export const STAMP_FONT_MAX = 32;
 /** Topo máximo do carimbo no verso (%): deixa descer até o fim, cortando o que passar. */
 export const STAMP_Y_MAX = 98;
+/**
+ * Fonte do carimbo em milésimos da largura da arte: 11 = 1,1% da largura. Editor,
+ * página pública e PDF medem tudo contra a arte, então o que se posiciona é o que sai.
+ */
+export const CERT_FONT_BASE_WIDTH = 1000;
+/** Lado do QR do carimbo em múltiplos da fonte. */
+export const STAMP_QR_FONT_RATIO = 7;
+/** Altura de linha do texto do carimbo, em múltiplos da fonte. */
+export const STAMP_LINE_HEIGHT = 1.25;
 
 export const DEFAULT_FRONT_QR_X = 81.5;
 export const DEFAULT_FRONT_QR_Y = 68.5;

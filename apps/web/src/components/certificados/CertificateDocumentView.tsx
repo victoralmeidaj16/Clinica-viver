@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { Award, Check, Copy, Download, FileText, Printer } from 'lucide-react';
 import {
@@ -26,6 +26,28 @@ export function CertificateDocumentView({ record, publicValidationUrl }: Props) 
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  // Carimbo do verso: X/Y/largura em % da arte e fonte em milésimos da largura, como no PDF.
+  const stamp =
+    record.stampX !== undefined && record.stampY !== undefined ? (
+      <div
+        style={{
+          position: 'absolute',
+          left: `${record.stampX}%`,
+          top: `${record.stampY}%`,
+          width: `${record.stampWidth || 85}%`,
+        }}
+        className="z-10 select-text"
+      >
+        <CertificateStampContent
+          text={versoText}
+          fontSize={record.stampFontSize || 11}
+          align={record.stampAlign || 'center'}
+          qr={record.stampQr}
+          qrValue={certificatePublicValidationUrl()}
+        />
+      </div>
+    ) : null;
 
   const pdfDownloadUrl = `/api/public/certificados/${encodeURIComponent(record.code)}/pdf`;
 
@@ -90,15 +112,12 @@ export function CertificateDocumentView({ record, publicValidationUrl }: Props) 
             <span className="text-xs font-mono font-bold text-psi-deep">ID: {record.code}</span>
           </div>
 
-          <div className="cert-page relative aspect-[1.414/1] w-full bg-white rounded-2xl md:rounded-3xl border border-line overflow-hidden shadow-card flex items-center justify-center">
+          <div
+            style={{ containerType: 'size' }}
+            className="cert-page relative aspect-[1.414/1] w-full bg-white rounded-2xl md:rounded-3xl border border-line overflow-hidden shadow-card flex items-center justify-center"
+          >
             {record.frontImageUrl ? (
-              <>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={record.frontImageUrl}
-                  alt="Frente do Certificado"
-                  className="w-full h-full object-contain"
-                />
+              <CertificateArtFrame src={record.frontImageUrl} alt="Frente do Certificado">
                 {record.frontQrEnabled !== false && record.frontQrX != null && record.frontQrY != null && (
                   <div
                     style={{
@@ -108,16 +127,13 @@ export function CertificateDocumentView({ record, publicValidationUrl }: Props) 
                       width: `${record.frontQrSize || 8.5}%`,
                       aspectRatio: '1 / 1',
                     }}
-                    className="z-10 bg-white/95 p-0.5 rounded shadow-xs"
+                    className="z-10"
                     title={`Validação Oficial: ${record.code}`}
                   >
-                    <QrCodeConferencia
-                      valor={publicValidationUrl}
-                      className="w-full h-full object-contain"
-                    />
+                    <QrCodeConferencia valor={publicValidationUrl} className="block w-full h-full" />
                   </div>
                 )}
-              </>
+              </CertificateArtFrame>
             ) : (
               <div className="p-8 md:p-12 w-full h-full flex flex-col justify-between">
                 {/* Faixa superior estética */}
@@ -193,59 +209,79 @@ export function CertificateDocumentView({ record, publicValidationUrl }: Props) 
             <span className="text-xs font-mono font-bold text-psi-deep">ID: {record.code}</span>
           </div>
 
-          <div className="cert-page relative aspect-[1.414/1] w-full bg-white rounded-2xl md:rounded-3xl border border-line overflow-hidden shadow-card flex items-center justify-center">
+          <div
+            style={{ containerType: 'size' }}
+            className="cert-page relative aspect-[1.414/1] w-full bg-white rounded-2xl md:rounded-3xl border border-line overflow-hidden shadow-card flex items-center justify-center"
+          >
             {record.backImageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={record.backImageUrl}
-                alt="Verso do Certificado"
-                className="w-full h-full object-contain"
-              />
+              <CertificateArtFrame src={record.backImageUrl} alt="Verso do Certificado">
+                {stamp}
+              </CertificateArtFrame>
             ) : (
-              <div className="p-8 md:p-12 w-full h-full flex flex-col justify-between">
-                <div className="flex items-center justify-between border-b border-line pb-3">
-                  <div>
-                    <h3 className="font-bold text-xs md:text-sm text-ink">Registro Acadêmico e Ementa Oficial</h3>
-                    <p className="text-[10px] text-muted mt-0.5">{record.courseTitle}</p>
+              <div className="relative w-full h-full" style={{ containerType: 'inline-size' }}>
+                <div className="p-8 md:p-12 w-full h-full flex flex-col justify-between">
+                  <div className="flex items-center justify-between border-b border-line pb-3">
+                    <div>
+                      <h3 className="font-bold text-xs md:text-sm text-ink">Registro Acadêmico e Ementa Oficial</h3>
+                      <p className="text-[10px] text-muted mt-0.5">{record.courseTitle}</p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] font-mono font-bold text-muted">REGISTRO LIVRO N° 2026/VVR</span>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <span className="text-[10px] font-mono font-bold text-muted">REGISTRO LIVRO N° 2026/VVR</span>
-                  </div>
-                </div>
 
-                <div className="py-6 space-y-3 text-xs text-muted leading-relaxed">
-                  <p>• Curso livre de formação continuada e aprofundamento técnico em Psicologia.</p>
-                  <p>• Aluno com frequência atestada e cumprimento de 100% das atividades pedagógicas programadas.</p>
-                  <p>• Documento assinado eletronicamente sob conformidade com a legislação educacional e arquivado na Secretaria Acadêmica da Viver Mais Psicologia.</p>
+                  <div className="py-6 space-y-3 text-xs text-muted leading-relaxed">
+                    <p>• Curso livre de formação continuada e aprofundamento técnico em Psicologia.</p>
+                    <p>• Aluno com frequência atestada e cumprimento de 100% das atividades pedagógicas programadas.</p>
+                    <p>• Documento assinado eletronicamente sob conformidade com a legislação educacional e arquivado na Secretaria Acadêmica da Viver Mais Psicologia.</p>
+                  </div>
                 </div>
+                {stamp}
               </div>
             )}
-
-            {/* CARIMBO DIGITAL NO VERSO (COM POSICIONAMENTO DINÂMICO E TRANSPARÊNCIA 100%) */}
-            {record.stampX !== undefined && record.stampY !== undefined ? (
-              <div
-                style={{
-                  position: 'absolute',
-                  left: `${record.stampX}%`,
-                  top: `${record.stampY}%`,
-                  fontSize: `${record.stampFontSize || 11}px`,
-                  width: record.stampWidth ? `${record.stampWidth}%` : undefined,
-                  maxWidth: '90%',
-                }}
-                className="bg-transparent border-0 shadow-none p-0 z-10 select-text"
-              >
-                <CertificateStampContent
-                  text={versoText}
-                  fontSize={record.stampFontSize || 11}
-                  align={record.stampAlign || 'center'}
-                  qr={record.stampQr}
-                  qrValue={certificatePublicValidationUrl()}
-                />
-              </div>
-            ) : null}
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Moldura do tamanho exato da arte dentro da página: as sobreposições (QR, carimbo)
+ * são posicionadas em % dela, e não da página, para casar com o editor e o PDF
+ * mesmo quando a proporção da arte difere da do papel.
+ */
+function CertificateArtFrame({ src, alt, children }: { src: string; alt: string; children?: ReactNode }) {
+  const [ratio, setRatio] = useState(1.414);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  const readRatio = (img: HTMLImageElement | null) => {
+    if (img?.naturalWidth && img.naturalHeight) setRatio(img.naturalWidth / img.naturalHeight);
+  };
+
+  // Imagem já carregada antes da hidratação não dispara `onLoad`.
+  useEffect(() => {
+    if (imgRef.current?.complete) readRatio(imgRef.current);
+  }, [src]);
+
+  return (
+    <div
+      className="relative"
+      style={{
+        aspectRatio: `${ratio}`,
+        width: `min(100cqw, calc(100cqh * ${ratio}))`,
+        containerType: 'inline-size',
+      }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        ref={imgRef}
+        src={src}
+        alt={alt}
+        onLoad={(e) => readRatio(e.currentTarget)}
+        className="absolute inset-0 w-full h-full"
+      />
+      {children}
     </div>
   );
 }

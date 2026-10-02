@@ -911,8 +911,14 @@ export default function AnexarCertificadoPage() {
               {/* CANVAS CONTAINER AMPLO COM ENQUADRAMENTO TOTAL */}
               <div
                 ref={canvasRef}
-                style={{ aspectRatio: `${aspectRatio}` }}
-                className="relative mx-auto w-full max-h-[75vh] rounded-2xl bg-white border-2 border-psi-deep/30 overflow-hidden shadow-card select-none flex items-center justify-center"
+                // O canvas tem exatamente a proporção da arte (sem faixas vazias nas laterais) e é
+                // o container das medidas `cqw`: X/Y/tamanho em % e fonte valem sobre a arte, como no PDF.
+                style={{
+                  aspectRatio: `${aspectRatio}`,
+                  width: `min(100%, calc(75vh * ${aspectRatio}))`,
+                  containerType: 'inline-size',
+                }}
+                className="relative mx-auto rounded-2xl bg-white ring-2 ring-psi-deep/30 overflow-hidden shadow-card select-none flex items-center justify-center"
               >
                 {activeTab === 'front' ? (
                   /* FRENTE COM QR CODE ARRASTÁVEL */
@@ -939,12 +945,13 @@ export default function AnexarCertificadoPage() {
                             aspectRatio: '1 / 1',
                             cursor: isDraggingFrontQr ? 'grabbing' : 'grab',
                           }}
-                          className={`group rounded-xl p-1 bg-white/95 transition-[border-color,box-shadow,transform] ${
+                          // Sem padding/borda: o QR ocupa a caixa inteira, como no PDF. O contorno é `outline`, fora do layout.
+                          className={`group transition-[outline-color,box-shadow] outline-offset-2 ${
                             isDraggingFrontQr
-                              ? 'border-2 border-psi-deep shadow-xl ring-4 ring-psi-vibrant/30 scale-105 z-30'
+                              ? 'outline outline-2 outline-psi-deep shadow-xl z-30'
                               : isResizingFrontQr
-                              ? 'border-2 border-psi-vibrant ring-4 ring-psi-vibrant/40 z-30'
-                              : 'border-2 border-dashed border-psi-vibrant/80 hover:border-psi-deep hover:shadow-md z-20'
+                              ? 'outline outline-2 outline-psi-vibrant z-30'
+                              : 'outline outline-2 outline-dashed outline-psi-vibrant/80 hover:outline-psi-deep hover:shadow-md z-20'
                           }`}
                           title="Arraste para posicionar o QR code na frente"
                         >
@@ -955,10 +962,10 @@ export default function AnexarCertificadoPage() {
                           </div>
 
                           {/* QR Code SVG */}
-                          <div className="w-full h-full flex items-center justify-center select-none pointer-events-none">
+                          <div className="w-full h-full select-none pointer-events-none">
                             <QrCodeConferencia
                               valor={certificatePublicValidationUrl()}
-                              className="w-full h-full object-contain"
+                              className="block w-full h-full"
                             />
                           </div>
 
@@ -1004,23 +1011,24 @@ export default function AnexarCertificadoPage() {
                         position: 'absolute',
                         left: `${stampX}%`,
                         top: `${stampY}%`,
-                        fontSize: `${stampFontSize}px`,
                         width: `${stampWidth}%`,
                         cursor: isDraggingStamp ? 'grabbing' : 'grab',
                       }}
-                      className={`group rounded-xl p-2.5 transition-[background-color,border-color,box-shadow,transform] ${
+                      // Sem padding/borda: o texto começa exatamente em X/Y, como no PDF.
+                      // O contorno tracejado é `outline` com folga, fora do layout.
+                      className={`group rounded-sm outline-offset-4 transition-[background-color,outline-color] ${
                         isDraggingStamp
-                          ? 'bg-white/70 border-2 border-psi-deep shadow-lg ring-2 ring-psi-vibrant/30 scale-[1.01]'
+                          ? 'bg-white/70 outline outline-2 outline-psi-deep'
                           : isResizingStamp
-                          ? 'bg-white/70 border-2 border-psi-vibrant ring-2 ring-psi-vibrant/40'
-                          : 'bg-transparent border border-dashed border-psi-vibrant/70 hover:bg-white/40 hover:border-psi-deep'
+                          ? 'bg-white/70 outline outline-2 outline-psi-vibrant'
+                          : 'outline outline-1 outline-dashed outline-psi-vibrant/70 hover:bg-white/40 hover:outline-psi-deep'
                       }`}
                     >
                       {/* Controles flutuantes acima do carimbo: mover + tamanho da fonte, fora do texto */}
                       <div
                         onMouseDown={(e) => e.stopPropagation()}
                         onTouchStart={(e) => e.stopPropagation()}
-                        className="absolute -top-3 right-2 z-20 flex items-center gap-0.5 rounded-full bg-white/95 p-0.5 shadow-md ring-1 ring-psi-vibrant/30 text-psi-deep"
+                        className="absolute -top-8 right-0 z-20 flex items-center gap-0.5 rounded-full bg-white/95 p-0.5 shadow-md ring-1 ring-psi-vibrant/30 text-psi-deep"
                       >
                         <div className="flex items-center gap-0.5 overflow-hidden max-w-0 opacity-0 group-hover:max-w-[6rem] group-hover:opacity-100 transition-all">
                           <button
@@ -1067,7 +1075,7 @@ export default function AnexarCertificadoPage() {
                         onMouseDown={handleResizeStart}
                         onTouchStart={handleResizeStart}
                         title="Arraste para os lados para alargar ou estreitar o carimbo"
-                        className="absolute -bottom-2 -right-2 h-6 w-6 rounded-full bg-psi-deep text-white flex items-center justify-center cursor-nwse-resize shadow-md hover:scale-125 transition-transform text-[11px] font-bold z-20"
+                        className="absolute -bottom-4 -right-4 h-6 w-6 rounded-full bg-psi-deep text-white flex items-center justify-center cursor-nwse-resize shadow-md hover:scale-125 transition-transform text-[11px] font-bold z-20"
                       >
                         ⤡
                       </div>

@@ -2,7 +2,13 @@ import { NextResponse } from 'next/server';
 import PDFDocument from 'pdfkit';
 import { certificadosRepo } from '@/server/certificados/certificadosRepository';
 import qrcode from 'qrcode-generator';
-import { STAMP_FONT_MIN, certificatePublicValidationUrl, resolveCertificateStampText } from '@thats-life/core';
+import {
+  CERT_FONT_BASE_WIDTH,
+  STAMP_LINE_HEIGHT,
+  STAMP_QR_FONT_RATIO,
+  certificatePublicValidationUrl,
+  resolveCertificateStampText,
+} from '@thats-life/core';
 import { proxyToPersistentBackend } from '@/server/http/persistentBackendProxy';
 
 export const runtime = 'nodejs';
@@ -25,6 +31,30 @@ function drawQr(doc: PDFKit.PDFDocument, value: string, x: number, y: number, si
     }
   }
   doc.fill('#1e1b4b');
+}
+
+/** Área que a arte ocupa na página — a mesma referência das % gravadas no editor. */
+interface ArtRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Desenha a arte inteira, centralizada, e devolve onde ela ficou. Se a proporção
+ * da arte não for a do A4, sobram faixas — e as % do editor valem sobre a arte,
+ * não sobre a folha.
+ */
+function drawArt(doc: PDFKit.PDFDocument, buf: Buffer, pageWidth: number, pageHeight: number): ArtRect {
+  // `openImage` existe no PDFKit, mas falta nos tipos; o objeto devolvido é aceito por `doc.image`.
+  const image = (doc as unknown as { openImage(src: Buffer): { width: number; height: number } }).openImage(buf);
+  const scale = Math.min(pageWidth / image.width, pageHeight / image.height);
+  const width = image.width * scale;
+  const height = image.height * scale;
+  const rect = { x: (pageWidth - width) / 2, y: (pageHeight - height) / 2, width, height };
+  doc.image(image as unknown as Buffer, rect.x, rect.y, { width, height });
+  return rect;
 }
 
 function extractBase64Buffer(dataUrl: string): Buffer | null {
@@ -73,25 +103,18 @@ export async function GET(
 
     const PAGE_WIDTH = 841.89;
     const PAGE_HEIGHT = 595.28;
+    const FULL_PAGE: ArtRect = { x: 0, y: 0, width: PAGE_WIDTH, height: PAGE_HEIGHT };
 
     // --- PÁGINA 1: FRENTE DO CERTIFICADO ---
     if (record.frontImageUrl) {
       const frontBuf = extractBase64Buffer(record.frontImageUrl);
-      if (frontBuf) {
-        doc.image(frontBuf, 0, 0, {
-          width: PAGE_WIDTH,
-          height: PAGE_HEIGHT,
-          fit: [PAGE_WIDTH, PAGE_HEIGHT],
-          align: 'center',
-          valign: 'center',
-        });
-      }
+      const frontArt = frontBuf ? drawArt(doc, frontBuf, PAGE_WIDTH, PAGE_HEIGHT) : FULL_PAGE;
 
       // Sobreposição do QR code oficial de conferência na Frente (se habilitado)
       if (record.frontQrEnabled !== false && record.frontQrX != null && record.frontQrY != null) {
-        const qrFrontXPt = (PAGE_WIDTH * record.frontQrX) / 100;
-        const qrFrontYPt = (PAGE_HEIGHT * record.frontQrY) / 100;
-        const qrFrontSizePt = (PAGE_WIDTH * (record.frontQrSize || 8.5)) / 100;
+        const qrFrontXPt = frontArt.x + (frontArt.width * record.frontQrX) / 100;
+        const qrFrontYPt = frontArt.y + (frontArt.height * record.frontQrY) / 100;
+        const qrFrontSizePt = (frontArt.width * (record.frontQrSize || 8.5)) / 100;
         drawQr(doc, certificatePublicValidationUrl(), qrFrontXPt, qrFrontYPt, qrFrontSizePt);
       }
     } else {
@@ -112,17 +135,10 @@ export async function GET(
     // --- PÁGINA 2: VERSO COM CARIMBO OFICIAL TRANSPARENTE ---
     doc.addPage({ size: 'A4', layout: 'landscape', margin: 0 });
 
+    let backArt = FULL_PAGE;
     if (record.backImageUrl) {
       const backBuf = extractBase64Buffer(record.backImageUrl);
-      if (backBuf) {
-        doc.image(backBuf, 0, 0, {
-          width: PAGE_WIDTH,
-          height: PAGE_HEIGHT,
-          fit: [PAGE_WIDTH, PAGE_HEIGHT],
-          align: 'center',
-          valign: 'center',
-        });
-      }
+      if (backBuf) backArt = drawArt(doc, backBuf, PAGE_WIDTH, PAGE_HEIGHT);
     } else {
       doc.rect(0, 0, PAGE_WIDTH, PAGE_HEIGHT).fill('#ffffff');
       doc.font('Helvetica-Bold').fontSize(14).fillColor('#3B1B54')
@@ -134,15 +150,19 @@ export async function GET(
     // Sobreposição do Carimbo Oficial Transparente no Verso
     const stampXPercent = record.stampX !== undefined ? record.stampX : 15;
     const stampYPercent = record.stampY !== undefined ? record.stampY : 75;
-    const stampXPt = (PAGE_WIDTH * stampXPercent) / 100;
-    const stampYPt = (PAGE_HEIGHT * stampYPercent) / 100;
-    const fontSizePt = Math.max((STAMP_FONT_MIN * PAGE_WIDTH) / 1000, Math.min(24, ((record.stampFontSize || 11) * PAGE_WIDTH) / 1000));
+    const stampXPt = backArt.x + (backArt.width * stampXPercent) / 100;
+    const stampYPt = backArt.y + (backArt.height * stampYPercent) / 100;
+    // Fonte em milésimos da largura da arte, a mesma unidade do editor.
+    const fontSizePt = ((record.stampFontSize || 11) * backArt.width) / CERT_FONT_BASE_WIDTH;
     const alignPdf = record.stampAlign === 'left' ? 'left' : record.stampAlign === 'right' ? 'right' : 'center';
 
-    const stampWidthPt = record.stampWidth ? (PAGE_WIDTH * record.stampWidth) / 100 : PAGE_WIDTH * 0.85;
-    // Mesma proporção do editor (`STAMP_QR_FONT_RATIO`): o QR cresce com a fonte.
-    const qrSizePt = fontSizePt * 7;
+    const stampWidthPt = (backArt.width * (record.stampWidth || 85)) / 100;
+    // Mesma proporção do editor: o QR cresce com a fonte.
+    const qrSizePt = fontSizePt * STAMP_QR_FONT_RATIO;
     const gapPt = fontSizePt * 0.6;
+    // Altura de linha igual à do editor (`STAMP_LINE_HEIGHT`): o PDFKit soma `lineGap` à altura natural da fonte.
+    doc.font('Courier').fontSize(fontSizePt);
+    const lineGap = Math.max(0, fontSizePt * STAMP_LINE_HEIGHT - doc.currentLineHeight());
     let textX = stampXPt;
     let textY = stampYPt;
     let textWidth = stampWidthPt;
@@ -152,7 +172,7 @@ export async function GET(
       textX += qrSizePt + gapPt;
       textWidth = Math.max(fontSizePt * 6, stampWidthPt - qrSizePt - gapPt);
       doc.font('Courier').fontSize(fontSizePt);
-      const textHeight = doc.heightOfString(versoText, { width: textWidth, lineGap: 2 });
+      const textHeight = doc.heightOfString(versoText, { width: textWidth, lineGap });
       textY += Math.max(0, (qrSizePt - textHeight) / 2);
     } else if (record.stampQr === 'top') {
       const qrX =
@@ -169,7 +189,7 @@ export async function GET(
         // Carimbo encostado no pé do verso: corta no fim da página em vez de abrir uma página extra.
         height: Math.max(fontSizePt, PAGE_HEIGHT - textY),
         align: alignPdf,
-        lineGap: 2,
+        lineGap,
       });
 
     doc.end();

@@ -103,8 +103,9 @@ export function defaultCertificateFields(): CertificateField[] {
       id: 'digital-signature',
       name: 'Assinatura digital e validação',
       text: `Assinado de forma digital por ${DEFAULT_SIGNER_INFO}
-Duração e data: {{carga_horaria}}h, {{data_de_emissao}}. Para verificar autenticidade acesse: {{link_de_validacao}}
-Vá na aba certificados e adicione o código: {{codigo_de_validacao}}`,
+Duração e data: {{carga_horaria}}h, {{data_de_emissao}}.
+Para verificar a autenticidade deste certificado, escaneie o QR Code ao lado ou acesse o site vivermaispsicologia.com.br/validarcertificados
+informando o código de validação: {{codigo_de_validacao}}`,
       xPct: 50,
       yPct: 95.5,
       page: 2,
@@ -156,11 +157,11 @@ export function formatCertificateVersoText(cert: {
   code: string;
 }): string {
   const signer = cert.signerInfo || DEFAULT_SIGNER_INFO;
-  const url = cert.validationUrl || DEFAULT_VALIDATION_URL;
   return [
     `Assinado de forma digital por ${signer}`,
-    `Duração e data: ${cert.durationHours}, ${cert.issueDate}. Para verificar autenticidade acesse: ${url}`,
-    `Vá na aba certificados e adicione o código: ${cert.code}`,
+    `Duração e data: ${cert.durationHours}, ${cert.issueDate}.`,
+    'Para verificar a autenticidade deste certificado, escaneie o QR Code ao lado ou acesse o site vivermaispsicologia.com.br/validarcertificados',
+    `informando o código de validação: ${cert.code}`,
   ].join('\n');
 }
 

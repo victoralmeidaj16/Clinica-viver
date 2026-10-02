@@ -75,7 +75,7 @@ describe('Módulo de Certificados (Core)', () => {
 
     expect(verso).toContain('Assinado de forma digital por VIVIANE OLIVEIRA DE ALMEIDA JEREMIAS:19440737000153');
     expect(verso).toContain('CERT-TESTE');
-    expect(verso).toContain('www.vivermaispsicologia.com.br');
+    expect(verso).toContain('vivermaispsicologia.com.br/validarcertificados');
   });
 
   it('usa o texto editado do carimbo e volta ao gerado quando ele está vazio', () => {

@@ -49,6 +49,7 @@ export function proxy(request: NextRequest) {
     // é quem recebeu o documento, sem conta na clínica. Mandá-lo ao login seria
     // transformar a conferência em obstáculo. (O `/validar` das declarações de
     // horas saiu junto com o código de conferência do relatório de estágio.)
+    pathname === '/validarcertificados' ||
     pathname === '/validar-certificado' ||
     pathname.startsWith('/validar-certificado/') ||
     pathname === '/painel-certificados' ||

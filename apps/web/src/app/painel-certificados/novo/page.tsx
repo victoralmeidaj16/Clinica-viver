@@ -350,7 +350,10 @@ export default function AnexarCertificadoPage() {
         const deltaYPct = (deltaY / rect.height) * 100;
 
         const newX = Math.max(1, Math.min(100 - stampWidth, dragStartRef.current.startX + deltaXPct));
-        const newY = Math.max(1, Math.min(85, dragStartRef.current.startY + deltaYPct));
+        // Desce até o pé do carimbo encostar no fim da página, conforme a altura real do bloco.
+        const stampHeightPct = stampRef.current ? (stampRef.current.offsetHeight / rect.height) * 100 : 15;
+        const maxY = Math.max(1, 100 - stampHeightPct);
+        const newY = Math.max(0, Math.min(maxY, dragStartRef.current.startY + deltaYPct));
 
         setStampX(Math.round(newX * 10) / 10);
         setStampY(Math.round(newY * 10) / 10);

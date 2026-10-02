@@ -166,6 +166,8 @@ export async function GET(
     doc.font('Courier').fontSize(fontSizePt).fillColor('#111827')
       .text(versoText, textX, textY, {
         width: textWidth,
+        // Carimbo encostado no pé do verso: corta no fim da página em vez de abrir uma página extra.
+        height: Math.max(fontSizePt, PAGE_HEIGHT - textY),
         align: alignPdf,
         lineGap: 2,
       });

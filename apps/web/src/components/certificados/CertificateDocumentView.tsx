@@ -98,7 +98,7 @@ export function CertificateDocumentView({ record, publicValidationUrl }: Props) 
             className="btn-primary py-2.5 px-5 text-xs font-bold flex items-center gap-2 shadow-sm"
           >
             <Download className="w-4 h-4" />
-            <span>Baixar 2ª Via Oficial em PDF</span>
+            <span>Baixar Certificado</span>
           </a>
         </div>
       </div>

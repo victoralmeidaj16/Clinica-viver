@@ -24,6 +24,12 @@ import {
   DEFAULT_FRONT_QR_SIZE,
   DEFAULT_FRONT_QR_X,
   DEFAULT_FRONT_QR_Y,
+  DEFAULT_STAMP_ALIGN,
+  DEFAULT_STAMP_FONT_SIZE,
+  DEFAULT_STAMP_QR,
+  DEFAULT_STAMP_WIDTH,
+  DEFAULT_STAMP_X,
+  DEFAULT_STAMP_Y,
   FRONT_QR_SIZE_MAX,
   FRONT_QR_SIZE_MIN,
   STAMP_FONT_MAX,
@@ -76,12 +82,12 @@ export default function AnexarCertificadoPage() {
   const [activeTab, setActiveTab] = useState<'verso' | 'front'>('verso');
 
   // Posição e estilo do carimbo no Verso
-  const [stampX, setStampX] = useState<number>(15);
-  const [stampY, setStampY] = useState<number>(75);
-  const [stampFontSize, setStampFontSize] = useState<number>(11);
-  const [stampAlign, setStampAlign] = useState<'left' | 'center' | 'right'>('center');
-  const [stampWidth, setStampWidth] = useState<number>(50);
-  const [stampQr, setStampQr] = useState<CertificateStampQr | null>('left');
+  const [stampX, setStampX] = useState<number>(DEFAULT_STAMP_X);
+  const [stampY, setStampY] = useState<number>(DEFAULT_STAMP_Y);
+  const [stampFontSize, setStampFontSize] = useState<number>(DEFAULT_STAMP_FONT_SIZE);
+  const [stampAlign, setStampAlign] = useState<'left' | 'center' | 'right'>(DEFAULT_STAMP_ALIGN);
+  const [stampWidth, setStampWidth] = useState<number>(DEFAULT_STAMP_WIDTH);
+  const [stampQr, setStampQr] = useState<CertificateStampQr | null>(DEFAULT_STAMP_QR);
   // null = texto gerado dos dados do certificado; string = editado à mão
   const [stampTextCustom, setStampTextCustom] = useState<string | null>(null);
 

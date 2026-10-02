@@ -23,9 +23,16 @@ export const STAMP_QR_FONT_RATIO = 7;
 /** Altura de linha do texto do carimbo, em múltiplos da fonte. */
 export const STAMP_LINE_HEIGHT = 1.25;
 
-export const DEFAULT_FRONT_QR_X = 81.5;
-export const DEFAULT_FRONT_QR_Y = 68.5;
-export const DEFAULT_FRONT_QR_SIZE = 8.5;
+// Posições padrão de um certificado novo (ajustáveis no editor), em % da arte.
+export const DEFAULT_FRONT_QR_X = 75.9;
+export const DEFAULT_FRONT_QR_Y = 67.8;
+export const DEFAULT_FRONT_QR_SIZE = 11.6;
+export const DEFAULT_STAMP_X = 42.6;
+export const DEFAULT_STAMP_Y = 88.2;
+export const DEFAULT_STAMP_FONT_SIZE = 8;
+export const DEFAULT_STAMP_WIDTH = 30;
+export const DEFAULT_STAMP_ALIGN = 'center' as const;
+export const DEFAULT_STAMP_QR: CertificateStampQr = 'left';
 export const FRONT_QR_SIZE_MIN = 4;
 export const FRONT_QR_SIZE_MAX = 25;
 

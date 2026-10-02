@@ -4,6 +4,11 @@ import { certificadosRepo } from '@/server/certificados/certificadosRepository';
 import qrcode from 'qrcode-generator';
 import {
   CERT_FONT_BASE_WIDTH,
+  DEFAULT_FRONT_QR_SIZE,
+  DEFAULT_STAMP_FONT_SIZE,
+  DEFAULT_STAMP_WIDTH,
+  DEFAULT_STAMP_X,
+  DEFAULT_STAMP_Y,
   STAMP_LINE_HEIGHT,
   STAMP_QR_FONT_RATIO,
   certificatePublicValidationUrl,
@@ -114,7 +119,7 @@ export async function GET(
       if (record.frontQrEnabled !== false && record.frontQrX != null && record.frontQrY != null) {
         const qrFrontXPt = frontArt.x + (frontArt.width * record.frontQrX) / 100;
         const qrFrontYPt = frontArt.y + (frontArt.height * record.frontQrY) / 100;
-        const qrFrontSizePt = (frontArt.width * (record.frontQrSize || 8.5)) / 100;
+        const qrFrontSizePt = (frontArt.width * (record.frontQrSize || DEFAULT_FRONT_QR_SIZE)) / 100;
         drawQr(doc, certificatePublicValidationUrl(), qrFrontXPt, qrFrontYPt, qrFrontSizePt);
       }
     } else {
@@ -148,15 +153,15 @@ export async function GET(
     }
 
     // Sobreposição do Carimbo Oficial Transparente no Verso
-    const stampXPercent = record.stampX !== undefined ? record.stampX : 15;
-    const stampYPercent = record.stampY !== undefined ? record.stampY : 75;
+    const stampXPercent = record.stampX !== undefined ? record.stampX : DEFAULT_STAMP_X;
+    const stampYPercent = record.stampY !== undefined ? record.stampY : DEFAULT_STAMP_Y;
     const stampXPt = backArt.x + (backArt.width * stampXPercent) / 100;
     const stampYPt = backArt.y + (backArt.height * stampYPercent) / 100;
     // Fonte em milésimos da largura da arte, a mesma unidade do editor.
-    const fontSizePt = ((record.stampFontSize || 11) * backArt.width) / CERT_FONT_BASE_WIDTH;
+    const fontSizePt = ((record.stampFontSize || DEFAULT_STAMP_FONT_SIZE) * backArt.width) / CERT_FONT_BASE_WIDTH;
     const alignPdf = record.stampAlign === 'left' ? 'left' : record.stampAlign === 'right' ? 'right' : 'center';
 
-    const stampWidthPt = (backArt.width * (record.stampWidth || 85)) / 100;
+    const stampWidthPt = (backArt.width * (record.stampWidth || DEFAULT_STAMP_WIDTH)) / 100;
     // Mesma proporção do editor: o QR cresce com a fonte.
     const qrSizePt = fontSizePt * STAMP_QR_FONT_RATIO;
     const gapPt = fontSizePt * 0.6;

@@ -5,6 +5,9 @@ import Link from 'next/link';
 import { Award, Check, Copy, Download, FileText, Printer } from 'lucide-react';
 import {
   CertificateRecord,
+  DEFAULT_FRONT_QR_SIZE,
+  DEFAULT_STAMP_FONT_SIZE,
+  DEFAULT_STAMP_WIDTH,
   certificatePublicValidationUrl,
   resolveCertificateStampText,
 } from '@thats-life/core';
@@ -35,13 +38,13 @@ export function CertificateDocumentView({ record, publicValidationUrl }: Props) 
           position: 'absolute',
           left: `${record.stampX}%`,
           top: `${record.stampY}%`,
-          width: `${record.stampWidth || 85}%`,
+          width: `${record.stampWidth || DEFAULT_STAMP_WIDTH}%`,
         }}
         className="z-10 select-text"
       >
         <CertificateStampContent
           text={versoText}
-          fontSize={record.stampFontSize || 11}
+          fontSize={record.stampFontSize || DEFAULT_STAMP_FONT_SIZE}
           align={record.stampAlign || 'center'}
           qr={record.stampQr}
           qrValue={certificatePublicValidationUrl()}
@@ -124,7 +127,7 @@ export function CertificateDocumentView({ record, publicValidationUrl }: Props) 
                       position: 'absolute',
                       left: `${record.frontQrX}%`,
                       top: `${record.frontQrY}%`,
-                      width: `${record.frontQrSize || 8.5}%`,
+                      width: `${record.frontQrSize || DEFAULT_FRONT_QR_SIZE}%`,
                       aspectRatio: '1 / 1',
                     }}
                     className="z-10"

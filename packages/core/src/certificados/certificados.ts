@@ -11,6 +11,8 @@ export const STAMP_WIDTH_MAX = 90;
 export const STAMP_TEXT_MAX = 2000;
 export const STAMP_FONT_MIN = 2;
 export const STAMP_FONT_MAX = 32;
+/** Topo máximo do carimbo no verso (%): deixa descer até o fim, cortando o que passar. */
+export const STAMP_Y_MAX = 98;
 
 export const DEFAULT_FRONT_QR_X = 81.5;
 export const DEFAULT_FRONT_QR_Y = 68.5;

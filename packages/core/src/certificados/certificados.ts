@@ -168,9 +168,11 @@ export function resolveCertificateStampText(
   return formatCertificateVersoText(record);
 }
 
-/** Endereço público de conferência — o destino do QR impresso no carimbo. */
-export function certificatePublicValidationUrl(code: string): string {
-  return `https://${DEFAULT_VALIDATION_URL}/validar-certificado/${encodeURIComponent(code.trim())}`;
+export const CERTIFICATE_QR_URL = 'https://vivermaispsicologia.com.br/validarcertificados';
+
+/** Endereço público de conferência — o destino do QR impresso no certificado. */
+export function certificatePublicValidationUrl(): string {
+  return CERTIFICATE_QR_URL;
 }
 
 /** Normaliza os campos livres do carimbo vindos do formulário. */

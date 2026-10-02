@@ -239,7 +239,7 @@ export function CertificateDocumentView({ record, publicValidationUrl }: Props) 
                   fontSize={record.stampFontSize || 11}
                   align={record.stampAlign || 'center'}
                   qr={record.stampQr}
-                  qrValue={certificatePublicValidationUrl(record.code)}
+                  qrValue={certificatePublicValidationUrl()}
                 />
               </div>
             ) : null}

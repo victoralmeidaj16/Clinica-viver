@@ -48,7 +48,7 @@ export function PublicCertificateValidation({ code }: { code: string }) {
   }
 
   if (state.phase === 'found') {
-    const publicUrl = certificatePublicValidationUrl(state.record.code);
+    const publicUrl = certificatePublicValidationUrl();
     return (
       <div className="min-h-screen bg-[#F9F5FC] text-ink py-6 sm:py-8 px-4 sm:px-6">
         <div className="mx-auto max-w-4xl space-y-4">

@@ -92,7 +92,7 @@ export async function GET(
         const qrFrontXPt = (PAGE_WIDTH * record.frontQrX) / 100;
         const qrFrontYPt = (PAGE_HEIGHT * record.frontQrY) / 100;
         const qrFrontSizePt = (PAGE_WIDTH * (record.frontQrSize || 8.5)) / 100;
-        drawQr(doc, certificatePublicValidationUrl(record.code), qrFrontXPt, qrFrontYPt, qrFrontSizePt);
+        drawQr(doc, certificatePublicValidationUrl(), qrFrontXPt, qrFrontYPt, qrFrontSizePt);
       }
     } else {
       // Template padrão limpo se não tiver imagem
@@ -148,7 +148,7 @@ export async function GET(
     let textWidth = stampWidthPt;
 
     if (record.stampQr === 'left') {
-      drawQr(doc, certificatePublicValidationUrl(record.code), stampXPt, stampYPt, qrSizePt);
+      drawQr(doc, certificatePublicValidationUrl(), stampXPt, stampYPt, qrSizePt);
       textX += qrSizePt + gapPt;
       textWidth = Math.max(fontSizePt * 6, stampWidthPt - qrSizePt - gapPt);
       doc.font('Courier').fontSize(fontSizePt);
@@ -159,7 +159,7 @@ export async function GET(
         alignPdf === 'left' ? stampXPt
           : alignPdf === 'right' ? stampXPt + stampWidthPt - qrSizePt
           : stampXPt + (stampWidthPt - qrSizePt) / 2;
-      drawQr(doc, certificatePublicValidationUrl(record.code), qrX, stampYPt, qrSizePt);
+      drawQr(doc, certificatePublicValidationUrl(), qrX, stampYPt, qrSizePt);
       textY += qrSizePt + gapPt;
     }
 

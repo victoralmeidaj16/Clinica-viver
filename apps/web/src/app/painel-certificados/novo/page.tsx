@@ -951,7 +951,7 @@ export default function AnexarCertificadoPage() {
                           {/* QR Code SVG */}
                           <div className="w-full h-full flex items-center justify-center select-none pointer-events-none">
                             <QrCodeConferencia
-                              valor={certificatePublicValidationUrl(code)}
+                              valor={certificatePublicValidationUrl()}
                               className="w-full h-full object-contain"
                             />
                           </div>
@@ -1054,7 +1054,7 @@ export default function AnexarCertificadoPage() {
                           fontSize={stampFontSize}
                           align={stampAlign}
                           qr={stampQr ?? undefined}
-                          qrValue={certificatePublicValidationUrl(code)}
+                          qrValue={certificatePublicValidationUrl()}
                         />
                       </div>
 

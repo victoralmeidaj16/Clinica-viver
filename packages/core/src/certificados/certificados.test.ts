@@ -84,10 +84,8 @@ describe('Módulo de Certificados (Core)', () => {
     expect(resolveCertificateStampText(certificateFixture)).toBe(formatCertificateVersoText(certificateFixture));
   });
 
-  it('aponta o QR para a página pública de conferência do código', () => {
-    expect(certificatePublicValidationUrl(' AB c1 ')).toBe(
-      'https://www.vivermaispsicologia.com.br/validar-certificado/AB%20c1'
-    );
+  it('aponta o QR para a página pública de validação de certificados', () => {
+    expect(certificatePublicValidationUrl()).toBe('https://vivermaispsicologia.com.br/validarcertificados');
   });
 
   it('normaliza largura, texto e QR do carimbo vindos do formulário', () => {

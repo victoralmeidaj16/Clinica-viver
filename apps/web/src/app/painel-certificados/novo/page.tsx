@@ -51,7 +51,7 @@ export default function AnexarCertificadoPage() {
   const [courseTitle, setCourseTitle] = useState('');
   const [durationHours, setDurationHours] = useState('360h');
   const [issueDate, setIssueDate] = useState(new Date().toLocaleDateString('pt-BR'));
-  const [signerInfo, setSignerInfo] = useState('VIVIANE OLIVEIRA DE ALMEIDA JEREMIAS:19440737000153');
+  const [signerInfo] = useState('VIVIANE OLIVEIRA DE ALMEIDA JEREMIAS:19440737000153');
   const [validationUrl, setValidationUrl] = useState('www.vivermaispsicologia.com.br');
   const [code, setCode] = useState(generateCertificateCode());
 
@@ -800,19 +800,6 @@ export default function AnexarCertificadoPage() {
                         placeholder="05/03/2026"
                       />
                     </div>
-                  </div>
-
-                  <div>
-                    <label className="block font-bold uppercase tracking-wider text-muted mb-1">
-                      Assinado de forma digital por: [Nome / CNPJ]
-                    </label>
-                    <input
-                      type="text"
-                      className="input py-2 text-xs font-mono text-[11px]"
-                      value={signerInfo}
-                      onChange={(e) => setSignerInfo(e.target.value)}
-                      placeholder="VIVIANE OLIVEIRA DE ALMEIDA JEREMIAS:19440737000153"
-                    />
                   </div>
                 </div>
               </div>

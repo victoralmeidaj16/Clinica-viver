@@ -31,7 +31,7 @@ export function CertificateUploaderModal({ adminPin, onClose, onSuccess }: Props
   const [courseTitle, setCourseTitle] = useState('');
   const [durationHours, setDurationHours] = useState('360h');
   const [issueDate, setIssueDate] = useState(new Date().toLocaleDateString('pt-BR'));
-  const [signerInfo, setSignerInfo] = useState('VIVIANE OLIVEIRA DE ALMEIDA JEREMIAS:19440737000153');
+  const [signerInfo] = useState('VIVIANE OLIVEIRA DE ALMEIDA JEREMIAS:19440737000153');
   const [validationUrl, setValidationUrl] = useState('www.vivermaispsicologia.com.br');
   const [code, setCode] = useState(generateCertificateCode());
 
@@ -540,19 +540,6 @@ export function CertificateUploaderModal({ adminPin, onClose, onSuccess }: Props
                   placeholder="Ex: 360h"
                   value={durationHours}
                   onChange={(e) => setDurationHours(e.target.value)}
-                />
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="block font-bold uppercase tracking-wider text-muted mb-1">
-                  Assinado de forma digital por: [Nome da Instituição / CNPJ]
-                </label>
-                <input
-                  type="text"
-                  className="input py-2.5 text-xs font-mono"
-                  value={signerInfo}
-                  onChange={(e) => setSignerInfo(e.target.value)}
-                  placeholder="VIVIANE OLIVEIRA DE ALMEIDA JEREMIAS:19440737000153"
                 />
               </div>
 

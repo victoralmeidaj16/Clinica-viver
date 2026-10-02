@@ -65,7 +65,7 @@ describe('Módulo de Certificados (Core)', () => {
     expect(rendered).toContain('CERT-TESTE');
   });
 
-  it('deve formatar texto de verso com assinatura digital e carimbo', () => {
+  it('deve formatar texto de verso sem a linha de assinatura digital', () => {
     const record = certificateFixture;
     const verso = formatCertificateVersoText({
       durationHours: record.durationHours,
@@ -73,7 +73,7 @@ describe('Módulo de Certificados (Core)', () => {
       code: record.code,
     });
 
-    expect(verso).toContain('Assinado de forma digital por VIVIANE OLIVEIRA DE ALMEIDA JEREMIAS:19440737000153');
+    expect(verso).not.toContain('Assinado de forma digital');
     expect(verso).toContain('CERT-TESTE');
     expect(verso).toContain('vivermaispsicologia.com.br/validarcertificados');
   });

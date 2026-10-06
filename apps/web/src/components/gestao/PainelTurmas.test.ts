@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { posGraduacoesDaTurma } from './PainelTurmas';
+import { montarModeloPainelTurmas } from './PainelTurmas';
 import type { PsicologoItem } from './types';
+
+const psicodrama = 'Formação e Pós-graduação em Psicodrama';
+const psicanalise = 'Programa de Estudos e Pós-graduação em Psicanálise';
 
 function psicologo(overrides: Partial<PsicologoItem>): PsicologoItem {
   return {
@@ -13,37 +16,58 @@ function psicologo(overrides: Partial<PsicologoItem>): PsicologoItem {
   };
 }
 
-describe('posGraduacoesDaTurma', () => {
-  it('lista as pós-graduações únicas dos psicólogos aprovados da turma', () => {
-    const psicologos = [
-      psicologo({ turmaViverMais: '24A', posGraduacaoViverMais: 'Psicodrama' }),
-      psicologo({ turmaViverMais: '24A', posGraduacaoViverMais: 'Psicanálise' }),
-      psicologo({ turmaViverMais: '24A', posGraduacaoViverMais: 'Psicodrama' }),
-      psicologo({ turmaViverMais: '24B', posGraduacaoViverMais: 'Neuropsicologia' }),
-      psicologo({ turmaViverMais: '24A', posGraduacaoViverMais: 'Perinatal', status: 'RECUSADO' }),
-    ];
+describe('modelo do painel de turmas', () => {
+  it('agrupa por curso e cria uma linha para cada código', () => {
+    const modelo = montarModeloPainelTurmas([
+      psicologo({ turmaViverMais: '25B', posGraduacaoViverMais: psicodrama }),
+      psicologo({ turmaViverMais: '25A', posGraduacaoViverMais: psicodrama }),
+      psicologo({ turmaViverMais: '25A', posGraduacaoViverMais: psicanalise }),
+    ], []);
 
-    expect(posGraduacoesDaTurma(psicologos, '24A')).toEqual(['Psicanálise', 'Psicodrama']);
+    expect(modelo.grupos.map((grupo) => grupo.posGraduacao)).toEqual([psicodrama, psicanalise]);
+    expect(modelo.grupos[0].turmas.map((item) => item.identidade.turma)).toEqual(['25A', '25B']);
+    expect(modelo.grupos[1].turmas).toHaveLength(1);
   });
 
-  it('não atribui a segunda pós à turma da primeira formação', () => {
-    const psicologos = [
-      psicologo({
-        turmaViverMais: '25B',
-        posGraduacaoViverMais: 'Psicologia Junguiana',
-        segundaPosGraduacao: 'Terapia Familiar Sistêmica',
-      }),
-    ];
+  it('conta aprovados sem duplicar a combinação', () => {
+    const modelo = montarModeloPainelTurmas([
+      psicologo({ turmaViverMais: '25A', posGraduacaoViverMais: psicodrama }),
+      psicologo({ turmaViverMais: '25A', posGraduacaoViverMais: psicodrama }),
+      psicologo({ turmaViverMais: '25A', posGraduacaoViverMais: psicodrama, status: 'EM_ANALISE' }),
+      psicologo({ turmaViverMais: '25A', posGraduacaoViverMais: psicodrama, status: 'RECUSADO' }),
+    ], []);
 
-    expect(posGraduacoesDaTurma(psicologos, '25B')).toEqual(['Psicologia Junguiana']);
+    expect(modelo.grupos[0].turmas).toHaveLength(1);
+    expect(modelo.grupos[0].turmas[0].quantidade).toBe(2);
   });
 
-  it('ignora valores vazios', () => {
-    const psicologos = [
-      psicologo({ turmaViverMais: '26A', posGraduacaoViverMais: '  ' }),
-      psicologo({ turmaViverMais: '26A' }),
-    ];
+  it('não usa a segunda pós e contabiliza aprovados incompletos', () => {
+    const modelo = montarModeloPainelTurmas([
+      psicologo({ turmaViverMais: '25A', segundaPosGraduacao: psicodrama }),
+      psicologo({ posGraduacaoViverMais: psicodrama }),
+      psicologo({ turmaViverMais: '25A', posGraduacaoViverMais: '   ' }),
+    ], []);
 
-    expect(posGraduacoesDaTurma(psicologos, '26A')).toEqual([]);
+    expect(modelo.grupos).toEqual([]);
+    expect(modelo.cadastrosIncompletos).toBe(3);
+  });
+
+  it('associa o encerramento somente à combinação exata', () => {
+    const modelo = montarModeloPainelTurmas([
+      psicologo({ turmaViverMais: '25A', posGraduacaoViverMais: psicodrama }),
+      psicologo({ turmaViverMais: '25A', posGraduacaoViverMais: psicanalise }),
+    ], [{ turma: '25A', posGraduacao: psicodrama, encerradaEm: '2026-10-06' }]);
+
+    expect(modelo.grupos[0].turmas[0].encerramento?.posGraduacao).toBe(psicodrama);
+    expect(modelo.grupos[1].turmas[0].encerramento).toBeUndefined();
+  });
+
+  it('mostra curso legado, mas o marca como não administrável', () => {
+    const modelo = montarModeloPainelTurmas([
+      psicologo({ turmaViverMais: '25A', posGraduacaoViverMais: 'Curso legado' }),
+    ], []);
+
+    expect(modelo.cursosForaCatalogo).toBe(1);
+    expect(modelo.grupos[0].turmas[0].administravel).toBe(false);
   });
 });

@@ -18,7 +18,12 @@ import { ModalMotivo } from '@/components/gestao/ModalMotivo';
 import { ModalEdicao } from '@/components/gestao/ModalEdicao';
 import { ModalLimitePacientes } from '@/components/gestao/ModalLimitePacientes';
 import { PainelTurmas } from '@/components/gestao/PainelTurmas';
-import { desligadoPorTurma, type TurmaEncerrada } from '@/lib/turmaEncerrada';
+import {
+  chaveTurma,
+  desligadoPorTurma,
+  type IdentidadeTurma,
+  type TurmaEncerrada,
+} from '@/lib/turmaEncerrada';
 import { ausenciaEmCurso } from '@/lib/ausenciaAgenda';
 import { FocoDeNotificacao } from '@/components/layout/FocoDeNotificacao';
 
@@ -83,20 +88,29 @@ export default function GestaoPsicologosPage() {
   };
 
   useEffect(() => {
-    void Promise.resolve().then(() => Promise.all([loadPsicologos(), loadTurmas()]));
+    void Promise.resolve().then(async () => {
+      // A leitura da equipe também converte o arquivo legado de encerramentos;
+      // o painel só deve pedir as turmas depois dessa migração local.
+      await loadPsicologos();
+      await loadTurmas();
+    });
   }, []);
 
-  const alterarTurma = async (turma: string, metodo: 'POST' | 'DELETE') => {
-    setOcupado(`turma:${turma}`);
+  const alterarTurma = async (identidade: IdentidadeTurma, metodo: 'POST' | 'DELETE') => {
+    setOcupado(`turma:${chaveTurma(identidade)}`);
     try {
+      const query = new URLSearchParams({
+        turma: identidade.turma,
+        posGraduacao: identidade.posGraduacao,
+      });
       const resp = await fetch(
         metodo === 'POST'
           ? '/api/application/turmas-encerradas'
-          : `/api/application/turmas-encerradas?turma=${encodeURIComponent(turma)}`,
+          : `/api/application/turmas-encerradas?${query.toString()}`,
         {
           method: metodo,
           headers: { 'Content-Type': 'application/json' },
-          body: metodo === 'POST' ? JSON.stringify({ turma }) : undefined,
+          body: metodo === 'POST' ? JSON.stringify(identidade) : undefined,
         }
       );
       const body = (await resp.json()) as { success: boolean; error?: string };
@@ -446,8 +460,8 @@ export default function GestaoPsicologosPage() {
         psicologos={psicologos}
         encerradas={turmasEncerradas}
         ocupado={ocupado}
-        onEncerrar={(turma) => alterarTurma(turma, 'POST')}
-        onReabrir={(turma) => alterarTurma(turma, 'DELETE')}
+        onEncerrar={(identidade) => alterarTurma(identidade, 'POST')}
+        onReabrir={(identidade) => alterarTurma(identidade, 'DELETE')}
       />
 
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">

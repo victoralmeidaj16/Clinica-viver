@@ -7,23 +7,24 @@ import type { Pool, PoolConnection } from 'mysql2/promise';
 import { getMysqlPool, isMysqlConfigured } from '@/server/oci/runtime';
 import { instituicaoId, rowId } from '@/server/persistence/mysql/mappers';
 import type { CadastroPsicologoRecord } from '@/server/application/persistence';
-import { hojeEmBrasilia, type TurmaEncerrada } from '@/lib/turmaEncerrada';
+import {
+  chaveTurma,
+  hojeEmBrasilia,
+  normalizarIdentidadeTurma,
+  type IdentidadeTurma,
+  type TurmaEncerrada,
+} from '@/lib/turmaEncerrada';
 
-/**
- * Turmas que a gestão marcou como encerradas.
- *
- * Só a turma é gravada; a saída de cada psicólogo é derivada na leitura do
- * roster (`comTurmasEncerradas`). Ver a migração 047.
- */
-
+/** Encerramentos acadêmicos derivados por curso e código. Ver a migração 052. */
 export interface TurmaEncerradaRegistro extends TurmaEncerrada {
   encerradaPor?: string;
 }
 
 export interface TurmasEncerradasRepository {
   listar(): Promise<TurmaEncerradaRegistro[]>;
-  encerrar(turma: string, encerradaPor?: string): Promise<void>;
-  reabrir(turma: string): Promise<void>;
+  encerrar(identidade: IdentidadeTurma, encerradaPor?: string): Promise<void>;
+  reabrir(identidade: IdentidadeTurma): Promise<void>;
+  migrarLegadas(cadastros: readonly CadastroPsicologoRecord[]): Promise<void>;
 }
 
 function organizacaoRef(): string {
@@ -34,21 +35,19 @@ function organizacaoRef(): string {
   );
 }
 
-function tabelaAusente(erro: unknown): boolean {
-  return (erro as { code?: string }).code === 'ER_NO_SUCH_TABLE';
+function schemaPendente(erro: unknown): boolean {
+  return ['ER_NO_SUCH_TABLE', 'ER_BAD_FIELD_ERROR'].includes((erro as { code?: string }).code ?? '');
 }
 
 export class MigracaoTurmasPendenteError extends Error {
   readonly status = 503;
   constructor() {
-    super('O encerramento de turmas ainda não está disponível: falta aplicar a migração 047 no banco.');
+    super('O encerramento de turmas ainda não está disponível: falta aplicar a migração 052 no banco.');
   }
 }
 
 function dataSql(valor: unknown): string {
   if (valor instanceof Date) {
-    // Colunas DATE chegam como meia-noite local do processo; os componentes
-    // locais são a data gravada.
     const mes = String(valor.getMonth() + 1).padStart(2, '0');
     const dia = String(valor.getDate()).padStart(2, '0');
     return `${valor.getFullYear()}-${mes}-${dia}`;
@@ -62,54 +61,80 @@ class MysqlTurmasEncerradasRepository implements TurmasEncerradasRepository {
   async listar(): Promise<TurmaEncerradaRegistro[]> {
     try {
       const [rows] = await this.conexao.query<RowDataPacket[]>(
-        `SELECT turma, encerrada_em, encerrada_por
+        `SELECT turma, pos_graduacao, encerrada_em, encerrada_por
            FROM clinica_turmas_encerradas
           WHERE instituicao_id = ? AND organizacao_ref = ?
-          ORDER BY turma`,
+          ORDER BY pos_graduacao, turma`,
         [instituicaoId(), organizacaoRef()]
       );
       return rows.map((row) => ({
         turma: String(row.turma),
+        posGraduacao: String(row.pos_graduacao),
         encerradaEm: dataSql(row.encerrada_em),
         encerradaPor: row.encerrada_por ? String(row.encerrada_por) : undefined,
       }));
     } catch (erro) {
-      if (!tabelaAusente(erro)) throw erro;
-      console.warn('[turmas] Tabela clinica_turmas_encerradas ausente — aplique a migração 047.');
+      if (!schemaPendente(erro)) throw erro;
+      console.warn('[turmas] Schema de turmas desatualizado — aplique a migração 052.');
       return [];
     }
   }
 
-  async encerrar(turma: string, encerradaPor?: string): Promise<void> {
+  async encerrar(identidade: IdentidadeTurma, encerradaPor?: string): Promise<void> {
+    const normalizada = normalizarIdentidadeTurma(identidade);
     try {
       await this.conexao.execute(
         `INSERT INTO clinica_turmas_encerradas
-           (id, instituicao_id, organizacao_ref, turma, encerrada_em, encerrada_por)
-         VALUES (?, ?, ?, ?, ?, ?)
+           (id, instituicao_id, organizacao_ref, turma, pos_graduacao, encerrada_em, encerrada_por)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE encerrada_em = encerrada_em`,
-        [rowId('turma_encerrada', turma), instituicaoId(), organizacaoRef(), turma, hojeEmBrasilia(), encerradaPor ?? null]
+        [
+          rowId('turma_encerrada', chaveTurma(normalizada)),
+          instituicaoId(),
+          organizacaoRef(),
+          normalizada.turma,
+          normalizada.posGraduacao,
+          hojeEmBrasilia(),
+          encerradaPor ?? null,
+        ]
       );
     } catch (erro) {
-      if (tabelaAusente(erro)) throw new MigracaoTurmasPendenteError();
+      if (schemaPendente(erro)) throw new MigracaoTurmasPendenteError();
       throw erro;
     }
   }
 
-  async reabrir(turma: string): Promise<void> {
+  async reabrir(identidade: IdentidadeTurma): Promise<void> {
+    const normalizada = normalizarIdentidadeTurma(identidade);
     try {
       await this.conexao.execute(
         `DELETE FROM clinica_turmas_encerradas
-          WHERE instituicao_id = ? AND organizacao_ref = ? AND turma = ?`,
-        [instituicaoId(), organizacaoRef(), turma]
+          WHERE instituicao_id = ? AND organizacao_ref = ? AND turma = ? AND pos_graduacao = ?`,
+        [instituicaoId(), organizacaoRef(), normalizada.turma, normalizada.posGraduacao]
       );
     } catch (erro) {
-      if (tabelaAusente(erro)) throw new MigracaoTurmasPendenteError();
+      if (schemaPendente(erro)) throw new MigracaoTurmasPendenteError();
       throw erro;
     }
   }
+
+  async migrarLegadas(): Promise<void> {
+    // A migração 052 faz a expansão no MySQL antes de a aplicação iniciar.
+  }
 }
 
-type ArquivoTurmas = Record<string, { encerradaEm: string; encerradaPor?: string }>;
+type ArquivoTurmasLegado = Record<string, { encerradaEm: string; encerradaPor?: string }>;
+
+interface ArquivoTurmasV2 {
+  versao: 2;
+  turmas: TurmaEncerradaRegistro[];
+}
+
+function arquivoV2(valor: unknown): valor is ArquivoTurmasV2 {
+  if (!valor || typeof valor !== 'object') return false;
+  const candidato = valor as Partial<ArquivoTurmasV2>;
+  return candidato.versao === 2 && Array.isArray(candidato.turmas);
+}
 
 function caminhoArquivo(): string {
   const snapshot = process.env.DEMO_STATE_FILE?.trim();
@@ -117,51 +142,92 @@ function caminhoArquivo(): string {
   return join(diretorio, 'turmas-encerradas.json');
 }
 
-/** Adaptador de arquivo, para a instalação sem MySQL. Sem transação, como os demais. */
+/** Adaptador de arquivo para demonstração e desenvolvimento sem MySQL. */
 class FileTurmasEncerradasRepository implements TurmasEncerradasRepository {
   private fila: Promise<void> = Promise.resolve();
 
-  private async ler(): Promise<ArquivoTurmas> {
+  private async ler(): Promise<ArquivoTurmasV2 | ArquivoTurmasLegado> {
     try {
-      return JSON.parse(await readFile(caminhoArquivo(), 'utf8')) as ArquivoTurmas;
+      return JSON.parse(await readFile(caminhoArquivo(), 'utf8')) as ArquivoTurmasV2 | ArquivoTurmasLegado;
     } catch {
-      return {};
+      return { versao: 2, turmas: [] };
     }
   }
 
-  private gravar(alterar: (atual: ArquivoTurmas) => ArquivoTurmas): Promise<void> {
-    this.fila = this.fila.then(async () => {
-      const alvo = caminhoArquivo();
-      const temporario = `${alvo}.tmp`;
-      await mkdir(dirname(alvo), { recursive: true });
-      await writeFile(temporario, JSON.stringify(alterar(await this.ler()), null, 2), 'utf8');
-      await rename(temporario, alvo);
-    });
+  private enfileirar(gravar: () => Promise<void>): Promise<void> {
+    this.fila = this.fila.catch(() => undefined).then(gravar);
     return this.fila;
+  }
+
+  private async escrever(conteudo: ArquivoTurmasV2): Promise<void> {
+    const alvo = caminhoArquivo();
+    const temporario = `${alvo}.tmp`;
+    await mkdir(dirname(alvo), { recursive: true });
+    await writeFile(temporario, JSON.stringify(conteudo, null, 2), 'utf8');
+    await rename(temporario, alvo);
   }
 
   async listar(): Promise<TurmaEncerradaRegistro[]> {
     const conteudo = await this.ler();
-    return Object.entries(conteudo)
-      .map(([turma, item]) => ({
-        turma,
-        encerradaEm: item.encerradaEm,
-        encerradaPor: item.encerradaPor,
-      }))
-      .sort((a, b) => a.turma.localeCompare(b.turma));
-  }
-
-  encerrar(turma: string, encerradaPor?: string): Promise<void> {
-    return this.gravar((atual) =>
-      atual[turma] ? atual : { ...atual, [turma]: { encerradaEm: hojeEmBrasilia(), encerradaPor } }
+    if (!arquivoV2(conteudo)) return [];
+    return [...conteudo.turmas].sort((a, b) =>
+      a.posGraduacao.localeCompare(b.posGraduacao, 'pt-BR') || a.turma.localeCompare(b.turma, 'pt-BR')
     );
   }
 
-  reabrir(turma: string): Promise<void> {
-    return this.gravar((atual) => {
-      const resto = { ...atual };
-      delete resto[turma];
-      return resto;
+  encerrar(identidade: IdentidadeTurma, encerradaPor?: string): Promise<void> {
+    return this.enfileirar(async () => {
+      const conteudo = await this.ler();
+      if (!arquivoV2(conteudo)) throw new MigracaoTurmasPendenteError();
+      const normalizada = normalizarIdentidadeTurma(identidade);
+      if (conteudo.turmas.some((item) => chaveTurma(item) === chaveTurma(normalizada))) return;
+      await this.escrever({
+        versao: 2,
+        turmas: [...conteudo.turmas, { ...normalizada, encerradaEm: hojeEmBrasilia(), encerradaPor }],
+      });
+    });
+  }
+
+  reabrir(identidade: IdentidadeTurma): Promise<void> {
+    return this.enfileirar(async () => {
+      const conteudo = await this.ler();
+      if (!arquivoV2(conteudo)) throw new MigracaoTurmasPendenteError();
+      const chave = chaveTurma(identidade);
+      await this.escrever({
+        versao: 2,
+        turmas: conteudo.turmas.filter((item) => chaveTurma(item) !== chave),
+      });
+    });
+  }
+
+  migrarLegadas(cadastros: readonly CadastroPsicologoRecord[]): Promise<void> {
+    return this.enfileirar(async () => {
+      const conteudo = await this.ler();
+      if (arquivoV2(conteudo)) return;
+
+      const combinacoes = new Map<string, IdentidadeTurma>();
+      for (const cadastro of cadastros) {
+        if (
+          cadastro.status !== 'APROVADO' ||
+          !cadastro.turmaViverMais?.trim() ||
+          !cadastro.posGraduacaoViverMais?.trim()
+        ) continue;
+        const identidade = normalizarIdentidadeTurma({
+          turma: cadastro.turmaViverMais,
+          posGraduacao: cadastro.posGraduacaoViverMais,
+        });
+        combinacoes.set(chaveTurma(identidade), identidade);
+      }
+
+      const turmas: TurmaEncerradaRegistro[] = [];
+      for (const [turmaLegada, dados] of Object.entries(conteudo)) {
+        const codigo = turmaLegada.trim().toUpperCase();
+        for (const identidade of combinacoes.values()) {
+          if (identidade.turma !== codigo) continue;
+          turmas.push({ ...identidade, encerradaEm: dados.encerradaEm, encerradaPor: dados.encerradaPor });
+        }
+      }
+      await this.escrever({ versao: 2, turmas });
     });
   }
 }
@@ -172,31 +238,33 @@ export function getTurmasEncerradasRepository(conexao?: Pool | PoolConnection): 
   return isMysqlConfigured() ? new MysqlTurmasEncerradasRepository(conexao) : arquivo;
 }
 
-/**
- * Anexa a cada cadastro o encerramento da turma dele, quando houver.
- *
- * Falha em silêncio pelo mesmo motivo das ausências da agenda: uma leitura
- * desta tabela não pode derrubar a fila de triagem. O custo é quem teve a turma
- * encerrada continuar recebendo até o banco responder de novo.
- */
+export function aplicarTurmasEncerradas(
+  cadastros: CadastroPsicologoRecord[],
+  encerradas: readonly TurmaEncerrada[]
+): CadastroPsicologoRecord[] {
+  const porIdentidade = new Map(encerradas.map((item) => [chaveTurma(item), item]));
+  return cadastros.map((cadastro) => {
+    const encerramento = cadastro.turmaViverMais && cadastro.posGraduacaoViverMais
+      ? porIdentidade.get(chaveTurma({
+          turma: cadastro.turmaViverMais,
+          posGraduacao: cadastro.posGraduacaoViverMais,
+        }))
+      : undefined;
+    return { ...cadastro, turmaEncerrada: encerramento ? { ...encerramento } : undefined };
+  });
+}
+
+/** Anexa a cada cadastro somente o encerramento da combinação acadêmica dele. */
 export async function comTurmasEncerradas(
   cadastros: CadastroPsicologoRecord[],
-  conexao?: Pool | PoolConnection
+  conexao?: Pool | PoolConnection,
+  repositorio: TurmasEncerradasRepository = getTurmasEncerradasRepository(conexao)
 ): Promise<CadastroPsicologoRecord[]> {
   if (cadastros.length === 0) return cadastros;
   try {
-    const turmas = await getTurmasEncerradasRepository(conexao).listar();
-    if (turmas.length === 0) return cadastros;
-    const porTurma = new Map(turmas.map((item) => [item.turma, item]));
-    return cadastros.map((cadastro) => {
-      const encerramento = cadastro.turmaViverMais ? porTurma.get(cadastro.turmaViverMais) : undefined;
-      return encerramento
-        ? {
-            ...cadastro,
-            turmaEncerrada: { turma: encerramento.turma, encerradaEm: encerramento.encerradaEm },
-          }
-        : cadastro;
-    });
+    await repositorio.migrarLegadas(cadastros);
+    const turmas = await repositorio.listar();
+    return aplicarTurmasEncerradas(cadastros, turmas);
   } catch (erro) {
     console.error('Erro ao ler turmas encerradas para o roster:', erro);
     return cadastros;

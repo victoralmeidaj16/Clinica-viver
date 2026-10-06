@@ -417,7 +417,7 @@ function notificacoesDoCadastro(cadastro: CadastroPsicologoRecord): NotificacaoD
       // A data entra na chave: reabrir e encerrar de novo em outro dia é um aviso novo.
       chave: `turma-encerrada:${cadastro.id}:${encerramento.encerradaEm}`,
       tipo: 'turma-encerrada',
-      titulo: `Sua turma ${encerramento.turma} foi encerrada`,
+      titulo: `Sua turma ${encerramento.turma} de ${encerramento.posGraduacao} foi encerrada`,
       descricao: `A gestão encerrou a turma em ${formatarDataCurta(encerramento.encerradaEm)}. Você saiu da vitrine e não receberá novos encaminhamentos; seus pacientes atuais seguem com você.`,
       ocorridoEm: new Date(`${encerramento.encerradaEm}T12:00:00-03:00`).toISOString(),
       severidade: 'ATENCAO',

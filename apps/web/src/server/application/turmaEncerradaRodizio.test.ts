@@ -5,6 +5,7 @@ vi.mock('server-only', () => ({}));
 import type { CadastroPsicologoRecord } from './persistence';
 import { paraPsicologoPerfil } from './viverMaisRodizio';
 import { desligadoPorTurma, formatarDataCurta, hojeEmBrasilia } from '@/lib/turmaEncerrada';
+import { aplicarTurmasEncerradas } from '@/server/persistence/turmasEncerradas';
 
 const cadastro = (mudancas: Partial<CadastroPsicologoRecord> = {}): CadastroPsicologoRecord => ({
   id: 'psi-teste',
@@ -37,6 +38,20 @@ describe('turma encerrada no rodízio', () => {
 
   it('não apaga a pausa manual da gestão', () => {
     expect(paraPsicologoPerfil(cadastro({ pausadoNoRodizio: true })).pausadoNoRodizio).toBe(true);
+  });
+
+  it('isola duas pós-graduações que usam o mesmo código', () => {
+    const cursoEncerrado = 'Formação e Pós-graduação em Psicodrama';
+    const [psicodrama, psicanalise] = aplicarTurmasEncerradas([
+      cadastro({ id: 'psi-psicodrama', posGraduacaoViverMais: cursoEncerrado }),
+      cadastro({
+        id: 'psi-psicanalise',
+        posGraduacaoViverMais: 'Programa de Estudos e Pós-graduação em Psicanálise',
+      }),
+    ], [{ turma: '24A', posGraduacao: cursoEncerrado, encerradaEm: '2026-09-17' }]);
+
+    expect(paraPsicologoPerfil(psicodrama).pausadoNoRodizio).toBe(true);
+    expect(paraPsicologoPerfil(psicanalise).pausadoNoRodizio).toBe(false);
   });
 });
 

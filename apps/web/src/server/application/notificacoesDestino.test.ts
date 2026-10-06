@@ -179,6 +179,25 @@ describe('destino das notificações do psicólogo', () => {
       'secao-status-credenciamento'
     );
   });
+
+  it('identifica curso e código no encerramento da turma', () => {
+    const [aviso] = notificacoesDoPsicologo(
+      estado(),
+      cadastro({
+        turmaEncerrada: {
+          turma: '25A',
+          posGraduacao: 'Formação e Pós-graduação em Psicodrama',
+          encerradaEm: '2026-09-17',
+        },
+      }),
+      AGORA
+    ).filter((item) => item.tipo === 'turma-encerrada');
+
+    expect(aviso.titulo).toBe(
+      'Sua turma 25A de Formação e Pós-graduação em Psicodrama foi encerrada'
+    );
+    expect(aviso.chave).toBe('turma-encerrada:cad-1:2026-09-17');
+  });
 });
 
 describe('destino das notificações da gestão', () => {

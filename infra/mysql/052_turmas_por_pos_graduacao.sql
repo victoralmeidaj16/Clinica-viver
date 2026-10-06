@@ -18,6 +18,18 @@ SET @sql = IF(
 );
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
+-- A FK de instituicao_id pode estar usando a chave única antiga como índice
+-- de suporte. Um índice explícito permite trocar a unicidade sem derrubar a FK.
+SET @sql = IF(
+  EXISTS(SELECT 1 FROM information_schema.statistics
+          WHERE table_schema = @schema_name
+            AND table_name = 'clinica_turmas_encerradas'
+            AND index_name = 'clinica_turmas_encerradas_instituicao_idx'),
+  'SELECT 1',
+  'ALTER TABLE clinica_turmas_encerradas ADD KEY clinica_turmas_encerradas_instituicao_idx (instituicao_id)'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
 -- A chave antiga impediria inserir duas formações com o mesmo código.
 SET @sql = IF(
   EXISTS(SELECT 1 FROM information_schema.statistics

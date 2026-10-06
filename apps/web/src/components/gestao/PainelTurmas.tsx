@@ -11,6 +11,15 @@ interface PainelTurmasProps {
   onReabrir: (turma: string) => void | Promise<void>;
 }
 
+export function posGraduacoesDaTurma(psicologos: readonly PsicologoItem[], turma: string): string[] {
+  return [...new Set(
+    psicologos
+      .filter((psicologo) => psicologo.turmaViverMais === turma && psicologo.status === 'APROVADO')
+      .map((psicologo) => psicologo.posGraduacaoViverMais?.trim())
+      .filter((nome): nome is string => Boolean(nome))
+  )].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+}
+
 /**
  * Turmas em curso e o encerramento de cada uma.
  *
@@ -32,9 +41,10 @@ export function PainelTurmas({ psicologos, encerradas, ocupado, onEncerrar, onRe
         </p>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
         {TURMAS_ATIVAS.map((turma) => {
           const membros = psicologos.filter((p) => p.turmaViverMais === turma && p.status === 'APROVADO');
+          const posGraduacoes = posGraduacoesDaTurma(psicologos, turma);
           const encerramento = porTurma.get(turma);
           const trabalhando = ocupado === `turma:${turma}`;
           const quantos = `${membros.length} ${membros.length === 1 ? 'psicólogo' : 'psicólogos'}`;
@@ -42,13 +52,30 @@ export function PainelTurmas({ psicologos, encerradas, ocupado, onEncerrar, onRe
           return (
             <div
               key={turma}
-              className={`rounded-xl border p-3 space-y-2 ${
+              className={`flex h-full flex-col gap-2 rounded-xl border p-3 ${
                 encerramento ? 'border-rose-200 bg-rose-50/60' : 'border-slate-200 bg-white'
               }`}
             >
               <div className="flex items-baseline justify-between">
                 <span className="text-sm font-black text-slate-900">{turma}</span>
                 <span className="text-[10px] font-bold text-slate-500">{quantos}</span>
+              </div>
+
+              <div className="min-h-12 rounded-lg bg-slate-50 px-2.5 py-2">
+                <p className="mb-1 text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                  Pós-graduações
+                </p>
+                {posGraduacoes.length > 0 ? (
+                  <ul className="space-y-1">
+                    {posGraduacoes.map((nome) => (
+                      <li key={nome} className="break-words text-[10px] font-semibold leading-snug text-slate-700">
+                        {nome}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-[10px] font-medium text-slate-400">Pós-graduação não informada</p>
+                )}
               </div>
 
               {encerramento ? (
@@ -67,7 +94,7 @@ export function PainelTurmas({ psicologos, encerradas, ocupado, onEncerrar, onRe
                     if (!confirm(`Reabrir a turma ${turma}? ${quantos} voltam à vitrine e ao rodízio.`)) return;
                     void onReabrir(turma);
                   }}
-                  className="w-full text-[10px] font-extrabold px-2 py-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 flex items-center justify-center gap-1"
+                  className="mt-auto flex w-full items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-extrabold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
                 >
                   <RotateCcw className="w-3 h-3" /> Reabrir
                 </button>
@@ -79,7 +106,7 @@ export function PainelTurmas({ psicologos, encerradas, ocupado, onEncerrar, onRe
                     if (!confirm(`Encerrar a turma ${turma}? ${quantos} saem da vitrine e do rodízio agora.`)) return;
                     void onEncerrar(turma);
                   }}
-                  className="w-full text-[10px] font-extrabold px-2 py-1 rounded-lg border border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100 disabled:opacity-50"
+                  className="mt-auto w-full rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-[10px] font-extrabold text-rose-800 hover:bg-rose-100 disabled:opacity-50"
                 >
                   Encerrar turma
                 </button>

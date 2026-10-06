@@ -56,6 +56,25 @@ function dadosConvenio(body: Record<string, unknown>, partial = false) {
   };
 }
 
+function isConvenioNameConflict(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const mysqlError = error as { code?: unknown; message?: unknown; sqlMessage?: unknown };
+  if (mysqlError.code !== 'ER_DUP_ENTRY') return false;
+  const details = `${String(mysqlError.message ?? '')} ${String(mysqlError.sqlMessage ?? '')}`;
+  return details.includes('clinica_convenios_nome_uq');
+}
+
+function convenioNameConflict(error: unknown): never {
+  if (isConvenioNameConflict(error)) {
+    throw new ApplicationError(
+      'CONVENIO_NAME_CONFLICT',
+      'Já existe um convênio com este nome. Localize-o na lista para editar o cadastro existente.',
+      409
+    );
+  }
+  throw error;
+}
+
 export async function listConvenios(context: RequestContext) {
   const organizationId = admin(context);
   const convenios = await listarConvenios(organizationId);
@@ -86,17 +105,26 @@ export async function getConvenioDetail(context: RequestContext, id: string, per
 export async function createConvenio(context: RequestContext, body: Record<string, unknown>) {
   const organizationId = admin(context);
   const input = dadosConvenio(body) as ReturnType<typeof dadosConvenio> & { nome: string };
-  return criarConvenio(organizationId, {
-    nome: input.nome, razaoSocial: input.razaoSocial, cnpj: input.cnpj,
-    emailFaturamento: input.emailFaturamento,
-    empresaPagaSessoes: input.empresaPagaSessoes ?? false,
-    pacoteSessoes: input.pacoteSessoes, diaVencimento: input.diaVencimento,
-    ativo: input.ativo ?? true,
-  });
+  try {
+    return await criarConvenio(organizationId, {
+      nome: input.nome, razaoSocial: input.razaoSocial, cnpj: input.cnpj,
+      emailFaturamento: input.emailFaturamento,
+      empresaPagaSessoes: input.empresaPagaSessoes ?? false,
+      pacoteSessoes: input.pacoteSessoes, diaVencimento: input.diaVencimento,
+      ativo: input.ativo ?? true,
+    });
+  } catch (error) {
+    return convenioNameConflict(error);
+  }
 }
 
 export async function updateConvenio(context: RequestContext, id: string, body: Record<string, unknown>) {
-  const updated = await atualizarConvenio(admin(context), id, dadosConvenio(body, true));
+  let updated;
+  try {
+    updated = await atualizarConvenio(admin(context), id, dadosConvenio(body, true));
+  } catch (error) {
+    return convenioNameConflict(error);
+  }
   if (!updated) throw new ApplicationError('NOT_FOUND', 'Convênio não encontrado.', 404);
   return updated;
 }

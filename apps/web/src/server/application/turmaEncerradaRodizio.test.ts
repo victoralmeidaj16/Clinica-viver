@@ -21,7 +21,11 @@ const cadastro = (mudancas: Partial<CadastroPsicologoRecord> = {}): CadastroPsic
 
 describe('turma encerrada no rodízio', () => {
   it('sai da fila assim que a turma é encerrada', () => {
-    const turmaEncerrada = { turma: '24A', encerradaEm: '2026-09-17' };
+    const turmaEncerrada = {
+      turma: '24A',
+      posGraduacao: 'Formação e Pós-graduação em Psicodrama',
+      encerradaEm: '2026-09-17',
+    };
     expect(desligadoPorTurma(turmaEncerrada)).toBe(true);
     expect(paraPsicologoPerfil(cadastro({ turmaEncerrada })).pausadoNoRodizio).toBe(true);
   });

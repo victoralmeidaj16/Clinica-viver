@@ -15,10 +15,27 @@
 export const TURMAS_ATIVAS: readonly string[] = ['24A', '24B', '25A', '25B', '26A', '26B'];
 
 /** O que o cadastro carrega quando a turma dele foi encerrada. */
-export interface TurmaEncerrada {
+export interface IdentidadeTurma {
   turma: string;
+  posGraduacao: string;
+}
+
+export interface TurmaEncerrada extends IdentidadeTurma {
   /** Data do encerramento, `AAAA-MM-DD`. */
   encerradaEm: string;
+}
+
+export function normalizarIdentidadeTurma(identidade: IdentidadeTurma): IdentidadeTurma {
+  return {
+    turma: identidade.turma.trim().toUpperCase(),
+    posGraduacao: identidade.posGraduacao.trim(),
+  };
+}
+
+/** Serializa o par sem depender de um separador que possa existir no nome do curso. */
+export function chaveTurma(identidade: IdentidadeTurma): string {
+  const normalizada = normalizarIdentidadeTurma(identidade);
+  return JSON.stringify([normalizada.posGraduacao, normalizada.turma]);
 }
 
 /** Turma encerrada: fora do rodízio e da vitrine. */

@@ -1,0 +1,13 @@
+import {chromium} from 'playwright-core';
+import fs from 'node:fs';
+const b=await chromium.launch({executablePath:process.env.HOME+'/Library/Caches/ms-playwright/chromium-1243/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing'});
+const p=await b.newPage({viewport:{width:794,height:1123},deviceScaleFactor:1.5});
+await p.goto('file://'+process.cwd()+'/manual.html',{waitUntil:'networkidle'});
+await p.evaluate(()=>document.fonts.ready);
+const over=await p.evaluate(()=>[...document.querySelectorAll('.page')].map((e,i)=>{const f=e.querySelector('footer');let max=0;for(const c of e.children){if(c===f)continue;max=Math.max(max,c.getBoundingClientRect().bottom-e.getBoundingClientRect().top)}return [i+1,Math.round(max),Math.round(f?f.getBoundingClientRect().top-e.getBoundingClientRect().top:0)]}));
+console.log('page: conteúdoAté / rodapéEm (px)');over.forEach(o=>console.log(o.join('  ')+(o[1]>o[2]-4?'   <-- ESTOURA':'')));
+fs.mkdirSync('prev',{recursive:true});
+const pages=await p.$$('.page');
+for(let i=0;i<pages.length;i++) await pages[i].screenshot({path:`prev/p${String(i+1).padStart(2,'0')}.png`});
+await p.pdf({path:'manual.pdf',preferCSSPageSize:true,printBackground:true});
+await b.close();

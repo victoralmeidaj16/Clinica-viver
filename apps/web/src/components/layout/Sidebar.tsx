@@ -19,6 +19,7 @@ import {
   LogOut,
   X,
   FileText,
+  HelpCircle,
 } from 'lucide-react';
 
 const psicologoItems = [
@@ -28,6 +29,7 @@ const psicologoItems = [
   { label: 'Prontuários dos Pacientes', href: '/linha-do-tempo', icon: FileText },
   { label: 'Meu Financeiro', href: '/meu-financeiro', icon: CreditCard },
   { label: 'Agenda & Horários', href: '/agenda', icon: CalendarDays },
+  { label: 'Ajuda', href: '/ajuda', icon: HelpCircle },
 ];
 
 const gestaoItems = [

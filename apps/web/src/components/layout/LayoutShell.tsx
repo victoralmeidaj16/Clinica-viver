@@ -57,7 +57,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   useEffect(() => {
     if (!auth || isPublicPage) return;
     const adminPage = ['/gestao', '/relatorios', '/convenios', '/configuracoes'].some((prefix) => pathname.startsWith(prefix));
-    const professionalPage = ['/cockpit', '/meu-cadastro', '/pacientes', '/meu-financeiro', '/agenda', '/sessao', '/linha-do-tempo', '/relatorios'].some((prefix) => pathname.startsWith(prefix));
+    const professionalPage = ['/cockpit', '/meu-cadastro', '/pacientes', '/meu-financeiro', '/agenda', '/sessao', '/linha-do-tempo', '/relatorios', '/ajuda'].some((prefix) => pathname.startsWith(prefix));
     const allowed = auth.role === 'admin' ? adminPage : professionalPage;
     if (!allowed) router.replace(auth.role === 'admin' ? '/gestao/cockpit' : '/cockpit');
   }, [auth, isPublicPage, pathname, router]);

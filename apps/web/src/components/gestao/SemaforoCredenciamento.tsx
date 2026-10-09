@@ -1,8 +1,16 @@
 import React from 'react';
-import { CheckCircle2, Circle, HelpCircle } from 'lucide-react';
+import { CheckCircle2, Circle, HelpCircle, MailPlus } from 'lucide-react';
 import { PsicologoItem } from './types';
 
-export function SemaforoCredenciamento({ psicologo }: { psicologo: PsicologoItem }) {
+export function SemaforoCredenciamento({
+  psicologo,
+  reenviando = false,
+  onReenviar,
+}: {
+  psicologo: PsicologoItem;
+  reenviando?: boolean;
+  onReenviar?: (psicologo: PsicologoItem) => void;
+}) {
   if (psicologo.status !== 'APROVADO') return null;
 
   const marcos: Array<[string, boolean | undefined]> = [
@@ -35,6 +43,17 @@ export function SemaforoCredenciamento({ psicologo }: { psicologo: PsicologoItem
           {rotulo}
         </span>
       ))}
+      {onReenviar && (
+        <button
+          type="button"
+          disabled={reenviando}
+          onClick={() => onReenviar(psicologo)}
+          className="text-[10px] font-extrabold px-2 py-1 rounded-lg border border-purple-200 bg-purple-50 text-purple-900 hover:bg-purple-100 disabled:opacity-50 flex items-center gap-1"
+        >
+          <MailPlus className="w-3 h-3" />
+          {reenviando ? 'Reenviando…' : 'Reenviar convite'}
+        </button>
+      )}
     </div>
   );
 }

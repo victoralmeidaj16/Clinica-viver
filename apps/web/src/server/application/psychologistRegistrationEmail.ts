@@ -13,6 +13,8 @@ type SituacaoEmail =
 
 export interface ResultadoEmailPsicologo {
   situacao: SituacaoEmail;
+  codigo?: number;
+  detalhe?: string;
 }
 
 interface ConteudoEmail {
@@ -34,6 +36,36 @@ function escaparHtml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   })[character] as string);
+}
+
+/**
+ * Mantém no log e na resposta autenticada somente a explicação operacional do
+ * provedor. Endereços de e-mail são ocultados e respostas inesperadamente
+ * grandes são truncadas para não transformar logs em depósito de dados.
+ */
+async function detalheSeguroDaFalha(response: Response): Promise<string | undefined> {
+  try {
+    const raw = await response.text();
+    if (!raw.trim()) return undefined;
+    let detalhe = raw;
+    try {
+      const json = JSON.parse(raw) as { message?: unknown; error?: unknown; name?: unknown };
+      detalhe = [json.message, json.error, json.name]
+        .find((value): value is string => typeof value === 'string' && Boolean(value.trim()))
+        ?? raw;
+    } catch {
+      // Respostas não JSON continuam úteis, desde que sanitizadas abaixo.
+    }
+    return detalhe
+      .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[email oculto]')
+      .replace(/(\b(?:token|key|secret)=)[^&\s]+/gi, '$1[oculto]')
+      .replace(/\bre_[A-Za-z0-9_-]+\b/g, '[chave oculta]')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 240) || undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function configuracaoEmail() {
@@ -162,8 +194,11 @@ async function enviar(
       signal: AbortSignal.timeout(10_000),
     });
     if (!response.ok) {
-      console.warn(`[email] Provedor recusou credenciamento: HTTP ${response.status}.`);
-      return { situacao: 'falha' };
+      const detalhe = await detalheSeguroDaFalha(response);
+      console.warn(
+        `[email] Provedor recusou credenciamento: HTTP ${response.status}${detalhe ? ` — ${detalhe}` : ''}.`
+      );
+      return { situacao: 'falha', codigo: response.status, detalhe };
     }
     return { situacao: 'enviada' };
   } catch (error) {
@@ -185,11 +220,12 @@ export async function avisarCadastroRecebidoPorEmail(
 export async function avisarCadastroAprovadoPorEmail(
   record: CadastroPsicologoRecord,
   portalUrl: string,
-  activationUrl?: string
+  activationUrl?: string,
+  tentativaId?: string
 ): Promise<ResultadoEmailPsicologo> {
   return enviar(
     record,
-    `psychologist-registration-approved-${record.id}`,
+    `psychologist-registration-approved-${record.id}${tentativaId ? `-${tentativaId}` : ''}`,
     conteudoCadastroAprovado(nomeDeExibicao(record), portalUrl, activationUrl)
   );
 }

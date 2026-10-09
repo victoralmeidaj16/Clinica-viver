@@ -11,15 +11,9 @@ import {
 } from '@/server/application/psychologistRegistration';
 import {
   CadastroIncompletoError,
-  markWelcomeSent,
-  provisionPsychologistAccess,
   validateApprovalAccess,
 } from '@/server/application/psychologistAccess';
-import { avisarBoasVindasPsicologo } from '@/server/application/viverMaisWhatsApp';
-import {
-  avisarCadastroAprovadoPorEmail,
-  type ResultadoEmailPsicologo,
-} from '@/server/application/psychologistRegistrationEmail';
+import { enviarConvitePsicologo } from '@/server/application/psychologistInvitation';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -66,27 +60,22 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       if (!atualizado) {
         return NextResponse.json({ success: false, error: 'Cadastro não encontrado.' }, { status: 404 });
       }
-      let acesso: { criado: boolean; boasVindas: string; email?: string } | undefined;
+      let acesso: {
+        criado: boolean;
+        boasVindas: string;
+        email?: string;
+        emailCodigo?: number;
+        emailDetalhe?: string;
+      } | undefined;
       if (atualizado.status === 'APROVADO' && (!atualizado.usuarioRef || !atualizado.boasVindasEnviadaEm)) {
-        const provisioned = await provisionPsychologistAccess(atualizado);
-        let boasVindas = 'conta_existente';
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, '') || 'https://clinicavivermais.cloud';
-        let emailDelivery: ResultadoEmailPsicologo;
-        if (provisioned.activationToken) {
-          const activationUrl = `${appUrl}/ativar-conta?token=${encodeURIComponent(provisioned.activationToken)}`;
-          const [whatsappDelivery, approvalEmail] = await Promise.all([
-            avisarBoasVindasPsicologo(atualizado, activationUrl),
-            avisarCadastroAprovadoPorEmail(atualizado, `${appUrl}/login`, activationUrl),
-          ]);
-          boasVindas = whatsappDelivery.situacao;
-          emailDelivery = approvalEmail;
-        } else {
-          emailDelivery = await avisarCadastroAprovadoPorEmail(atualizado, `${appUrl}/login`);
-        }
-        if (boasVindas === 'enviada' || emailDelivery.situacao === 'enviada') {
-          await markWelcomeSent(atualizado.id);
-        }
-        acesso = { criado: true, boasVindas, email: emailDelivery.situacao };
+        const convite = await enviarConvitePsicologo(atualizado);
+        acesso = {
+          criado: true,
+          boasVindas: convite.whatsapp,
+          email: convite.email.situacao,
+          emailCodigo: convite.email.codigo,
+          emailDetalhe: convite.email.detalhe,
+        };
       }
       return NextResponse.json({ success: true, data: atualizado, acesso });
     }

@@ -33,6 +33,7 @@ interface PsicologoCardProps {
   onEditar: (p: PsicologoItem) => void;
   onAjustarLimite: (p: PsicologoItem) => void;
   onPriorizar: (p: PsicologoItem) => void;
+  onReenviarConvite: (p: PsicologoItem) => void;
   onAprovarSolicitacaoGestao?: (p: PsicologoItem) => void | Promise<void>;
   onRecusarSolicitacaoGestao?: (p: PsicologoItem) => void | Promise<void>;
 }
@@ -51,6 +52,7 @@ export function PsicologoCard({
   onEditar,
   onAjustarLimite,
   onPriorizar,
+  onReenviarConvite,
   onAprovarSolicitacaoGestao,
   onRecusarSolicitacaoGestao,
 }: PsicologoCardProps) {
@@ -301,7 +303,13 @@ export function PsicologoCard({
             </p>
           )}
 
-          {p.status !== 'RECUSADO' && <SemaforoCredenciamento psicologo={p} />}
+          {p.status !== 'RECUSADO' && (
+            <SemaforoCredenciamento
+              psicologo={p}
+              reenviando={trabalhando}
+              onReenviar={p.status === 'APROVADO' ? onReenviarConvite : undefined}
+            />
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-slate-600 bg-slate-50 p-4 rounded-2xl border border-slate-100">
             <div className="space-y-2">

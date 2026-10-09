@@ -93,6 +93,40 @@ describe('e-mails do credenciamento de psicólogo', () => {
     expect(JSON.parse(String(init.body)).text).toContain(activationUrl);
   });
 
+  it('devolve o motivo sanitizado quando o Resend recusa o envio', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      name: 'validation_error',
+      message: 'The domain is not verified for ana@example.com; token=https://x.test?t=1&token=segredo',
+    }), { status: 403 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(avisarCadastroAprovadoPorEmail(
+      cadastro,
+      'https://clinicavivermais.cloud/login'
+    )).resolves.toEqual({
+      situacao: 'falha',
+      codigo: 403,
+      detalhe: 'The domain is not verified for [email oculto]; token=[oculto]&token=[oculto]',
+    });
+  });
+
+  it('usa uma chave idempotente nova no reenvio', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await avisarCadastroAprovadoPorEmail(
+      cadastro,
+      'https://clinicavivermais.cloud/login',
+      undefined,
+      'tentativa-2'
+    );
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(new Headers(init.headers).get('Idempotency-Key')).toBe(
+      'psychologist-registration-approved-psi-cad-1-tentativa-2'
+    );
+  });
+
   it('usa vivermaispsicoterapia@gmail.com como remetente padrão na ausência de variáveis específicas', async () => {
     delete process.env.NFSE_EMAIL_FROM;
     delete process.env.PSYCHOLOGIST_EMAIL_FROM;

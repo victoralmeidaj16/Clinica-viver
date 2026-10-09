@@ -134,7 +134,8 @@ export async function enviarTexto(
  */
 export async function avisarBoasVindasPsicologo(
   psicologo: CadastroPsicologoRecord,
-  activationUrl: string
+  activationUrl: string,
+  tentativaId?: string
 ): Promise<ResultadoEnvio> {
   const nome = psicologo.nomeSocial?.trim() || psicologo.nomeCompleto.trim();
   const texto = [
@@ -153,7 +154,7 @@ export async function avisarBoasVindasPsicologo(
     psicologo.whatsapp,
     texto,
     'boas_vindas_psicologo',
-    `boas-vindas:${psicologo.id}`,
+    `boas-vindas:${psicologo.id}${tentativaId ? `:${tentativaId}` : ''}`,
     true
   );
 }

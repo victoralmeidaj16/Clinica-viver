@@ -39,6 +39,22 @@ const FILTROS: Array<[FiltroStatus, string]> = [
 
 const nomeExibido = (p: PsicologoItem) => p.nomeSocial?.trim() || p.nomeCompleto;
 
+type ResultadoAcesso = {
+  boasVindas?: string;
+  email?: string;
+  emailCodigo?: number;
+  emailDetalhe?: string;
+};
+
+function resumoEntregas(whatsapp: string | undefined, email: string | undefined, detalhe?: string) {
+  const linhas = [
+    `WhatsApp: ${whatsapp === 'enviada' ? 'enviado' : whatsapp === 'nao_aplicavel' ? 'não aplicável' : 'falhou'}`,
+    `E-mail: ${email === 'enviada' ? 'enviado' : 'falhou'}`,
+  ];
+  if (detalhe) linhas.push(`Motivo do e-mail: ${detalhe}`);
+  return linhas.join('\n');
+}
+
 export default function GestaoPsicologosPage() {
   const [psicologos, setPsicologos] = useState<PsicologoItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -127,7 +143,11 @@ export default function GestaoPsicologosPage() {
     }
   };
 
-  const atualizar = async (id: string, mudancas: Record<string, unknown>) => {
+  const atualizar = async (
+    id: string,
+    mudancas: Record<string, unknown>,
+    mostrarEntregas = false
+  ) => {
     setOcupado(id);
     try {
       const resp = await fetch(`/api/application/credenciamento-psicologo/${id}`, {
@@ -135,7 +155,12 @@ export default function GestaoPsicologosPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(mudancas),
       });
-      const body = (await resp.json()) as { success: boolean; error?: string; campos?: string[] };
+      const body = (await resp.json()) as {
+        success: boolean;
+        error?: string;
+        campos?: string[];
+        acesso?: ResultadoAcesso;
+      };
       if (!resp.ok || !body.success) {
         alert(
           body.campos?.length
@@ -143,6 +168,13 @@ export default function GestaoPsicologosPage() {
             : body.error ?? 'Não foi possível salvar.'
         );
         return false;
+      }
+      if (mostrarEntregas && body.acesso) {
+        alert(resumoEntregas(
+          body.acesso.boasVindas,
+          body.acesso.email,
+          body.acesso.emailDetalhe
+        ));
       }
       await loadPsicologos();
       return true;
@@ -155,7 +187,42 @@ export default function GestaoPsicologosPage() {
   };
 
   const aprovar = (p: PsicologoItem) =>
-    atualizar(p.id, { status: 'APROVADO', exibirNaVitrine: true, pausadoNoRodizio: false });
+    atualizar(
+      p.id,
+      { status: 'APROVADO', exibirNaVitrine: true, pausadoNoRodizio: false },
+      true
+    );
+
+  const reenviarConvite = async (p: PsicologoItem) => {
+    if (!confirm(`Gerar um novo convite e reenviar para ${nomeExibido(p)}? O link anterior deixará de funcionar.`)) {
+      return;
+    }
+    setOcupado(p.id);
+    try {
+      const resp = await fetch(
+        `/api/application/credenciamento-psicologo/${p.id}/reenviar-convite`,
+        { method: 'POST' }
+      );
+      const body = (await resp.json()) as {
+        success: boolean;
+        error?: string;
+        data?: {
+          whatsapp: string;
+          email: { situacao: string; detalhe?: string };
+        };
+      };
+      if (!resp.ok || !body.success || !body.data) {
+        alert(body.error ?? 'Não foi possível reenviar o convite.');
+        return;
+      }
+      alert(resumoEntregas(body.data.whatsapp, body.data.email.situacao, body.data.email.detalhe));
+      await loadPsicologos();
+    } catch {
+      alert('Falha de conexão ao reenviar o convite.');
+    } finally {
+      setOcupado(null);
+    }
+  };
 
   const recusar = (p: PsicologoItem) => {
     if (!confirm(`Recusar o credenciamento de ${nomeExibido(p)}?`)) return;
@@ -523,6 +590,7 @@ export default function GestaoPsicologosPage() {
               onEditar={(item) => setEditando(item)}
               onAjustarLimite={(item) => setLimiteAlvo(item)}
               onPriorizar={(item) => void priorizarNaFila(item)}
+              onReenviarConvite={(item) => void reenviarConvite(item)}
               onAprovarSolicitacaoGestao={aprovarSolicitacaoGestao}
               onRecusarSolicitacaoGestao={recusarSolicitacaoGestao}
             />

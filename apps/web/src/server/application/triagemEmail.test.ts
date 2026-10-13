@@ -37,7 +37,7 @@ const psicologo: CadastroPsicologoRecord = {
 describe('e-mails de confirmação de agendamento/triagem', () => {
   beforeEach(() => {
     process.env.RESEND_API_KEY = 're_teste';
-    process.env.NFSE_EMAIL_FROM = 'Viver Mais <atendimento@example.com>';
+    process.env.PSYCHOLOGIST_EMAIL_FROM = 'Viver Mais <atendimento@example.com>';
   });
 
   afterEach(() => {
@@ -110,7 +110,7 @@ describe('e-mails de confirmação de agendamento/triagem', () => {
     });
   });
 
-  it('usa vivermaispsicoterapia@gmail.com como remetente padrão na ausência de variáveis específicas', async () => {
+  it('usa o domínio da clínica como remetente e o Gmail como reply-to padrão na ausência de variáveis específicas', async () => {
     delete process.env.NFSE_EMAIL_FROM;
     delete process.env.PSYCHOLOGIST_EMAIL_FROM;
     delete process.env.PSYCHOLOGIST_EMAIL_REPLY_TO;
@@ -123,7 +123,7 @@ describe('e-mails de confirmação de agendamento/triagem', () => {
 
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     const body = JSON.parse(String(init.body));
-    expect(body.from).toBe('Viver Mais Psicologia <vivermaispsicoterapia@gmail.com>');
+    expect(body.from).toBe('Viver Mais Psicologia <atendimento@clinicavivermais.cloud>');
     expect(body.reply_to).toBe('vivermaispsicoterapia@gmail.com');
   });
 

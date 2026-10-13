@@ -38,7 +38,7 @@ function configuracaoEmail() {
   const from = process.env.NFSE_EMAIL_FROM?.trim()
     || process.env.RESEND_FROM?.trim()
     || process.env.EMAIL_FROM?.trim()
-    || 'Viver Mais Psicologia <vivermaispsicoterapia@gmail.com>';
+    || 'Viver Mais Psicologia <notas@clinicavivermais.cloud>';
   if (!apiKey || !from) {
     throw new Error('Configure RESEND_API_KEY para enviar a NFS-e ao paciente.');
   }

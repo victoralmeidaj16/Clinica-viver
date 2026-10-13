@@ -68,7 +68,7 @@ describe('envio da NFS-e por e-mail', () => {
     })).rejects.toThrow('domínio remetente não verificado');
   });
 
-  it('usa vivermaispsicoterapia@gmail.com como remetente e reply-to padrão na ausência de NFSE_EMAIL_FROM', async () => {
+  it('usa notas no domínio da clínica como remetente e o Gmail como reply-to padrão na ausência de NFSE_EMAIL_FROM', async () => {
     delete process.env.NFSE_EMAIL_FROM;
     delete process.env.NFSE_EMAIL_REPLY_TO;
 
@@ -84,7 +84,7 @@ describe('envio da NFS-e por e-mail', () => {
 
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     const body = JSON.parse(String(init.body));
-    expect(body.from).toBe('Viver Mais Psicologia <vivermaispsicoterapia@gmail.com>');
+    expect(body.from).toBe('Viver Mais Psicologia <notas@clinicavivermais.cloud>');
     expect(body.reply_to).toBe('vivermaispsicoterapia@gmail.com');
   });
 });

@@ -18,3 +18,9 @@ export function createCompletionHandler(request: () => Promise<void>): () => Pro
     finally { inFlight = null; }
   };
 }
+
+/** O hash `h` é obrigatório para vídeos não listados; sem ele o Vimeo recusa o embed. */
+export function vimeoEmbedUrl(vimeoId: string, vimeoHash?: string): string {
+  const privacy = vimeoHash ? `h=${encodeURIComponent(vimeoHash)}&` : '';
+  return `https://player.vimeo.com/video/${encodeURIComponent(vimeoId)}?${privacy}dnt=1&title=0&byline=0&portrait=0`;
+}

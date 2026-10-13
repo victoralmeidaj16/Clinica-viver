@@ -38,12 +38,9 @@ export function proxy(request: NextRequest) {
     if (pathname === '/aluno/login' || process.env.VERCEL) return NextResponse.next();
     const studentSession = readStudentSessionValue(request.cookies.get(STUDENT_SESSION_COOKIE)?.value);
     if (!studentSession) return NextResponse.redirect(new URL('/aluno/login', request.url));
-    if (studentSession.mustChangePassword && pathname !== '/aluno/trocar-senha') {
-      return NextResponse.redirect(new URL('/aluno/trocar-senha', request.url));
-    }
-    if (!studentSession.mustChangePassword && pathname === '/aluno/trocar-senha') {
-      return NextResponse.redirect(new URL('/aluno', request.url));
-    }
+    // A troca obrigatória de senha é decidida pelo banco (StudentShell + APIs).
+    // O `mustChangePassword` do cookie é uma cópia do login e fica desatualizado
+    // quando a gestão redefine a senha; usá-lo aqui criava um ciclo de redirects.
     return NextResponse.next();
   }
 

@@ -3,7 +3,7 @@ import 'server-only';
 import { randomUUID } from 'node:crypto';
 import {
   assertAcademicPassword,
-  normalizeVimeoId,
+  parseVimeoVideo,
   type AcademicCourse,
   type AcademicEnrollment,
   type AcademicLesson,
@@ -112,7 +112,7 @@ export class AcademicManagementService {
     await this.requireStudent(studentId);
     try { assertAcademicPassword(password); }
     catch (error) { throw new ApplicationError('WEAK_PASSWORD', error instanceof Error ? error.message : 'Senha inválida.', 400); }
-    await this.repository.updateStudentPassword(studentId, hashPassword(password), true, actorUserId);
+    await this.repository.updateStudentPassword(studentId, hashPassword(password), true, this.now().toISOString(), actorUserId);
   }
 
   async setStudentStatus(studentId: string, status: AcademicStudent['status']): Promise<AcademicStudent> {
@@ -201,8 +201,8 @@ export class AcademicManagementService {
   }
 
   private lessonFromInput(id: string, input: SaveLessonInput): AcademicLesson {
-    let vimeoId: string;
-    try { vimeoId = normalizeVimeoId(input.vimeoUrl); }
+    let video: ReturnType<typeof parseVimeoVideo>;
+    try { video = parseVimeoVideo(input.vimeoUrl); }
     catch { throw new ApplicationError('INVALID_VIMEO', 'Informe um ID ou link válido do Vimeo.', 400); }
     if (!Number.isFinite(input.durationMinutes) || input.durationMinutes <= 0) {
       throw new ApplicationError('INVALID_INPUT', 'A duração da aula deve ser maior que zero.', 400);
@@ -210,7 +210,8 @@ export class AcademicManagementService {
     return {
       id, courseId: input.courseId, moduleId: input.moduleId, modulePosition: input.modulePosition,
       title: required(input.title, 'Título'), description: input.description?.trim() || undefined,
-      durationMinutes: input.durationMinutes, position: input.position, vimeoId, published: input.published,
+      durationMinutes: input.durationMinutes, position: input.position, vimeoId: video.id, vimeoHash: video.hash,
+      published: input.published,
     };
   }
 }

@@ -38,13 +38,34 @@ describe('MysqlAcademicRepository', () => {
         { id: 'module-1', curso_id: 2, titulo: 'Primeiro', ordem: 1 },
       ], []] as never)
       .mockResolvedValueOnce([[
-        { id: 'lesson-1', modulo_id: 'module-1', titulo: 'Aula 1', descricao: null, duracao_min: 12, vimeo_id: '123', ordem: 1, publicado: 1 },
+        { id: 'lesson-1', modulo_id: 'module-1', titulo: 'Aula 1', descricao: null, duracao_min: 12, vimeo_id: '123', vimeo_hash: 'abc123', ordem: 1, publicado: 1 },
       ], []] as never);
 
     const tree = await repository.getCourseTree('2');
 
     expect(tree?.modules.map((module) => module.id)).toEqual(['module-1', 'module-2']);
-    expect(tree?.modules[0].lessons[0]).toMatchObject({ id: 'lesson-1', courseId: '2', modulePosition: 1 });
+    expect(tree?.modules[0].lessons[0]).toMatchObject({ id: 'lesson-1', courseId: '2', modulePosition: 1, vimeoHash: 'abc123' });
+  });
+
+  it('persiste o hash do Vimeo e a data da troca de senha', async () => {
+    await repository.saveLesson({
+      id: 'lesson-1', courseId: '2', moduleId: 'module-1', modulePosition: 1, title: 'Aula', durationMinutes: 10,
+      position: 1, vimeoId: '123', vimeoHash: 'abc123', published: true,
+    });
+    await repository.updateStudentPassword('student-1', 'scrypt$x', false, '2026-10-13T12:00:00.000Z');
+    const [lessonSql, lessonValues] = execute.mock.calls[0] as unknown as [string, unknown[]];
+    const [passwordSql, passwordValues] = execute.mock.calls[1] as unknown as [string, unknown[]];
+    expect(lessonSql).toContain('vimeo_hash = VALUES(vimeo_hash)');
+    expect(lessonValues).toContain('abc123');
+    expect(passwordSql).toContain('senha_alterada_em = ?');
+    expect(passwordValues).toContain('2026-10-13 12:00:00.000');
+  });
+
+  it('grava e lê instantes no formato TIMESTAMP em UTC do pool', async () => {
+    await repository.completeLesson('student-1', 'lesson-1', '2026-10-13T12:00:00.000Z');
+    expect((execute.mock.calls[0] as unknown as [string, unknown[]])[1]).toContain('2026-10-13 12:00:00.000');
+    query.mockResolvedValueOnce([[{ aluno_id: 'student-1', aula_id: 'lesson-1', concluida_em: '2026-10-13 12:00:00.000' }], []] as never);
+    expect((await repository.listCompletions('student-1'))[0].completedAt).toBe('2026-10-13T12:00:00.000Z');
   });
 
   it('lista para o aluno somente matrícula ativa e conteúdo ativo/publicado', async () => {

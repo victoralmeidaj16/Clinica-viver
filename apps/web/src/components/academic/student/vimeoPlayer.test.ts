@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { bindVimeoEnded, createCompletionHandler, type VimeoPlayerPort } from './vimeoPlayer';
+import { bindVimeoEnded, createCompletionHandler, vimeoEmbedUrl, type VimeoPlayerPort } from './vimeoPlayer';
 
 function fakePlayer() {
   let ended: (() => void) | undefined;
@@ -44,5 +44,10 @@ describe('player Vimeo acadêmico', () => {
     await expect(complete()).rejects.toThrow('offline');
     await expect(complete()).resolves.toBeUndefined();
     expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  it('monta o embed com dnt e inclui o hash de vídeos não listados', () => {
+    expect(vimeoEmbedUrl('123')).toBe('https://player.vimeo.com/video/123?dnt=1&title=0&byline=0&portrait=0');
+    expect(vimeoEmbedUrl('123', 'abc123')).toBe('https://player.vimeo.com/video/123?h=abc123&dnt=1&title=0&byline=0&portrait=0');
   });
 });

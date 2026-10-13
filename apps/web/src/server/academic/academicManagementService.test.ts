@@ -58,7 +58,7 @@ describe('AcademicManagementService', () => {
     vi.mocked(repository.getStudent).mockResolvedValue(student);
     await service.resetTemporaryPassword('student-1', 'outraSenha123', 'admin-2');
     expect(repository.updateStudentPassword).toHaveBeenCalledWith(
-      'student-1', expect.stringMatching(/^scrypt\$/), true, 'admin-2',
+      'student-1', expect.stringMatching(/^scrypt\$/), true, '2026-10-13T12:00:00.000Z', 'admin-2',
     );
   });
 
@@ -68,7 +68,7 @@ describe('AcademicManagementService', () => {
       moduleId: 'module-1', courseId: '2', modulePosition: 1, title: 'Aula', durationMinutes: 12,
       position: 1, vimeoUrl: 'https://vimeo.com/76979871/abc', published: true,
     });
-    expect(repository.saveLesson).toHaveBeenCalledWith(expect.objectContaining({ vimeoId: '76979871' }));
+    expect(repository.saveLesson).toHaveBeenCalledWith(expect.objectContaining({ vimeoId: '76979871', vimeoHash: 'abc' }));
     await expect(service.createLesson({
       moduleId: 'module-1', courseId: '2', modulePosition: 1, title: 'Aula', durationMinutes: 12,
       position: 1, vimeoUrl: 'https://youtube.com/watch?v=123', published: true,

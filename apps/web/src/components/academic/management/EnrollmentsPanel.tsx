@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { GraduationCap, Link2 } from 'lucide-react';
 import type { AcademicCourse, AcademicEnrollment, AcademicStudent } from '@thats-life/core';
+import { ConfirmButton } from './ConfirmButton';
+import { errorMessage, sendJson } from './managementRequest';
 
 export function EnrollmentsPanel() {
   const [students, setStudents] = useState<AcademicStudent[]>([]);
@@ -38,19 +40,24 @@ export function EnrollmentsPanel() {
   }, []);
 
   async function enroll() {
-    const response = await fetch('/api/academico/gestao/matriculas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ studentId, courseId, status: 'active' }) });
-    setMessage(response.ok ? 'Matrícula ativada.' : 'Não foi possível criar a matrícula.');
-    if (response.ok) await load();
+    try {
+      await sendJson('/api/academico/gestao/matriculas', 'POST', { studentId, courseId, status: 'active' });
+      setMessage('Matrícula ativada.'); await load();
+    } catch (cause) { setMessage(errorMessage(cause)); }
   }
   async function toggle(enrollment: AcademicEnrollment) {
-    await fetch(`/api/academico/gestao/matriculas/${enrollment.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: enrollment.status === 'active' ? 'suspended' : 'active' }) });
-    await load();
+    try {
+      await sendJson(`/api/academico/gestao/matriculas/${enrollment.id}`, 'PATCH', { status: enrollment.status === 'active' ? 'suspended' : 'active' });
+      setMessage(''); await load();
+    } catch (cause) { setMessage(errorMessage(cause)); }
   }
   const studentName = (id: string) => students.find((student) => student.id === id)?.fullName ?? 'Aluno';
   const courseName = (id: string) => courses.find((course) => course.id === id)?.title ?? 'Curso';
 
   return <div className="space-y-6"><section className="rounded-3xl border border-psi-soft bg-white p-5 shadow-soft sm:p-6"><div className="flex items-center gap-3"><span className="grid h-11 w-11 place-items-center rounded-2xl bg-emerald-100 text-emerald-800"><Link2 className="h-5 w-5" /></span><div><h2 className="text-lg font-black text-psi-darkest">Nova matrícula</h2><p className="text-xs text-muted">Vincule o aluno ao conteúdo liberado.</p></div></div><div className="mt-5 grid gap-3 md:grid-cols-[1fr_1fr_auto]"><Select value={studentId} onChange={setStudentId} label="Aluno" options={students.map((item) => ({ value: item.id, label: item.fullName }))} /><Select value={courseId} onChange={setCourseId} label="Curso" options={courses.map((item) => ({ value: item.id, label: item.title }))} /><button disabled={!studentId || !courseId} onClick={() => void enroll()} className="self-end rounded-xl bg-psi-deep px-5 py-3 text-xs font-black text-white disabled:opacity-40">Matricular</button></div>{message && <p className="mt-3 text-xs font-bold text-psi-deep">{message}</p>}</section>
-    <section className="rounded-3xl border border-psi-soft bg-white p-5 shadow-soft sm:p-6"><h2 className="text-lg font-black text-psi-darkest">Matrículas atuais</h2><div className="mt-4 grid gap-3 lg:grid-cols-2">{enrollments.map((enrollment) => <article key={enrollment.id} className="flex items-center gap-3 rounded-2xl border border-psi-soft bg-psi-light p-4"><GraduationCap className="h-5 w-5 shrink-0 text-psi-deep" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-black text-psi-darkest">{studentName(enrollment.studentId)}</p><p className="truncate text-xs text-muted">{courseName(enrollment.courseId)}</p></div><button onClick={() => void toggle(enrollment)} className={`rounded-full px-3 py-1 text-[10px] font-black uppercase ${enrollment.status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}>{enrollment.status === 'active' ? 'Ativa' : 'Suspensa'}</button></article>)}</div>{enrollments.length === 0 && <p className="mt-4 rounded-2xl border border-dashed border-psi-soft p-8 text-center text-sm text-muted">Nenhuma matrícula criada.</p>}</section>
+    <section className="rounded-3xl border border-psi-soft bg-white p-5 shadow-soft sm:p-6"><h2 className="text-lg font-black text-psi-darkest">Matrículas atuais</h2>{message && <p role="status" className="mt-2 text-xs font-bold text-psi-deep">{message}</p>}<div className="mt-4 grid gap-3 lg:grid-cols-2">{enrollments.map((enrollment) => <article key={enrollment.id} className="flex items-center gap-3 rounded-2xl border border-psi-soft bg-psi-light p-4"><GraduationCap className="h-5 w-5 shrink-0 text-psi-deep" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-black text-psi-darkest">{studentName(enrollment.studentId)}</p><p className="truncate text-xs text-muted">{courseName(enrollment.courseId)}</p></div>{enrollment.status === 'active'
+      ? <ConfirmButton message={`Suspender a matrícula de ${studentName(enrollment.studentId)}? O progresso é mantido.`} onConfirm={() => void toggle(enrollment)} className="rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-black uppercase text-emerald-800" title="Suspender matrícula">Ativa</ConfirmButton>
+      : <button onClick={() => void toggle(enrollment)} className="rounded-full bg-slate-200 px-3 py-1 text-[10px] font-black uppercase text-slate-600" title="Reativar matrícula">Suspensa</button>}</article>)}</div>{enrollments.length === 0 && <p className="mt-4 rounded-2xl border border-dashed border-psi-soft p-8 text-center text-sm text-muted">Nenhuma matrícula criada.</p>}</section>
   </div>;
 }
 

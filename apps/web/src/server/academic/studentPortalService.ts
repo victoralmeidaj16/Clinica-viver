@@ -11,7 +11,7 @@ import {
   type CourseProgress,
 } from '@thats-life/core';
 import { ApplicationError } from '@/server/application/http';
-import { hashPassword } from '@/server/security/passwordHash';
+import { hashPassword, verifyPasswordHash } from '@/server/security/passwordHash';
 import { getAcademicRepository, type AcademicRepository } from './academicRepository';
 
 export interface StudentCourseView extends AcademicCourseTree {
@@ -82,11 +82,18 @@ export class StudentPortalService {
     return next;
   }
 
-  async changePassword(studentId: string, password: string): Promise<void> {
-    await this.requireStudent(studentId);
+  /** A senha atual só é dispensada na troca obrigatória da senha temporária. */
+  async changePassword(studentId: string, password: string, currentPassword = ''): Promise<void> {
+    const student = await this.requireStudent(studentId);
+    if (!student.mustChangePassword) {
+      const credential = await this.repository.findStudentCredentialByEmail(student.email);
+      if (!credential || credential.student.id !== studentId || !verifyPasswordHash(currentPassword, credential.passwordHash)) {
+        throw new ApplicationError('INVALID_CREDENTIALS', 'Senha atual incorreta.', 400);
+      }
+    }
     try { assertAcademicPassword(password); }
     catch (error) { throw new ApplicationError('WEAK_PASSWORD', error instanceof Error ? error.message : 'Senha inválida.', 400); }
-    await this.repository.updateStudentPassword(studentId, hashPassword(password), false);
+    await this.repository.updateStudentPassword(studentId, hashPassword(password), false, this.now().toISOString());
   }
 
   private async courseView(studentId: string, course: AcademicCourse): Promise<StudentCourseView> {

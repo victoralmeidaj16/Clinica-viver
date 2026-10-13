@@ -2,6 +2,8 @@
 
 import { FormEvent, useState } from 'react';
 import type { AcademicCourse } from '@thats-life/core';
+import { ConfirmPrompt } from './ConfirmButton';
+import { errorMessage, sendJson } from './managementRequest';
 
 export function CourseEditor({ course, onSaved }: { course?: AcademicCourse; onSaved: () => void }) {
   const [form, setForm] = useState(() => course ? {
@@ -13,14 +15,20 @@ export function CourseEditor({ course, onSaved }: { course?: AcademicCourse; onS
     published: course.published,
   } : { title: '', description: '', coverUrl: '', position: 0, active: true, published: false });
   const [message, setMessage] = useState('');
-  async function submit(event: FormEvent) {
-    event.preventDefault(); setMessage('');
-    const response = await fetch(course ? `/api/academico/gestao/cursos/${course.id}` : '/api/academico/gestao/cursos', {
-      method: course ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form),
-    });
-    const payload = await response.json();
-    if (!response.ok) return setMessage(payload.error?.message ?? 'Falha ao salvar curso.');
-    setMessage('Curso salvo.'); onSaved();
+  const [confirming, setConfirming] = useState(false);
+  async function save() {
+    setMessage(''); setConfirming(false);
+    try {
+      if (course) await sendJson(`/api/academico/gestao/cursos/${course.id}`, 'PATCH', form);
+      else await sendJson('/api/academico/gestao/cursos', 'POST', form);
+      setMessage('Curso salvo.'); onSaved();
+    } catch (cause) { setMessage(errorMessage(cause)); }
+  }
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    // Despublicar ou desativar retira o curso do portal de todos os matriculados.
+    if (course && ((course.published && !form.published) || (course.active && !form.active))) return setConfirming(true);
+    void save();
   }
   return <form onSubmit={submit} className="space-y-4 rounded-3xl border border-psi-soft bg-white p-5 shadow-soft">
     <div><p className="text-[10px] font-black uppercase tracking-[.18em] text-psi-vibrant">Catálogo</p><h2 className="text-lg font-black text-psi-darkest">{course ? 'Editar curso' : 'Novo curso'}</h2></div>
@@ -29,7 +37,8 @@ export function CourseEditor({ course, onSaved }: { course?: AcademicCourse; onS
     <Input label="URL da capa (opcional)" value={form.coverUrl} onChange={(coverUrl) => setForm({ ...form, coverUrl })} />
     <Input label="Ordem" type="number" value={String(form.position)} onChange={(position) => setForm({ ...form, position: Number(position) })} />
     <div className="grid gap-2 sm:grid-cols-2"><Check label="Curso ativo" checked={form.active} onChange={(active) => setForm({ ...form, active })} /><Check label="Publicar no portal" checked={form.published} onChange={(published) => setForm({ ...form, published })} /></div>
-    {message && <p className="text-xs font-bold text-psi-deep">{message}</p>}
+    {message && <p role="status" className="text-xs font-bold text-psi-deep">{message}</p>}
+    {confirming && <ConfirmPrompt message="O curso deixará de aparecer para todos os alunos matriculados. O progresso é mantido." onCancel={() => setConfirming(false)} onConfirm={() => void save()} />}
     <button className="rounded-xl bg-psi-deep px-5 py-3 text-xs font-black text-white">Salvar curso</button>
   </form>;
 }

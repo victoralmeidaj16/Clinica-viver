@@ -12,13 +12,14 @@ import type {
   LessonCompletion,
 } from '@thats-life/core';
 import { getMysqlPool } from '@/server/oci/runtime';
+import { fromSqlTimestamp, toSqlTimestamp } from '@/server/persistence/mysql/mappers';
 import type { AcademicRepository, StudentCredential, StudentLessonAccess } from './academicRepository';
 
 type Row = RowDataPacket & Record<string, unknown>;
 
 const text = (value: unknown) => String(value ?? '');
 const optional = (value: unknown) => value == null || value === '' ? undefined : String(value);
-const iso = (value: unknown) => value instanceof Date ? value.toISOString() : String(value ?? '');
+const iso = (value: unknown) => fromSqlTimestamp(value as string | Date | null) ?? '';
 
 function mapStudent(row: Row): AcademicStudent {
   return {
@@ -26,6 +27,7 @@ function mapStudent(row: Row): AcademicStudent {
     email: text(row.email_normalizado), phone: optional(row.telefone),
     status: row.status === 'disabled' ? 'disabled' : 'active',
     mustChangePassword: Boolean(row.troca_senha_obrigatoria),
+    passwordChangedAt: row.senha_alterada_em == null ? undefined : iso(row.senha_alterada_em),
     createdAt: iso(row.criado_em), updatedAt: iso(row.atualizado_em),
   };
 }
@@ -46,7 +48,8 @@ function mapLesson(row: Row, courseId: string, modulePosition: number): Academic
   return {
     id: text(row.id), courseId, moduleId: text(row.modulo_id), modulePosition,
     title: text(row.titulo), description: optional(row.descricao), durationMinutes: Number(row.duracao_min ?? 0),
-    position: Number(row.ordem ?? 0), vimeoId: text(row.vimeo_id), published: Boolean(row.publicado),
+    position: Number(row.ordem ?? 0), vimeoId: text(row.vimeo_id), vimeoHash: optional(row.vimeo_hash),
+    published: Boolean(row.publicado),
   };
 }
 
@@ -64,7 +67,7 @@ export class MysqlAcademicRepository implements AcademicRepository {
   async getStudent(studentId: string): Promise<AcademicStudent | null> {
     const [rows] = await this.pool.query<Row[]>(
       `SELECT id, instituicao_id, nome_completo, email_normalizado, telefone, status,
-              troca_senha_obrigatoria, criado_em, atualizado_em
+              troca_senha_obrigatoria, senha_alterada_em, criado_em, atualizado_em
          FROM clinica_alunos WHERE instituicao_id = ? AND id = ? LIMIT 1`,
       [this.institutionId, studentId],
     );
@@ -74,7 +77,7 @@ export class MysqlAcademicRepository implements AcademicRepository {
   async listStudents(): Promise<AcademicStudent[]> {
     const [rows] = await this.pool.query<Row[]>(
       `SELECT id, instituicao_id, nome_completo, email_normalizado, telefone, status,
-              troca_senha_obrigatoria, criado_em, atualizado_em
+              troca_senha_obrigatoria, senha_alterada_em, criado_em, atualizado_em
          FROM clinica_alunos WHERE instituicao_id = ? ORDER BY nome_completo`,
       [this.institutionId],
     );
@@ -100,11 +103,14 @@ export class MysqlAcademicRepository implements AcademicRepository {
     );
   }
 
-  async updateStudentPassword(studentId: string, passwordHash: string, mustChangePassword: boolean, actorUserId?: string): Promise<void> {
+  async updateStudentPassword(
+    studentId: string, passwordHash: string, mustChangePassword: boolean, changedAt: string, actorUserId?: string,
+  ): Promise<void> {
     await this.pool.execute(
-      `UPDATE clinica_alunos SET senha_hash = ?, troca_senha_obrigatoria = ?, senha_redefinida_por = ?, atualizado_em = CURRENT_TIMESTAMP(3)
+      `UPDATE clinica_alunos SET senha_hash = ?, troca_senha_obrigatoria = ?, senha_redefinida_por = ?,
+              senha_alterada_em = ?, atualizado_em = CURRENT_TIMESTAMP(3)
         WHERE instituicao_id = ? AND id = ?`,
-      [passwordHash, mustChangePassword ? 1 : 0, actorUserId ?? null, this.institutionId, studentId],
+      [passwordHash, mustChangePassword ? 1 : 0, actorUserId ?? null, toSqlTimestamp(changedAt), this.institutionId, studentId],
     );
   }
 
@@ -131,7 +137,7 @@ export class MysqlAcademicRepository implements AcademicRepository {
     );
     const [lessonRows] = await this.pool.query<Row[]>(
       `SELECT aula.id, aula.modulo_id, aula.titulo, aula.descricao, aula.duracao_min,
-              aula.vimeo_id, aula.ordem, aula.publicado
+              aula.vimeo_id, aula.vimeo_hash, aula.ordem, aula.publicado
          FROM clinica_cursos_aulas aula
          JOIN clinica_cursos_modulos modulo ON modulo.id = aula.modulo_id AND modulo.instituicao_id = aula.instituicao_id
         WHERE aula.instituicao_id = ? AND modulo.curso_id = ?
@@ -183,12 +189,12 @@ export class MysqlAcademicRepository implements AcademicRepository {
   async saveLesson(lesson: AcademicLesson): Promise<void> {
     await this.pool.execute(
       `INSERT INTO clinica_cursos_aulas
-        (id, instituicao_id, modulo_id, titulo, descricao, duracao_min, vimeo_id, ordem, publicado)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE titulo = VALUES(titulo), descricao = VALUES(descricao),
-         duracao_min = VALUES(duracao_min), vimeo_id = VALUES(vimeo_id), ordem = VALUES(ordem), publicado = VALUES(publicado)`,
+        (id, instituicao_id, modulo_id, titulo, descricao, duracao_min, vimeo_id, vimeo_hash, ordem, publicado)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE titulo = VALUES(titulo), descricao = VALUES(descricao), duracao_min = VALUES(duracao_min),
+         vimeo_id = VALUES(vimeo_id), vimeo_hash = VALUES(vimeo_hash), ordem = VALUES(ordem), publicado = VALUES(publicado)`,
       [lesson.id, this.institutionId, lesson.moduleId, lesson.title, lesson.description ?? null,
-        lesson.durationMinutes, lesson.vimeoId, lesson.position, lesson.published ? 1 : 0],
+        lesson.durationMinutes, lesson.vimeoId, lesson.vimeoHash ?? null, lesson.position, lesson.published ? 1 : 0],
     );
   }
 
@@ -233,7 +239,7 @@ export class MysqlAcademicRepository implements AcademicRepository {
   async getStudentLesson(studentId: string, lessonId: string): Promise<StudentLessonAccess | null> {
     const [rows] = await this.pool.query<Row[]>(
       `SELECT aula.id AS aula_id, aula.titulo AS aula_titulo, aula.descricao AS aula_descricao,
-              aula.duracao_min, aula.vimeo_id, aula.ordem AS aula_ordem, aula.publicado AS aula_publicado,
+              aula.duracao_min, aula.vimeo_id, aula.vimeo_hash, aula.ordem AS aula_ordem, aula.publicado AS aula_publicado,
               modulo.id AS modulo_id, modulo.titulo AS modulo_titulo, modulo.ordem AS modulo_ordem,
               curso.id AS curso_id, curso.nome, curso.descricao, curso.capa_url, curso.ordem AS curso_ordem,
               curso.ativo, curso.publicado AS curso_publicado,
@@ -253,7 +259,7 @@ export class MysqlAcademicRepository implements AcademicRepository {
     const academicModule = mapModule({ id: row.modulo_id, curso_id: row.curso_id, titulo: row.modulo_titulo, ordem: row.modulo_ordem } as Row);
     const lesson = mapLesson({
       id: row.aula_id, modulo_id: row.modulo_id, titulo: row.aula_titulo, descricao: row.aula_descricao,
-      duracao_min: row.duracao_min, vimeo_id: row.vimeo_id, ordem: row.aula_ordem, publicado: row.aula_publicado,
+      duracao_min: row.duracao_min, vimeo_id: row.vimeo_id, vimeo_hash: row.vimeo_hash, ordem: row.aula_ordem, publicado: row.aula_publicado,
     } as Row, course.id, academicModule.position);
     return {
       course, module: academicModule, lesson,
@@ -284,7 +290,7 @@ export class MysqlAcademicRepository implements AcademicRepository {
       `INSERT IGNORE INTO clinica_aluno_progresso_aulas
         (id, instituicao_id, aluno_id, aula_id, concluida_em)
        VALUES (?, ?, ?, ?, ?)`,
-      [randomUUID(), this.institutionId, studentId, lessonId, completedAt],
+      [randomUUID(), this.institutionId, studentId, lessonId, toSqlTimestamp(completedAt)],
     );
   }
 }

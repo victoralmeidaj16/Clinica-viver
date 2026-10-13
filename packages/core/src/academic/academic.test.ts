@@ -3,6 +3,7 @@ import {
   assertAcademicPassword,
   nextIncompleteLesson,
   normalizeVimeoId,
+  parseVimeoVideo,
   summarizeCourseProgress,
   type AcademicLesson,
 } from '.';
@@ -27,6 +28,18 @@ describe('domínio acadêmico', () => {
     expect(normalizeVimeoId(' 76979871 ')).toBe('76979871');
     expect(normalizeVimeoId('https://vimeo.com/76979871/abc123')).toBe('76979871');
     expect(normalizeVimeoId('https://player.vimeo.com/video/76979871?h=abc123')).toBe('76979871');
+  });
+
+  it('preserva o hash de links não listados para o player conseguir reproduzir', () => {
+    expect(parseVimeoVideo('https://vimeo.com/76979871/abc123')).toEqual({ id: '76979871', hash: 'abc123' });
+    expect(parseVimeoVideo('https://player.vimeo.com/video/76979871?h=abc123')).toEqual({ id: '76979871', hash: 'abc123' });
+    expect(parseVimeoVideo('76979871')).toEqual({ id: '76979871' });
+    expect(parseVimeoVideo('https://vimeo.com/76979871')).toEqual({ id: '76979871' });
+  });
+
+  it('usa o ID do vídeo, não o da vitrine ou canal, em links com vários números', () => {
+    expect(parseVimeoVideo('https://vimeo.com/showcase/111/video/222')).toEqual({ id: '222' });
+    expect(parseVimeoVideo('https://vimeo.com/channels/staffpicks/333')).toEqual({ id: '333' });
   });
 
   it('recusa YouTube, texto vazio e URL Vimeo sem ID numérico', () => {

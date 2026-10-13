@@ -4,6 +4,7 @@ vi.mock('server-only', () => ({}));
 
 import type { AcademicRepository } from './academicRepository';
 import type { AcademicCourse, AcademicCourseTree, AcademicStudent } from '@thats-life/core';
+import { hashPassword } from '@/server/security/passwordHash';
 import { StudentPortalService } from './studentPortalService';
 
 const student: AcademicStudent = {
@@ -28,6 +29,7 @@ describe('StudentPortalService', () => {
   const repository = {
     getStudent: vi.fn(), listStudentCourses: vi.fn(), getCourseTree: vi.fn(), listCompletions: vi.fn(),
     getStudentLesson: vi.fn(), completeLesson: vi.fn(), updateStudent: vi.fn(), updateStudentPassword: vi.fn(),
+    findStudentCredentialByEmail: vi.fn(),
   } as unknown as AcademicRepository;
   const service = new StudentPortalService(repository, () => new Date('2026-10-13T12:00:00.000Z'));
 
@@ -74,8 +76,20 @@ describe('StudentPortalService', () => {
     expect(repository.updateStudent).toHaveBeenCalledWith(expect.objectContaining({ id: 'student-1', email: 'ana@example.com' }));
   });
 
-  it('troca a senha e remove a obrigatoriedade', async () => {
+  it('troca a senha temporária sem pedir a atual e registra o instante da troca', async () => {
+    vi.mocked(repository.getStudent).mockResolvedValue({ ...student, mustChangePassword: true });
     await service.changePassword('student-1', 'novaSenha123');
-    expect(repository.updateStudentPassword).toHaveBeenCalledWith('student-1', expect.stringMatching(/^scrypt\$/), false);
+    expect(repository.updateStudentPassword).toHaveBeenCalledWith(
+      'student-1', expect.stringMatching(/^scrypt\$/), false, '2026-10-13T12:00:00.000Z',
+    );
+  });
+
+  it('exige a senha atual para a troca voluntária', async () => {
+    vi.mocked(repository.findStudentCredentialByEmail).mockResolvedValue({ student, passwordHash: hashPassword('atualSenha123') });
+    await expect(service.changePassword('student-1', 'novaSenha123')).rejects.toMatchObject({ code: 'INVALID_CREDENTIALS' });
+    await expect(service.changePassword('student-1', 'novaSenha123', 'errada12345')).rejects.toMatchObject({ code: 'INVALID_CREDENTIALS' });
+    expect(repository.updateStudentPassword).not.toHaveBeenCalled();
+    await service.changePassword('student-1', 'novaSenha123', 'atualSenha123');
+    expect(repository.updateStudentPassword).toHaveBeenCalledOnce();
   });
 });

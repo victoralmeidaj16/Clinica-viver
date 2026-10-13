@@ -9,6 +9,8 @@ export interface AcademicStudent {
   phone?: string;
   status: AcademicAccountStatus;
   mustChangePassword: boolean;
+  /** Instante da última troca ou redefinição; sessões anteriores a ele são inválidas. */
+  passwordChangedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -41,6 +43,7 @@ export interface AcademicLesson {
   durationMinutes: number;
   position: number;
   vimeoId: string;
+  vimeoHash?: string;
   published: boolean;
 }
 

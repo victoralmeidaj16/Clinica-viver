@@ -57,6 +57,11 @@ export async function requireActiveStudent(
   if (!student || student.institutionId !== session.institutionId || student.status !== 'active') {
     throw new ApplicationError('FORBIDDEN', 'A conta do aluno não está ativa.', 403);
   }
+  // Troca ou redefinição de senha revoga toda sessão emitida antes dela; sem
+  // isso, um cookie antigo sobreviveria à redefinição feita pela gestão.
+  if (student.passwordChangedAt && session.issuedAt < Date.parse(student.passwordChangedAt)) {
+    throw new ApplicationError('UNAUTHENTICATED', 'Sua senha foi alterada. Faça login novamente.', 401);
+  }
   if (student.mustChangePassword && !options.allowPasswordChange) {
     throw new ApplicationError('PASSWORD_CHANGE_REQUIRED', 'Troque a senha temporária para continuar.', 403);
   }

@@ -6,7 +6,7 @@ import { StudentNavigation } from './StudentShell';
 import { StudentDashboardView } from './StudentDashboard';
 import { CourseGrid } from './CourseGrid';
 import { CourseDetailView } from './CourseDetail';
-import { StudentAccountForm } from './StudentAccount';
+import { PasswordForm, StudentAccountForm } from './StudentAccount';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }) }));
 
@@ -59,5 +59,11 @@ describe('portal visual do aluno', () => {
     expect(html).toContain('Telefone');
     expect(html).not.toContain('Perfil de acesso');
     expect(html).not.toContain('Status da conta');
+  });
+
+  it('pede a senha atual para a troca voluntária de senha', () => {
+    const html = renderToStaticMarkup(<PasswordForm />);
+    expect(html).toContain('Senha atual');
+    expect(html).toContain('autoComplete="current-password"');
   });
 });

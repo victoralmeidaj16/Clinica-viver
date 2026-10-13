@@ -9,8 +9,9 @@ export async function POST(request: Request) {
     const [body, session, context] = await Promise.all([
       readJson(request), readStudentSession(), resolveStudentPortal({ allowPasswordChange: true }),
     ]);
-    await context.service.changePassword(context.student.id, String(body.password ?? ''));
-    if (session) await startStudentSession({ ...session, mustChangePassword: false });
+    await context.service.changePassword(context.student.id, String(body.password ?? ''), String(body.currentPassword ?? ''));
+    // A troca revoga sessões anteriores; esta é reemitida depois dela.
+    if (session) await startStudentSession({ ...session, mustChangePassword: false, issuedAt: Date.now() });
     return success({ changed: true, destination: '/aluno' });
   } catch (error) { return studentApiFailure(error); }
 }

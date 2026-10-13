@@ -1,16 +1,18 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { BookOpen, ChevronDown, ChevronUp, Clock3, Eye, EyeOff } from 'lucide-react';
+import { BookOpen, ChevronDown, ChevronUp, Clock3, Eye, EyeOff, Pencil } from 'lucide-react';
 import type { AcademicCourse, AcademicCourseTree } from '@thats-life/core';
 import { CourseEditor } from './CourseEditor';
 import { LessonEditor } from './LessonEditor';
 import { ModuleEditor } from './ModuleEditor';
+import { errorMessage, lessonVimeoInput, sendJson } from './managementRequest';
 
 export function CoursesPanel() {
   const [courses, setCourses] = useState<AcademicCourse[]>([]);
   const [selected, setSelected] = useState<AcademicCourseTree | null>(null);
   const [error, setError] = useState('');
+  const [editing, setEditing] = useState<string | null>(null);
   const loadCourses = useCallback(async () => {
     const response = await fetch('/api/academico/gestao/cursos', { cache: 'no-store' });
     const payload = await response.json();
@@ -36,17 +38,21 @@ export function CoursesPanel() {
   }, []);
 
   async function swap<T extends { id: string; position: number }>(kind: 'module' | 'lesson', current: T, neighbor?: T) {
-    if (!neighbor) return;
+    if (!neighbor || !selected) return;
     const endpoint = (id: string) => kind === 'module' ? `/api/academico/gestao/modulos/${id}` : `/api/academico/gestao/aulas/${id}`;
-    const body = (item: T, position: number) => JSON.stringify({
+    const body = (item: T, position: number) => ({
       ...item,
       position,
-      ...(kind === 'lesson' && 'vimeoId' in item ? { vimeoUrl: item.vimeoId } : {}),
+      ...(kind === 'lesson' && 'vimeoId' in item ? { vimeoUrl: lessonVimeoInput(item as unknown as Parameters<typeof lessonVimeoInput>[0]) } : {}),
     });
-    await fetch(endpoint(current.id), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: body(current, neighbor.position) });
-    await fetch(endpoint(neighbor.id), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: body(neighbor, current.position) });
-    if (selected) await loadCourse(selected.id);
+    try {
+      setError('');
+      await sendJson(endpoint(current.id), 'PATCH', body(current, neighbor.position));
+      await sendJson(endpoint(neighbor.id), 'PATCH', body(neighbor, current.position));
+    } catch (cause) { setError(`Não foi possível reordenar: ${errorMessage(cause)}`); }
+    await loadCourse(selected.id);
   }
+  const reload = () => { setEditing(null); if (selected) void loadCourse(selected.id); };
 
   return <div className="grid gap-6 xl:grid-cols-[18rem_minmax(0,1fr)_24rem]">
     <aside className="rounded-3xl border border-psi-soft bg-psi-darkest p-4 text-white shadow-contrast">
@@ -58,8 +64,9 @@ export function CoursesPanel() {
       {error && <p className="rounded-xl bg-rose-50 p-3 text-xs text-rose-700">{error}</p>}
       {!selected ? <div className="grid min-h-80 place-items-center text-center"><div><BookOpen className="mx-auto h-10 w-10 text-psi-soft" /><h2 className="mt-3 font-black text-psi-darkest">Selecione um curso</h2><p className="mt-1 text-xs text-muted">Organize módulos e aulas na sequência de estudo.</p></div></div> : <div>
         <div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-black uppercase tracking-wider text-psi-vibrant">Grade do curso</p><h2 className="mt-1 text-xl font-black text-psi-darkest">{selected.title}</h2></div><span className="rounded-full bg-psi-light px-3 py-1 text-[10px] font-black text-psi-deep">{selected.modules.reduce((sum, module) => sum + module.lessons.length, 0)} aulas</span></div>
-        <div className="mt-5 space-y-4">{selected.modules.map((module, moduleIndex) => <article key={module.id} className="rounded-2xl border border-psi-soft p-4"><div className="flex items-center gap-2"><div className="min-w-0 flex-1"><p className="text-[10px] font-black uppercase text-muted">Módulo {module.position}</p><h3 className="truncate text-sm font-black text-psi-darkest">{module.title}</h3></div><OrderButtons onUp={() => void swap('module', module, selected.modules[moduleIndex - 1])} onDown={() => void swap('module', module, selected.modules[moduleIndex + 1])} /></div>
-          <div className="mt-3 space-y-2">{module.lessons.map((lesson, lessonIndex) => <div key={lesson.id} className="flex items-center gap-3 rounded-xl bg-psi-light px-3 py-2.5"><span className="grid h-7 w-7 place-items-center rounded-lg bg-white text-[10px] font-black text-psi-deep">{lesson.position}</span><div className="min-w-0 flex-1"><p className="truncate text-xs font-black text-psi-darkest">{lesson.title}</p><p className="flex items-center gap-1 text-[10px] text-muted"><Clock3 className="h-3 w-3" />{lesson.durationMinutes} min · {lesson.published ? 'Publicada' : 'Rascunho'}</p></div><OrderButtons onUp={() => void swap('lesson', lesson, module.lessons[lessonIndex - 1])} onDown={() => void swap('lesson', lesson, module.lessons[lessonIndex + 1])} /></div>)}</div>
+        <div className="mt-5 space-y-4">{selected.modules.map((module, moduleIndex) => <article key={module.id} className="rounded-2xl border border-psi-soft p-4"><div className="flex items-center gap-2"><div className="min-w-0 flex-1"><p className="text-[10px] font-black uppercase text-muted">Módulo {module.position}</p><h3 className="truncate text-sm font-black text-psi-darkest">{module.title}</h3></div><EditButton label="Renomear módulo" onClick={() => setEditing(editing === module.id ? null : module.id)} /><OrderButtons onUp={() => void swap('module', module, selected.modules[moduleIndex - 1])} onDown={() => void swap('module', module, selected.modules[moduleIndex + 1])} /></div>
+          {editing === module.id && <div className="mt-3"><ModuleEditor key={module.id} courseId={selected.id} nextPosition={module.position} module={module} onSaved={reload} onCancel={() => setEditing(null)} /></div>}
+          <div className="mt-3 space-y-2">{module.lessons.map((lesson, lessonIndex) => <div key={lesson.id}><div className="flex items-center gap-3 rounded-xl bg-psi-light px-3 py-2.5"><span className="grid h-7 w-7 place-items-center rounded-lg bg-white text-[10px] font-black text-psi-deep">{lesson.position}</span><div className="min-w-0 flex-1"><p className="truncate text-xs font-black text-psi-darkest">{lesson.title}</p><p className="flex items-center gap-1 text-[10px] text-muted"><Clock3 className="h-3 w-3" />{lesson.durationMinutes} min · {lesson.published ? 'Publicada' : 'Rascunho'}</p></div><EditButton label="Editar aula" onClick={() => setEditing(editing === lesson.id ? null : lesson.id)} /><OrderButtons onUp={() => void swap('lesson', lesson, module.lessons[lessonIndex - 1])} onDown={() => void swap('lesson', lesson, module.lessons[lessonIndex + 1])} /></div>{editing === lesson.id && <LessonEditor key={lesson.id} courseId={selected.id} moduleId={module.id} modulePosition={module.position} lesson={lesson} onSaved={reload} onCancel={() => setEditing(null)} />}</div>)}</div>
           <LessonEditor courseId={selected.id} moduleId={module.id} modulePosition={module.position} nextPosition={module.lessons.length + 1} onSaved={() => void loadCourse(selected.id)} />
         </article>)}</div>
         <div className="mt-4"><ModuleEditor courseId={selected.id} nextPosition={selected.modules.length + 1} onSaved={() => void loadCourse(selected.id)} /></div>
@@ -70,3 +77,4 @@ export function CoursesPanel() {
 }
 
 function OrderButtons({ onUp, onDown }: { onUp: () => void; onDown: () => void }) { return <span className="flex shrink-0 gap-1"><button onClick={onUp} className="rounded-lg border border-psi-soft bg-white p-1.5" title="Mover para cima"><ChevronUp className="h-3 w-3" /></button><button onClick={onDown} className="rounded-lg border border-psi-soft bg-white p-1.5" title="Mover para baixo"><ChevronDown className="h-3 w-3" /></button></span>; }
+function EditButton({ label, onClick }: { label: string; onClick: () => void }) { return <button type="button" onClick={onClick} className="shrink-0 rounded-lg border border-psi-soft bg-white p-1.5 text-psi-deep" title={label} aria-label={label}><Pencil className="h-3 w-3" /></button>; }

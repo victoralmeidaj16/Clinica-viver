@@ -28,10 +28,10 @@ class JourneyRepository implements AcademicRepository {
   async listStudents() { return [...this.students.values()]; }
   async insertStudent(student: AcademicStudent, passwordHash: string) { this.students.set(student.id, student); this.credentials.set(student.id, passwordHash); }
   async updateStudent(student: AcademicStudent) { this.students.set(student.id, student); }
-  async updateStudentPassword(id: string, passwordHash: string, mustChangePassword: boolean) {
+  async updateStudentPassword(id: string, passwordHash: string, mustChangePassword: boolean, changedAt: string) {
     const student = this.students.get(id)!;
     this.credentials.set(id, passwordHash);
-    this.students.set(id, { ...student, mustChangePassword });
+    this.students.set(id, { ...student, mustChangePassword, passwordChangedAt: changedAt });
   }
   async listCoursesForManagement() { return [...this.courses.values()]; }
   async getCourseTree(id: string): Promise<AcademicCourseTree | null> {

@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { KeyRound, Search, ShieldCheck, ShieldOff } from 'lucide-react';
 import type { AcademicStudent } from '@thats-life/core';
 import { StudentForm } from './StudentForm';
+import { ConfirmButton } from './ConfirmButton';
+import { errorMessage, sendJson } from './managementRequest';
 
 export function StudentsPanel() {
   const [students, setStudents] = useState<AcademicStudent[]>([]);
@@ -31,11 +33,10 @@ export function StudentsPanel() {
   }, []);
 
   async function toggle(student: AcademicStudent) {
-    await fetch(`/api/academico/gestao/alunos/${student.id}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...student, status: student.status === 'active' ? 'disabled' : 'active' }),
-    });
-    await load();
+    try {
+      await sendJson(`/api/academico/gestao/alunos/${student.id}`, 'PATCH', { ...student, status: student.status === 'active' ? 'disabled' : 'active' });
+      await load();
+    } catch (cause) { setError(errorMessage(cause)); }
   }
 
   async function resetPassword(student: AcademicStudent) {
@@ -57,7 +58,9 @@ export function StudentsPanel() {
         <div className="min-w-0 flex-1"><h3 className="truncate text-sm font-black text-psi-darkest">{student.fullName}</h3><p className="truncate text-xs text-muted">{student.email}</p></div>
         <span className="text-[10px] font-black uppercase tracking-wider text-muted">{student.mustChangePassword ? 'Troca pendente' : 'Senha definida'}</span>
         <button onClick={() => void resetPassword(student)} className="rounded-xl border border-psi-soft p-2 text-psi-deep" title="Redefinir senha"><KeyRound className="h-4 w-4" /></button>
-        <button onClick={() => void toggle(student)} className="rounded-xl border border-psi-soft p-2 text-psi-deep" title={student.status === 'active' ? 'Desativar' : 'Ativar'}>{student.status === 'active' ? <ShieldOff className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}</button>
+        {student.status === 'active'
+          ? <ConfirmButton message={`Desativar ${student.fullName}? O acesso ao portal é bloqueado na hora; o histórico é mantido.`} onConfirm={() => void toggle(student)} className="rounded-xl border border-psi-soft p-2 text-psi-deep" title="Desativar"><ShieldOff className="h-4 w-4" /></ConfirmButton>
+          : <button onClick={() => void toggle(student)} className="rounded-xl border border-psi-soft p-2 text-psi-deep" title="Ativar"><ShieldCheck className="h-4 w-4" /></button>}
       </article>)}</div>
     </section>
     <StudentForm onSaved={() => void load()} />

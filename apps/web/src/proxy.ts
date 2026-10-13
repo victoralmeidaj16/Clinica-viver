@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { readSessionValue } from '@/server/auth';
+import { readStudentSessionValue, STUDENT_SESSION_COOKIE } from '@/server/academic/studentSession';
 
 // A sessão completa é validada no servidor em cada API. O proxy evita entregar
 // páginas internas para visitantes sem cookie; a autorização por perfil
@@ -16,6 +17,7 @@ export function proxy(request: NextRequest) {
     '/api/financeiro/',
     '/api/certificados/',
     '/api/public/certificados/',
+    '/api/academico/',
     // A lista de convênios da vitrine lê o MySQL, e MySQL só existe na VPS.
     // Fora desta lista a rota executava na Vercel, onde `isMysqlConfigured()`
     // é falso: o formulário do paciente respondia 503 e caía no aviso "a lista
@@ -29,6 +31,20 @@ export function proxy(request: NextRequest) {
       'https://app.clinicavivermais.cloud';
     const destination = new URL(`${pathname}${request.nextUrl.search}`, backendOrigin);
     return NextResponse.rewrite(destination);
+  }
+
+  const studentPage = pathname === '/aluno' || pathname.startsWith('/aluno/');
+  if (studentPage) {
+    if (pathname === '/aluno/login' || process.env.VERCEL) return NextResponse.next();
+    const studentSession = readStudentSessionValue(request.cookies.get(STUDENT_SESSION_COOKIE)?.value);
+    if (!studentSession) return NextResponse.redirect(new URL('/aluno/login', request.url));
+    if (studentSession.mustChangePassword && pathname !== '/aluno/trocar-senha') {
+      return NextResponse.redirect(new URL('/aluno/trocar-senha', request.url));
+    }
+    if (!studentSession.mustChangePassword && pathname === '/aluno/trocar-senha') {
+      return NextResponse.redirect(new URL('/aluno', request.url));
+    }
+    return NextResponse.next();
   }
 
   // `/agendar/` é o link de marcação do psicólogo e `/pagar/sessao/` é a

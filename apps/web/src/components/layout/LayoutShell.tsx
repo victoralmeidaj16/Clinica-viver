@@ -18,6 +18,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   const isConfirmacaoContato = pathname.startsWith('/confirmar-contato/');
   const isPaginaPagamento = pathname.startsWith('/pagar/');
   const isPaginaAgendamento = pathname.startsWith('/agendar/');
+  const isAlunoPage = pathname === '/aluno' || pathname.startsWith('/aluno/');
   // A prévia do layout do relatório de estágio não exige conta: sem estar
   // aqui, o `proxy.ts` deixa passar e é este componente que manda para o
   // login, no navegador, depois da página já ter começado a carregar.
@@ -37,6 +38,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
     isConfirmacaoContato ||
     isPaginaPagamento ||
     isPaginaAgendamento ||
+    isAlunoPage ||
     isPreviaDocumento ||
     isCertificadosPage;
 

@@ -68,6 +68,24 @@ describe('MysqlAcademicRepository', () => {
     expect((await repository.listCompletions('student-1'))[0].completedAt).toBe('2026-10-13T12:00:00.000Z');
   });
 
+  it('nunca envia ISO com Z para colunas TIMESTAMP ao gravar aluno e matrícula', async () => {
+    const at = '2026-10-13T12:00:00.000Z';
+    await repository.insertStudent({
+      id: 'student-1', institutionId: 'inst-1', fullName: 'Aluno', email: 'aluno@example.invalid',
+      status: 'active', mustChangePassword: true, createdAt: at, updatedAt: at,
+    }, 'scrypt$x', 'admin-1');
+    await repository.updateStudent({
+      id: 'student-1', institutionId: 'inst-1', fullName: 'Aluno', email: 'aluno@example.invalid',
+      status: 'active', mustChangePassword: false, createdAt: at, updatedAt: at,
+    });
+    await repository.saveEnrollment({ id: 'enr-1', studentId: 'student-1', courseId: '2', status: 'active', createdAt: at, updatedAt: at });
+    for (const call of execute.mock.calls) {
+      const values = (call as unknown as [string, unknown[]])[1];
+      expect(values).not.toContain(at);
+      expect(values).toContain('2026-10-13 12:00:00.000');
+    }
+  });
+
   it('lista para o aluno somente matrícula ativa e conteúdo ativo/publicado', async () => {
     await repository.listStudentCourses('student-1');
     const [sql, values] = query.mock.calls[0] as unknown as [string, unknown[]];

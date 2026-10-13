@@ -91,7 +91,7 @@ export class MysqlAcademicRepository implements AcademicRepository {
          troca_senha_obrigatoria, status, criado_por, criado_em, atualizado_em)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [student.id, this.institutionId, student.fullName, student.email, student.phone ?? null, passwordHash,
-        student.mustChangePassword ? 1 : 0, student.status, actorUserId, student.createdAt, student.updatedAt],
+        student.mustChangePassword ? 1 : 0, student.status, actorUserId, toSqlTimestamp(student.createdAt), toSqlTimestamp(student.updatedAt)],
     );
   }
 
@@ -99,7 +99,7 @@ export class MysqlAcademicRepository implements AcademicRepository {
     await this.pool.execute(
       `UPDATE clinica_alunos SET nome_completo = ?, email_normalizado = ?, telefone = ?, status = ?, atualizado_em = ?
         WHERE instituicao_id = ? AND id = ?`,
-      [student.fullName, student.email, student.phone ?? null, student.status, student.updatedAt, this.institutionId, student.id],
+      [student.fullName, student.email, student.phone ?? null, student.status, toSqlTimestamp(student.updatedAt), this.institutionId, student.id],
     );
   }
 
@@ -219,7 +219,7 @@ export class MysqlAcademicRepository implements AcademicRepository {
        VALUES (?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE status = VALUES(status), atualizado_em = VALUES(atualizado_em)`,
       [enrollment.id, this.institutionId, enrollment.studentId, enrollment.courseId, enrollment.status,
-        enrollment.createdAt, enrollment.updatedAt],
+        toSqlTimestamp(enrollment.createdAt), toSqlTimestamp(enrollment.updatedAt)],
     );
   }
 

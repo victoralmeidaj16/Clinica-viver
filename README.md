@@ -69,7 +69,9 @@ Depois, configure `DATABASE_URL`, `ORGANIZATION_ID` e as variáveis de sessão n
 
 O portal acadêmico usa MySQL real e uma identidade separada das contas de
 psicólogos e da gestão. A migration `053_portal_aluno.sql` cria alunos,
-matrículas, módulos, aulas e progresso; aplique-a com `npm run db:migrate`.
+matrículas, módulos, aulas e progresso, e a `054_portal_aluno_sessao_vimeo.sql`
+acrescenta a revogação de sessões após troca de senha e o hash de vídeos Vimeo não
+listados; aplique ambas com `npm run db:migrate`.
 
 - Gestão acadêmica: `/gestao/academico`
 - Login exclusivo do aluno: `/aluno/login`

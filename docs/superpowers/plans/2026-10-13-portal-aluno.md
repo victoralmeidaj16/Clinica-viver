@@ -48,7 +48,7 @@
 - `CourseProgress` has `{ completed: number; total: number; percentage: number }`.
 - `normalizeVimeoId` accepts a numeric ID or a `vimeo.com`/`player.vimeo.com` URL containing a numeric video ID; it throws for other providers or unresolved input.
 
-- [ ] **Step 1: Write failing domain tests**
+- [x] **Step 1: Write failing domain tests**
 
 Add tests named:
 
@@ -61,21 +61,21 @@ it('preserva conclusão armazenada ao despublicar uma aula sem contá-la no perc
 it('seleciona a primeira aula publicada e não concluída na ordem módulo/aula')
 ```
 
-- [ ] **Step 2: Run the tests and verify failure**
+- [x] **Step 2: Run the tests and verify failure**
 
 Run: `npm run test --workspace @thats-life/core -- --run src/academic/academic.test.ts`  
 Expected: FAIL because `academic` exports do not exist.
 
-- [ ] **Step 3: Implement types and pure rules**
+- [x] **Step 3: Implement types and pure rules**
 
 Keep ordering explicit with numeric `position` fields. `summarizeCourseProgress` filters unpublished lessons before calculating the denominator, while completions remain immutable inputs.
 
-- [ ] **Step 4: Export the academic module and verify it**
+- [x] **Step 4: Export the academic module and verify it**
 
 Run: `npm run test --workspace @thats-life/core -- --run src/academic/academic.test.ts && npm run check --workspace @thats-life/core`  
 Expected: tests PASS and TypeScript exits 0.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/core/src/academic packages/core/src/index.ts
@@ -97,22 +97,22 @@ git commit -m "feat(core): adiciona dominio academico"
 - Produces: `getAcademicRepository(): AcademicRepository`, returning `MysqlAcademicRepository` when MySQL is configured and throwing `PERSISTENCE_UNAVAILABLE` otherwise; there is no production in-memory fallback for real student accounts.
 - `completeLesson(studentId: string, lessonId: string, completedAt: string): Promise<void>` is idempotent.
 
-- [ ] **Step 1: Write failing schema contract tests**
+- [x] **Step 1: Write failing schema contract tests**
 
 Read `053_portal_aluno.sql` as text and assert it creates `clinica_alunos`, `clinica_aluno_matriculas`, `clinica_cursos_modulos`, `clinica_cursos_aulas`, and `clinica_aluno_progresso_aulas`; adds course presentation/publication fields to `clinica_cursos_pos_graduacao`; uses tenant foreign keys and unique keys for academic email, enrollment, and completion.
 
 Also assert `clinica_alunos` is independent of `clinica_usuarios`, so the same normalized e-mail may exist in both identity namespaces.
 
-- [ ] **Step 2: Run the schema test and verify failure**
+- [x] **Step 2: Run the schema test and verify failure**
 
 Run: `npm run test --workspace @thats-life/web -- --run src/server/academic/academicSchema.test.ts`  
 Expected: FAIL because migration 053 does not exist.
 
-- [ ] **Step 3: Add migration 053**
+- [x] **Step 3: Add migration 053**
 
 Use `CHAR(36)` identifiers for students/modules/lessons/progress, `BIGINT UNSIGNED` for the existing course PK, `TIMESTAMP(3)`, InnoDB and `utf8mb4_0900_ai_ci`. Add `descricao`, `capa_url`, `ordem`, and `publicado` to the existing course table with idempotent information-schema guards.
 
-- [ ] **Step 4: Write failing repository tests with a mocked pool**
+- [x] **Step 4: Write failing repository tests with a mocked pool**
 
 Tests must assert:
 
@@ -124,21 +124,21 @@ it('usa INSERT IGNORE para tornar a conclusão idempotente')
 it('suspende matrícula sem apagar as conclusões')
 ```
 
-- [ ] **Step 5: Run repository tests and verify failure**
+- [x] **Step 5: Run repository tests and verify failure**
 
 Run: `npm run test --workspace @thats-life/web -- --run src/server/academic/mysqlAcademicRepository.test.ts`  
 Expected: FAIL because repository modules do not exist.
 
-- [ ] **Step 6: Implement repository port and MySQL adapter**
+- [x] **Step 6: Implement repository port and MySQL adapter**
 
 Inject `Pool` into `MysqlAcademicRepository` for unit tests. Use a transaction for aggregate writes that reorder modules or lessons. Never select `senha_hash` in list/profile projections; expose it only through the credential lookup used by authentication.
 
-- [ ] **Step 7: Verify schema and repository tests**
+- [x] **Step 7: Verify schema and repository tests**
 
 Run: `npm run test --workspace @thats-life/web -- --run src/server/academic/academicSchema.test.ts src/server/academic/mysqlAcademicRepository.test.ts`  
 Expected: PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add infra/mysql/053_portal_aluno.sql apps/web/src/server/academic
@@ -173,38 +173,38 @@ git commit -m "feat(academic): adiciona persistencia do portal"
 - `createStudent(input, actorUserId)` returns a safe student projection and never returns the password/hash.
 - Course/module/lesson update inputs carry an explicit `position` and `published` state.
 
-- [ ] **Step 1: Write failing password-hash and service tests**
+- [x] **Step 1: Write failing password-hash and service tests**
 
 Cover scrypt hash/verify round-trip and malformed hash rejection, then strong temporary password, duplicate academic e-mail, safe response projection, reset setting `mustChangePassword=true`, numeric Vimeo normalization, foreign provider rejection, enrollment upsert/suspension, and administrator attribution.
 
-- [ ] **Step 2: Run service tests and verify failure**
+- [x] **Step 2: Run service tests and verify failure**
 
 Run: `npm run test --workspace @thats-life/web -- --run src/server/security/passwordHash.test.ts src/server/academic/academicManagementService.test.ts`  
 Expected: FAIL because the service does not exist.
 
-- [ ] **Step 3: Implement the management service**
+- [x] **Step 3: Implement the management service**
 
 Extract the current scrypt format from `server/auth.ts` without changing existing hashes. Use `ApplicationError` codes `WEAK_PASSWORD`, `EMAIL_IN_USE`, `INVALID_VIMEO`, `NOT_FOUND`, and `CONFLICT`. Keep parsing/validation out of React components and route handlers.
 
-- [ ] **Step 4: Write failing route authorization and envelope tests**
+- [x] **Step 4: Write failing route authorization and envelope tests**
 
 Mock `exigirGestao`, `readSession` and the service. Assert 401/403 propagation, 201 on create, 200 on update/list, safe error messages, actor ID propagation from the active admin session, and that a non-admin request never calls a service method.
 
-- [ ] **Step 5: Run route tests and verify failure**
+- [x] **Step 5: Run route tests and verify failure**
 
 Run: `npm run test --workspace @thats-life/web -- --run src/app/api/academico/gestao/route.test.ts`  
 Expected: FAIL because route handlers do not exist.
 
-- [ ] **Step 6: Implement thin management route handlers**
+- [x] **Step 6: Implement thin management route handlers**
 
 Follow the existing `{ ok, data, meta }` / `{ ok, error }` envelope. Keep each handler focused on parsing request data, requiring management authority, calling one service method, and mapping errors.
 
-- [ ] **Step 7: Verify management service and API**
+- [x] **Step 7: Verify management service and API**
 
 Run: `npm run test --workspace @thats-life/web -- --run src/server/security/passwordHash.test.ts src/server/academic/academicManagementService.test.ts src/app/api/academico/gestao/route.test.ts`  
 Expected: PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add apps/web/src/server/academic apps/web/src/server/security apps/web/src/server/auth.ts apps/web/src/app/api/academico/gestao
@@ -239,46 +239,46 @@ git commit -m "feat(academic): adiciona APIs de gestao"
 - Signs with `AUTH_SESSION_SECRET` using an `academic:` domain prefix, so a valid clinical payload/signature cannot be replayed as an academic session.
 - Produces: `StudentPortalService` methods `getDashboard`, `listCourses`, `getCourse`, `getLesson`, `completeLesson`, `getProfile`, `updateProfile`, and `changePassword`.
 
-- [ ] **Step 1: Read the required local Next.js documentation**
+- [x] **Step 1: Read the required local Next.js documentation**
 
 Read the route-handler, cookies, proxy, authentication and dynamic-route files named in Global Constraints. Record no code changes in this step.
 
-- [ ] **Step 2: Write failing session/auth tests**
+- [x] **Step 2: Write failing session/auth tests**
 
 Tests must assert distinct cookie name, signature/expiry rejection, successful credential verification, mandatory password-change flag, and coexistence with an untouched professional cookie.
 
-- [ ] **Step 3: Run auth tests and verify failure**
+- [x] **Step 3: Run auth tests and verify failure**
 
 Run: `npm run test --workspace @thats-life/web -- --run src/server/academic/studentAuth.test.ts`  
 Expected: FAIL because `studentAuth` does not exist.
 
-- [ ] **Step 4: Implement student session and authentication**
+- [x] **Step 4: Implement student session and authentication**
 
 Use `verifyPasswordHash` from Task 3 without sharing the clinical cookie. Every protected call reloads the student row and rejects `disabled`, even if the signed cookie is still valid.
 
-- [ ] **Step 5: Write failing portal-service tests**
+- [x] **Step 5: Write failing portal-service tests**
 
 Cover own-scope reads, active enrollment filtering, draft exclusion, disabled account, suspended enrollment with an old session, idempotent repeated completion, profile field allowlist, and password change clearing `mustChangePassword`.
 
-- [ ] **Step 6: Implement portal service and run its tests**
+- [x] **Step 6: Implement portal service and run its tests**
 
 Run: `npm run test --workspace @thats-life/web -- --run src/server/academic/studentPortalService.test.ts`  
 Expected: PASS after the minimal service implementation.
 
-- [ ] **Step 7: Write failing student-route tests**
+- [x] **Step 7: Write failing student-route tests**
 
 Assert invalid credentials return 401, temporary login returns `destination: '/aluno/trocar-senha'`, protected content rejects before password change, student A cannot select student B via query/body fields, and repeated completion returns the same progress summary.
 
-- [ ] **Step 8: Implement auth/student routes and proxy isolation**
+- [x] **Step 8: Implement auth/student routes and proxy isolation**
 
 Treat every `/aluno` page as outside the clinical `LayoutShell`. In `proxy.ts`, leave only `/aluno/login` public, validate `viver_mais_student_session` for other `/aluno` pages with `readStudentSessionValue`, and redirect missing/invalid sessions to `/aluno/login`. Add `/api/academico/` to the explicit persistent API prefixes. Ensure a student cookie never authorizes `/gestao`, `/cockpit`, or clinical APIs.
 
-- [ ] **Step 9: Verify the full auth/API slice**
+- [x] **Step 9: Verify the full auth/API slice**
 
 Run: `npm run test --workspace @thats-life/web -- --run src/server/academic/studentAuth.test.ts src/server/academic/studentPortalService.test.ts src/app/api/academico/aluno/route.test.ts`  
 Expected: PASS.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add apps/web/src/server/academic apps/web/src/app/api/academico apps/web/src/proxy.ts apps/web/src/components/layout/LayoutShell.tsx
@@ -306,34 +306,34 @@ git commit -m "feat(academic): adiciona acesso do aluno"
 - Each form submits a typed DTO matching exactly one management endpoint.
 - Sidebar item: `{ label: 'Área de Alunos', href: '/gestao/academico' }` with a graduation/student icon.
 
-- [ ] **Step 1: Write failing static-render/component tests**
+- [x] **Step 1: Write failing static-render/component tests**
 
 Assert the three tabs are present, student form includes temporary-password guidance, course editor exposes draft/publish state, lesson form labels the field as Vimeo-only, and no component renders clinical fields.
 
-- [ ] **Step 2: Run component tests and verify failure**
+- [x] **Step 2: Run component tests and verify failure**
 
 Run: `npm run test --workspace @thats-life/web -- --run src/components/academic/management/AcademicManagement.test.tsx`  
 Expected: FAIL because components do not exist.
 
-- [ ] **Step 3: Implement the page shell and student/matriculation panels**
+- [x] **Step 3: Implement the page shell and student/matriculation panels**
 
 Use the current management visual language and shared button/input classes. Include loading, empty, success, validation, network-error and confirmation states. Do not display a stored password after create/reset.
 
-- [ ] **Step 4: Implement course, module and lesson editors**
+- [x] **Step 4: Implement course, module and lesson editors**
 
 Provide explicit move-up/move-down controls for ordering; do not add drag-and-drop dependencies. Clearly distinguish `ativo` and `publicado` for courses and rascunho/publicado for lessons.
 
-- [ ] **Step 5: Add navigation and verify component tests**
+- [x] **Step 5: Add navigation and verify component tests**
 
 Run: `npm run test --workspace @thats-life/web -- --run src/components/academic/management/AcademicManagement.test.tsx`  
 Expected: PASS.
 
-- [ ] **Step 6: Run targeted lint/typecheck**
+- [x] **Step 6: Run targeted lint/typecheck**
 
 Run: `npm run lint --workspace @thats-life/web -- --max-warnings=0 && npm run typecheck --workspace @thats-life/web`  
 Expected: both exit 0.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/web/src/app/gestao/academico apps/web/src/components/academic/management apps/web/src/components/layout/Sidebar.tsx
@@ -368,41 +368,41 @@ git commit -m "feat(academic): adiciona gestao de alunos e cursos"
 - `bindVimeoEnded(player: VimeoPlayerPort, onEnded: () => void): () => void` contains the testable subscription/cleanup boundary without requiring a DOM test environment.
 - `StudentShell` navigation contains only Visão geral, Cursos e aulas, Minha conta, and logout.
 
-- [ ] **Step 1: Write failing student-view tests**
+- [x] **Step 1: Write failing student-view tests**
 
 Assert login copy identifies the student environment, dashboard renders continue/progress states, empty enrollment is explicit, course detail preserves module/lesson order, account form omits protected fields, and student navigation contains no clinical or management links.
 
-- [ ] **Step 2: Run view tests and verify failure**
+- [x] **Step 2: Run view tests and verify failure**
 
 Run: `npm run test --workspace @thats-life/web -- --run src/components/academic/student/studentViews.test.tsx`  
 Expected: FAIL because student components do not exist.
 
-- [ ] **Step 3: Implement login, forced password change and shell**
+- [x] **Step 3: Implement login, forced password change and shell**
 
 Use the Viver Mais logo and design tokens, but keep the shell independent from `LayoutShell`. Redirect authenticated students according to `mustChangePassword`; logout removes only the academic cookie.
 
-- [ ] **Step 4: Implement dashboard, course grid and course detail**
+- [x] **Step 4: Implement dashboard, course grid and course detail**
 
 Show percentage and counts from the server, not recalculated from hidden data in the browser. Provide explicit loading, no-enrollment, no-published-lessons, suspended and expired-session states.
 
-- [ ] **Step 5: Write the Vimeo event binding test**
+- [x] **Step 5: Write the Vimeo event binding test**
 
 Test `bindVimeoEnded` with a fake player and assert one `ended` subscription and cleanup. In the view test, inject the completion callback and assert duplicate in-flight suppression, successful repeated API response handling, and visible retry after a failed completion request.
 
-- [ ] **Step 6: Implement player and automatic completion**
+- [x] **Step 6: Implement player and automatic completion**
 
 Build embed URLs from normalized IDs with `dnt=1`, title/byline disabled and fullscreen allowed. Do not show a manual “mark complete” button. Disable duplicate in-flight requests but accept later retries.
 
-- [ ] **Step 7: Implement My Account and page containers**
+- [x] **Step 7: Implement My Account and page containers**
 
 Allow only name, optional phone and password change. Keep session-derived identity authoritative.
 
-- [ ] **Step 8: Verify student UI**
+- [x] **Step 8: Verify student UI**
 
 Run: `npm run test --workspace @thats-life/web -- --run src/components/academic/student/studentViews.test.tsx src/components/academic/student/vimeoPlayer.test.ts && npm run typecheck --workspace @thats-life/web`  
 Expected: PASS and TypeScript exits 0.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add apps/web/src/app/aluno apps/web/src/components/academic/student
@@ -419,53 +419,60 @@ git commit -m "feat(academic): adiciona portal visual do aluno"
 - Consumes: all previous task interfaces.
 - Produces: documented local demo credentials/setup only through environment or seed instructions; no production default password.
 
-- [ ] **Step 1: Write an integration-style academic journey test**
+- [x] **Step 1: Write an integration-style academic journey test**
 
 Using an in-memory/fake `AcademicRepository`, exercise: admin creates student with temporary password → creates/publishes course, module and Vimeo lesson → enrolls student → student must change password → student loads course → completion event is recorded → dashboard returns 100% → suspending enrollment blocks content but preserves completion → reactivation restores 100%.
 
-- [ ] **Step 2: Run the journey test and fix integration gaps**
+- [x] **Step 2: Run the journey test and fix integration gaps**
 
 Run: `npm run test --workspace @thats-life/web -- --run src/server/academic/academicJourney.test.ts`  
 Expected: PASS.
 
-- [ ] **Step 3: Document setup and environment behavior**
+- [x] **Step 3: Document setup and environment behavior**
 
 Document migration `053`, management route, student login route, Vimeo-only rule, temporary-password flow, separate cookie, use of the existing required `AUTH_SESSION_SECRET`, and local seed/demo procedure. No production default password may be documented.
 
-- [ ] **Step 4: Run the full automated verification**
+- [x] **Step 4: Run the full automated verification**
 
 Run: `npm run lint && npm run typecheck && npm run test && npm run web:build`  
 Expected: all commands exit 0.
 
-- [ ] **Step 5: Run migration dry-run**
+- [x] **Step 5: Run migration dry-run** — *sem MySQL local; o `separarComandos` do migrador processou 053 (22 comandos) e 054 (9) sem erro. Rodar `npm run db:status` contra o banco real antes do deploy.*
 
 Run: `npm run db:status`  
 Expected: migration 053 appears pending on an unmigrated environment or applied on a current one, with no parser error.
 
-- [ ] **Step 6: Perform responsive browser verification**
+- [x] **Step 6: Perform responsive browser verification** — *parcial: `/aluno/login` verificado em 1366px e 390px, sem overflow; redirects de `/aluno/*` e `/gestao/academico` conferidos. As páginas autenticadas exigem MySQL e ainda precisam de checagem visual.*
 
 Verify desktop and mobile widths for `/gestao/academico`, `/aluno/login`, `/aluno`, `/aluno/cursos/[cursoId]`, `/aluno/aulas/[aulaId]`, and `/aluno/minha-conta`. Confirm menus, empty states, modal/form focus, Vimeo aspect ratio, long course titles and network-error recovery.
 
-- [ ] **Step 7: Check the deployment routing invariant**
+- [x] **Step 7: Check the deployment routing invariant**
 
 Inspect `vercel.json`, `apps/web/vercel.json`, `apps/web/next.config.mjs`, and `apps/web/src/proxy.ts`. Confirm only `/api/academico/*` joins the persistent backend proxy and no global `/:path*` rewrite exists.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add apps/web/src/server/academic/academicJourney.test.ts README.md
 git commit -m "test(academic): valida jornada completa do aluno"
 ```
 
+## Execução — 2026-10-13
+
+- Commits: `a37c39e` (T1), `2260822` (T2), `f6bda94` (T3), `871cf5b` (T4), `0594276` (T5), `f56f2f1` (T6), `13ecbc5` (T7), `7ec85f9` e `1b36c9b` (correções).
+- Revisão final: sem achados críticos. Os 5 importantes foram corrigidos em `1b36c9b`, que também cria a migration `054_portal_aluno_sessao_vimeo.sql`: sessões revogadas após troca/redefinição de senha, senha atual exigida na troca voluntária, fim do loop de redirect no proxy, hash de Vimeo não listado preservado, confirmações e edição de aulas/módulos na gestão.
+- Verificação: lint 0, typecheck 0 (o arquivo gerado `.next/dev` pelo `next dev` em execução estava corrompido e foi excluído da checagem), 679 testes passando, build 0.
+- Menores adiados: erros de constraint do banco viram 500 genérico; `updateLesson` ecoa um `moduleId` que não foi salvo; a reordenação usa dois PATCH; o fallback de senha em texto puro no `AUTH_USERS_JSON` deixou de valer; o login de conta desativada mostra mensagem genérica; `INSERT IGNORE` esconde erros de FK; o editor de curso não volta para "novo curso" sem recarregar.
+
 ## Final Acceptance
 
-- [ ] Gestão cria uma conta acadêmica sem tocar na identidade profissional.
-- [ ] Primeiro acesso força troca de senha e libera o portal somente depois dela.
-- [ ] Gestão publica curso, módulo e aula Vimeo e matricula um aluno.
-- [ ] Aluno vê somente suas matrículas e conteúdo publicado.
-- [ ] Vimeo concluído atualiza o progresso automaticamente e de forma idempotente.
-- [ ] Suspensões bloqueiam acesso sem apagar histórico.
-- [ ] Cookies profissional e acadêmico coexistem e não atravessam autoridades.
-- [ ] Nenhum componente novo ultrapassa 250 linhas.
-- [ ] Lint, typecheck, testes e build passam.
-- [ ] O deploy mantém o frontend do monorepo na raiz e encaminha somente APIs específicas.
+- [x] Gestão cria uma conta acadêmica sem tocar na identidade profissional.
+- [x] Primeiro acesso força troca de senha e libera o portal somente depois dela.
+- [x] Gestão publica curso, módulo e aula Vimeo e matricula um aluno.
+- [x] Aluno vê somente suas matrículas e conteúdo publicado.
+- [x] Vimeo concluído atualiza o progresso automaticamente e de forma idempotente.
+- [x] Suspensões bloqueiam acesso sem apagar histórico.
+- [x] Cookies profissional e acadêmico coexistem e não atravessam autoridades.
+- [x] Nenhum componente novo ultrapassa 250 linhas.
+- [x] Lint, typecheck, testes e build passam.
+- [x] O deploy mantém o frontend do monorepo na raiz e encaminha somente APIs específicas.

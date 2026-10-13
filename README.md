@@ -65,6 +65,25 @@ MYSQL_ADMIN_URL=mysql://root:dev-root-local@127.0.0.1:3307/viver_mais_clinica np
 Depois, configure `DATABASE_URL`, `ORGANIZATION_ID` e as variáveis de sessão no
 `.env.local`. Sem `DATABASE_URL`, a aplicação continua no modo demonstração.
 
+### Portal do aluno
+
+O portal acadêmico usa MySQL real e uma identidade separada das contas de
+psicólogos e da gestão. A migration `053_portal_aluno.sql` cria alunos,
+matrículas, módulos, aulas e progresso; aplique-a com `npm run db:migrate`.
+
+- Gestão acadêmica: `/gestao/academico`
+- Login exclusivo do aluno: `/aluno/login`
+- Cookie acadêmico: `viver_mais_student_session`, assinado com o mesmo
+  `AUTH_SESSION_SECRET`, mas em domínio criptográfico separado da sessão clínica
+- Vídeos: somente ID ou link do Vimeo; a aula é concluída automaticamente no
+  evento de término do player
+- Primeiro acesso: a gestão cria a conta com uma senha temporária de ao menos
+  10 caracteres, contendo letra e número; o aluno é obrigado a trocá-la
+
+Para um teste local, inicie o MySQL, aplique as migrations, entre como gestão e
+use **Área de Alunos** para criar aluno, curso, módulo, aula e matrícula. Não há
+senha acadêmica padrão ou credencial de produção no repositório.
+
 ---
 
 ## Verificações

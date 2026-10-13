@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { failure } from '@/server/application/http';
+import { academicFailure } from './academicErrors';
 import { requireActiveStudent } from './studentAuth';
 import { StudentPortalService } from './studentPortalService';
 
@@ -9,4 +9,4 @@ export async function resolveStudentPortal(options: { allowPasswordChange?: bool
   return { student, service: new StudentPortalService() };
 }
 
-export const studentApiFailure = (error: unknown) => failure(error);
+export const studentApiFailure = (error: unknown) => academicFailure(error);

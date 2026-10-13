@@ -1,4 +1,5 @@
-import { ApplicationError, failure, readJson, success } from '@/server/application/http';
+import { ApplicationError, readJson, success } from '@/server/application/http';
+import { academicFailure } from '@/server/academic/academicErrors';
 import { authenticateStudent, startStudentSession } from '@/server/academic/studentAuth';
 
 export const runtime = 'nodejs';
@@ -11,5 +12,5 @@ export async function POST(request: Request) {
     if (!session) throw new ApplicationError('INVALID_CREDENTIALS', 'E-mail ou senha inválidos.', 401);
     await startStudentSession(session);
     return success({ authenticated: true, destination: session.mustChangePassword ? '/aluno/trocar-senha' : '/aluno' });
-  } catch (error) { return failure(error); }
+  } catch (error) { return academicFailure(error); }
 }

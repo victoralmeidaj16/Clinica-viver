@@ -45,6 +45,16 @@ describe('API do aluno', () => {
     expect(startStudentSession).toHaveBeenCalledOnce();
   });
 
+  it('não expõe detalhes de infraestrutura quando o login falha internamente', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    authenticateStudent.mockRejectedValueOnce(new Error('connect ECONNREFUSED 127.0.0.1:3307'));
+    const response = await login(new Request('http://localhost/api/academico/auth/login', {
+      method: 'POST', body: JSON.stringify({ email: 'ana@example.com', password: 'senhaForte123' }),
+    }));
+    expect(response.status).toBe(500);
+    expect(JSON.stringify(await response.json())).not.toContain('ECONNREFUSED');
+  });
+
   it('deriva o aluno da sessão e ignora tentativa de selecionar outro aluno', async () => {
     service.completeLesson.mockResolvedValue({ completed: 1, total: 1, percentage: 100 });
     const request = new Request('http://localhost/api/academico/aluno/aulas/lesson-1/concluir?studentId=student-2', {

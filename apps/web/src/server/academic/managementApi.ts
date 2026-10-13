@@ -1,9 +1,10 @@
 import 'server-only';
 
 import { readSession } from '@/server/auth';
-import { ApplicationError, failure } from '@/server/application/http';
+import { ApplicationError } from '@/server/application/http';
 import { instituicaoId } from '@/server/persistence/mysql/mappers';
 import { exigirGestao, NaoAutorizadoError } from '@/server/viverMaisGestaoAuth';
+import { academicFailure } from './academicErrors';
 import { AcademicManagementService } from './academicManagementService';
 
 export async function resolveAcademicManager(): Promise<{ actorUserId: string; service: AcademicManagementService }> {
@@ -15,9 +16,9 @@ export async function resolveAcademicManager(): Promise<{ actorUserId: string; s
 
 export function academicApiFailure(error: unknown) {
   if (error instanceof NaoAutorizadoError) {
-    return failure(new ApplicationError(error.status === 401 ? 'UNAUTHENTICATED' : 'FORBIDDEN', error.message, error.status));
+    return academicFailure(new ApplicationError(error.status === 401 ? 'UNAUTHENTICATED' : 'FORBIDDEN', error.message, error.status));
   }
-  return failure(error);
+  return academicFailure(error);
 }
 
 export const stringValue = (value: unknown) => typeof value === 'string' ? value : '';

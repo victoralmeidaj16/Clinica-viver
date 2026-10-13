@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS clinica_cursos_modulos (
   PRIMARY KEY (id),
   CONSTRAINT clinica_cursos_modulos_instituicao_fk FOREIGN KEY (instituicao_id) REFERENCES instituicoes(id),
   CONSTRAINT clinica_cursos_modulos_curso_fk FOREIGN KEY (curso_id) REFERENCES clinica_cursos_pos_graduacao(id),
-  UNIQUE KEY clinica_cursos_modulos_ordem_uq (instituicao_id, curso_id, ordem),
+  KEY clinica_cursos_modulos_ordem_idx (instituicao_id, curso_id, ordem),
   KEY clinica_cursos_modulos_curso_idx (instituicao_id, curso_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -96,7 +96,7 @@ CREATE TABLE IF NOT EXISTS clinica_cursos_aulas (
   PRIMARY KEY (id),
   CONSTRAINT clinica_cursos_aulas_instituicao_fk FOREIGN KEY (instituicao_id) REFERENCES instituicoes(id),
   CONSTRAINT clinica_cursos_aulas_modulo_fk FOREIGN KEY (modulo_id) REFERENCES clinica_cursos_modulos(id),
-  UNIQUE KEY clinica_cursos_aulas_ordem_uq (instituicao_id, modulo_id, ordem),
+  KEY clinica_cursos_aulas_ordem_idx (instituicao_id, modulo_id, ordem),
   KEY clinica_cursos_aulas_modulo_idx (instituicao_id, modulo_id, publicado)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 

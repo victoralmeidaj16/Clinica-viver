@@ -20,6 +20,7 @@ import {
   X,
   FileText,
   HelpCircle,
+  GraduationCap,
 } from 'lucide-react';
 
 const psicologoItems = [
@@ -33,6 +34,7 @@ const psicologoItems = [
 ];
 
 const gestaoItems = [
+  { label: 'Área de Alunos', href: '/gestao/academico', icon: GraduationCap },
   { label: 'Agenda da Clínica', href: '/gestao/agenda', icon: CalendarDays },
   { label: 'Gestão de Psicólogos', href: '/gestao/psicologos', icon: UserCheck },
   { label: 'Gestão de Pacientes', href: '/gestao/pacientes', icon: Users },

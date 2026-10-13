@@ -142,17 +142,17 @@ export class AcademicManagementService {
 
   async createModule(input: SaveModuleInput): Promise<AcademicModule> {
     if (!await this.repository.getCourseTree(input.courseId)) throw new ApplicationError('NOT_FOUND', 'Curso não encontrado.', 404);
-    const module = { id: randomUUID(), courseId: input.courseId, title: required(input.title, 'Título'), position: input.position };
-    await this.repository.saveModule(module);
-    return module;
+    const academicModule = { id: randomUUID(), courseId: input.courseId, title: required(input.title, 'Título'), position: input.position };
+    await this.repository.saveModule(academicModule);
+    return academicModule;
   }
 
   async updateModule(moduleId: string, input: SaveModuleInput): Promise<AcademicModule> {
     const course = await this.repository.getCourseTree(input.courseId);
     if (!course?.modules.some((module) => module.id === moduleId)) throw new ApplicationError('NOT_FOUND', 'Módulo não encontrado.', 404);
-    const module = { id: moduleId, courseId: input.courseId, title: required(input.title, 'Título'), position: input.position };
-    await this.repository.saveModule(module);
-    return module;
+    const academicModule = { id: moduleId, courseId: input.courseId, title: required(input.title, 'Título'), position: input.position };
+    await this.repository.saveModule(academicModule);
+    return academicModule;
   }
 
   async createLesson(input: SaveLessonInput): Promise<AcademicLesson> {

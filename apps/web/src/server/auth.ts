@@ -5,7 +5,7 @@ import { cookies } from 'next/headers';
 import type { RowDataPacket } from 'mysql2';
 import { getMysqlPool, isMysqlConfigured } from '@/server/oci/runtime';
 import { instituicaoId } from '@/server/persistence/mysql/mappers';
-import { hashPassword, verifyPasswordHash } from '@/server/security/passwordHash';
+import { verifyPasswordHash } from '@/server/security/passwordHash';
 
 export { hashPassword } from '@/server/security/passwordHash';
 

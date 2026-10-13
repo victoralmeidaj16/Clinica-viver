@@ -250,13 +250,13 @@ export class MysqlAcademicRepository implements AcademicRepository {
     const row = rows[0];
     if (!row) return null;
     const course = mapCourse({ ...row, id: row.curso_id, ordem: row.curso_ordem, publicado: row.curso_publicado } as Row, this.institutionId);
-    const module = mapModule({ id: row.modulo_id, curso_id: row.curso_id, titulo: row.modulo_titulo, ordem: row.modulo_ordem } as Row);
+    const academicModule = mapModule({ id: row.modulo_id, curso_id: row.curso_id, titulo: row.modulo_titulo, ordem: row.modulo_ordem } as Row);
     const lesson = mapLesson({
       id: row.aula_id, modulo_id: row.modulo_id, titulo: row.aula_titulo, descricao: row.aula_descricao,
       duracao_min: row.duracao_min, vimeo_id: row.vimeo_id, ordem: row.aula_ordem, publicado: row.aula_publicado,
-    } as Row, course.id, module.position);
+    } as Row, course.id, academicModule.position);
     return {
-      course, module, lesson,
+      course, module: academicModule, lesson,
       enrollment: {
         id: text(row.matricula_id), studentId, courseId: course.id, status: 'active',
         createdAt: iso(row.matricula_criada_em), updatedAt: iso(row.matricula_atualizada_em),

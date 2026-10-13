@@ -1,10 +1,13 @@
 import 'server-only';
 
-import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { cookies } from 'next/headers';
 import type { RowDataPacket } from 'mysql2';
 import { getMysqlPool, isMysqlConfigured } from '@/server/oci/runtime';
 import { instituicaoId } from '@/server/persistence/mysql/mappers';
+import { hashPassword, verifyPasswordHash } from '@/server/security/passwordHash';
+
+export { hashPassword } from '@/server/security/passwordHash';
 
 export const SESSION_COOKIE = 'viver_mais_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 8;
@@ -66,12 +69,7 @@ function safeEqual(left: string, right: string): boolean {
 }
 
 function verifyPassword(password: string, user: LoginUser): boolean {
-  if (user.passwordHash?.startsWith('scrypt$')) {
-    const [, salt, expected] = user.passwordHash.split('$');
-    if (!salt || !expected) return false;
-    const actual = scryptSync(password, salt, 32).toString('base64url');
-    return safeEqual(actual, expected);
-  }
+  if (user.passwordHash) return verifyPasswordHash(password, user.passwordHash);
   return typeof user.password === 'string' && safeEqual(password, user.password);
 }
 
@@ -178,9 +176,4 @@ export async function startSession(user: Pick<LoginUser, 'userId' | 'organizatio
 
 export async function endSession(): Promise<void> {
   (await cookies()).set(SESSION_COOKIE, '', { httpOnly: true, expires: new Date(0), path: '/' });
-}
-
-export function hashPassword(password: string): string {
-  const salt = randomBytes(16).toString('base64url');
-  return `scrypt$${salt}$${scryptSync(password, salt, 32).toString('base64url')}`;
 }

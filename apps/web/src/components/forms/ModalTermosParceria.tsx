@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
-import { FileText, Check, X, ShieldCheck, AlertCircle, ChevronDown } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Check, ChevronDown, FileCheck2, ShieldCheck, X } from 'lucide-react';
+import { TermoAdesaoDocument } from '@/components/forms/TermoAdesaoDocument';
+import { TERMO_ADESAO_TITULO, VERSAO_TERMO_ADESAO } from '@/components/forms/termoAdesaoContent';
 
 interface ModalTermosParceriaProps {
   isOpen: boolean;
@@ -10,7 +12,7 @@ interface ModalTermosParceriaProps {
   jaAceito?: boolean;
 }
 
-export const VERSAO_TERMOS_PARCERIA = '2026.1';
+export const VERSAO_TERMOS_PARCERIA = VERSAO_TERMO_ADESAO;
 
 export function ModalTermosParceria({
   isOpen,
@@ -18,190 +20,129 @@ export function ModalTermosParceria({
   onAceitar,
   jaAceito = false,
 }: ModalTermosParceriaProps) {
-  // O estado guarda só o que o usuário fez nesta abertura; quem já aceitou
-  // antes é liberado por derivação, sem um efeito para sincronizar a prop.
   const [leuNestaAbertura, setLeuNestaAbertura] = useState(false);
-  const rolouAteOFim = jaAceito || leuNestaAbertura;
+  const [progresso, setProgresso] = useState(jaAceito ? 100 : 0);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const rolouAteOFim = jaAceito || leuNestaAbertura;
 
   useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-    // Texto que cabe sem rolagem não tem como ser "rolado até o fim": mede-se
-    // depois da montagem e libera o aceite.
-    const timer = setTimeout(() => {
+    if (!isOpen) return;
+
+    const overflowAnterior = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+
+    const timer = window.setTimeout(() => {
       const el = scrollRef.current;
       if (el && el.scrollHeight <= el.clientHeight + 20) {
         setLeuNestaAbertura(true);
+        setProgresso(100);
       }
     }, 100);
-    return () => {
-      clearTimeout(timer);
-      // Fechar recomeça a leitura na próxima abertura.
-      setLeuNestaAbertura(false);
-    };
-  }, [isOpen]);
 
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const el = e.currentTarget;
-    const tolerancia = 25;
-    if (el.scrollTop + el.clientHeight >= el.scrollHeight - tolerancia) {
-      setLeuNestaAbertura(true);
-    }
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = overflowAnterior;
+      setLeuNestaAbertura(false);
+      setProgresso(jaAceito ? 100 : 0);
+    };
+  }, [isOpen, jaAceito, onClose]);
+
+  const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    const el = event.currentTarget;
+    const distanciaRolavel = el.scrollHeight - el.clientHeight;
+    const percentual = distanciaRolavel <= 0
+      ? 100
+      : Math.min(100, Math.round((el.scrollTop / distanciaRolavel) * 100));
+    setProgresso(percentual);
+    if (percentual >= 99) setLeuNestaAbertura(true);
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-purple-100 flex flex-col max-h-[90vh] overflow-hidden">
-        {/* Cabeçalho */}
-        <div className="p-5 sm:p-6 border-b border-purple-50 flex items-center justify-between gap-4 bg-purple-50/40">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-purple-600 text-white flex items-center justify-center shadow-md shadow-purple-600/20 shrink-0">
-              <ShieldCheck className="w-5 h-5" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-psi-darkest/80 p-0 backdrop-blur-sm sm:p-5" role="presentation">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="termo-adesao-titulo"
+        className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-white shadow-2xl sm:h-auto sm:max-h-[94dvh] sm:max-w-5xl sm:rounded-3xl sm:border sm:border-psi-soft"
+      >
+        <div className="relative border-b border-psi-soft bg-white px-4 py-4 sm:px-6 sm:py-5">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-psi-darkest text-white shadow-md shadow-psi-darkest/20">
+                <ShieldCheck className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-psi-vibrant">
+                  Documento jurídico · Versão {VERSAO_TERMOS_PARCERIA}
+                </span>
+                <h1 id="termo-adesao-titulo" className="truncate text-sm font-black text-ink sm:text-lg">
+                  {TERMO_ADESAO_TITULO}
+                </h1>
+              </div>
             </div>
-            <div>
-              <span className="text-[10px] font-black uppercase tracking-wider text-purple-700 block">
-                Contrato & Diretrizes Éticas • Versão {VERSAO_TERMOS_PARCERIA}
-              </span>
-              <h3 className="text-base sm:text-lg font-black text-slate-900 leading-tight">
-                Termos e Políticas de Parceria Clínica
-              </h3>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-white transition-all"
-            aria-label="Fechar"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Corpo com Rolagem e Monitoramento de Leitura */}
-        <div
-          ref={scrollRef}
-          onScroll={handleScroll}
-          className="p-6 overflow-y-auto space-y-6 text-xs text-slate-600 leading-relaxed font-sans"
-        >
-          <div className="bg-purple-50/60 p-4 rounded-2xl border border-purple-100 flex items-start gap-3">
-            <AlertCircle className="w-4 h-4 text-purple-700 shrink-0 mt-0.5" />
-            <p className="text-[11px] text-purple-950 font-medium leading-relaxed">
-              Para validar o seu credenciamento e garantir a segurança jurídica e ética dos atendimentos,
-              leia atentamente as diretrizes abaixo e <strong>role o documento até o final</strong> para habilitar o aceite.
-            </p>
-          </div>
-
-          <section className="space-y-2">
-            <h4 className="font-black text-sm text-slate-900">1. Objeto da Parceria</h4>
-            <p>
-              O presente termo estabelece as condições gerais de credenciamento e cooperação entre a{' '}
-              <strong>Clínica Viver Mais Psicologia</strong> e o(a) <strong>Psicólogo(a) Credenciado(a)</strong>,
-              visando o encaminhamento ético e a gestão de pacientes por meio da plataforma integrada.
-            </p>
-          </section>
-
-          <section className="space-y-2">
-            <h4 className="font-black text-sm text-slate-900">2. Registro Profissional e Conformidade Ética</h4>
-            <p>
-              O(A) profissional declara possuir inscrição ativa e regular junto ao respectivo{' '}
-              <strong>Conselho Regional de Psicologia (CRP)</strong>, comprometendo-se a exercer sua atividade em estrita
-              observância ao Código de Ética Profissional do Psicólogo, às resoluções do CFP/CRP e à legislação vigente.
-            </p>
-          </section>
-
-          <section className="space-y-2">
-            <h4 className="font-black text-sm text-slate-900">3. Compromisso com o Prazo do Primeiro Contato (24 Horas)</h4>
-            <p>
-              Ao receber a notificação de um novo encaminhamento via WhatsApp/plataforma, o(a) psicólogo(a) compromete-se
-              a realizar o primeiro contato com o paciente dentro do prazo máximo de <strong>24 (vinte e quatro) horas</strong>.
-            </p>
-            <p className="text-slate-500">
-              Caso o profissional não tenha disponibilidade na agenda ou não possa atender o caso por incompatibilidade técnica,
-              deverá responder imediatamente com o comando <strong>ENCAMINHAR</strong> ou avisar a gestão, permitindo o
-              redirecionamento ágil do paciente sem prejuízo ao acolhimento.
-            </p>
-          </section>
-
-          <section className="space-y-2">
-            <h4 className="font-black text-sm text-slate-900">4. Gestão de Agenda e Disponibilidade</h4>
-            <p>
-              O(A) psicólogo(a) possui total autonomia clínica e de horários, cabendo-lhe manter seus turnos e status de
-              visibilidade sempre atualizados no sistema. Caso vá entrar em recesso, férias ou atingir a capacidade máxima de
-              atendimento, o(a) profissional deverá <strong>pausar seu perfil no rodízio previamente</strong> pelo painel
-              para evitar o envio indevido de novos pacientes.
-            </p>
-          </section>
-
-          <section className="space-y-2">
-            <h4 className="font-black text-sm text-slate-900">5. Modalidades e Valores de Atendimento</h4>
-            <p>
-              Os atendimentos realizados na modalidade <strong>Acessível/Social</strong> e <strong>Particular</strong> devem
-              seguir rigorosamente os valores e condições pactuados com a clínica, sendo vedada a cobrança de valores divergentes
-              sem a prévia anuência da coordenação.
-            </p>
-          </section>
-
-          <section className="space-y-2">
-            <h4 className="font-black text-sm text-slate-900">6. Sigilo Profissional e Proteção de Dados (LGPD)</h4>
-            <p>
-              Em cumprimento à <strong>Lei Geral de Proteção de Dados (LGPD - Lei nº 13.709/2018)</strong> e às normas do CFP,
-              todos os dados pessoais e prontuários clínicos dos pacientes são estritamente sigilosos e de guarda protegida,
-              sendo vedado seu compartilhamento com terceiros não autorizados.
-            </p>
-          </section>
-
-          <section className="space-y-2">
-            <h4 className="font-black text-sm text-slate-900">7. Rescisão e Desativação do Credenciamento</h4>
-            <p>
-              Qualquer das partes poderá rescindir a parceria a qualquer momento, mediante comunicação prévia. A clínica reserva-se
-              o direito de pausar ou desativar o cadastro de profissionais em caso de reiterado descumprimento do prazo de 24h,
-              recusa recorrente de pacientes sem justificativa prévia ou conduta em desacordo com as diretrizes da equipe.
-            </p>
-          </section>
-
-          <div className="pt-4 border-t border-slate-100 text-[11px] text-slate-400 text-center">
-            Clínica Viver Mais Psicologia • CNPJ e Diretrizes Clínicas em conformidade com o CFP
-          </div>
-        </div>
-
-        {/* Rodapé com Botão Condicional */}
-        <div className="p-4 sm:p-5 border-t border-purple-50 bg-slate-50 flex flex-col sm:flex-row items-center justify-between gap-3">
-          {!rolouAteOFim ? (
-            <div className="flex items-center gap-1.5 text-xs text-amber-700 font-bold animate-pulse">
-              <ChevronDown className="w-4 h-4 text-amber-600" />
-              <span>Role o texto até o final para habilitar o botão de aceite</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1.5 text-xs text-emerald-700 font-bold">
-              <Check className="w-4 h-4 text-emerald-600" />
-              <span>Leitura completa confirmada</span>
-            </div>
-          )}
-
-          <div className="flex items-center gap-2 w-full sm:w-auto">
             <button
               type="button"
               onClick={onClose}
-              className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-white text-xs font-bold transition-all"
+              className="rounded-xl p-2 text-muted transition-colors hover:bg-psi-light hover:text-ink"
+              aria-label="Fechar termo"
             >
-              Fechar
+              <X className="h-5 w-5" />
             </button>
-            <button
-              type="button"
-              disabled={!rolouAteOFim}
-              onClick={() => {
-                onAceitar();
-                onClose();
-              }}
-              className="w-full sm:w-auto bg-purple-700 hover:bg-purple-800 disabled:opacity-40 disabled:cursor-not-allowed text-white font-extrabold text-xs px-5 py-2.5 rounded-xl transition-all shadow-md shadow-purple-700/20 flex items-center justify-center gap-1.5 shrink-0"
-            >
-              <Check className="w-4 h-4" />
-              <span>Li e Aceito os Termos</span>
-            </button>
+          </div>
+          <div className="absolute inset-x-0 bottom-0 h-1 bg-psi-soft" aria-hidden="true">
+            <div
+              className="h-full bg-gradient-to-r from-psi-vibrant to-psi-deep transition-[width] duration-150"
+              style={{ width: `${progresso}%` }}
+            />
+          </div>
+        </div>
+
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="min-h-0 flex-1 overflow-y-auto bg-[#FCFAFD] px-4 py-7 sm:px-8 sm:py-9"
+        >
+          <TermoAdesaoDocument />
+        </div>
+
+        <div className="border-t border-psi-soft bg-white px-4 py-4 sm:px-6">
+          <div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
+            {!rolouAteOFim ? (
+              <div className="flex items-center justify-center gap-2 text-xs font-bold text-amber-700 sm:justify-start">
+                <ChevronDown className="h-4 w-4 animate-bounce" />
+                <span>Continue a leitura · {progresso}% concluído</span>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center gap-2 text-xs font-extrabold text-emerald-700 sm:justify-start">
+                <FileCheck2 className="h-4 w-4" />
+                <span>Leitura completa confirmada</span>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <button type="button" onClick={onClose} className="btn-outline flex-1 px-4 py-2.5 text-xs sm:flex-none">
+                Fechar
+              </button>
+              <button
+                type="button"
+                disabled={!rolouAteOFim}
+                onClick={() => {
+                  onAceitar();
+                  onClose();
+                }}
+                className="btn-primary flex-1 px-5 py-2.5 text-xs sm:flex-none"
+              >
+                <Check className="h-4 w-4" />
+                Li e Aceito os Termos
+              </button>
+            </div>
           </div>
         </div>
       </div>

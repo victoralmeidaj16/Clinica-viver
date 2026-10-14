@@ -119,7 +119,7 @@ export function CadastroPsicologoForm({
       return;
     }
     if (!aceitouTermos) {
-      alert('Por favor, leia e aceite os Termos e Políticas de Parceria Clínica antes de enviar seu cadastro.');
+      alert('Por favor, leia e aceite o Termo de Adesão e Condições de Uso antes de enviar seu cadastro.');
       setModalTermosAberto(true);
       return;
     }
@@ -608,13 +608,13 @@ export function CadastroPsicologoForm({
           </div>
         </div>
 
-        {/* Termos e Políticas de Parceria Clínica */}
+        {/* Termo de Adesão e Condições de Uso */}
         <div className="bg-purple-50/70 border border-purple-200 p-4 rounded-2xl space-y-3">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-purple-700 shrink-0" />
               <span className="font-extrabold text-xs text-purple-950">
-                Termos & Políticas de Parceria Clínica
+                Termo de Adesão e Condições de Uso
               </span>
             </div>
             <button
@@ -641,9 +641,9 @@ export function CadastroPsicologoForm({
               className="w-4 h-4 rounded border-purple-300 text-purple-700 focus:ring-purple-500 accent-purple-700 mt-0.5 cursor-pointer"
             />
             <span className="text-[11px] text-slate-700 font-medium leading-snug">
-              Li e concordo com os{' '}
-              <strong className="text-purple-900 font-bold">Termos e Políticas de Parceria Clínica da Viver Mais Psicologia</strong>,
-              incluindo o compromisso de primeiro contato em 24h, conformidade ética com o CFP e sigilo de dados.
+              Li e concordo com o{' '}
+              <strong className="text-purple-900 font-bold">Termo de Adesão e Condições de Uso da Plataforma Digital</strong>,
+              incluindo as condições operacionais, financeiras, éticas e de proteção de dados.
             </span>
           </label>
         </div>
@@ -658,7 +658,7 @@ export function CadastroPsicologoForm({
         </button>
       </form>
 
-      {/* Modal de Leitura Obrigatória dos Termos de Parceria */}
+      {/* Modal de leitura obrigatória do Termo de Adesão */}
       <ModalTermosParceria
         isOpen={modalTermosAberto}
         onClose={() => setModalTermosAberto(false)}

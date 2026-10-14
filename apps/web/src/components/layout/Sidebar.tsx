@@ -43,6 +43,7 @@ const gestaoItems = [
   { label: '11 Indicadores Mensais', href: '/relatorios', icon: BarChart3 },
   { label: 'Convênios PJ', href: '/convenios', icon: Briefcase },
   { label: 'Integrações (Asaas/Wpp)', href: '/configuracoes/integracoes', icon: Brain },
+  { label: 'Ajuda', href: '/ajuda', icon: HelpCircle },
 ];
 
 /**

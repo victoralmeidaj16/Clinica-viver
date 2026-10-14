@@ -89,7 +89,7 @@ export function proxy(request: NextRequest) {
     login.searchParams.set('next', pathname);
     return NextResponse.redirect(login);
   }
-  const adminPage = ['/gestao', '/relatorios', '/convenios', '/configuracoes', '/linha-do-tempo'].some((prefix) => pathname.startsWith(prefix));
+  const adminPage = ['/gestao', '/relatorios', '/convenios', '/configuracoes', '/linha-do-tempo', '/ajuda'].some((prefix) => pathname.startsWith(prefix));
   // `/meu-cadastro` é o destino do fluxo de ativação de conta: sem estar nesta
   // lista, o psicólogo que acabava de definir a senha era redirecionado para
   // `/cockpit` no exato momento em que deveria ver o próprio perfil.

@@ -40,7 +40,7 @@ const gestaoItems = [
   { label: 'Gestão de Pacientes', href: '/gestao/pacientes', icon: Users },
   { label: 'Cockpit da Clínica (Prazos)', href: '/gestao/cockpit', icon: Shield },
   { label: 'Financeiro & Repasses', href: '/gestao/financeiro', icon: CreditCard },
-  { label: '11 Indicadores Mensais', href: '/relatorios', icon: BarChart3 },
+  { label: 'Indicadores Mensais', href: '/relatorios', icon: BarChart3 },
   { label: 'Convênios PJ', href: '/convenios', icon: Briefcase },
   { label: 'Integrações (Asaas/Wpp)', href: '/configuracoes/integracoes', icon: Brain },
   { label: 'Ajuda', href: '/ajuda', icon: HelpCircle },

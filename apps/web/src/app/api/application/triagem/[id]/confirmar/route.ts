@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { captureStateAsSnapshot, getCaptureRepository } from '@/server/persistence/captureRepository';
 import { validarTokenConfirmacao } from '@/server/viverMaisConfirmToken';
 import { confirmarContato, type ConfirmacaoResult } from '@/server/application/viverMaisRodizio';
-import { avisarTransbordo } from '@/server/application/viverMaisWhatsApp';
+import { avisarTransbordo, avisarConfirmacaoPaciente } from '@/server/application/viverMaisWhatsApp';
 import { reconciliarPacientes } from '@/server/application/patientPromotion';
 
 export const runtime = 'nodejs';
@@ -58,6 +58,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (resultado.kind === 'capacity_reallocated' || resultado.kind === 'capacity_pending') {
       if (resultado.psicologo) void avisarTransbordo(resultado.lead, resultado.psicologo);
       return NextResponse.json({ success: false, realocado: resultado.kind === 'capacity_reallocated', error: resultado.kind === 'capacity_reallocated' ? 'Seu limite de 5 pacientes ativos foi atingido. O atendimento foi encaminhado ao próximo profissional.' : 'Seu limite de 5 pacientes ativos foi atingido. O atendimento retornou para a fila da gestão.' }, { status: 409 });
+    }
+
+    if (resultado.kind === 'confirmed') {
+      await avisarConfirmacaoPaciente(resultado.lead);
     }
 
     // A confirmação já foi commitada. Se a identidade estiver temporariamente

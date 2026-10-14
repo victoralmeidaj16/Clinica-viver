@@ -622,7 +622,7 @@ export type ConfirmacaoResult =
   | { kind: 'capacity_reallocated'; lead: TriagemPacienteRecord; psicologo: CadastroPsicologoRecord }
   | { kind: 'capacity_pending'; lead: TriagemPacienteRecord; psicologo?: undefined }
   | { kind: 'already_confirmed'; data: { nomePaciente: string; telefone: string; confirmadoEm: string } }
-  | { kind: 'confirmed'; data: { nomePaciente: string; telefone: string; confirmadoEm: string } };
+  | { kind: 'confirmed'; lead: TriagemPacienteRecord; data: { nomePaciente: string; telefone: string; confirmadoEm: string } };
 
 export function confirmarContato(
   snapshot: PersistedSnapshot,
@@ -678,6 +678,7 @@ export function confirmarContato(
     next,
     result: {
       kind: 'confirmed',
+      lead: confirmado,
       data: { nomePaciente: confirmado.nomePaciente, telefone: confirmado.telefone, confirmadoEm },
     },
   };

@@ -5,7 +5,7 @@ import {
   getCaptureRepository,
 } from '@/server/persistence/captureRepository';
 import { alocarLead, alocarLeadEscolhido, classificarSla, horasDesdeAlocacao, varrerSla } from '@/server/application/viverMaisRodizio';
-import { avisarAlocacao, avisarTransbordo } from '@/server/application/viverMaisWhatsApp';
+import { avisarAlocacao, avisarTransbordo, avisarRecebimentoPaciente } from '@/server/application/viverMaisWhatsApp';
 import {
   avisarAlocacaoPsicologoPorEmail,
   avisarTriagemRecebidaPorEmail,
@@ -185,6 +185,7 @@ export async function POST(request: Request) {
       // encerrada assim que o HTTP termina — o lead fica gravado, mas o
       // psicólogo não recebe o WhatsApp.
       const notificacoes = await Promise.allSettled([
+        avisarRecebimentoPaciente(resultado.lead),
         avisarAlocacao(resultado.lead, resultado.psicologo),
         avisarTriagemRecebidaPorEmail(resultado.lead, resultado.psicologo),
         avisarAlocacaoPsicologoPorEmail(
@@ -201,7 +202,10 @@ export async function POST(request: Request) {
       console.warn(
         `[triagem] Lead ${novaTriagem.protocolo} sem profissional elegível; aguardando decisão da gestão.`
       );
-      void avisarTriagemRecebidaPorEmail(resultado.lead);
+      await Promise.allSettled([
+        avisarRecebimentoPaciente(resultado.lead),
+        avisarTriagemRecebidaPorEmail(resultado.lead),
+      ]);
     }
 
     return NextResponse.json({

@@ -11,7 +11,7 @@ import {
   type ResultadoEncaminhamento,
 } from './viverMaisRodizio';
 import { COMANDO_CONFIRMAR, COMANDO_ENCAMINHAR, interpretarComando } from './viverMaisComandos';
-import { avisarCoordenacao, avisarTransbordo, responderPsicologo } from './viverMaisWhatsApp';
+import { avisarCoordenacao, avisarTransbordo, responderPsicologo, avisarConfirmacaoPaciente } from './viverMaisWhatsApp';
 import { avisarAlocacaoPsicologoPorEmail } from './triagemEmail';
 import { reconciliarPacientes } from './patientPromotion';
 import { normalizeBrazilPhone } from '@/lib/brazilPhone';
@@ -128,6 +128,9 @@ export async function processarRespostaDoPsicologo(
     });
 
     if (resultado.kind === 'confirmed' || resultado.kind === 'already_confirmed') {
+      if (resultado.kind === 'confirmed') {
+        await avisarConfirmacaoPaciente(resultado.lead);
+      }
       void responderPsicologo(
         psicologo,
         [

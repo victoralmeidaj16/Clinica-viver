@@ -1,11 +1,16 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
+vi.mock('@/server/adapters/whatsappAllowlist', () => ({
+  assertWhatsAppRecipientAllowed: vi.fn(),
+  RecipientNotAllowedError: class extends Error {},
+}));
+afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 vi.mock('@/server/viverMaisConfirmToken', () => ({
   gerarTokenConfirmacao: vi.fn(() => 'token-mock-123'),
 }));
 
-import { textoParaPsicologo, textoParaPaciente, textoParaPacienteTransbordo } from './viverMaisWhatsApp';
+import { textoParaPsicologo, textoParaPaciente, textoRecebimentoPaciente, avisarRecebimentoPaciente, avisarConfirmacaoPaciente, avisarAlocacao, avisarTransbordo } from './viverMaisWhatsApp';
 import type { CadastroPsicologoRecord, TriagemPacienteRecord } from './persistence';
 
 describe('mensagens de WhatsApp para o psicólogo', () => {
@@ -62,7 +67,7 @@ describe('mensagens de WhatsApp para o psicólogo', () => {
     };
     const msg = textoParaPaciente(comSocial);
     expect(msg).toContain('Olá, Joaquina Silva! 💜');
-    expect(msg).toContain('processo de Psicoterapia Individual. 💜🧡');
+    expect(msg).toContain('processo de Psicoterapia Individual. Seu agendamento');
     expect(msg).toContain('O valor para Psicoterapia Individual Acessível é de R$ 75,00 por sessão.');
   });
 
@@ -83,16 +88,46 @@ describe('mensagens de WhatsApp para o psicólogo', () => {
     expect(msg).toContain('O valor para Psicoterapia de Casal Particular é de R$ 260,00 por sessão.');
   });
 
-  it('gera o texto acolhedor de encaminhamento / transbordo para o paciente', () => {
-    const msg = textoParaPacienteTransbordo();
-    expect(msg).toContain(
-      'Para dar continuidade ao seu atendimento, vamos encaminhar você para outro(a) psicólogo(a) da nossa equipe.'
-    );
-    expect(msg).toContain(
-      'Essa mudança é necessária por questões de organização e disponibilidade dos(as) psicólogos(as) da clínica, para que possamos garantir a continuidade do seu atendimento. 💜'
-    );
-    expect(msg).toContain(
-      'O(a) novo(a) psicólogo(a) entrará em contato com você em breve.'
-    );
+  it('envia o acolhimento exato sem antecipar orientações', () => {
+    expect(textoRecebimentoPaciente()).toBe([
+      'Olá! Seja bem-vindo(a) à Viver Mais Psicologia! 🫂', '',
+      'Recebemos sua solicitação de agendamento e agradecemos por entrar em contato com a gente!', '',
+      'Em breve, você receberá as próximas orientações por aqui, neste mesmo contato.', '',
+      'Estamos à disposição para te acolher! ✨',
+    ].join('\n'));
+    expect(textoParaPaciente(leadStub)).toContain('As sessões individuais têm duração de 50 minutos, enquanto as sessões de casal/família têm duração de 1h30.');
   });
+
+  function prepararEnvio() {
+    vi.stubEnv('EVOLUTION_API_URL', 'https://evolution.example');
+    vi.stubEnv('EVOLUTION_API_KEY', 'test-key');
+    vi.stubEnv('EVOLUTION_INSTANCE_NAME', 'test');
+    vi.stubEnv('WHATSAPP_COORDINATION_NUMBERS', '');
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  it('envia acolhimento sem alocação e orientações uma única vez na confirmação', async () => {
+    const fetchMock = prepararEnvio();
+    const lead = { ...leadStub, id: 'flow-confirmacao' };
+    await avisarRecebimentoPaciente(lead);
+    await avisarConfirmacaoPaciente(lead);
+    await avisarConfirmacaoPaciente(lead);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const textos = fetchMock.mock.calls.map(([, init]) => JSON.parse(init.body).text);
+    expect(textos).toEqual([textoRecebimentoPaciente(), textoParaPaciente(lead)]);
+  });
+
+  it.each(['sla_vencido', 'encaminhamento_voluntario', 'reatribuicao_gestao'] as const)(
+    'não envia mensagem ao paciente na alocação nem no encaminhamento %s', async (motivo) => {
+      const fetchMock = prepararEnvio();
+      await avisarAlocacao({ ...leadStub, id: `alocacao-${motivo}` }, psicologoStub);
+      await avisarTransbordo({ ...leadStub, id: `transbordo-${motivo}` }, psicologoStub, 'Anterior', motivo);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      for (const [, init] of fetchMock.mock.calls) {
+        expect(JSON.parse(init.body).number).toBe('5511912345678');
+      }
+    }
+  );
 });

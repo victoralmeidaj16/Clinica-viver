@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Shield,
   Clock,
@@ -11,6 +11,7 @@ import {
   Search,
   Users,
   ArrowRightLeft,
+  UserRoundCog,
   FileText,
   X,
   Save,
@@ -18,6 +19,17 @@ import {
 import { BrazilLocationFields } from '@/components/forms/BrazilLocationFields';
 import { CadastroPsicologoForm } from '@/components/forms/CadastroPsicologoForm';
 import { ModalEdicao } from '@/components/gestao/ModalEdicao';
+import PatientManagementDrawer from '@/components/patients/PatientManagementDrawer';
+import {
+  reassignManagedPatient,
+  updatePatientConvenio,
+} from '@/components/patients/patientManagementActions';
+import type {
+  ManagedConvenio,
+  ManagedPatient,
+  ManagedPsychologist,
+} from '@/components/patients/managementTypes';
+import type { CusteioCiclo } from '@/lib/convenioBilling';
 import type { PsicologoItem } from '@/components/gestao/types';
 import { TIPOS_ATENDIMENTO } from '@/components/forms/opcoesPsicologo';
 import { formatBrazilPhone } from '@/lib/brazilPhone';
@@ -140,6 +152,11 @@ export default function GestaoCockpitPage() {
   const [carregando, setCarregando] = useState(true);
   const [erroCarga, setErroCarga] = useState<string | null>(null);
   const [cadastroAberto, setCadastroAberto] = useState<PsicologoCadastro | null>(null);
+  // Mesmos dados da Gestão de Pacientes: o drawer de detalhes da fila é o mesmo.
+  const [pacientesGestao, setPacientesGestao] = useState<ManagedPatient[]>([]);
+  const [psicologosGestao, setPsicologosGestao] = useState<ManagedPsychologist[]>([]);
+  const [conveniosGestao, setConveniosGestao] = useState<ManagedConvenio[]>([]);
+  const [leadAberto, setLeadAberto] = useState<string | null>(null);
 
   /**
    * Recarrega fila e cadastros das rotas de gestão.
@@ -150,9 +167,13 @@ export default function GestaoCockpitPage() {
    */
   const recarregar = useCallback(async () => {
     try {
-      const [respFila, respCadastros] = await Promise.all([
+      const [respFila, respCadastros, gestao] = await Promise.all([
         fetch('/api/application/triagem', { cache: 'no-store' }),
         fetch('/api/application/credenciamento-psicologo', { cache: 'no-store' }),
+        // Só enriquece a fila com os detalhes: se falhar, o cockpit segue funcionando.
+        fetch('/api/application/gestao/pacientes', { cache: 'no-store' })
+          .then((resposta) => (resposta.ok ? resposta.json() : null))
+          .catch(() => null),
       ]);
 
       const fila = await respFila.json();
@@ -164,6 +185,9 @@ export default function GestaoCockpitPage() {
       }
 
       setLeads(fila.data as LeadFila[]);
+      setPacientesGestao(Array.isArray(gestao?.data) ? (gestao.data as ManagedPatient[]) : []);
+      setPsicologosGestao(Array.isArray(gestao?.psicologos) ? (gestao.psicologos as ManagedPsychologist[]) : []);
+      setConveniosGestao(Array.isArray(gestao?.convenios) ? (gestao.convenios as ManagedConvenio[]) : []);
       setCadastros(psis.data as PsicologoCadastro[]);
       // O aviso só some quando a carga volta a dar certo: apagá-lo no início da
       // tentativa faria o erro piscar e sumir antes de alguém ler.
@@ -270,6 +294,36 @@ export default function GestaoCockpitPage() {
         'Nada a encaminhar: o prazo de 24h ainda não venceu ou não há outro profissional elegível.'
       );
     }
+    await recarregar();
+  };
+
+  const pacientePorLead = useMemo(
+    () => new Map(pacientesGestao.filter((paciente) => paciente.leadId).map((paciente) => [paciente.leadId!, paciente])),
+    [pacientesGestao],
+  );
+  const pacienteAberto = leadAberto ? pacientePorLead.get(leadAberto) ?? null : null;
+
+  const abrirDetalhes = (leadId: string) => {
+    if (!pacientePorLead.has(leadId)) {
+      setErroCarga('Os detalhes deste paciente não estão disponíveis agora. Atualize a fila e tente de novo.');
+      return;
+    }
+    setLeadAberto(leadId);
+  };
+
+  const encaminharPaciente = async (paciente: ManagedPatient, profissionalId: string, motivo: string) => {
+    await reassignManagedPatient(paciente, profissionalId, motivo);
+    await recarregar();
+    setLeadAberto(null);
+  };
+
+  const alterarConvenio = async (
+    pacienteId: string,
+    convenioId: string | null,
+    custeadoPelaEmpresa: boolean | null,
+    cota: { custeioCota: number | null; custeioCiclo: CusteioCiclo | null },
+  ) => {
+    await updatePatientConvenio(pacienteId, convenioId, custeadoPelaEmpresa, cota);
     await recarregar();
   };
 
@@ -455,6 +509,17 @@ export default function GestaoCockpitPage() {
         </button>
       </div>
 
+      <PatientManagementDrawer
+        key={leadAberto ?? 'fechado'}
+        patient={pacienteAberto}
+        psychologists={psicologosGestao}
+        convenios={conveniosGestao}
+        onClose={() => setLeadAberto(null)}
+        onReassign={encaminharPaciente}
+        onDropoutChange={recarregar}
+        onConvenioChange={alterarConvenio}
+      />
+
       {/* Conteúdo da Aba 1: Fila de Triagem */}
       {abaAtiva === 'FILA' && (
         <div className="bg-surface rounded-3xl border border-line shadow-card overflow-hidden space-y-4">
@@ -568,6 +633,15 @@ export default function GestaoCockpitPage() {
                     </div>
                   </dl>
 
+                  <button
+                    type="button"
+                    onClick={() => abrirDetalhes(item.id)}
+                    className="w-full bg-psi-vibrant/10 hover:bg-psi-vibrant/20 border border-psi-vibrant/30 text-psi-deep font-bold text-[11px] px-3 py-2.5 rounded-xl transition-all inline-flex items-center justify-center gap-1"
+                  >
+                    <UserRoundCog className="w-3.5 h-3.5" />
+                    {item.psicologoAlocadoId ? 'Detalhes e trocar psicólogo' : 'Detalhes e encaminhar'}
+                  </button>
+
                   {!item.confirmadoEm && item.psicologoAlocadoId && (
                     <button
                       type="button"
@@ -616,7 +690,8 @@ export default function GestaoCockpitPage() {
                     <tr
                       key={item.id}
                       data-foco={focoLead(item.id)}
-                      className="hover:bg-slate-50/80 transition-colors"
+                      onClick={() => abrirDetalhes(item.id)}
+                      className="cursor-pointer hover:bg-slate-50/80 transition-colors"
                     >
                       <td className="px-6 py-4">
                         <div className="font-extrabold text-ink">{item.nomePaciente}</div>
@@ -641,6 +716,16 @@ export default function GestaoCockpitPage() {
                         ) : (
                           <span className="font-bold text-amber-700">Sem profissional elegível</span>
                         )}
+                        {/* A gestão resolve aqui mesmo, sem sair do cockpit: abre o
+                            mesmo painel da Gestão de Pacientes, com a troca de psicólogo. */}
+                        <button
+                          type="button"
+                          onClick={(event) => { event.stopPropagation(); abrirDetalhes(item.id); }}
+                          className="mt-1.5 flex items-center gap-1 rounded-lg border border-psi-vibrant/30 bg-psi-vibrant/10 px-2 py-1 text-[10px] font-extrabold text-psi-deep transition-colors hover:bg-psi-vibrant/20"
+                        >
+                          <UserRoundCog className="h-3 w-3" />
+                          {item.psicologoAlocadoId ? 'Trocar psicólogo' : 'Encaminhar'}
+                        </button>
                       </td>
                       <td className="px-6 py-4 font-mono font-bold text-ink">
                         {item.horasDecorridas === null ? '—' : `${item.horasDecorridas.toFixed(1)}h`}
@@ -668,7 +753,7 @@ export default function GestaoCockpitPage() {
                         {!item.confirmadoEm && item.psicologoAlocadoId && (
                           <button
                             type="button"
-                            onClick={() => handleForcarTransbordo(item.id)}
+                            onClick={(event) => { event.stopPropagation(); void handleForcarTransbordo(item.id); }}
                             className="bg-surface hover:bg-slate-100 border border-line text-ink font-bold text-[11px] px-3 py-1.5 rounded-xl transition-all inline-flex items-center gap-1"
                           >
                             <ArrowRightLeft className="w-3.5 h-3.5 text-psi-vibrant" />

@@ -5,7 +5,7 @@ import { AlertTriangle, ArrowDownWideNarrow, Clock3, HeartHandshake, Search, Shi
 import PatientManagementDrawer from '@/components/patients/PatientManagementDrawer';
 import type { ManagedPatient, ManagedPsychologist, PatientManagementStatus } from '@/components/patients/managementTypes';
 import type { ManagedConvenio } from '@/components/patients/managementTypes';
-import { commandHeaders } from '@/lib/applicationApi';
+import { reassignManagedPatient, updatePatientConvenio } from '@/components/patients/patientManagementActions';
 import type { CusteioCiclo } from '@/lib/convenioBilling';
 import { resumoCusteio } from '@/lib/convenioBilling';
 
@@ -124,24 +124,7 @@ export default function GestaoPacientesPage() {
   const selectedPatient = selected ? patients.find((patient) => patient.id === selected.id) ?? selected : null;
 
   const reassign = async (patient: ManagedPatient, professionalId: string, reason: string) => {
-    const isLead = !patient.patientId && Boolean(patient.leadId);
-    const response = await fetch(
-      isLead ? '/api/application/gestao/pacientes' : '/api/application/patients',
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', ...(isLead ? commandHeaders() : {}) },
-        body: JSON.stringify(isLead
-          ? { leadId: patient.leadId, professionalId, motivo: reason }
-          : { id: patient.patientId, professionalId, motivo: reason }),
-      }
-    );
-    const body = await response.json().catch(() => null);
-    if (!response.ok) {
-      throw new Error(
-        (body && (typeof body.error === 'string' ? body.error : body.error?.message)) ||
-        `Falha ao encaminhar paciente (HTTP ${response.status}).`
-      );
-    }
+    await reassignManagedPatient(patient, professionalId, reason);
     await load();
     setSelected(null);
   };
@@ -152,17 +135,7 @@ export default function GestaoPacientesPage() {
     custeadoPelaEmpresa: boolean | null,
     cota: { custeioCota: number | null; custeioCiclo: CusteioCiclo | null },
   ) => {
-    const response = await fetch(`/api/application/gestao/pacientes/${encodeURIComponent(patientId)}/convenio`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json', ...commandHeaders() },
-      body: JSON.stringify({ convenioId, custeadoPelaEmpresa, ...cota }),
-    });
-    const body = await response.json().catch(() => null);
-    if (!response.ok) {
-      throw new Error(
-        (body && (typeof body.error === 'string' ? body.error : body.error?.message)) ||
-        `Falha ao atualizar convênio (HTTP ${response.status}).`
-      );
-    }
+    await updatePatientConvenio(patientId, convenioId, custeadoPelaEmpresa, cota);
     await load();
   };
 

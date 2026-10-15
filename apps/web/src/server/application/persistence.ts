@@ -251,6 +251,27 @@ export interface CadastroPsicologoRecord {
   aceitouTermos?: boolean;
   aceitouTermosEm?: string;
   versaoTermos?: string;
+  /** Prova do aceite registrada pelo servidor. Ver `termoAdesaoAceite.ts`. */
+  aceiteTermoAdesao?: AceiteTermoAdesao;
+}
+
+/**
+ * Evidência de que o profissional leu e aceitou o Termo de Adesão.
+ *
+ * Tudo aqui é apurado no servidor no momento do envio do cadastro — nada vem
+ * do navegador além da versão que ele exibiu. `hashTexto` só existe quando a
+ * versão exibida é a mesma que o servidor conhece; sem isso o hash provaria
+ * um texto que a pessoa pode não ter visto.
+ */
+export interface AceiteTermoAdesao {
+  versao: string;
+  aceitoEm: string;
+  ip?: string;
+  /** Cadeia bruta dos cabeçalhos de origem, para auditoria do IP derivado. */
+  cadeiaIp?: string;
+  navegador?: string;
+  hashAlgoritmo: 'SHA-256';
+  hashTexto?: string;
 }
 
 export interface LancamentoLedgerAluno {

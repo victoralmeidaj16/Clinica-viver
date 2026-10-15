@@ -7,6 +7,7 @@ import { getMysqlPool } from '@/server/oci/runtime';
 import {
   emptySnapshot,
   readSnapshot,
+  type AceiteTermoAdesao,
   type AusenciaAgenda,
   type CadastroPsicologoRecord,
   type PersistedSnapshot,
@@ -119,6 +120,7 @@ interface PsicologoRow extends RowDataPacket {
   pos_graduacao_viver_mais: string | null;
   segunda_pos_graduacao_viver_mais: string | null;
   solicitacao_alteracao_gestao?: unknown;
+  aceite_termo_adesao?: unknown;
   criado_em: string;
 }
 
@@ -264,7 +266,27 @@ function toPsychologist(row: PsicologoRow): CadastroPsicologoRecord {
         return undefined;
       }
     })(),
+    ...aceiteDaLinha(row.aceite_termo_adesao),
   };
+}
+
+function aceiteDaLinha(valor: unknown): Pick<
+  CadastroPsicologoRecord,
+  'aceiteTermoAdesao' | 'aceitouTermos' | 'aceitouTermosEm' | 'versaoTermos'
+> {
+  if (!valor) return {};
+  try {
+    const aceite = (typeof valor === 'string' ? JSON.parse(valor) : valor) as AceiteTermoAdesao;
+    if (!aceite?.aceitoEm || !aceite.versao) return {};
+    return {
+      aceiteTermoAdesao: aceite,
+      aceitouTermos: true,
+      aceitouTermosEm: aceite.aceitoEm,
+      versaoTermos: aceite.versao,
+    };
+  } catch {
+    return {};
+  }
 }
 
 function stateFromSnapshot(snapshot: PersistedSnapshot): CaptureState {
@@ -326,6 +348,31 @@ export class MysqlCaptureRepository {
   }
 
   private static hasNomeSocialColumn: boolean | null = null;
+  private static hasAceiteTermoColumn = false;
+
+  /**
+   * A Vercel publica a cada push e pode rodar antes da migração 058 chegar ao
+   * banco. Sem a coluna, o cadastro segue funcionando e só a prova do aceite
+   * deixa de ser lida e gravada, em vez de toda leitura da captação falhar.
+   * Só o "sim" fica em cache: a coluna passa a ser usada assim que a migração
+   * rodar, sem reiniciar o processo.
+   */
+  private async supportsAceiteTermoColumn(connection: Pool | PoolConnection): Promise<boolean> {
+    if (MysqlCaptureRepository.hasAceiteTermoColumn) return true;
+    try {
+      const [rows] = await connection.query<RowDataPacket[]>(
+        `SELECT 1 FROM information_schema.columns
+          WHERE table_schema = DATABASE()
+            AND table_name = 'clinica_cadastros_psicologos'
+            AND column_name = 'aceite_termo_adesao'
+          LIMIT 1`
+      );
+      MysqlCaptureRepository.hasAceiteTermoColumn = rows.length > 0;
+    } catch {
+      return false;
+    }
+    return MysqlCaptureRepository.hasAceiteTermoColumn;
+  }
 
   private async supportsNomeSocialColumn(connection: Pool | PoolConnection): Promise<boolean> {
     if (MysqlCaptureRepository.hasNomeSocialColumn !== null) return MysqlCaptureRepository.hasNomeSocialColumn;
@@ -350,6 +397,7 @@ export class MysqlCaptureRepository {
   ): Promise<CaptureState> {
     const lock = lockRows ? ' FOR UPDATE' : '';
     const temNomeSocial = await this.supportsNomeSocialColumn(connection);
+    const temAceiteTermo = await this.supportsAceiteTermoColumn(connection);
     const campoNomeSocial = temNomeSocial ? 'nome_social' : 'NULL AS nome_social';
     const [leadRows] = await connection.query<TriagemRow[]>(
       `SELECT ref_core, protocolo, nome_paciente, ${campoNomeSocial}, telefone, idade, email, cpf, cep,
@@ -377,7 +425,7 @@ export class MysqlCaptureRepository {
               especificar_necessidades, necessidades_atendidas, necessidades_outro,
               limite_pacientes_ativos, pacientes_ativos_count, exibir_na_vitrine,
               pausado_no_rodizio, motivo_pausa_rodizio, motivo_desativacao, ultimo_lead_recebido_em, turma_viver_mais,
-              pos_graduacao_viver_mais, segunda_pos_graduacao_viver_mais, criado_em
+              pos_graduacao_viver_mais, segunda_pos_graduacao_viver_mais,${temAceiteTermo ? ' aceite_termo_adesao,' : ''} criado_em
          FROM clinica_cadastros_psicologos
         WHERE instituicao_id = ? AND organizacao_ref = ?
         ORDER BY criado_em${lock}`,
@@ -582,6 +630,16 @@ export class MysqlCaptureRepository {
           toSqlTimestamp(psych.criadoEm),
         ]
       );
+      // A prova do aceite é gravada uma única vez: `IS NULL` impede que uma
+      // edição posterior do cadastro troque a data, o IP ou o hash registrados.
+      if (psych.aceiteTermoAdesao && (await this.supportsAceiteTermoColumn(connection))) {
+        await connection.execute(
+          `UPDATE clinica_cadastros_psicologos
+              SET aceite_termo_adesao = ?
+            WHERE id = ? AND aceite_termo_adesao IS NULL`,
+          [JSON.stringify(psych.aceiteTermoAdesao), rowId('cadastro_psicologo', psych.id)]
+        );
+      }
     }
 
     const temNomeSocial = await this.supportsNomeSocialColumn(connection);

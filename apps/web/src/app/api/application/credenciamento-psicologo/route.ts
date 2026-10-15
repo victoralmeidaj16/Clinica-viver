@@ -21,6 +21,7 @@ import {
   derivarServicosHabilitados,
 } from '@/server/application/psychologistRegistration';
 import { avisarCadastroRecebidoPorEmail } from '@/server/application/psychologistRegistrationEmail';
+import { registrarAceiteTermoAdesao } from '@/server/application/termoAdesaoAceite';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -134,6 +135,9 @@ export async function POST(request: Request) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
       return NextResponse.json({ success: false, error: 'Informe um e-mail profissional válido.' }, { status: 400 });
     }
+    if (body.aceitouTermos !== true) {
+      return NextResponse.json({ success: false, error: 'Leia e aceite o Termo de Adesão e Condições de Uso para enviar o cadastro.' }, { status: 400 });
+    }
     try {
       if (!(await municipioPertenceAoEstado(estadoUf, cidade))) {
         return NextResponse.json({ success: false, error: 'Selecione uma cidade oficial da UF informada.' }, { status: 400 });
@@ -157,6 +161,10 @@ export async function POST(request: Request) {
     }
 
     const servicosPrestados = Array.isArray(body.servicosPrestados) ? body.servicosPrestados : [];
+
+    // A prova do aceite é apurada aqui, não no navegador: data e hora do
+    // servidor, IP, navegador e hash do texto da versão exibida.
+    const aceite = registrarAceiteTermoAdesao(request, body.versaoTermos);
 
     const novoPsicologo: CadastroPsicologoRecord = {
       id: `psi-cad-${Date.now()}`,
@@ -194,9 +202,10 @@ export async function POST(request: Request) {
       turmaViverMais: body.turmaViverMais || undefined,
       posGraduacaoViverMais: body.posGraduacaoViverMais || undefined,
       segundaPosGraduacao: body.segundaPosGraduacao || undefined,
-      aceitouTermos: Boolean(body.aceitouTermos),
-      aceitouTermosEm: body.aceitouTermosEm || new Date().toISOString(),
-      versaoTermos: body.versaoTermos || undefined,
+      aceitouTermos: true,
+      aceitouTermosEm: aceite.aceitoEm,
+      versaoTermos: aceite.versao,
+      aceiteTermoAdesao: aceite,
 
       modalidadesAtendidas,
       exibirNaVitrine: true,

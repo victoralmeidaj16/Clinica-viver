@@ -21,6 +21,7 @@ import { formatBrazilPhone } from '@/lib/brazilPhone';
 import { formatGender } from '@/lib/gender';
 import { PsicologoItem } from './types';
 import { SemaforoCredenciamento } from './SemaforoCredenciamento';
+import { AceiteTermoAdesaoInfo } from './AceiteTermoAdesaoInfo';
 import { BannerSolicitacaoAlteracaoGestao } from './BannerSolicitacaoAlteracaoGestao';
 import { focoPsicologo } from '@/lib/focoNotificacao';
 
@@ -387,6 +388,8 @@ export function PsicologoCard({
               </div>
             </div>
           </div>
+
+          <AceiteTermoAdesaoInfo psicologo={p} />
 
           {/* Tags de Serviços, Públicos e Necessidades */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">

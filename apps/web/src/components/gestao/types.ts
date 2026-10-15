@@ -65,6 +65,18 @@ export interface PsicologoItem {
   usuarioRef?: string;
   contaAtivada?: boolean;
   criadoEm?: string;
+  /** Prova do aceite do Termo de Adesão, apurada no servidor no credenciamento. */
+  aceiteTermoAdesao?: {
+    versao: string;
+    aceitoEm: string;
+    ip?: string;
+    cadeiaIp?: string;
+    navegador?: string;
+    hashAlgoritmo: 'SHA-256';
+    hashTexto?: string;
+  };
+  aceitouTermosEm?: string;
+  versaoTermos?: string;
 }
 
 export type FiltroStatus =

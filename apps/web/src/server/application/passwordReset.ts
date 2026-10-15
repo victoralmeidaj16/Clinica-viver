@@ -30,7 +30,7 @@ interface ResetUserRow extends RowDataPacket {
   organizationId: string;
 }
 
-export async function createPsychologistPasswordReset(emailInput: string) {
+export async function createPsychologistPasswordReset(emailInput: string, publicRequest = false) {
   const email = normalizeEmail(emailInput);
   const connection = await getMysqlPool().getConnection();
   try {
@@ -41,17 +41,28 @@ export async function createPsychologistPasswordReset(emailInput: string) {
          JOIN clinica_membros m ON m.instituicao_id = u.instituicao_id AND m.usuario_ref = u.ref_core
          JOIN clinica_organizacoes o ON o.id = m.organizacao_id
         WHERE u.instituicao_id = ? AND u.email_normalizado = ?
-          AND m.profissional_id IS NOT NULL AND u.status = 'active'
+          AND m.profissional_id IS NOT NULL AND m.status = 'active' AND u.status = 'active'
         LIMIT 1 FOR UPDATE`,
       [instituicaoId(), email]
     );
     const user = rows[0];
     if (!user) throw new ApplicationError('NOT_FOUND', 'Não foi encontrada uma conta ativa de psicólogo com este e-mail.', 404);
 
+    if (publicRequest) {
+      const [recent] = await connection.query<RowDataPacket[]>(
+        `SELECT id FROM clinica_redefinicoes_senha
+          WHERE instituicao_id = ? AND usuario_ref = ? AND revogado_em IS NULL
+            AND criado_em > DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 1 MINUTE) LIMIT 1`,
+        [instituicaoId(), user.userId]
+      );
+      if (recent.length) throw new ApplicationError('RESET_COOLDOWN', 'Aguarde um minuto antes de solicitar outro link.', 429);
+    }
+
     const token = randomBytes(32).toString('base64url');
     const now = new Date();
     const expiresAt = new Date(now.getTime() + RESET_TTL_HOURS * 60 * 60 * 1000);
-    await connection.execute(
+    // Solicitações anônimas não podem invalidar um link que o titular já recebeu.
+    if (!publicRequest) await connection.execute(
       `UPDATE clinica_redefinicoes_senha SET revogado_em = ?
         WHERE instituicao_id = ? AND usuario_ref = ? AND utilizado_em IS NULL AND revogado_em IS NULL`,
       [toSqlTimestamp(now.toISOString()), instituicaoId(), user.userId]
@@ -85,7 +96,12 @@ export async function resetPsychologistPassword(token: string, password: string)
       `SELECT r.id, r.usuario_ref, o.ref_core AS organizacao_ref
          FROM clinica_redefinicoes_senha r
          JOIN clinica_organizacoes o ON o.id = r.organizacao_id
+         JOIN clinica_usuarios u ON u.instituicao_id = r.instituicao_id AND u.ref_core = r.usuario_ref
         WHERE r.instituicao_id = ? AND r.token_hash = ?
+          AND u.status = 'active'
+          AND EXISTS (SELECT 1 FROM clinica_membros m WHERE m.instituicao_id = r.instituicao_id
+            AND m.usuario_ref = r.usuario_ref AND m.organizacao_id = r.organizacao_id
+            AND m.status = 'active' AND m.profissional_id IS NOT NULL)
           AND r.utilizado_em IS NULL AND r.revogado_em IS NULL AND r.expira_em > CURRENT_TIMESTAMP(3)
         LIMIT 1 FOR UPDATE`,
       [instituicaoId(), tokenHash(token)]
@@ -99,6 +115,11 @@ export async function resetPsychologistPassword(token: string, password: string)
       [hashPassword(password), now, now, instituicaoId(), reset.usuario_ref]
     );
     await connection.execute('UPDATE clinica_redefinicoes_senha SET utilizado_em = ? WHERE id = ?', [now, reset.id]);
+    await connection.execute(
+      `UPDATE clinica_redefinicoes_senha SET revogado_em = ?
+        WHERE instituicao_id = ? AND usuario_ref = ? AND utilizado_em IS NULL AND revogado_em IS NULL`,
+      [now, instituicaoId(), reset.usuario_ref]
+    );
     await connection.commit();
     return { userId: reset.usuario_ref, organizationId: reset.organizacao_ref, role: 'psicologo' as const };
   } catch (error) {

@@ -42,22 +42,33 @@ describe('mensagens de WhatsApp para o psicólogo', () => {
     criadoEm: '2026-01-01T00:00:00Z',
   };
 
-  it('inclui o campo "Nome completo" e omite "Origem" e "Protocolo"', () => {
+  it('envia os dados solicitados e um único link para a decisão do psicólogo', () => {
     const texto = textoParaPsicologo(leadStub, psicologoStub);
 
-    // Deve conter o nome completo do paciente
-    expect(texto).toContain('Nome completo: Maria Joaquina da Silva');
-
-    // Deve conter dados de contato e instrução com CONFIRMAR
-    expect(texto).toContain('WhatsApp do paciente:');
-    expect(texto).toContain('*CONFIRMAR*');
-    expect(texto).toContain('*ENCAMINHAR*');
+    expect(texto).toContain('Olá, Dra. Ana Paula! 💜 Você recebeu um novo paciente pela Viver Mais.');
+    expect(texto).toContain('*Dados do paciente*');
+    expect(texto).toContain('- *Nome social:* Não informado');
+    expect(texto).toContain('- *Nome civil:* Maria Joaquina da Silva');
+    expect(texto).toContain('- *WhatsApp do paciente:*');
+    expect(texto).toContain('*📌 O que você precisa fazer?*');
+    expect(texto).toContain('Acesse o link abaixo para informar se deseja atender esse paciente.');
+    expect(texto).toContain('/confirmar-contato/lead-123?psi=psi-456&t=token-mock-123');
+    expect(texto.match(/https:\/\//g)).toHaveLength(1);
+    expect(texto).not.toContain('*CONFIRMAR*');
+    expect(texto).not.toContain('*ENCAMINHAR*');
+    expect(texto).toContain('Caso não haja uma resposta em até 24 horas');
 
     // NÃO deve conter os campos Origem e Protocolo
     expect(texto).not.toContain('Origem:');
     expect(texto).not.toContain('Protocolo:');
     expect(texto).not.toContain('PROT-999');
     expect(texto).not.toContain('Vitrine Principal');
+  });
+
+  it('separa nome social e nome civil quando o paciente informou ambos', () => {
+    const texto = textoParaPsicologo({ ...leadStub, nomeSocial: 'Joaquina' }, psicologoStub);
+    expect(texto).toContain('- *Nome social:* Joaquina');
+    expect(texto).toContain('- *Nome civil:* Maria Joaquina da Silva');
   });
 
   it('usa o nome social na mensagem de confirmação ao paciente quando presente', () => {

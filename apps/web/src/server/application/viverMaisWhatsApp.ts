@@ -9,7 +9,6 @@ import type { CadastroPsicologoRecord, TriagemPacienteRecord } from './persisten
 import { formatBrazilPhone, normalizeBrazilPhone } from '@/lib/brazilPhone';
 import { formatGender } from '@/lib/gender';
 import { nomeDeExibicao, normalizarTurno, SLA_CONTATO_HORAS } from './viverMaisRodizio';
-import { COMANDO_CONFIRMAR, COMANDO_ENCAMINHAR } from './viverMaisComandos';
 
 /**
  * Avisos da triagem: acolhimento na solicitação, orientações na confirmação.
@@ -168,40 +167,14 @@ function linkConfirmacao(lead: TriagemPacienteRecord, psicologoId: string): stri
  */
 function dadosDoPaciente(lead: TriagemPacienteRecord): string[] {
   const linhas: string[] = [];
-  const idade = lead.idade?.toString().trim();
-
-  if (lead.nomeSocial?.trim()) {
-    linhas.push(`Nome social: ${lead.nomeSocial.trim()}`);
-    linhas.push(`Nome civil: ${lead.nomePaciente}`);
-  } else {
-    linhas.push(`Nome completo: ${lead.nomePaciente}`);
-  }
-  linhas.push(`WhatsApp do paciente: ${formatBrazilPhone(lead.telefone) || lead.telefone}`);
-  if (idade) linhas.push(`Idade: ${idade}`);
+  linhas.push(`- *Nome social:* ${lead.nomeSocial?.trim() || 'Não informado'}`);
+  linhas.push(`- *Nome civil:* ${lead.nomePaciente}`);
+  linhas.push(`- *WhatsApp do paciente:* ${formatBrazilPhone(lead.telefone) || lead.telefone}`);
   const genero = formatGender(lead.genero, lead.generoOutro);
-  if (genero) linhas.push(`Gênero: ${genero}`);
-  if (lead.paraQuemE) linhas.push(`Atendimento para: ${lead.paraQuemE}`);
-  linhas.push(`Serviço: ${lead.servico || 'Não informado'}`);
-  if (lead.opcaoAvaliacaoPsicologica) linhas.push(`Tipo de avaliação: ${lead.opcaoAvaliacaoPsicologica}`);
-  linhas.push(`Modalidade: ${rotuloModalidadeLead(lead.modalidade)}`);
-  linhas.push(`Turno de preferência: ${rotuloTurnoLead(lead.turno)}`);
-  // Só aparece quando houve pedido. É o que explica por que este lead chegou a
-  // esta pessoa e não à próxima da fila — e o que a gestão precisa respeitar se
-  // o caso for devolvido.
-  if (lead.preferenciaGeneroPsicologo === 'FEMININO') {
-    linhas.push('Pediu ser atendido(a) por: psicóloga');
-  } else if (lead.preferenciaGeneroPsicologo === 'MASCULINO') {
-    linhas.push('Pediu ser atendido(a) por: psicólogo');
-  }
-  if (lead.possuiConvenio === 'SIM' && lead.convenioSelecionado && lead.convenioSelecionado !== 'Nenhum') {
-    linhas.push(`Convênio: ${lead.convenioSelecionado}`);
-  }
-
-  const demandas = [
-    ...(lead.necessidadesPaciente ?? []),
-    ...(lead.necessidadesOutro ? [lead.necessidadesOutro] : []),
-  ];
-  if (demandas.length > 0) linhas.push(`Demandas informadas: ${demandas.join(', ')}`);
+  linhas.push(`- *Gênero:* ${genero || 'Não informado'}`);
+  linhas.push(`- *Serviço:* ${lead.servico || 'Não informado'}`);
+  linhas.push(`- *Modalidade:* ${rotuloModalidadeLead(lead.modalidade)}`);
+  linhas.push(`- *Turno de preferência:* ${rotuloTurnoLead(lead.turno)}`);
 
   return linhas;
 }
@@ -243,31 +216,30 @@ function rotuloModalidadeLead(modalidade: string | undefined): string {
 /**
  * Mensagem ao profissional que recebeu o lead.
  *
- * Pede resposta no próprio chat — `CONFIRMAR` ou `ENCAMINHAR` — porque é o gesto
- * mais barato de todos: quem está no WhatsApp responde ali, sem abrir link nem
- * lembrar de senha. O link de confirmação continua junto para quem prefere
- * clicar, e os dois caminhos gravam exatamente a mesma coisa.
+ * Um único link concentra o aceite, a recusa e a confirmação posterior do
+ * primeiro contato, mantendo a decisão protegida pelo token da alocação.
  */
 export function textoParaPsicologo(
   lead: TriagemPacienteRecord,
   psicologo: CadastroPsicologoRecord
 ): string {
   const linhas = [
-    `Olá, ${nomeDeExibicao(psicologo)}! Você recebeu um novo paciente pela Viver Mais.`,
+    `Olá, ${nomeDeExibicao(psicologo)}! 💜 Você recebeu um novo paciente pela Viver Mais.`,
+    '',
+    '*Dados do paciente*',
     '',
     ...dadosDoPaciente(lead),
     '',
-    `O primeiro contato precisa ser feito em até ${SLA_CONTATO_HORAS}h. Responda aqui mesmo:`,
+    '*📌 O que você precisa fazer?*',
     '',
-    `*${COMANDO_CONFIRMAR}* — quando você já tiver falado com o paciente.`,
-    `*${COMANDO_ENCAMINHAR}* — se não for atender, e o paciente vai para o próximo profissional da fila que atende os critérios.`,
+    'Acesse o link abaixo para informar se deseja atender esse paciente.',
+    '➡️ Se não desejar atender, poderá selecionar a opção de encaminhar o paciente ao próximo profissional da fila que atenda aos critérios.',
     '',
-    'Se preferir, confirme pelo link:',
     linkConfirmacao(lead, psicologo.id),
     '',
-    '*ATENÇÃO* 🚨: entre em contato o quanto antes! Quanto mais rápido você falar com o paciente, maiores são as chances de conseguir agendar o atendimento com ele.',
+    `🚨 *Atenção:* é importante acessar o link e registrar sua decisão. Caso não haja uma resposta em até ${SLA_CONTATO_HORAS} horas, o paciente será encaminhado automaticamente ao próximo profissional da fila.`,
     '',
-    `Sem resposta a esta mensagem com *${COMANDO_CONFIRMAR}* ou *${COMANDO_ENCAMINHAR}*, em ${SLA_CONTATO_HORAS}h o paciente é encaminhado automaticamente ao próximo da fila.`,
+    'Entre em contato o quanto antes! Quanto mais rápido o paciente receber seu contato, maiores são as chances de conseguir agendar o atendimento. 💜',
   ];
   return linhas.join('\n');
 }

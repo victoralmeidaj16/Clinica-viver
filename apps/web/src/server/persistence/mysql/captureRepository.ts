@@ -69,6 +69,7 @@ interface TriagemRow extends RowDataPacket {
   psicologo_nome: string | null;
   paciente_ref: string | null;
   alocado_em: string | null;
+  aceito_em: string | null;
   confirmado_em: string | null;
   sla_expirado: number;
   transbordos: number;
@@ -204,6 +205,7 @@ function toLead(row: TriagemRow): TriagemPacienteRecord {
     psicologoNome: row.psicologo_nome ?? undefined,
     pacienteRef: row.paciente_ref ?? undefined,
     alocadoEm: fromSqlTimestamp(row.alocado_em),
+    aceitoEm: fromSqlTimestamp(row.aceito_em),
     confirmadoEm: fromSqlTimestamp(row.confirmado_em),
     slaExpirado: Boolean(row.sla_expirado),
     transbordos: row.transbordos,
@@ -407,7 +409,7 @@ export class MysqlCaptureRepository {
               especificar_necessidades,
               necessidades_paciente, necessidades_outro, opcao_avaliacao_psicologica,
               genero, genero_outro, status, psicologo_alocado_id,
-              psicologo_nome, paciente_ref, alocado_em, confirmado_em, sla_expirado,
+              psicologo_nome, paciente_ref, alocado_em, aceito_em, confirmado_em, sla_expirado,
               transbordos, psicologos_ja_tentados, criado_em
          FROM clinica_triagens_pacientes
         WHERE instituicao_id = ? AND organizacao_ref = ?
@@ -654,9 +656,9 @@ export class MysqlCaptureRepository {
               para_quem_e, preferencia_genero_psicologo,
               especificar_necessidades, necessidades_paciente,
               necessidades_outro, opcao_avaliacao_psicologica, genero, genero_outro, status,
-              psicologo_alocado_id, psicologo_nome, paciente_ref, alocado_em, confirmado_em,
+              psicologo_alocado_id, psicologo_nome, paciente_ref, alocado_em, aceito_em, confirmado_em,
               sla_expirado, transbordos, psicologos_ja_tentados, criado_em)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON DUPLICATE KEY UPDATE
              protocolo = VALUES(protocolo), nome_paciente = VALUES(nome_paciente),
              nome_social = VALUES(nome_social),
@@ -677,7 +679,7 @@ export class MysqlCaptureRepository {
              status = VALUES(status),
              psicologo_alocado_id = VALUES(psicologo_alocado_id), psicologo_nome = VALUES(psicologo_nome),
              paciente_ref = VALUES(paciente_ref),
-             alocado_em = VALUES(alocado_em), confirmado_em = VALUES(confirmado_em),
+             alocado_em = VALUES(alocado_em), aceito_em = VALUES(aceito_em), confirmado_em = VALUES(confirmado_em),
              sla_expirado = VALUES(sla_expirado), transbordos = VALUES(transbordos),
              psicologos_ja_tentados = VALUES(psicologos_ja_tentados)`,
           [
@@ -719,6 +721,7 @@ export class MysqlCaptureRepository {
             lead.psicologoNome ?? null,
             lead.pacienteRef ?? null,
             lead.alocadoEm ? toSqlTimestamp(lead.alocadoEm) : null,
+            lead.aceitoEm ? toSqlTimestamp(lead.aceitoEm) : null,
             lead.confirmadoEm ? toSqlTimestamp(lead.confirmadoEm) : null,
             lead.slaExpirado ? 1 : 0,
             lead.transbordos ?? 0,
@@ -736,9 +739,9 @@ export class MysqlCaptureRepository {
               para_quem_e, preferencia_genero_psicologo,
               especificar_necessidades, necessidades_paciente,
               necessidades_outro, opcao_avaliacao_psicologica, genero, genero_outro, status,
-              psicologo_alocado_id, psicologo_nome, paciente_ref, alocado_em, confirmado_em,
+              psicologo_alocado_id, psicologo_nome, paciente_ref, alocado_em, aceito_em, confirmado_em,
               sla_expirado, transbordos, psicologos_ja_tentados, criado_em)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON DUPLICATE KEY UPDATE
              protocolo = VALUES(protocolo), nome_paciente = VALUES(nome_paciente),
              telefone = VALUES(telefone), idade = VALUES(idade), email = VALUES(email),
@@ -758,7 +761,7 @@ export class MysqlCaptureRepository {
              status = VALUES(status),
              psicologo_alocado_id = VALUES(psicologo_alocado_id), psicologo_nome = VALUES(psicologo_nome),
              paciente_ref = VALUES(paciente_ref),
-             alocado_em = VALUES(alocado_em), confirmado_em = VALUES(confirmado_em),
+             alocado_em = VALUES(alocado_em), aceito_em = VALUES(aceito_em), confirmado_em = VALUES(confirmado_em),
              sla_expirado = VALUES(sla_expirado), transbordos = VALUES(transbordos),
              psicologos_ja_tentados = VALUES(psicologos_ja_tentados)`,
           [
@@ -799,6 +802,7 @@ export class MysqlCaptureRepository {
             lead.psicologoNome ?? null,
             lead.pacienteRef ?? null,
             lead.alocadoEm ? toSqlTimestamp(lead.alocadoEm) : null,
+            lead.aceitoEm ? toSqlTimestamp(lead.aceitoEm) : null,
             lead.confirmadoEm ? toSqlTimestamp(lead.confirmadoEm) : null,
             lead.slaExpirado ? 1 : 0,
             lead.transbordos ?? 0,

@@ -58,6 +58,7 @@ export function proxy(request: NextRequest) {
     pathname.startsWith('/pagar/') ||
     pathname.startsWith('/agendar/') ||
     pathname.startsWith('/confirmar-contato/') ||
+    pathname.startsWith('/encaminhar-contato/') ||
     // `/validar-certificado` é o endereço impresso no certificado: quem o abre
     // é quem recebeu o documento, sem conta na clínica. Mandá-lo ao login seria
     // transformar a conferência em obstáculo. (O `/validar` das declarações de

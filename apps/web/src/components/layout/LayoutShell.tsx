@@ -16,6 +16,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
 
   const isVitrinePage = pathname === '/vitrine';
   const isConfirmacaoContato = pathname.startsWith('/confirmar-contato/');
+  const isEncaminhamentoContato = pathname.startsWith('/encaminhar-contato/');
   const isPaginaPagamento = pathname.startsWith('/pagar/');
   const isPaginaAgendamento = pathname.startsWith('/agendar/');
   const isAlunoPage = pathname === '/aluno' || pathname.startsWith('/aluno/');
@@ -36,6 +37,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
     pathname === '/' ||
     isVitrinePage ||
     isConfirmacaoContato ||
+    isEncaminhamentoContato ||
     isPaginaPagamento ||
     isPaginaAgendamento ||
     isAlunoPage ||

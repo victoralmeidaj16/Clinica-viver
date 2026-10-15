@@ -16,8 +16,9 @@ import { getApplicationStore, persistApplicationState } from './store';
  * cadastro clínico — então, na prática, ninguém que chegava pelo site chegava a
  * ter um.
  *
- * A promoção acontece na confirmação de contato, que é o momento em que a
- * clínica sabe que aquele encaminhamento virou atendimento de verdade.
+ * A promoção acontece no aceite do encaminhamento. Assim que o psicólogo diz
+ * "Quero o paciente", ele passa a constar como responsável; confirmar o
+ * primeiro contato continua sendo um passo separado do SLA.
  *
  * Fora da transação de captação, deliberadamente: `captureRepository.mutate` é
  * dono da própria conexão, e uma transação atravessando os dois repositórios
@@ -97,8 +98,18 @@ export async function promoverLeadEmPaciente(
       displayName: lead.nomeSocial?.trim() || lead.nomePaciente,
       primaryProfessionalId: professionalId,
       assignedProfessionalIds: [professionalId],
-      createdAt: lead.confirmadoEm ?? new Date().toISOString(),
+      createdAt: lead.aceitoEm ?? lead.confirmadoEm ?? new Date().toISOString(),
     });
+    if (paciente.primaryProfessionalId !== professionalId) {
+      paciente = await store.identities.reassignPatient({
+        organizationId,
+        patientId: paciente.id,
+        professionalId,
+        actorUserId: 'sistema-rodizio',
+        reason: 'Novo aceite de encaminhamento após transbordo da fila.',
+        changedAt: lead.aceitoEm ?? new Date().toISOString(),
+      }) ?? paciente;
+    }
   } catch (erro) {
     console.warn(`[promoção] Lead ${lead.id} não pôde virar paciente agora:`, erro);
     return null;
@@ -127,7 +138,7 @@ export async function promoverLeadEmPaciente(
 }
 
 /**
- * Reprocessa leads confirmados que ficaram sem paciente.
+ * Reprocessa leads aceitos ou confirmados que ficaram sem paciente.
  *
  * Chamada da varredura de SLA, que já roda periodicamente: reaproveitar esse
  * gatilho evita mais um job e garante que a janela entre confirmar e promover
@@ -136,7 +147,7 @@ export async function promoverLeadEmPaciente(
 export async function reconciliarPacientes(repositorio: CaptureRepository): Promise<number> {
   const state = await repositorio.read();
   const pendentes = state.triagensPacientes.filter(
-    (lead) => lead.status === 'CONTATO_CONFIRMADO' && !lead.pacienteRef && lead.psicologoAlocadoId
+    (lead) => Boolean(lead.aceitoEm || lead.status === 'CONTATO_CONFIRMADO') && lead.psicologoAlocadoId
   );
   if (pendentes.length === 0) return 0;
 

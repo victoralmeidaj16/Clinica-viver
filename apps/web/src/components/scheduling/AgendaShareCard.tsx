@@ -33,7 +33,7 @@ export function AgendaShareCard({ token, professionalName }: Props) {
   };
 
   return (
-    <section className="bg-psi-darkest text-white p-6 rounded-3xl space-y-4 shadow-contrast">
+    <section id="agenda-link" className="bg-psi-darkest text-white p-6 rounded-3xl space-y-4 shadow-contrast">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="font-black flex items-center gap-2">

@@ -105,7 +105,7 @@ export function ProfessionalCalendarView({
 
       <div className="grid divide-y divide-line lg:grid-cols-12 lg:divide-x lg:divide-y-0">
         {/* COLUNA DA ESQUERDA: GRADE DO CALENDÁRIO */}
-        <div className="space-y-4 p-4 sm:p-6 lg:col-span-7">
+        <div id="agenda-calendario-mes" className="space-y-4 p-4 sm:p-6 lg:col-span-7">
           <div className="flex items-center justify-between">
             <button
               type="button"
@@ -160,7 +160,7 @@ export function ProfessionalCalendarView({
         </div>
 
         {/* COLUNA DA DIREITA: PAINEL DE HORÁRIOS DOS DIAS SELECIONADOS */}
-        <aside className="space-y-5 bg-canvas/40 p-4 sm:p-6 lg:col-span-5">
+        <aside id="agenda-calendario-dia" className="space-y-5 bg-canvas/40 p-4 sm:p-6 lg:col-span-5">
           <DaySchedulePanel
             datas={selecionados}
             availability={availability}

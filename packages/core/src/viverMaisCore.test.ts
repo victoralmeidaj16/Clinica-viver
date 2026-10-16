@@ -69,6 +69,14 @@ describe('Domínio Clínica Viver Mais Psicologia (Core Engine & Regras Giuliana
     slaExpirado: false,
   };
 
+  it('considera qualquer período selecionado e mantém a ordem do rodízio', () => {
+    const resultado = processarTriagemLead({ ...leadMock, turno: ['MANHA', 'NOITE'] }, psicologosMock);
+    expect(resultado.psicologoAlocado?.id).toBe('psi-2');
+    expect(resultado.leadAtualizado.turno).toEqual(['MANHA', 'NOITE']);
+    expect(processarTriagemLead({ ...leadMock, turno: [] }, psicologosMock).sucesso).toBe(false);
+    expect(processarTriagemLead({ ...leadMock, turno: ['NOITE'] }, [psicologosMock[0]]).sucesso).toBe(false);
+  });
+
   it('valida o sigilo estrito de dados entre psicólogos (Row-Level Access)', () => {
     // Dr. Lucas (psi-1) tentando acessar paciente do Dr. Lucas -> Permitido
     expect(validarAcessoExclusivoPsicologo('psi-1', 'psi-1')).toBe(true);

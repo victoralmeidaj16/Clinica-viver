@@ -214,3 +214,13 @@ describe('teto agregado de leads por hora', () => {
     expect(leadsNaUltimaHora(fila(6, 30), agora)).toBeLessThan(TETO_LEADS_POR_HORA);
   });
 });
+
+it.each([['MANHA,NOITE'], [['MANHA', 'NOITE']]])('preserva a seleção múltipla %j', (turno) => {
+  const resultado = validarSubmissaoTriagem({ ...valido, turno });
+  expect(resultado.ok).toBe(true);
+  if (resultado.ok) expect(resultado.dados.turno).toBe('MANHA,NOITE');
+});
+
+it.each([{ turno: [] }, { turno: ['MANHA', 'INVALIDO'] }, { turno: 'MANHA,INVALIDO' }])('recusa seleção vazia ou inválida %j', ({ turno }) => {
+  expect(validarSubmissaoTriagem({ ...valido, turno }).ok).toBe(false);
+});

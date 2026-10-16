@@ -37,7 +37,7 @@ import { FocoDeNotificacao } from '@/components/layout/FocoDeNotificacao';
 import { focoCredenciamento, focoLead, PARAM_ABA } from '@/lib/focoNotificacao';
 import type { GenderValue } from '@/lib/gender';
 import {
-  normalizarTurnoPreferencia,
+  normalizarTurnosPreferencia,
   rotuloTurnoPreferencia,
 } from '@/lib/turnos';
 
@@ -240,10 +240,10 @@ export default function GestaoCockpitPage() {
       (filtroModalidade === 'PARTICULAR' && modalidade.includes('PARTICULAR')) ||
       (filtroModalidade === 'AVALIACAO' && (item.servico ?? '').toLowerCase().includes('avaliação'));
 
-    const turno = normalizarTurnoPreferencia(item.turno);
+    const turno = normalizarTurnosPreferencia(item.turno);
     const matchTurno =
       filtroTurno === 'TODOS' ||
-      turno === filtroTurno;
+      turno.some((valor) => valor === filtroTurno);
 
     const busca = filtroBusca.trim().toLowerCase();
     const matchBusca =

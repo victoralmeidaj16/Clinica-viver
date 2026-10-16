@@ -15,7 +15,7 @@ import type {
   TriagemPacienteRecord,
 } from './persistence';
 import { generoProfissional } from '@/lib/gender';
-import { normalizarTurnoPreferencia } from '@/lib/turnos';
+import { normalizarTurnoPreferencia, normalizarTurnosPreferencia } from '@/lib/turnos';
 import { desligadoPorTurma } from '@/lib/turmaEncerrada';
 import {
   LIMITE_PACIENTES_MAXIMO,
@@ -204,9 +204,9 @@ function paraLeadTriagem(
   record: TriagemPacienteRecord,
   opcoes: { ignorarPreferenciaGenero?: boolean } = {}
 ): LeadTriagem | null {
-  const turno = normalizarTurno(record.turno);
+  const turno = normalizarTurnosPreferencia(record.turno);
   const modalidade = normalizarModalidade(record.modalidade);
-  if (!turno || !modalidade) return null;
+  if (!turno.length || !modalidade) return null;
 
   return {
     id: record.id,

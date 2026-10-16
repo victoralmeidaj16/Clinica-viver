@@ -1,3 +1,4 @@
+import { rotuloTurnoPreferencia } from '@/lib/turnos';
 import 'server-only';
 
 import {
@@ -8,7 +9,7 @@ import { gerarTokenConfirmacao } from '@/server/viverMaisConfirmToken';
 import type { CadastroPsicologoRecord, TriagemPacienteRecord } from './persistence';
 import { formatBrazilPhone, normalizeBrazilPhone } from '@/lib/brazilPhone';
 import { formatGender } from '@/lib/gender';
-import { nomeDeExibicao, normalizarTurno, SLA_CONTATO_HORAS } from './viverMaisRodizio';
+import { nomeDeExibicao, SLA_CONTATO_HORAS } from './viverMaisRodizio';
 
 /**
  * Avisos da triagem: acolhimento na solicitação, orientações na confirmação.
@@ -181,16 +182,7 @@ function dadosDoPaciente(lead: TriagemPacienteRecord): string[] {
 
 /** O turno como a pessoa fala, não como o formulário grava. */
 function rotuloTurnoLead(turno: string | undefined): string {
-  switch (normalizarTurno(turno)) {
-    case 'MANHA':
-      return 'Manhã';
-    case 'TARDE':
-      return 'Tarde';
-    case 'NOITE':
-      return 'Noite';
-    default:
-      return turno || 'Não informado';
-  }
+  return rotuloTurnoPreferencia(turno);
 }
 
 /** Faixa de valor escolhida na vitrine, no vocabulário que o profissional usa. */

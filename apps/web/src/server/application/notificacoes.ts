@@ -1,3 +1,4 @@
+import { rotuloTurnoPreferencia } from '@/lib/turnos';
 import 'server-only';
 
 import { formatarDataCurta } from '@/lib/turmaEncerrada';
@@ -24,7 +25,6 @@ import {
   classificarSla,
   horasDesdeAlocacao,
   nomeDeExibicao,
-  normalizarTurno,
   SLA_CONTATO_HORAS,
 } from './viverMaisRodizio';
 
@@ -88,16 +88,7 @@ const DIA_MS = 24 * 60 * 60 * 1000;
 
 /** O turno como a pessoa fala, não como o formulário grava. */
 function rotuloTurno(turno: string | undefined): string {
-  switch (normalizarTurno(turno)) {
-    case 'MANHA':
-      return 'manhã';
-    case 'TARDE':
-      return 'tarde';
-    case 'NOITE':
-      return 'noite';
-    default:
-      return turno?.toLocaleLowerCase('pt-BR') || 'turno não informado';
-  }
+  return rotuloTurnoPreferencia(turno).toLocaleLowerCase('pt-BR');
 }
 
 /** Quanto ainda resta do prazo de primeiro contato, em texto curto. */

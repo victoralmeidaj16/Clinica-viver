@@ -1,3 +1,4 @@
+import { rotuloTurnoPreferencia } from '@/lib/turnos';
 import 'server-only';
 
 import type { CadastroPsicologoRecord, TriagemPacienteRecord } from './persistence';
@@ -165,16 +166,7 @@ function baseUrl(): string {
 }
 
 function rotuloTurno(turno?: string): string {
-  switch (turno?.trim().toUpperCase()) {
-    case 'MANHA':
-      return 'Manhã';
-    case 'TARDE':
-      return 'Tarde';
-    case 'NOITE':
-      return 'Noite';
-    default:
-      return turno || 'Não informado';
-  }
+  return rotuloTurnoPreferencia(turno);
 }
 
 /**

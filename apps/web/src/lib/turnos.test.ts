@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizarTurnoPreferencia, rotuloTurnoPreferencia } from './turnos';
+import { normalizarTurnoPreferencia, normalizarTurnosPreferencia, rotuloTurnoPreferencia } from './turnos';
 
 describe('vocabulário de turnos', () => {
   it.each([
@@ -19,4 +19,11 @@ describe('vocabulário de turnos', () => {
     expect(rotuloTurnoPreferencia('MANHA')).toBe('Manhã');
     expect(rotuloTurnoPreferencia('VESPERTINO')).toBe('Tarde');
   });
+});
+
+it('preserva múltiplos períodos sem duplicatas e apresenta todos os rótulos', () => {
+  expect(normalizarTurnosPreferencia(['NOITE', 'Manhã', 'MANHA'])).toEqual(['MANHA', 'NOITE']);
+  expect(normalizarTurnosPreferencia('MANHA,NOITE')).toEqual(['MANHA', 'NOITE']);
+  expect(rotuloTurnoPreferencia('MANHA,NOITE')).toBe('Manhã, Noite');
+  expect(normalizarTurnosPreferencia('MANHA,madrugada')).toEqual([]);
 });

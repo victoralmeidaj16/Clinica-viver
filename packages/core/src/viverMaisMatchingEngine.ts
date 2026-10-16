@@ -43,7 +43,7 @@ export interface CriteriosSelecao {
  */
 export function selecionarPsicologoRoundRobin(
   psicologos: PsicologoPerfil[],
-  turnoDesejado: TurnoAtendimento,
+  turnoDesejado: TurnoAtendimento | readonly TurnoAtendimento[],
   modalidadeDesejada: ModalidadeAtendimento,
   criterios: CriteriosSelecao = {}
 ): PsicologoPerfil | null {
@@ -54,6 +54,8 @@ export function selecionarPsicologoRoundRobin(
     necessidadesDesejadas,
     preferenciaGeneroPsicologo,
   } = criterios;
+
+  const turnos = typeof turnoDesejado === 'string' ? [turnoDesejado] : turnoDesejado;
 
   // Filtrar psicólogos ativos, que atendam o turno, modalidade, serviço, público alvo e necessidades específicas
   const elegiveis = psicologos.filter((p) => {
@@ -68,7 +70,7 @@ export function selecionarPsicologoRoundRobin(
     // vitrine desligada, para que a troca de critério não reativasse ninguém.
     if (p.pausadoNoRodizio) return false;
     if (p.pacientesAtivosCount >= p.limitePacientesAtivos) return false;
-    if (!p.turnosDisponiveis.includes(turnoDesejado)) return false;
+    if (!turnos.some((turno) => p.turnosDisponiveis.includes(turno))) return false;
     if (!p.modalidadesAtendidas.includes(modalidadeDesejada)) return false;
     // Preferência de gênero corta a fila em vez de só reordená-la: quem pediu
     // uma psicóloga não deve receber um psicólogo porque era a vez dele. Quem

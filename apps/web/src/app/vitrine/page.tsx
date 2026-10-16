@@ -9,7 +9,7 @@ import { LISTA_NECESSIDADES } from '@/components/forms/necessidades';
 import { validateGender, type GenderValue } from '@/lib/gender';
 import { CAMPO_ARMADILHA } from '@/lib/triagemSubmissao';
 import { maskCpf, validCpf } from '@/lib/cpf';
-import { normalizarTurnoPreferencia, type TurnoPreferencia } from '@/lib/turnos';
+import { normalizarTurnoPreferencia, normalizarTurnosPreferencia, rotuloTurnoPreferencia } from '@/lib/turnos';
 import PublicHeader from '@/components/layout/PublicHeader';
 import PublicFooter from '@/components/layout/PublicFooter';
 import FloatingWhatsAppButton from '@/components/layout/FloatingWhatsAppButton';
@@ -134,7 +134,7 @@ export default function ViverMaisLandingPage() {
     // Sem valor inicial: um canal pré-selecionado é respondido por omissão e
     // contamina a única medida de origem que a clínica tem.
     origem: '',
-    turno: '' as TurnoPreferencia | '',
+    turno: '',
     // Pré-selecionado de propósito: sem preferência é a resposta neutra, e
     // deixar em branco obrigaria o paciente a declarar algo que não pediu.
     preferenciaGeneroPsicologo: 'SEM_PREFERENCIA' as PreferenciaGeneroPsicologo,
@@ -469,9 +469,9 @@ export default function ViverMaisLandingPage() {
     if (psi.disponivelParaNovosPacientes === false) return false;
     if (selectedService && psi.servicosHabilitados.length > 0 && !psi.servicosHabilitados.includes(selectedService)) return false;
     const atendeModalidade = psicologoAtendeModalidade(psi.modalidadesAtendidas, selectedModalidade);
-    const turnoEscolhido = normalizarTurnoPreferencia(form.turno);
-    const atendeTurno = Boolean(turnoEscolhido && psi.turnosDisponiveis?.some(
-      (turno) => normalizarTurnoPreferencia(turno) === turnoEscolhido
+    const turnosEscolhidos = normalizarTurnosPreferencia(form.turno);
+    const atendeTurno = Boolean(psi.turnosDisponiveis?.some(
+      (turno) => turnosEscolhidos.some((escolhido) => normalizarTurnoPreferencia(turno) === escolhido)
     ));
     return atendeModalidade && atendeTurno;
   });
@@ -479,6 +479,10 @@ export default function ViverMaisLandingPage() {
 
   const handleSubmitPaciente = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!normalizarTurnosPreferencia(form.turno).length) {
+      alert('Selecione pelo menos um período de preferência.');
+      return;
+    }
     if (form.whatsapp !== form.whatsappConfirmacao) {
       alert('Os números de telefone informados não coincidem!');
       return;
@@ -1063,8 +1067,8 @@ export default function ViverMaisLandingPage() {
               </fieldset>
 
               <div className="space-y-2">
-                <span className="text-sm font-black text-ink">4. Qual período você prefere? <span className="text-rose-500">*</span></span>
-                <TurnoPreferenceField value={form.turno} onChange={(turno) => setForm((prev) => ({ ...prev, turno }))} />
+                <span className="text-sm font-black text-ink">4. Quais períodos você prefere? <span className="text-rose-500">*</span></span>
+                <TurnoPreferenceField multiple value={form.turno} onChange={(turno) => setForm((prev) => ({ ...prev, turno }))} />
               </div>
 
               <button type="button" onClick={continuarMatch} className="btn-accent w-full justify-center py-4 text-xs">
@@ -1080,7 +1084,7 @@ export default function ViverMaisLandingPage() {
               <div>
                 <span className="text-[10px] font-black uppercase tracking-widest text-psi-vibrant">Catálogo compatível</span>
                 <h3 className="mt-1 text-2xl font-black text-ink">Escolha seu psicólogo</h3>
-                <p className="mt-1 text-xs text-muted">Primeiro informe o período desejado. Depois mostraremos somente os psicólogos compatíveis.</p>
+                <p className="mt-1 text-xs text-muted">Primeiro informe os períodos desejados. Depois mostraremos somente os psicólogos compatíveis.</p>
               </div>
               <button type="button" onClick={() => setStep('CAMINHO')} className="text-xs font-bold text-muted hover:text-ink">Voltar</button>
             </div>
@@ -1089,7 +1093,7 @@ export default function ViverMaisLandingPage() {
               <span className="mb-4 block text-[10px] font-black uppercase tracking-[0.18em] text-psi-vibrant">
                 Antes de conhecer a equipe
               </span>
-              <TurnoPreferenceField
+              <TurnoPreferenceField multiple
                 value={form.turno}
                 onChange={(turno) => {
                   setForm((prev) => ({ ...prev, turno }));
@@ -1103,7 +1107,7 @@ export default function ViverMaisLandingPage() {
                 <VitrineCarrossel
                   psicologos={profissionaisCompativeis}
                   selecionadoId={psicologoEscolhido?.id}
-                  titulo={`Psicólogos disponíveis no período da ${form.turno === 'MANHA' ? 'manhã' : form.turno === 'TARDE' ? 'tarde' : 'noite'}`}
+                  titulo={`Psicólogos disponíveis: ${rotuloTurnoPreferencia(form.turno)}`}
                   subtitulo="Clique no psicólogo com quem você mais se identificar para continuar"
                   layout="lista"
                   onSelecionar={(psicologo) => {
@@ -1113,7 +1117,7 @@ export default function ViverMaisLandingPage() {
                 />
               ) : (
                 <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 text-sm font-semibold text-amber-900">
-                  Nenhum psicólogo está disponível no período escolhido para esta combinação. Selecione outro período ou volte e use a recomendação inteligente para entrar na fila de atendimento.
+                  Nenhum psicólogo está disponível nos períodos escolhidos para esta combinação. Selecione outros períodos ou volte e use a recomendação inteligente para entrar na fila de atendimento.
                 </div>
               )
             )}

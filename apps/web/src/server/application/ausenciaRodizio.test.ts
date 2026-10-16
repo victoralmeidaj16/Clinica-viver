@@ -103,6 +103,20 @@ describe('escolha explícita no catálogo', () => {
     criadoEm: '2026-08-27T12:00:00.000Z',
   };
 
+  it('aceita o profissional de qualquer período escolhido e preserva todos na triagem', () => {
+    const paciente = { ...lead, turno: 'MANHA,NOITE' };
+    const snapshot = {
+      ...emptySnapshot(),
+      triagensPacientes: [paciente],
+      cadastrosPsicologos: [elegivel('psi-noite', { turnosDisponiveis: ['NOITE'] })],
+    };
+    const resultado = alocarLeadEscolhido(snapshot, paciente, 'psi-noite', ANTES);
+    expect(resultado.psicologo?.id).toBe('psi-noite');
+    expect(resultado.lead.turno).toBe('MANHA,NOITE');
+    expect(resultado.snapshot.triagensPacientes?.[0].turno).toBe('MANHA,NOITE');
+    expect(alocarLeadEscolhido(snapshot, { ...paciente, turno: 'MANHA,TARDE' }, 'psi-noite', ANTES).psicologo).toBeUndefined();
+  });
+
   it('mantém o profissional escolhido, mesmo que ele não seja o primeiro da fila', () => {
     const snapshot = {
       ...emptySnapshot(),

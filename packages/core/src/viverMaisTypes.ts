@@ -61,7 +61,7 @@ export interface LeadTriagem {
     cep: string;
   };
   modalidade: ModalidadeAtendimento;
-  turno: TurnoAtendimento;
+  turno: TurnoAtendimento | readonly TurnoAtendimento[];
   origemLead: string; // Ex: 'Site Viver Mais', 'Tráfego Pago', 'Indicação', 'Redes Sociais'
   convenioEmpresarialId?: string; // Ex: Canguru
   criadoEm: string;

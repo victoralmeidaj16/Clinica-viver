@@ -1,53 +1,63 @@
 'use client';
 
 import { MoonStar, Sun, Sunrise } from 'lucide-react';
-import { TURNOS_ATENDIMENTO, type TurnoPreferencia } from '@/lib/turnos';
+import { TURNOS_ATENDIMENTO, normalizarTurnosPreferencia, type TurnoPreferencia } from '@/lib/turnos';
 
 const ICONS = { MANHA: Sunrise, TARDE: Sun, NOITE: MoonStar } as const;
 
-export function TurnoPreferenceField({
-  value,
-  onChange,
-  name = 'turno',
-  compact = false,
-  allowedValues,
-}: {
-  value: TurnoPreferencia | '';
-  onChange: (turno: TurnoPreferencia) => void;
+type Props = {
   name?: string;
   compact?: boolean;
   allowedValues?: readonly TurnoPreferencia[];
-}) {
+} & ({
+  multiple: true;
+  value: string;
+  onChange: (turnos: string) => void;
+} | {
+  multiple?: false;
+  value: TurnoPreferencia | '';
+  onChange: (turno: TurnoPreferencia) => void;
+});
+
+export function TurnoPreferenceField(props: Props) {
+  const { value, name = 'turno', compact = false, allowedValues } = props;
+  const selecionados = normalizarTurnosPreferencia(value);
   return (
     <fieldset className="space-y-2">
       <legend className="font-bold text-ink">
-        Período de preferência <span className="text-rose-500">*</span>
+        {props.multiple ? 'Períodos de preferência' : 'Período de preferência'} <span className="text-rose-500">*</span>
       </legend>
       <p className="text-[11px] leading-relaxed text-muted">
-        Essa escolha será cruzada com os turnos cadastrados pelos psicólogos.
+        {props.multiple ? 'Selecione um ou mais períodos. Mostraremos psicólogos disponíveis em qualquer um deles.' : 'Essa escolha será cruzada com os turnos cadastrados pelos psicólogos.'}
       </p>
       <div className="grid grid-cols-3 gap-2">
         {TURNOS_ATENDIMENTO.map((turno) => {
           const Icon = ICONS[turno.value];
-          const selected = value === turno.value;
+          const selected = selecionados.includes(turno.value);
           const disabled = Boolean(allowedValues && !allowedValues.includes(turno.value));
           return (
             <label
               key={turno.value}
-              className={`group rounded-2xl border text-center transition-all ${compact ? 'p-2.5' : 'p-3'} ${disabled ? 'cursor-not-allowed border-line bg-slate-50 text-slate-300 opacity-60' : 'cursor-pointer'} ${
+              className={`group focus-within:ring-2 focus-within:ring-psi-vibrant rounded-2xl border text-center transition-all ${compact ? 'p-2.5' : 'p-3'} ${disabled ? 'cursor-not-allowed border-line bg-slate-50 text-slate-300 opacity-60' : 'cursor-pointer'} ${
                 selected
                   ? 'border-psi-vibrant bg-psi-vibrant/10 text-psi-deep shadow-sm ring-1 ring-psi-vibrant/20'
                   : disabled ? '' : 'border-line bg-white text-muted hover:border-psi-vibrant/50 hover:bg-psi-soft/30'
               }`}
             >
               <input
-                type="radio"
+                type={props.multiple ? "checkbox" : "radio"}
                 name={name}
                 value={turno.value}
                 checked={selected}
                 disabled={disabled}
-                required
-                onChange={() => onChange(turno.value)}
+                required={!props.multiple}
+                onChange={() => {
+                  if (props.multiple) {
+                    props.onChange(normalizarTurnosPreferencia(selected
+                      ? selecionados.filter((item) => item !== turno.value)
+                      : [...selecionados, turno.value]).join(','));
+                  } else props.onChange(turno.value);
+                }}
                 className="sr-only"
               />
               <Icon className={`mx-auto h-4 w-4 ${selected ? 'text-psi-vibrant' : 'text-slate-400 group-hover:text-psi-vibrant'}`} />

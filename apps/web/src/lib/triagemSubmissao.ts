@@ -2,7 +2,7 @@ import type { PreferenciaGeneroPsicologo } from '@thats-life/core';
 import { normalizeBrazilPhone } from './brazilPhone';
 import { validCpf } from './cpf';
 import { validateGender, type GenderValue } from './gender';
-import { normalizarTurnoPreferencia, type TurnoPreferencia } from './turnos';
+import { normalizarTurnosPreferencia } from './turnos';
 
 /**
  * Saneamento do formulário público da vitrine.
@@ -102,7 +102,7 @@ export interface DadosTriagem {
   possuiConvenio?: string;
   convenioSelecionado: string;
   origem: string;
-  turno: TurnoPreferencia;
+  turno: string;
   servico?: string;
   servicoKey?: string;
   modalidade?: string;
@@ -185,9 +185,9 @@ export function validarSubmissaoTriagem(corpo: unknown): ResultadoValidacao {
     return recusa('Selecione o gênero e informe a descrição quando escolher Outro.');
   }
 
-  const turno = normalizarTurnoPreferencia(body.turno);
+  const turno = normalizarTurnosPreferencia(body.turno).join(',');
   if (!turno) {
-    return recusa('Selecione o período de preferência: manhã, tarde ou noite.');
+    return recusa('Selecione pelo menos um período de preferência: manhã, tarde ou noite.');
   }
 
   const email = texto(body.email, 160);

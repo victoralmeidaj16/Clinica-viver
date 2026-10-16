@@ -33,7 +33,16 @@ export function normalizarTurnoPreferencia(value: unknown): TurnoPreferencia | n
   }
 }
 
+/** Aceita o valor legado, a seleção do formulário e a lista persistida em VARCHAR(32). */
+export function normalizarTurnosPreferencia(value: unknown): TurnoPreferencia[] {
+  const valores = Array.isArray(value) ? value : typeof value === 'string' ? value.split(',') : [];
+  const turnos = valores.map(normalizarTurnoPreferencia);
+  if (turnos.some((turno) => turno === null)) return [];
+  return TURNOS_ATENDIMENTO.map((turno) => turno.value).filter((turno) => turnos.includes(turno));
+}
+
 export function rotuloTurnoPreferencia(value: string | undefined): string {
-  const normalized = normalizarTurnoPreferencia(value);
-  return TURNOS_ATENDIMENTO.find((turno) => turno.value === normalized)?.label ?? 'Não informado';
+  const turnos = normalizarTurnosPreferencia(value);
+  return TURNOS_ATENDIMENTO.filter((turno) => turnos.includes(turno.value))
+    .map((turno) => turno.label).join(', ') || 'Não informado';
 }

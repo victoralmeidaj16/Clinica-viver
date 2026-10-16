@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 
 import type { CadastroPsicologoRecord } from './persistence';
-import { aplicarMudancas, CAMPOS_DA_GESTAO, derivarModalidadesAtendidas } from './psychologistRegistration';
+import { aplicarMudancas, CAMPOS_DA_GESTAO, CAMPOS_DO_PROPRIO_PSICOLOGO, derivarModalidadesAtendidas } from './psychologistRegistration';
 
 const cadastro = (mudancas: Partial<CadastroPsicologoRecord> = {}): CadastroPsicologoRecord => ({
   id: 'psi-1',
@@ -60,4 +60,26 @@ describe('estado operacional do psicólogo', () => {
     expect(derivarModalidadesAtendidas('AMBOS')).toContain('ACESSIVEL_SOCIAL');
     expect(derivarModalidadesAtendidas('AMBOS')).toContain('PARTICULAR');
   });
+});
+
+it('impede pedido de limite pelo psicólogo e preserva os demais itens da solicitação', () => {
+  const solicitacao = { limitePacientesAtivos: 30, servicosPrestados: ['Atendimento Psicológico'],
+    justificativa: 'Atualização dos serviços', solicitadoEm: '2026-10-16T12:00:00Z', status: 'PENDENTE' as const };
+  const resultado = aplicarMudancas(cadastro({ limitePacientesAtivos: 5 }), {
+    limitePacientesAtivos: 30, solicitacaoAlteracaoGestao: solicitacao,
+  }, CAMPOS_DO_PROPRIO_PSICOLOGO);
+  expect(resultado.limitePacientesAtivos).toBe(5);
+  expect(resultado.solicitacaoAlteracaoGestao).not.toHaveProperty('limitePacientesAtivos');
+  expect(resultado.solicitacaoAlteracaoGestao?.servicosPrestados).toEqual(solicitacao.servicosPrestados);
+  expect(solicitacao.limitePacientesAtivos).toBe(30);
+});
+it('mantém o ajuste direto de capacidade exclusivo da gestão', () => {
+  expect(aplicarMudancas(cadastro({ limitePacientesAtivos: 5 }), {
+    limitePacientesAtivos: 10,
+  }, CAMPOS_DA_GESTAO).limitePacientesAtivos).toBe(10);
+});
+it('permite cancelar a solicitação do psicólogo', () => {
+  const existente = cadastro({ solicitacaoAlteracaoGestao: { status: 'PENDENTE', solicitadoEm: '2026-10-16T12:00:00Z' } });
+  expect(aplicarMudancas(existente, { solicitacaoAlteracaoGestao: null }, CAMPOS_DO_PROPRIO_PSICOLOGO)
+    .solicitacaoAlteracaoGestao).toBeUndefined();
 });

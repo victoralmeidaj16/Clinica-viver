@@ -232,6 +232,15 @@ export function aplicarMudancas(
   permitidos: ReadonlySet<string>
 ): CadastroPsicologoRecord {
   const pode = (campo: string) => permitidos.has(campo) && corpo[campo] !== undefined;
+  let solicitacaoAlteracaoGestao = pode('solicitacaoAlteracaoGestao')
+    ? (corpo.solicitacaoAlteracaoGestao as CadastroPsicologoRecord['solicitacaoAlteracaoGestao']) ?? undefined
+    : existente.solicitacaoAlteracaoGestao;
+  // Capacidade é uma decisão exclusiva da gestão, inclusive no pedido aninhado.
+  if (pode('solicitacaoAlteracaoGestao') && solicitacaoAlteracaoGestao && !permitidos.has('limitePacientesAtivos')) {
+    solicitacaoAlteracaoGestao = { ...solicitacaoAlteracaoGestao };
+    delete solicitacaoAlteracaoGestao.limitePacientesAtivos;
+  }
+
 
   // Pausa e vitrine são um único estado operacional: fora do rodízio também
   // significa fora do site público. Aceitar o campo antigo de vitrine mantém
@@ -363,8 +372,6 @@ export function aplicarMudancas(
     segundaPosGraduacao: pode('segundaPosGraduacao')
       ? (corpo.segundaPosGraduacao as string) || undefined
       : existente.segundaPosGraduacao,
-    solicitacaoAlteracaoGestao: pode('solicitacaoAlteracaoGestao')
-      ? (corpo.solicitacaoAlteracaoGestao as CadastroPsicologoRecord['solicitacaoAlteracaoGestao']) ?? undefined
-      : existente.solicitacaoAlteracaoGestao,
+    solicitacaoAlteracaoGestao,
   };
 }

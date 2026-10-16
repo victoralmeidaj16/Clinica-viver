@@ -1,19 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
-import {
-  LIMITE_PACIENTES_MAXIMO,
-  LIMITE_PACIENTES_MINIMO,
-  limitePacientesValido,
-  mensagemLimitePacientesInvalido,
-} from '@/lib/psychologistCapacity';
+import { AcoesSolicitacaoGestao } from './AcoesSolicitacaoGestao';
 import {
   Lock,
   X,
-  Send,
   GraduationCap,
   Sparkles,
-  Users,
   AlertCircle,
   FileCheck,
 } from 'lucide-react';
@@ -24,34 +17,8 @@ import {
   comValoresRegistrados,
 } from '@/components/forms/opcoesPsicologo';
 
-export interface SolicitacaoGestaoFormValues {
-  turmaViverMais?: string;
-  posGraduacaoViverMais?: string;
-  segundaPosGraduacao?: string;
-  servicosPrestados: string[];
-  limitePacientesAtivos: number;
-  justificativa?: string;
-}
-
-interface ModalSolicitacaoGestaoProps {
-  dadosAtuais: {
-    turmaViverMais?: string;
-    posGraduacaoViverMais?: string;
-    segundaPosGraduacao?: string;
-    servicosPrestados?: string[];
-    limitePacientesAtivos?: number;
-  };
-  solicitacaoPendente?: {
-    turmaViverMais?: string;
-    posGraduacaoViverMais?: string;
-    segundaPosGraduacao?: string;
-    servicosPrestados?: string[];
-    limitePacientesAtivos?: number;
-    justificativa?: string;
-  };
-  onEnviar: (valores: SolicitacaoGestaoFormValues) => Promise<void>;
-  onCancelar: () => void;
-}
+import type { ModalSolicitacaoGestaoProps } from './solicitacaoGestao';
+export type { SolicitacaoGestaoFormValues } from './solicitacaoGestao';
 
 export function ModalSolicitacaoGestao({
   dadosAtuais,
@@ -71,9 +38,6 @@ export function ModalSolicitacaoGestao({
   const [servicosPrestados, setServicosPrestados] = useState<string[]>([
     ...(solicitacaoPendente?.servicosPrestados ?? dadosAtuais.servicosPrestados ?? []),
   ]);
-  const [limitePacientesAtivos, setLimitePacientesAtivos] = useState<number>(
-    solicitacaoPendente?.limitePacientesAtivos ?? dadosAtuais.limitePacientesAtivos ?? 5
-  );
   const [justificativa, setJustificativa] = useState(
     solicitacaoPendente?.justificativa ?? ''
   );
@@ -96,11 +60,6 @@ export function ModalSolicitacaoGestao({
       return;
     }
 
-    if (!limitePacientesValido(limitePacientesAtivos)) {
-      setErro(mensagemLimitePacientesInvalido());
-      return;
-    }
-
     setSalvando(true);
     try {
       await onEnviar({
@@ -108,7 +67,6 @@ export function ModalSolicitacaoGestao({
         posGraduacaoViverMais: posGraduacaoViverMais.trim() || undefined,
         segundaPosGraduacao: segundaPosGraduacao.trim() || undefined,
         servicosPrestados,
-        limitePacientesAtivos,
         justificativa: justificativa.trim() || undefined,
       });
     } catch (err) {
@@ -260,27 +218,6 @@ export function ModalSolicitacaoGestao({
             </div>
           </div>
 
-          {/* Limite de Pacientes */}
-          <div>
-            <label className="text-[10px] uppercase tracking-wider font-extrabold text-muted block mb-1.5 flex items-center gap-1.5">
-              <Users className="w-3.5 h-3.5 text-psi-vibrant" />
-              Capacidade Desejada (Pacientes Ativos)
-            </label>
-            <div className="flex items-center gap-4">
-              <input
-                type="number"
-                min={LIMITE_PACIENTES_MINIMO}
-                max={LIMITE_PACIENTES_MAXIMO}
-                value={limitePacientesAtivos}
-                onChange={(e) => setLimitePacientesAtivos(Number(e.target.value))}
-                className="w-24 px-3.5 py-2.5 border border-line rounded-xl text-sm font-bold text-center bg-surface focus:outline-none focus:border-psi-vibrant"
-              />
-              <span className="text-xs text-muted">
-                A gestão revisará a capacidade solicitada antes de aplicá-la.
-              </span>
-            </div>
-          </div>
-
           {/* Justificativa / Observação */}
           <div>
             <label className="text-[10px] uppercase tracking-wider font-extrabold text-muted block mb-1.5">
@@ -295,26 +232,7 @@ export function ModalSolicitacaoGestao({
             />
           </div>
 
-          {/* Footer Actions */}
-          <div className="flex items-center justify-between pt-4 border-t border-line">
-            <button
-              type="button"
-              onClick={onCancelar}
-              disabled={salvando}
-              className="px-5 py-2.5 rounded-xl border border-line text-muted font-bold text-xs hover:bg-canvas hover:text-ink transition-colors"
-            >
-              Cancelar
-            </button>
-
-            <button
-              type="submit"
-              disabled={salvando}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-psi-deep text-white font-extrabold text-xs shadow-md hover:bg-psi-darkest active:scale-95 transition-all disabled:opacity-60"
-            >
-              <Send className="h-4 w-4" />
-              <span>{salvando ? 'Enviando solicitação…' : 'Enviar Solicitação à Gestão'}</span>
-            </button>
-          </div>
+          <AcoesSolicitacaoGestao salvando={salvando} onCancelar={onCancelar} />
         </form>
       </div>
     </div>

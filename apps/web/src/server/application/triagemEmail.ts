@@ -232,7 +232,7 @@ export function conteudoAlocacaoPsicologo(
   const token = gerarTokenConfirmacao(lead.id, psicologo.id);
   const linkConfirmar = `${baseUrl()}/confirmar-contato/${lead.id}?psi=${encodeURIComponent(psicologo.id)}&t=${token}`;
   const linkEncaminhar = `${baseUrl()}/encaminhar-contato/${lead.id}?psi=${encodeURIComponent(psicologo.id)}&t=${token}`;
-  const linkCockpit = `${baseUrl()}/cockpit`;
+  const linkCockpit = `${baseUrl()}/pacientes`;
 
   const isEscolhaDireta = tipoAlocacao === 'ESCOLHA_DIRETA';
 
@@ -293,7 +293,7 @@ export function conteudoAlocacaoPsicologo(
     `   ${COMANDO_CONFIRMAR} - quando já tiver falado com o paciente.`,
     `   ${COMANDO_ENCAMINHAR} - se não for atender e desejar repassar para a fila.`,
     '',
-    `Acesse o Cockpit do Psicólogo para gerenciar seus atendimentos: ${linkCockpit}`,
+    `Acesse Meus Pacientes para gerenciar seus atendimentos: ${linkCockpit}`,
     '',
     'Atenciosamente,',
     'Equipe Viver Mais Psicologia',
@@ -387,7 +387,7 @@ export function conteudoAlocacaoPsicologo(
 
     <p style="text-align: center; margin-top: 24px;">
       <a href="${linkCockpit}" style="color: #6b21a8; font-size: 13px; font-weight: bold; text-decoration: none;">
-        Acessar Cockpit do Psicólogo →
+        Acessar Meus Pacientes →
       </a>
     </p>
 

@@ -4,7 +4,6 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  Zap,
   Users,
   UserCheck,
   CreditCard,
@@ -24,7 +23,6 @@ import {
 } from 'lucide-react';
 
 const psicologoItems = [
-  { label: 'Meu Painel', href: '/cockpit', icon: Zap },
   { label: 'Meu Cadastro', href: '/meu-cadastro', icon: UserPlus },
   { label: 'Meus Pacientes', href: '/pacientes', icon: Users },
   { label: 'Prontuários dos Pacientes', href: '/linha-do-tempo', icon: FileText },
@@ -131,7 +129,7 @@ export default function Sidebar({
             <span>{isProfessional ? 'Portal do Psicólogo' : 'Cockpit de Gestão'}</span>
           </div>
           {navItems.map((item) => {
-            const isActive = pathname === item.href || (pathname === '/' && item.href === '/cockpit');
+            const isActive = pathname === item.href;
             const Icon = item.icon;
             return (
               <Link

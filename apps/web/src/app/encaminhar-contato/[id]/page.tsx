@@ -86,10 +86,10 @@ export default function EncaminharContatoPage() {
                 Sim, Encaminhar para a Fila
               </button>
               <Link
-                href="/cockpit"
+                href="/pacientes"
                 className="w-full py-2.5 px-4 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium text-xs transition-colors inline-block"
               >
-                Cancelar e Ir para o Cockpit
+                Cancelar e Ir para Meus Pacientes
               </Link>
             </div>
           </div>
@@ -113,10 +113,10 @@ export default function EncaminharContatoPage() {
             </p>
             <div className="pt-3">
               <Link
-                href="/cockpit"
+                href="/pacientes"
                 className="inline-block py-2.5 px-5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-colors"
               >
-                Ir para o Cockpit
+                Ir para Meus Pacientes
               </Link>
             </div>
           </div>
@@ -132,10 +132,10 @@ export default function EncaminharContatoPage() {
             </p>
             <div className="pt-3">
               <Link
-                href="/cockpit"
+                href="/pacientes"
                 className="inline-block py-2.5 px-5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold text-xs transition-colors"
               >
-                Acessar o Cockpit
+                Acessar Meus Pacientes
               </Link>
             </div>
           </div>

@@ -10,7 +10,7 @@ export async function POST(request: Request) {
     const body = await readJson(request);
     const account = await resetPsychologistPassword(String(body.token ?? '').trim(), String(body.password ?? ''));
     await startSession(account);
-    return success({ reset: true, destination: '/cockpit' });
+    return success({ reset: true, destination: '/pacientes' });
   } catch (error) {
     // Só as recusas previstas (senha fraca, link vencido) chegam ao navegador;
     // falha de banco ou de sessão fica no log, sem expor detalhe interno.

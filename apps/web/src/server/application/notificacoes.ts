@@ -190,12 +190,12 @@ export function notificacoesDoPsicologo(
         descricao: `${lead.nomePaciente} — ${resumoDoLead(lead)}. Primeiro contato em até ${SLA_CONTATO_HORAS} h (${prazoRestante(lead.alocadoEm, agora)}).`,
         ocorridoEm: lead.alocadoEm,
         severidade: severidadePorSla(lead.alocadoEm, agora),
-        // Sem `foco`: o painel do profissional não tem uma fila de leads para
+        // Sem `foco`: o portal do profissional não tem uma fila de leads para
         // apontar. O primeiro contato é feito pelo link que chega no WhatsApp,
         // e inventar aqui uma âncora para uma seção que não existe daria um
         // clique que rola até lugar nenhum. Enquanto essa tela não existir, o
-        // destino honesto é o painel.
-        href: '/cockpit',
+        // destino honesto é a tela inicial, Meus Pacientes.
+        href: '/pacientes',
         pendente: true,
       });
       continue;
@@ -232,7 +232,7 @@ export function notificacoesDoPsicologo(
         // Sem `foco`, pela mesma razão do aviso de atribuição — e aqui o lead
         // saiu da fila deste profissional, então não haveria o que ele
         // resolvesse na tela de destino.
-        href: '/cockpit',
+        href: '/pacientes',
         pendente: false,
       });
     }

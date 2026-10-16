@@ -1,6 +1,6 @@
 import {
   CalendarOff, CalendarPlus, CheckCircle2, Clock, CreditCard, FileText, Lock,
-  MessageCircle, RefreshCw, Save, Share2, Smartphone, UserX, type LucideIcon,
+  RefreshCw, Save, Share2, Smartphone, UserX, type LucideIcon,
 } from 'lucide-react';
 
 /** "Preciso fazer X agora" → onde clicar. `etapa` aponta para `ETAPAS[].id`. */
@@ -8,11 +8,10 @@ export interface AtalhoBussola { icone: LucideIcon; situacao: string; onde: stri
 
 export const BUSSOLA: AtalhoBussola[] = [
   { icone: Smartphone, situacao: 'Chegou paciente novo', onde: 'Link no WhatsApp ou e-mail → **Confirmar primeiro contato**', etapa: 'paciente-novo' },
-  { icone: Share2, situacao: 'Passar horários para o paciente escolher', onde: 'Meu Painel ou Agenda → **Copiar** / **Enviar Wpp**', etapa: 'link-agenda' },
+  { icone: Share2, situacao: 'Passar horários para o paciente escolher', onde: 'Agenda & Horários → **Copiar** / **Enviar Wpp**', etapa: 'link-agenda' },
   { icone: CalendarPlus, situacao: 'Marcar uma sessão', onde: 'Agenda & Horários → **Agendar sessão**', etapa: 'agendar' },
-  { icone: MessageCircle, situacao: 'Lembrar o paciente da sessão', onde: 'Meu Painel → **Lembrar Wpp**', etapa: 'painel' },
   { icone: CheckCircle2, situacao: 'A sessão acabou de terminar', onde: 'Agenda & Horários → **Confirmar que ocorreu**', etapa: 'depois-da-sessao' },
-  { icone: FileText, situacao: 'Registrar a evolução', onde: 'Prontuários dos Pacientes → **Registrar Prontuário Manual**', etapa: 'prontuario' },
+  { icone: FileText, situacao: 'Registrar a evolução', onde: 'Meus Pacientes → **Prontuário** → **Registrar Prontuário Manual**', etapa: 'prontuario' },
   { icone: FileText, situacao: 'Emitir uma declaração', onde: 'Meus Pacientes → **Documentos**', etapa: 'documentos' },
   { icone: CreditCard, situacao: 'Ver o que recebi', onde: 'Meu Financeiro → escolher o mês', etapa: 'financeiro' },
   { icone: CalendarOff, situacao: 'Vou tirar férias', onde: 'Agenda & Horários → **Períodos bloqueados**', etapa: 'bloqueios' },

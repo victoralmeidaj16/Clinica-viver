@@ -17,7 +17,6 @@ import {
   UserPlus,
   LogOut,
   X,
-  FileText,
   HelpCircle,
   GraduationCap,
 } from 'lucide-react';
@@ -25,7 +24,6 @@ import {
 const psicologoItems = [
   { label: 'Meu Cadastro', href: '/meu-cadastro', icon: UserPlus },
   { label: 'Meus Pacientes', href: '/pacientes', icon: Users },
-  { label: 'Prontuários dos Pacientes', href: '/linha-do-tempo', icon: FileText },
   { label: 'Meu Financeiro', href: '/meu-financeiro', icon: CreditCard },
   { label: 'Agenda & Horários', href: '/agenda', icon: CalendarDays },
   { label: 'Ajuda', href: '/ajuda', icon: HelpCircle },

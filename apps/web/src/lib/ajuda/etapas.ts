@@ -1,6 +1,6 @@
 import {
   Brain, CalendarDays, CalendarOff, CalendarPlus, CheckCircle2, CreditCard, FileText,
-  Bell, LogIn, Share2, Smartphone, UserPlus, Zap, type LucideIcon,
+  Bell, LogIn, Share2, Smartphone, UserPlus, type LucideIcon,
 } from 'lucide-react';
 
 /**
@@ -48,10 +48,8 @@ export const ETAPAS: Etapa[] = [
     id: 'menu', numero: 2, titulo: 'Conhecer o menu', icone: Brain,
     serve: 'O menu à esquerda leva a todas as telas que você usa. Ele aparece em qualquer página, depois do login.',
     blocos: [{ imagens: [img('menu', 'Menu lateral com os itens numerados', 540, 1800)], passos: lista(
-      '**Meu Painel**: atalhos do dia, link da agenda e próximas sessões.',
       '**Meu Cadastro**: seu perfil profissional e o status do credenciamento.',
-      '**Meus Pacientes**: sua lista de pacientes e o cadastro de novos.',
-      '**Prontuários dos Pacientes**: evolução clínica e histórico de cada paciente.',
+      '**Meus Pacientes**: sua lista de pacientes, o cadastro de novos e o prontuário de cada um.',
       '**Meu Financeiro**: pagamentos recebidos e seu crédito de 70%.',
       '**Agenda & Horários**: grade semanal, bloqueios e sessões marcadas.',
       '**Sair da conta**: encerra seu acesso. Use sempre em computador compartilhado.') }],
@@ -60,38 +58,21 @@ export const ETAPAS: Etapa[] = [
     atencao: 'Se **Meu Cadastro** mostrar “Ainda não encontramos uma candidatura vinculada”, o e-mail desta conta é diferente do usado no formulário da vitrine. Use o mesmo e-mail nos dois.',
   },
   {
-    id: 'painel', numero: 3, titulo: 'Meu Painel', icone: Zap,
-    serve: 'É a tela inicial. Reúne os atalhos do seu dia: prontuário rápido, link da agenda e próximas sessões.',
-    blocos: [
-      { imagens: [img('painel-topo', 'Topo do Meu Painel', 2020, 700)], passos: lista(
-        'Clique em **Cadastrar Paciente** para abrir o formulário (Etapa 05).',
-        'Em **Prontuário Rápido**, escolha o paciente na lista.',
-        'Clique em **Abrir / Lançar Prontuário** para ir direto à evolução dele.',
-        'Clique em **Copiar Link** para copiar o link da sua agenda.',
-        'Ou clique em **Enviar Wpp** para mandar o link pelo WhatsApp.') },
-      { titulo: 'Suas próximas sessões', imagens: [img('painel-sessoes', 'Lista de próximas sessões no painel', 2020, 580)], passos: lista(
-        'Clique em **Lembrar Wpp**: abre o WhatsApp com a mensagem de lembrete pronta.',
-        'Clique em **Prontuário** para abrir o prontuário do paciente daquela sessão.',
-        '**Ver grade completa** leva à Agenda & Horários.') },
-    ],
-    porque: 'Em poucos cliques você lembra o paciente, abre o prontuário ou manda sua agenda — sem procurar em vários menus.',
-  },
-  {
-    id: 'paciente-novo', numero: 4, titulo: 'Receber paciente novo', icone: Smartphone,
+    id: 'paciente-novo', numero: 3, titulo: 'Receber paciente novo', icone: Smartphone,
     serve: 'Quando a clínica indica um paciente novo para você, você tem **24 horas** para confirmar o primeiro contato.',
     blocos: [{ passos: lista(
       'Você recebe o aviso por **WhatsApp** e **e-mail**, com os dados do caso e o telefone do paciente.',
-      'Clique no **link da mensagem**. Ele abre a página de confirmação; não é preciso entrar no painel antes.',
+      'Clique no **link da mensagem**. Ele abre a página de confirmação; não é preciso entrar na plataforma antes.',
       'Confirme o primeiro contato. Se não puder atender, use o link do e-mail para **encaminhar a um colega**.',
       'Pronto: o paciente passa a aparecer em **Meus Pacientes**. Agora é só marcar a primeira sessão.') }],
     porque: 'A clínica quer que o paciente seja acolhido logo. Se passar de 24 h sem resposta, o sistema repassa o paciente ao próximo colega da fila.',
     dica: 'Deixe as notificações do WhatsApp ligadas: o prazo de 24 h começa no momento do aviso.',
-    atencao: 'Esta etapa acontece nas mensagens que você recebe, não dentro do painel. Por isso não há print de tela aqui.',
+    atencao: 'Esta etapa acontece nas mensagens que você recebe, não dentro da plataforma. Por isso não há print de tela aqui.',
   },
   {
-    id: 'cadastrar-paciente', numero: 5, titulo: 'Cadastrar paciente', icone: UserPlus,
+    id: 'cadastrar-paciente', numero: 4, titulo: 'Cadastrar paciente', icone: UserPlus,
     serve: 'Coloca o paciente na sua carteira. Só depois do cadastro você consegue agendar sessões, registrar prontuário e emitir documentos para ele.',
-    comoAbrir: 'Abra **Meus Pacientes → Cadastrar Novo Paciente** (ou **Cadastrar Paciente** no Meu Painel).',
+    comoAbrir: 'Abra **Meus Pacientes → Cadastrar Novo Paciente**.',
     blocos: [{ imagens: [
       img('cad-topo', 'Parte de cima do formulário de cadastro', 1324, 1488),
       img('cad-base', 'Parte de baixo do formulário de cadastro', 1324, 1730),
@@ -104,7 +85,7 @@ export const ETAPAS: Etapa[] = [
     atencao: 'Campos com * são obrigatórios. O campo *Observações cadastrais* é só administrativo: nunca escreva evolução clínica ali — use o prontuário.',
   },
   {
-    id: 'grade', numero: 6, titulo: 'Montar sua agenda', icone: CalendarDays,
+    id: 'grade', numero: 5, titulo: 'Montar sua agenda', icone: CalendarDays,
     serve: 'A grade semanal define em quais dias e horários o paciente pode marcar com você. Sem ela, o link da agenda não mostra horários.',
     comoAbrir: 'Abra **Agenda & Horários** e role até **Disponibilidade semanal**.',
     blocos: [{ imagens: [img('agenda-grade', 'Grade semanal de atendimento', 2020, 1240)], passos: lista(
@@ -117,7 +98,7 @@ export const ETAPAS: Etapa[] = [
     dica: 'Seus turnos do cadastro já montam uma grade inicial de segunda a sexta. Ajuste só o que for diferente.',
   },
   {
-    id: 'bloqueios', numero: 7, titulo: 'Bloquear férias e folgas', icone: CalendarOff,
+    id: 'bloqueios', numero: 6, titulo: 'Bloquear férias e folgas', icone: CalendarOff,
     serve: 'Esconde do link do paciente os dias em que você não atende, sem apagar a sua grade semanal.',
     comoAbrir: 'Abra **Agenda & Horários** e role até **Períodos bloqueados**.',
     blocos: [
@@ -129,16 +110,16 @@ export const ETAPAS: Etapa[] = [
         { n: 2, texto: '**Bloquear dia inteiro** fecha o dia todo.' }] },
     ],
     porque: 'No período bloqueado você sai da fila de novos pacientes e a coordenação é avisada. Seus pacientes atuais continuam vendo seu perfil.',
-    atencao: 'Dias com sessão marcada aparecem em verde. Reagende ou cancele a sessão (Etapa 10) antes de bloquear esse dia.',
+    atencao: 'Dias com sessão marcada aparecem em verde. Reagende ou cancele a sessão (Etapa 09) antes de bloquear esse dia.',
   },
   {
-    id: 'link-agenda', numero: 8, titulo: 'Link da agenda', icone: Share2,
+    id: 'link-agenda', numero: 7, titulo: 'Link da agenda', icone: Share2,
     serve: 'É o seu endereço pessoal de agendamento. O paciente abre, informa o CPF e escolhe sozinho um horário livre.',
     blocos: [
       { imagens: [img('agenda-link', 'Cartão do link de agendamento', 2020, 670)], passos: lista(
         'Em **Agenda & Horários**, clique em **Copiar** para copiar o link.',
         'Ou clique em **WhatsApp** para enviar direto.',
-        'Para agendar você mesmo, clique em **Agendar sessão** (Etapa 09).') },
+        'Para agendar você mesmo, clique em **Agendar sessão** (Etapa 08).') },
       { titulo: 'Pelo cartão do paciente', imagens: [img('pacientes-card', 'Cartão do paciente em Meus Pacientes', 960, 550)], passos: [
         { n: 3, texto: 'Em **Meus Pacientes**, clique em **Enviar Agenda** no cartão do paciente.' }] },
       { titulo: 'E do lado do paciente?', passos: lista(
@@ -148,7 +129,7 @@ export const ETAPAS: Etapa[] = [
     dica: 'Quem paga de uma vez 4 ou mais sessões do mês ganha 10% de desconto. Vale avisar o paciente.',
   },
   {
-    id: 'agendar', numero: 9, titulo: 'Agendar sessão', icone: CalendarPlus,
+    id: 'agendar', numero: 8, titulo: 'Agendar sessão', icone: CalendarPlus,
     serve: 'Marca uma sessão combinada diretamente com o paciente. A cobrança (Pix e cartão) é criada junto.',
     comoAbrir: 'Abra **Agenda & Horários → Agendar sessão** (ou **Agendar** no cartão do paciente).',
     blocos: [{ imagens: [
@@ -164,7 +145,7 @@ export const ETAPAS: Etapa[] = [
     atencao: 'A frequência **Semanal** vem marcada e cria várias sessões de uma vez. Leia o resumo e o texto do botão antes de salvar.',
   },
   {
-    id: 'depois-da-sessao', numero: 10, titulo: 'Depois da sessão', icone: CheckCircle2,
+    id: 'depois-da-sessao', numero: 9, titulo: 'Depois da sessão', icone: CheckCircle2,
     serve: 'Confirmar que a sessão aconteceu atualiza a agenda e libera os próximos passos: prontuário, documentos e o crédito de 70%.',
     comoAbrir: 'Abra **Agenda & Horários** e role até **Sessões e confirmações**.',
     blocos: [{ imagens: [img('agenda-sessoes', 'Lista de sessões e confirmações', 2020, 1120)], passos: lista(
@@ -177,13 +158,13 @@ export const ETAPAS: Etapa[] = [
     atencao: 'Confirme só depois de a sessão acontecer. Para corrigir data ou valor, use **Editar**, não cancele e crie outra.',
   },
   {
-    id: 'prontuario', numero: 11, titulo: 'Prontuário', icone: FileText,
+    id: 'prontuario', numero: 10, titulo: 'Prontuário', icone: FileText,
     serve: 'É onde você registra a evolução de cada atendimento. O registro fica no histórico do paciente, com acesso só seu.',
-    comoAbrir: 'Abra **Prontuários dos Pacientes** no menu (ou **Prontuário** no cartão do paciente).',
+    comoAbrir: 'Em **Meus Pacientes**, clique em **Prontuário** no cartão do paciente.',
     blocos: [
       { imagens: [img('pront-topo', 'Topo do prontuário do paciente', 2020, 600)], passos: lista(
         'Escolha o **paciente** na lista do topo.', 'Clique em **Registrar Prontuário Manual**.',
-        '**Documentos** leva à emissão de documentos (Etapa 12).') },
+        '**Documentos** leva à emissão de documentos (Etapa 11).') },
       { titulo: 'Formulário de evolução', imagens: [img('pront-form', 'Formulário de registro de prontuário', 2020, 1000)], passos: lista(
         'Dê um **título** ao atendimento.', '**Subjetivo**: o que o paciente relatou.', '**Objetivo**: o que você observou.',
         '**Avaliação**: sua análise clínica.', '**Plano**: conduta e próximos passos.', 'Clique em **Salvar no Prontuário**.') },
@@ -191,7 +172,7 @@ export const ETAPAS: Etapa[] = [
     porque: 'O prontuário é obrigatório e protegido por sigilo (CFP e LGPD). Registrar logo após a sessão evita esquecimentos.',
   },
   {
-    id: 'documentos', numero: 12, titulo: 'Documentos', icone: FileText,
+    id: 'documentos', numero: 11, titulo: 'Documentos', icone: FileText,
     serve: 'Emite documentos do paciente, como a declaração de comparecimento, sempre ligados a um atendimento concluído.',
     comoAbrir: 'Abra **Meus Pacientes** e clique em **Documentos** no cartão do paciente (ou em **Documentos** dentro do prontuário).',
     blocos: [{ imagens: [img('docs', 'Tela de emissão de documentos', 2020, 1120)], passos: lista(
@@ -199,20 +180,20 @@ export const ETAPAS: Etapa[] = [
       'Escolha o **Atendimento concluído** a que o documento se refere.',
       'Clique em **Revisar documento** e confira a prévia ao lado.') }],
     porque: 'Cada documento fica registrado no **Histórico de emissões**, o que dá segurança se alguém pedir uma segunda via.',
-    atencao: 'Apareceu “Nenhum atendimento concluído disponível”? Falta confirmar a sessão. Volte à Etapa 10.',
+    atencao: 'Apareceu “Nenhum atendimento concluído disponível”? Falta confirmar a sessão. Volte à Etapa 09.',
   },
   {
-    id: 'financeiro', numero: 13, titulo: 'Meu Financeiro', icone: CreditCard,
+    id: 'financeiro', numero: 12, titulo: 'Meu Financeiro', icone: CreditCard,
     serve: 'Mostra o que seus pacientes pagaram e quanto é seu: **70% de cada sessão** vira crédito para você.',
     blocos: [{ imagens: [img('financeiro', 'Tela Meu Financeiro (exemplo sem pagamentos)', 2020, 1200)], passos: lista(
       'Escolha o **Mês** que quer consultar.', 'Clique em **Atualizar**.', 'Veja o **crédito de 70%** do mês.',
       'Clique em **Exportar CSV** para baixar a planilha.',
       'Em **Status dos atendimentos**, acompanhe cada cobrança: valor, recebido, em aberto e link de pagamento.') }],
     porque: 'Aqui você confere se uma sessão foi paga e quanto já é seu. O crédito pode abater a mensalidade da pós-graduação.',
-    atencao: 'O crédito só aparece depois que o pagamento é conciliado e a sessão foi confirmada (Etapa 10).',
+    atencao: 'O crédito só aparece depois que o pagamento é conciliado e a sessão foi confirmada (Etapa 09).',
   },
   {
-    id: 'busca-avisos', numero: 14, titulo: 'Busca e notificações', icone: Bell,
+    id: 'busca-avisos', numero: 13, titulo: 'Busca e notificações', icone: Bell,
     serve: 'A barra do topo ajuda a achar um paciente ou sessão e mostra os avisos da plataforma.',
     blocos: [{ imagens: [
       img('header', 'Barra do topo com busca, sino e perfil', 2048, 200),

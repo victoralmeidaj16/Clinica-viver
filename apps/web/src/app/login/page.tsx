@@ -74,7 +74,7 @@ export default function LoginPage() {
       const me = (await fetch('/api/auth/me', { cache: 'no-store' }).then((result) =>
         result.json()
       )) as { data: { role: 'admin' | 'psicologo' } };
-      router.replace(me.data.role === 'admin' ? '/gestao/cockpit' : '/cockpit');
+      router.replace(me.data.role === 'admin' ? '/gestao/cockpit' : '/pacientes');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Não foi possível entrar.');
     } finally {

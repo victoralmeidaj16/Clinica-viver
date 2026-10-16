@@ -34,7 +34,7 @@ function ResetForm() {
         setInvalidLink(payload.error?.code === 'INVALID_RESET_TOKEN');
         throw new Error(payload.error?.message ?? 'Não foi possível redefinir a senha.');
       }
-      router.replace(payload.data?.destination ?? '/cockpit');
+      router.replace(payload.data?.destination ?? '/pacientes');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Não foi possível redefinir a senha.');
     } finally {

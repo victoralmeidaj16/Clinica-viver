@@ -24,13 +24,13 @@ function pedido() {
 describe('POST /api/auth/redefinir-senha', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('inicia sessão após redefinir a senha e direciona ao cockpit', async () => {
+  it('inicia sessão após redefinir a senha e direciona a Meus Pacientes', async () => {
     const account = { userId: 'user', organizationId: 'org', role: 'psicologo' };
     resetPsychologistPassword.mockResolvedValueOnce(account);
     const response = await POST(pedido());
     expect(response.status).toBe(200);
     expect(startSession).toHaveBeenCalledWith(account);
-    expect((await response.json()).data).toEqual({ reset: true, destination: '/cockpit' });
+    expect((await response.json()).data).toEqual({ reset: true, destination: '/pacientes' });
   });
 
   it('repassa a recusa prevista com a mensagem para o usuário', async () => {

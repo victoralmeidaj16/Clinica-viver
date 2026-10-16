@@ -31,6 +31,20 @@ describe('gestão acadêmica', () => {
     expect(lessonHtml).not.toContain('YouTube');
   });
 
+  it('mostra os campos oficiais somente no modelo exclusivo do certificado', () => {
+    const standard = renderToStaticMarkup(<CourseEditor onSaved={() => undefined} />);
+    const special = renderToStaticMarkup(<CourseEditor onSaved={() => undefined} course={{
+      id: 'course-1', institutionId: 'inst-1', title: 'Curso especial', description: '', position: 1,
+      active: true, published: true, certificateTextModel: 'online-course-with-instructor',
+      certificateInstructor: 'Dra. Rafaela Dias Matavelli', certificateDurationMinutes: 180,
+    }} />);
+    expect(standard).toContain('Modelo do texto do certificado');
+    expect(standard).not.toContain('Professora do certificado');
+    expect(special).toContain('Professora do certificado');
+    expect(special).toContain('value="Dra. Rafaela Dias Matavelli"');
+    expect(special).toContain('Duração — horas');
+  });
+
   it('edita aula existente preservando o link Vimeo com hash', () => {
     const html = renderToStaticMarkup(<LessonEditor courseId="2" moduleId="module-1" modulePosition={1} onSaved={() => undefined} lesson={{
       id: 'lesson-1', courseId: '2', moduleId: 'module-1', modulePosition: 1, title: 'Acolhimento', durationMinutes: 20,

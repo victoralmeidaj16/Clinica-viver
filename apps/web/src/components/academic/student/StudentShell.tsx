@@ -4,7 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { BookOpen, Home, LogOut, UserRound } from 'lucide-react';
+import { Award, BookOpen, Home, LogOut, UserRound } from 'lucide-react';
 
 type StudentIdentity = { fullName: string; mustChangePassword: boolean };
 
@@ -54,6 +54,7 @@ export function StudentNavigation({ pathname, onLogout, compact = false }: { pat
   const items = [
     { href: '/aluno', label: 'Visão geral', icon: Home },
     { href: '/aluno/cursos', label: 'Cursos e aulas', icon: BookOpen },
+    { href: '/aluno/certificados', label: 'Certificados', icon: Award },
     { href: '/aluno/minha-conta', label: 'Minha conta', icon: UserRound },
   ];
   if (compact) return <nav aria-label="Navegação do aluno" className="no-scrollbar mt-3 flex gap-1 overflow-x-auto">{items.map(({ href, label, icon: Icon }) => <Link key={href} href={href} className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-[11px] font-black ${pathname === href ? 'bg-psi-deep text-white' : 'text-muted'}`}><Icon className="h-3.5 w-3.5" />{label}</Link>)}</nav>;

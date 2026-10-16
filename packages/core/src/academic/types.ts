@@ -1,3 +1,5 @@
+import type { CertificateTextModel } from '../certificados';
+
 export type AcademicAccountStatus = 'active' | 'disabled';
 export type AcademicEnrollmentStatus = 'active' | 'suspended';
 
@@ -21,6 +23,9 @@ export interface AcademicCourse {
   title: string;
   description: string;
   coverUrl?: string;
+  certificateTextModel?: CertificateTextModel;
+  certificateInstructor?: string;
+  certificateDurationMinutes?: number;
   position: number;
   active: boolean;
   published: boolean;

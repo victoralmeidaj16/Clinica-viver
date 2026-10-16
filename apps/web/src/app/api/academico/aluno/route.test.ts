@@ -4,7 +4,7 @@ vi.mock('server-only', () => ({}));
 vi.mock('@/server/oci/runtime', () => ({ isMysqlConfigured: () => true }));
 
 const { authenticateStudent, startStudentSession, resolveStudentPortal, service } = vi.hoisted(() => {
-  const service = { completeLesson: vi.fn(), listCourses: vi.fn() };
+  const service = { completeLesson: vi.fn(), listCourses: vi.fn(), listCertificates: vi.fn(), getOwnedCertificate: vi.fn() };
   return {
     service,
     authenticateStudent: vi.fn(), startStudentSession: vi.fn(),
@@ -20,6 +20,8 @@ vi.mock('@/server/academic/studentApi', () => ({
 
 import { POST as login } from '../auth/login/route';
 import { POST as completeLesson } from './aulas/[id]/concluir/route';
+import { GET as listCertificates } from './certificados/route';
+import { GET as downloadCertificate } from './certificados/[codigo]/pdf/route';
 
 describe('API do aluno', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -66,5 +68,24 @@ describe('API do aluno', () => {
     expect(repeated.status).toBe(200);
     expect(service.completeLesson).toHaveBeenNthCalledWith(1, 'student-1', 'lesson-1');
     expect(service.completeLesson).toHaveBeenNthCalledWith(2, 'student-1', 'lesson-1');
+  });
+
+  it('lista certificados somente para o aluno derivado da sessão', async () => {
+    service.listCertificates.mockResolvedValue([{ code: 'VM-ABC', courseTitle: 'Curso' }]);
+    const response = await listCertificates();
+    expect(response.status).toBe(200);
+    expect((await response.json()).data).toEqual([{ code: 'VM-ABC', courseTitle: 'Curso' }]);
+    expect(service.listCertificates).toHaveBeenCalledWith('student-1');
+  });
+
+  it('só encaminha o PDF depois de confirmar que o certificado pertence ao aluno', async () => {
+    service.getOwnedCertificate.mockResolvedValue({ code: 'VM-OWNER', status: 'valid' });
+    const response = await downloadCertificate(
+      new Request('http://localhost/api/academico/aluno/certificados/VM-OWNER/pdf'),
+      { params: Promise.resolve({ codigo: 'VM-OWNER' }) },
+    );
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toContain('/api/public/certificados/VM-OWNER/pdf');
+    expect(service.getOwnedCertificate).toHaveBeenCalledWith('student-1', 'VM-OWNER');
   });
 });

@@ -15,6 +15,9 @@ export async function POST(request: Request) {
     return success(await service.createCourse({
       title: stringValue(body.title), description: stringValue(body.description), coverUrl: stringValue(body.coverUrl) || undefined,
       position: numberValue(body.position), active: body.active !== false, published: booleanValue(body.published),
+      certificateTextModel: stringValue(body.certificateTextModel) === 'online-course-with-instructor' ? 'online-course-with-instructor' : 'standard',
+      certificateInstructor: stringValue(body.certificateInstructor) || undefined,
+      certificateDurationMinutes: numberValue(body.certificateDurationMinutes),
     }), 201);
   } catch (error) { return academicApiFailure(error); }
 }

@@ -36,6 +36,10 @@ function mapCourse(row: Row, institutionId: string): AcademicCourse {
   return {
     id: text(row.id), institutionId, title: text(row.nome), description: text(row.descricao),
     coverUrl: optional(row.capa_url), position: Number(row.ordem ?? 0),
+    certificateTextModel: row.modelo_texto_certificado === 'online-course-with-instructor'
+      ? 'online-course-with-instructor' : 'standard',
+    certificateInstructor: optional(row.professor_certificado),
+    certificateDurationMinutes: row.duracao_certificado_min == null ? undefined : Number(row.duracao_certificado_min),
     active: Boolean(row.ativo), published: Boolean(row.publicado),
   };
 }
@@ -116,7 +120,8 @@ export class MysqlAcademicRepository implements AcademicRepository {
 
   async listCoursesForManagement(): Promise<AcademicCourse[]> {
     const [rows] = await this.pool.query<Row[]>(
-      `SELECT id, nome, descricao, capa_url, ordem, ativo, publicado
+      `SELECT id, nome, descricao, capa_url, professor_certificado, duracao_certificado_min,
+              modelo_texto_certificado, ordem, ativo, publicado
          FROM clinica_cursos_pos_graduacao WHERE instituicao_id = ? ORDER BY ordem, nome`,
       [this.institutionId],
     );
@@ -125,7 +130,8 @@ export class MysqlAcademicRepository implements AcademicRepository {
 
   async getCourseTree(courseId: string): Promise<AcademicCourseTree | null> {
     const [courseRows] = await this.pool.query<Row[]>(
-      `SELECT id, nome, descricao, capa_url, ordem, ativo, publicado
+      `SELECT id, nome, descricao, capa_url, professor_certificado, duracao_certificado_min,
+              modelo_texto_certificado, ordem, ativo, publicado
          FROM clinica_cursos_pos_graduacao WHERE instituicao_id = ? AND id = ? LIMIT 1`,
       [this.institutionId, courseId],
     );
@@ -161,17 +167,22 @@ export class MysqlAcademicRepository implements AcademicRepository {
     if (!course.id) {
       const [result] = await this.pool.execute<ResultSetHeader>(
         `INSERT INTO clinica_cursos_pos_graduacao
-          (instituicao_id, nome, descricao, capa_url, ordem, ativo, publicado)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [this.institutionId, course.title, course.description, course.coverUrl ?? null, course.position, course.active ? 1 : 0, course.published ? 1 : 0],
+          (instituicao_id, nome, descricao, capa_url, professor_certificado, duracao_certificado_min,
+           modelo_texto_certificado, ordem, ativo, publicado)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [this.institutionId, course.title, course.description, course.coverUrl ?? null,
+          course.certificateInstructor ?? null, course.certificateDurationMinutes ?? null,
+          course.certificateTextModel ?? 'standard', course.position, course.active ? 1 : 0, course.published ? 1 : 0],
       );
       return { ...course, id: String(result.insertId) };
     }
     await this.pool.execute(
       `UPDATE clinica_cursos_pos_graduacao
-          SET nome = ?, descricao = ?, capa_url = ?, ordem = ?, ativo = ?, publicado = ?
+          SET nome = ?, descricao = ?, capa_url = ?, professor_certificado = ?, duracao_certificado_min = ?,
+              modelo_texto_certificado = ?, ordem = ?, ativo = ?, publicado = ?
         WHERE instituicao_id = ? AND id = ?`,
-      [course.title, course.description, course.coverUrl ?? null, course.position, course.active ? 1 : 0,
+      [course.title, course.description, course.coverUrl ?? null, course.certificateInstructor ?? null,
+        course.certificateDurationMinutes ?? null, course.certificateTextModel ?? 'standard', course.position, course.active ? 1 : 0,
         course.published ? 1 : 0, this.institutionId, course.id],
     );
     return course;
@@ -225,7 +236,8 @@ export class MysqlAcademicRepository implements AcademicRepository {
 
   async listStudentCourses(studentId: string): Promise<AcademicCourse[]> {
     const [rows] = await this.pool.query<Row[]>(
-      `SELECT curso.id, curso.nome, curso.descricao, curso.capa_url, curso.ordem, curso.ativo, curso.publicado
+      `SELECT curso.id, curso.nome, curso.descricao, curso.capa_url, curso.professor_certificado,
+              curso.duracao_certificado_min, curso.modelo_texto_certificado, curso.ordem, curso.ativo, curso.publicado
          FROM clinica_aluno_matriculas mat
          JOIN clinica_cursos_pos_graduacao curso ON curso.id = mat.curso_id AND curso.instituicao_id = mat.instituicao_id
         WHERE mat.instituicao_id = ? AND mat.aluno_id = ? AND mat.status = 'active'
@@ -242,6 +254,7 @@ export class MysqlAcademicRepository implements AcademicRepository {
               aula.duracao_min, aula.vimeo_id, aula.vimeo_hash, aula.ordem AS aula_ordem, aula.publicado AS aula_publicado,
               modulo.id AS modulo_id, modulo.titulo AS modulo_titulo, modulo.ordem AS modulo_ordem,
               curso.id AS curso_id, curso.nome, curso.descricao, curso.capa_url, curso.ordem AS curso_ordem,
+              curso.professor_certificado, curso.duracao_certificado_min, curso.modelo_texto_certificado,
               curso.ativo, curso.publicado AS curso_publicado,
               mat.id AS matricula_id, mat.status AS matricula_status, mat.criado_em AS matricula_criada_em,
               mat.atualizado_em AS matricula_atualizada_em

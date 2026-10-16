@@ -7,6 +7,7 @@ import { StudentDashboardView } from './StudentDashboard';
 import { CourseGrid } from './CourseGrid';
 import { CourseDetailView } from './CourseDetail';
 import { PasswordForm, StudentAccountForm } from './StudentAccount';
+import { StudentCertificatesView } from './StudentCertificates';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }) }));
 
@@ -48,9 +49,29 @@ describe('portal visual do aluno', () => {
     const html = renderToStaticMarkup(<StudentNavigation pathname="/aluno" onLogout={() => undefined} />);
     expect(html).toContain('Visão geral');
     expect(html).toContain('Cursos e aulas');
+    expect(html).toContain('Certificados');
     expect(html).toContain('Minha conta');
     expect(html).not.toContain('Pacientes');
     expect(html).not.toContain('Gestão');
+  });
+
+  it('exibe certificado disponível e andamento dos demais cursos', () => {
+    const html = renderToStaticMarkup(<StudentCertificatesView
+      certificates={[{
+        code: 'VM-ABC123', courseTitle: 'Formação concluída', durationHours: '20h',
+        issueDate: '14/10/2026', completionDate: '2026-10-14', status: 'valid',
+      }]}
+      courses={[course]}
+    />);
+    expect(html).toContain('Formação concluída');
+    expect(html).toContain('Baixar PDF');
+    expect(html).toContain('Validar autenticidade');
+    expect(html).toContain('33% concluído');
+  });
+
+  it('explica quando ainda não existem cursos nem certificados', () => {
+    expect(renderToStaticMarkup(<StudentCertificatesView certificates={[]} courses={[]} />))
+      .toContain('Nenhum certificado disponível');
   });
 
   it('limita a conta aos dados editáveis pelo aluno', () => {

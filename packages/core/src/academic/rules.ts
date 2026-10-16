@@ -64,6 +64,14 @@ export function summarizeCourseProgress(
   };
 }
 
+export function isCourseCertificateEligible(
+  lessons: readonly AcademicLesson[],
+  completions: readonly LessonCompletion[],
+): boolean {
+  const progress = summarizeCourseProgress(lessons, completions);
+  return progress.total > 0 && progress.percentage === 100;
+}
+
 export function nextIncompleteLesson(
   lessons: readonly AcademicLesson[],
   completions: readonly LessonCompletion[],

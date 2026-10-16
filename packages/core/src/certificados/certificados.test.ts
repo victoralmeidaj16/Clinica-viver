@@ -10,6 +10,9 @@ import {
   renderCertificateText,
   resolveCertificateStampText,
   certificatePublicValidationUrl,
+  certificateBodyText,
+  certificateBodyParts,
+  formatCertificateDuration,
   sanitizeCertificateStamp,
   sanitizeFrontQr,
   DEFAULT_FRONT_QR_X,
@@ -35,6 +38,40 @@ const certificateFixture: CertificateRecord = {
 };
 
 describe('Módulo de Certificados (Core)', () => {
+  it('formata as durações oficiais dos cursos especiais', () => {
+    expect(formatCertificateDuration(90)).toBe('1 hora e 30 minutos');
+    expect(formatCertificateDuration(180)).toBe('3 horas');
+    expect(formatCertificateDuration(210)).toBe('3 horas e 30 minutos');
+  });
+
+  it('gera o texto especial somente para o modelo explicitamente configurado', () => {
+    const special = {
+      ...certificateFixture,
+      studentName: 'Ana Beatriz',
+      certificateTextModel: 'online-course-with-instructor' as const,
+      certificateInstructor: 'Dra. Rafaela Dias Matavelli',
+      certificateDurationMinutes: 180,
+    };
+    expect(certificateBodyText(special)).toBe(
+      'Certificamos que Ana Beatriz concluiu o curso Formação de Teste, ministrado pela Dra. Rafaela Dias Matavelli, promovido pela Viver Mais Psicologia, na modalidade online, com duração de 3 horas.',
+    );
+    expect(certificateBodyText({ ...special, certificateTextModel: 'standard' })).toBeNull();
+    expect(certificateBodyText({ ...special, certificateInstructor: '' })).toBeNull();
+  });
+
+  it('separa a frase do certificado especial em partes sem alterar o texto', () => {
+    const special = {
+      ...certificateFixture,
+      studentName: 'Ana Beatriz',
+      certificateTextModel: 'online-course-with-instructor' as const,
+      certificateInstructor: 'Dra. Rafaela Dias Matavelli',
+      certificateDurationMinutes: 180,
+    };
+    const parts = certificateBodyParts(special);
+    expect(parts).toMatchObject({ lead: 'Certificamos que', studentName: 'Ana Beatriz', courseTitle: 'Formação de Teste' });
+    expect(parts?.after).toBe(', ministrado pela Dra. Rafaela Dias Matavelli, promovido pela Viver Mais Psicologia, na modalidade online, com duração de 3 horas.');
+    expect(certificateBodyParts({ ...special, certificateTextModel: 'standard' })).toBeNull();
+  });
   it('deve gerar código único de 8 caracteres alfanuméricos', () => {
     const code = generateCertificateCode();
     expect(code).toBeDefined();

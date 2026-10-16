@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { createHash } from 'node:crypto';
 import type { Pool, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import {
   CertificateRecord,
@@ -19,12 +20,16 @@ import { getMysqlPool, isMysqlConfigured } from '@/server/oci/runtime';
 interface CertificadoRow extends RowDataPacket {
   id: string;
   codigo: string;
+  instituicao_id: string | null;
   aluno_id: string | null;
   aluno_nome: string;
   aluno_cpf: string | null;
   aluno_email: string | null;
   curso_id: string | null;
   curso_titulo: string;
+  professor_certificado: string | null;
+  duracao_certificado_min: number | null;
+  modelo_texto_certificado: string | null;
   carga_horaria: string;
   data_emissao: string;
   data_inicio: string | null;
@@ -73,12 +78,17 @@ function toCertificateRecord(row: CertificadoRow): CertificateRecord {
   return {
     id: row.id,
     code: row.codigo,
+    institutionId: row.instituicao_id ?? undefined,
     studentId: row.aluno_id ?? undefined,
     studentName: row.aluno_nome,
     studentCpf: row.aluno_cpf ?? undefined,
     studentEmail: row.aluno_email ?? undefined,
     courseId: row.curso_id ?? undefined,
     courseTitle: row.curso_titulo,
+    certificateInstructor: row.professor_certificado ?? undefined,
+    certificateDurationMinutes: row.duracao_certificado_min == null ? undefined : Number(row.duracao_certificado_min),
+    certificateTextModel: row.modelo_texto_certificado === 'online-course-with-instructor'
+      ? 'online-course-with-instructor' : 'standard',
     durationHours: row.carga_horaria,
     issueDate: row.data_emissao,
     startDate: row.data_inicio ? String(row.data_inicio).slice(0, 10) : undefined,
@@ -184,6 +194,40 @@ export class CertificadosRepository {
     });
   }
 
+  async listarDoAluno(studentId: string, institutionId: string): Promise<CertificateRecord[]> {
+    if (this.pool) {
+      await this.ensureTable();
+      const [rows] = await this.pool.query<CertificadoRow[]>(
+        `SELECT * FROM clinica_certificados
+          WHERE instituicao_id = ? AND aluno_id = ?
+          ORDER BY COALESCE(data_conclusao, criado_em) DESC`,
+        [institutionId, studentId],
+      );
+      return rows.map(toCertificateRecord);
+    }
+    return Array.from(memoryCertificates.values())
+      .filter((certificate) => certificate.institutionId === institutionId && certificate.studentId === studentId)
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  }
+
+  async porAlunoECurso(studentId: string, courseId: string, institutionId: string): Promise<CertificateRecord | null> {
+    if (this.pool) {
+      await this.ensureTable();
+      const [rows] = await this.pool.query<CertificadoRow[]>(
+        `SELECT * FROM clinica_certificados
+          WHERE instituicao_id = ? AND aluno_id = ? AND curso_id = ?
+          LIMIT 1`,
+        [institutionId, studentId, courseId],
+      );
+      return rows[0] ? toCertificateRecord(rows[0]) : null;
+    }
+    return Array.from(memoryCertificates.values()).find((certificate) =>
+      certificate.institutionId === institutionId
+      && certificate.studentId === studentId
+      && certificate.courseId === courseId
+    ) ?? null;
+  }
+
   private tableInitialized = false;
 
   private async ensureTable(): Promise<void> {
@@ -193,12 +237,16 @@ export class CertificadosRepository {
         CREATE TABLE IF NOT EXISTS clinica_certificados (
           id VARCHAR(64) NOT NULL,
           codigo VARCHAR(32) NOT NULL,
+          instituicao_id VARCHAR(64) NULL,
           aluno_id VARCHAR(64) NULL,
           aluno_nome VARCHAR(255) NOT NULL,
           aluno_cpf VARCHAR(32) NULL,
           aluno_email VARCHAR(255) NULL,
           curso_id VARCHAR(128) NULL,
           curso_titulo VARCHAR(255) NOT NULL,
+          professor_certificado VARCHAR(255) NULL,
+          duracao_certificado_min INT UNSIGNED NULL,
+          modelo_texto_certificado VARCHAR(64) NOT NULL DEFAULT 'standard',
           carga_horaria VARCHAR(32) NOT NULL,
           data_emissao VARCHAR(64) NOT NULL,
           data_inicio DATE NULL,
@@ -232,6 +280,10 @@ export class CertificadosRepository {
 
       // Garantir colunas se tabela foi criada antes sem elas
       const alterCols = [
+        'ALTER TABLE clinica_certificados ADD COLUMN instituicao_id VARCHAR(64) NULL AFTER codigo',
+        'ALTER TABLE clinica_certificados ADD COLUMN professor_certificado VARCHAR(255) NULL AFTER curso_titulo',
+        'ALTER TABLE clinica_certificados ADD COLUMN duracao_certificado_min INT UNSIGNED NULL AFTER professor_certificado',
+        'ALTER TABLE clinica_certificados ADD COLUMN modelo_texto_certificado VARCHAR(64) NOT NULL DEFAULT "standard" AFTER duracao_certificado_min',
         'ALTER TABLE clinica_certificados MODIFY COLUMN frente_imagem_url LONGTEXT NULL',
         'ALTER TABLE clinica_certificados MODIFY COLUMN verso_imagem_url LONGTEXT NULL',
         'ALTER TABLE clinica_certificados ADD COLUMN carimbo_x DECIMAL(5,2) NULL',
@@ -254,6 +306,14 @@ export class CertificadosRepository {
         }
       }
 
+      try {
+        await this.pool.query(
+          'CREATE UNIQUE INDEX clinica_certificados_aluno_curso_uq ON clinica_certificados (instituicao_id, aluno_id, curso_id)',
+        );
+      } catch {
+        // Índice já existe em bancos migrados.
+      }
+
       this.tableInitialized = true;
     } catch (err) {
       console.warn('Falha ao verificar/criar tabela clinica_certificados:', err);
@@ -262,10 +322,16 @@ export class CertificadosRepository {
 
   async emitir(dados: {
     code?: string;
+    institutionId?: string;
+    studentId?: string;
     studentName: string;
     studentCpf?: string;
     studentEmail?: string;
+    courseId?: string;
     courseTitle: string;
+    certificateInstructor?: string;
+    certificateDurationMinutes?: number;
+    certificateTextModel?: CertificateRecord['certificateTextModel'];
     durationHours: string;
     issueDate: string;
     startDate?: string;
@@ -294,10 +360,16 @@ export class CertificadosRepository {
     const record: CertificateRecord = {
       id,
       code,
+      institutionId: dados.institutionId,
+      studentId: dados.studentId,
       studentName: dados.studentName.trim(),
       studentCpf: dados.studentCpf?.trim(),
       studentEmail: dados.studentEmail?.trim(),
+      courseId: dados.courseId,
       courseTitle: dados.courseTitle.trim(),
+      certificateInstructor: dados.certificateInstructor?.trim(),
+      certificateDurationMinutes: dados.certificateDurationMinutes,
+      certificateTextModel: dados.certificateTextModel ?? 'standard',
       durationHours: dados.durationHours.trim(),
       issueDate: dados.issueDate.trim(),
       startDate: dados.startDate,
@@ -322,11 +394,17 @@ export class CertificadosRepository {
       try {
         await this.pool.query<ResultSetHeader>(
           `INSERT INTO clinica_certificados 
-            (id, codigo, aluno_nome, aluno_cpf, aluno_email, curso_titulo, carga_horaria, data_emissao, data_inicio, data_conclusao, status, frente_imagem_url, verso_imagem_url, carimbo_x, carimbo_y, carimbo_font_size, carimbo_align, carimbo_largura, carimbo_texto, carimbo_qr, qr_frente_ativo, qr_frente_x, qr_frente_y, qr_frente_tamanho, criado_por, criado_em)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'valid', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, codigo, instituicao_id, aluno_id, aluno_nome, aluno_cpf, aluno_email, curso_id, curso_titulo, professor_certificado, duracao_certificado_min, modelo_texto_certificado, carga_horaria, data_emissao, data_inicio, data_conclusao, status, frente_imagem_url, verso_imagem_url, carimbo_x, carimbo_y, carimbo_font_size, carimbo_align, carimbo_largura, carimbo_texto, carimbo_qr, qr_frente_ativo, qr_frente_x, qr_frente_y, qr_frente_tamanho, criado_por, criado_em)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'valid', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON DUPLICATE KEY UPDATE
+             instituicao_id = COALESCE(VALUES(instituicao_id), instituicao_id),
+             aluno_id = COALESCE(VALUES(aluno_id), aluno_id),
              aluno_nome = VALUES(aluno_nome),
+             curso_id = COALESCE(VALUES(curso_id), curso_id),
              curso_titulo = VALUES(curso_titulo),
+             professor_certificado = COALESCE(VALUES(professor_certificado), professor_certificado),
+             duracao_certificado_min = COALESCE(VALUES(duracao_certificado_min), duracao_certificado_min),
+             modelo_texto_certificado = VALUES(modelo_texto_certificado),
              carga_horaria = VALUES(carga_horaria),
              data_emissao = VALUES(data_emissao),
              frente_imagem_url = VALUES(frente_imagem_url),
@@ -345,10 +423,16 @@ export class CertificadosRepository {
           [
             record.id,
             record.code,
+            record.institutionId ?? null,
+            record.studentId ?? null,
             record.studentName,
             record.studentCpf ?? null,
             record.studentEmail ?? null,
+            record.courseId ?? null,
             record.courseTitle,
+            record.certificateInstructor ?? null,
+            record.certificateDurationMinutes ?? null,
+            record.certificateTextModel ?? 'standard',
             record.durationHours,
             record.issueDate,
             record.startDate ?? null,
@@ -378,6 +462,45 @@ export class CertificadosRepository {
 
     memoryCertificates.set(record.code.toLowerCase(), record);
     return record;
+  }
+
+  async emitirAutomatico(dados: {
+    institutionId: string;
+    studentId: string;
+    courseId: string;
+    studentName: string;
+    studentEmail?: string;
+    courseTitle: string;
+    certificateInstructor?: string;
+    certificateDurationMinutes?: number;
+    certificateTextModel?: CertificateRecord['certificateTextModel'];
+    durationHours: string;
+    issueDate: string;
+    startDate?: string;
+    completionDate: string;
+  }): Promise<CertificateRecord> {
+    const existing = await this.porAlunoECurso(dados.studentId, dados.courseId, dados.institutionId);
+    if (existing) return existing;
+
+    const digest = createHash('sha256')
+      .update(`${dados.institutionId}:${dados.studentId}:${dados.courseId}`)
+      .digest('hex').slice(0, 12).toUpperCase();
+    const brandLayout = dados.certificateTextModel === 'online-course-with-instructor';
+    const template = await this.obterTemplate(dados.courseId);
+    const fallbackTemplate = template.backgroundUrl || brandLayout ? template : await this.obterTemplate('default');
+    const emitted = await this.emitir({
+      ...dados,
+      code: `VM-${digest}`,
+      durationHours: brandLayout
+        ? dados.durationHours
+        : fallbackTemplate.hoursOverride ? `${fallbackTemplate.hoursOverride}h` : dados.durationHours,
+      // Curso online com ministrante: layout da marca, sem arte nem data de template.
+      issueDate: brandLayout ? dados.issueDate : fallbackTemplate.issueDateOverride || dados.issueDate,
+      frontImageUrl: brandLayout ? undefined : fallbackTemplate.backgroundUrl || undefined,
+      backImageUrl: brandLayout ? undefined : fallbackTemplate.secondBackgroundUrl || undefined,
+      createdBy: 'portal-academico',
+    });
+    return (await this.porAlunoECurso(dados.studentId, dados.courseId, dados.institutionId)) ?? emitted;
   }
 
   async atualizarStatus(

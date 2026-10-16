@@ -7,6 +7,10 @@ import type { AcademicCourse, AcademicCourseTree, AcademicStudent } from '@thats
 import { hashPassword } from '@/server/security/passwordHash';
 import { StudentPortalService } from './studentPortalService';
 
+const certificateRepository = {
+  emitirAutomatico: vi.fn(), listarDoAluno: vi.fn(), porCodigo: vi.fn(),
+};
+
 const student: AcademicStudent = {
   id: 'student-1', institutionId: 'inst-1', fullName: 'Ana', email: 'ana@example.com',
   status: 'active', mustChangePassword: false, createdAt: 'now', updatedAt: 'now',
@@ -29,9 +33,13 @@ describe('StudentPortalService', () => {
   const repository = {
     getStudent: vi.fn(), listStudentCourses: vi.fn(), getCourseTree: vi.fn(), listCompletions: vi.fn(),
     getStudentLesson: vi.fn(), completeLesson: vi.fn(), updateStudent: vi.fn(), updateStudentPassword: vi.fn(),
-    findStudentCredentialByEmail: vi.fn(),
+    findStudentCredentialByEmail: vi.fn(), listEnrollments: vi.fn(),
   } as unknown as AcademicRepository;
-  const service = new StudentPortalService(repository, () => new Date('2026-10-13T12:00:00.000Z'));
+  const service = new StudentPortalService(
+    repository,
+    () => new Date('2026-10-13T12:00:00.000Z'),
+    certificateRepository,
+  );
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -39,6 +47,10 @@ describe('StudentPortalService', () => {
     vi.mocked(repository.listStudentCourses).mockResolvedValue([course]);
     vi.mocked(repository.getCourseTree).mockResolvedValue(tree);
     vi.mocked(repository.listCompletions).mockResolvedValue([]);
+    vi.mocked(repository.listEnrollments).mockResolvedValue([]);
+    certificateRepository.emitirAutomatico.mockResolvedValue({ code: 'VM-CERTIFICATE' });
+    certificateRepository.listarDoAluno.mockResolvedValue([]);
+    certificateRepository.porCodigo.mockResolvedValue(null);
   });
 
   it('lista somente aulas publicadas e calcula a próxima aula', async () => {
@@ -68,6 +80,87 @@ describe('StudentPortalService', () => {
     expect(repository.completeLesson).toHaveBeenCalledTimes(2);
     expect(first).toEqual({ completed: 1, total: 1, percentage: 100 });
     expect(repeated).toEqual(first);
+    expect(certificateRepository.emitirAutomatico).toHaveBeenCalledWith(expect.objectContaining({
+      institutionId: 'inst-1', studentId: 'student-1', courseId: '2', durationHours: '1h',
+      completionDate: '2026-10-13',
+    }));
+  });
+
+  it('preserva a conclusão quando a emissão falha e permite tentar novamente', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(repository.getStudentLesson).mockResolvedValue({
+      course, module: tree.modules[0], lesson: tree.modules[0].lessons[0],
+      enrollment: { id: 'enrollment-1', studentId: 'student-1', courseId: '2', status: 'active', createdAt: '2026-09-01T12:00:00.000Z', updatedAt: 'now' },
+    });
+    vi.mocked(repository.listCompletions).mockResolvedValue([
+      { studentId: 'student-1', lessonId: 'lesson-1', completedAt: '2026-10-13T12:00:00.000Z' },
+    ]);
+    certificateRepository.emitirAutomatico.mockRejectedValueOnce(new Error('indisponível'));
+
+    await expect(service.completeLesson('student-1', 'lesson-1')).resolves.toEqual({ completed: 1, total: 1, percentage: 100 });
+    await expect(service.completeLesson('student-1', 'lesson-1')).resolves.toEqual({ completed: 1, total: 1, percentage: 100 });
+    expect(certificateRepository.emitirAutomatico).toHaveBeenCalledTimes(2);
+  });
+
+  it('lista e entrega somente certificados pertencentes ao aluno e instituição', async () => {
+    const ownerCertificate = {
+      id: 'VM-OWNER', code: 'VM-OWNER', institutionId: 'inst-1', studentId: 'student-1',
+      studentName: 'Ana', courseTitle: 'Curso', durationHours: '10h', issueDate: '14/10/2026',
+      status: 'valid' as const, createdAt: '2026-10-14T12:00:00.000Z',
+    };
+    certificateRepository.listarDoAluno.mockResolvedValue([ownerCertificate]);
+    certificateRepository.porCodigo.mockResolvedValue(ownerCertificate);
+
+    await expect(service.listCertificates('student-1')).resolves.toEqual([
+      expect.objectContaining({ code: 'VM-OWNER', courseTitle: 'Curso' }),
+    ]);
+    await expect(service.getOwnedCertificate('student-1', 'VM-OWNER')).resolves.toEqual(ownerCertificate);
+
+    certificateRepository.porCodigo.mockResolvedValue({ ...ownerCertificate, studentId: 'student-2' });
+    await expect(service.getOwnedCertificate('student-1', 'VM-OWNER')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(certificateRepository.listarDoAluno).toHaveBeenCalledWith('student-1', 'inst-1');
+  });
+
+  it('reconcilia certificado ausente de curso que já estava concluído', async () => {
+    const completion = { studentId: 'student-1', lessonId: 'lesson-1', completedAt: '2026-10-12T12:00:00.000Z' };
+    vi.mocked(repository.listCompletions).mockResolvedValue([completion]);
+    vi.mocked(repository.listEnrollments).mockResolvedValue([{
+      id: 'enrollment-1', studentId: 'student-1', courseId: '2', status: 'active',
+      createdAt: '2026-09-01T12:00:00.000Z', updatedAt: '2026-09-01T12:00:00.000Z',
+    }]);
+    certificateRepository.listarDoAluno
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{
+        id: 'VM-RECOVERED', code: 'VM-RECOVERED', institutionId: 'inst-1', studentId: 'student-1', courseId: '2',
+        studentName: 'Ana', courseTitle: 'Psicodrama', durationHours: '1h', issueDate: '14/10/2026',
+        status: 'valid', createdAt: '2026-10-14T12:00:00.000Z',
+      }]);
+
+    await expect(service.listCertificates('student-1')).resolves.toEqual([
+      expect.objectContaining({ code: 'VM-RECOVERED', courseId: '2' }),
+    ]);
+    expect(certificateRepository.emitirAutomatico).toHaveBeenCalledWith(expect.objectContaining({ courseId: '2' }));
+  });
+
+  it('usa professora e duração oficial somente no modelo exclusivo', async () => {
+    const specialCourse = {
+      ...course, certificateTextModel: 'online-course-with-instructor' as const,
+      certificateInstructor: 'Kelly Nayara Thiemann', certificateDurationMinutes: 210,
+    };
+    vi.mocked(repository.getStudentLesson).mockResolvedValue({
+      course: specialCourse, module: tree.modules[0], lesson: tree.modules[0].lessons[0],
+      enrollment: { id: 'enrollment-special', studentId: 'student-1', courseId: '2', status: 'active', createdAt: '2026-09-01T12:00:00.000Z', updatedAt: 'now' },
+    });
+    vi.mocked(repository.getCourseTree).mockResolvedValue({ ...tree, ...specialCourse });
+    vi.mocked(repository.listCompletions).mockResolvedValue([
+      { studentId: 'student-1', lessonId: 'lesson-1', completedAt: '2026-10-13T12:00:00.000Z' },
+    ]);
+
+    await service.completeLesson('student-1', 'lesson-1');
+    expect(certificateRepository.emitirAutomatico).toHaveBeenCalledWith(expect.objectContaining({
+      certificateTextModel: 'online-course-with-instructor', certificateInstructor: 'Kelly Nayara Thiemann',
+      certificateDurationMinutes: 210, durationHours: '3 horas e 30 minutos',
+    }));
   });
 
   it('atualiza somente nome e telefone do próprio perfil', async () => {

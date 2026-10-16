@@ -10,17 +10,22 @@ export function CourseEditor({ course, onSaved }: { course?: AcademicCourse; onS
     title: course.title,
     description: course.description,
     coverUrl: course.coverUrl ?? '',
+    certificateTextModel: course.certificateTextModel ?? 'standard',
+    certificateInstructor: course.certificateInstructor ?? '',
+    certificateDurationHours: Math.floor((course.certificateDurationMinutes ?? 0) / 60),
+    certificateDurationRemainingMinutes: (course.certificateDurationMinutes ?? 0) % 60,
     position: course.position,
     active: course.active,
     published: course.published,
-  } : { title: '', description: '', coverUrl: '', position: 0, active: true, published: false });
+  } : { title: '', description: '', coverUrl: '', certificateTextModel: 'standard' as const, certificateInstructor: '', certificateDurationHours: 0, certificateDurationRemainingMinutes: 0, position: 0, active: true, published: false });
   const [message, setMessage] = useState('');
   const [confirming, setConfirming] = useState(false);
   async function save() {
     setMessage(''); setConfirming(false);
     try {
-      if (course) await sendJson(`/api/academico/gestao/cursos/${course.id}`, 'PATCH', form);
-      else await sendJson('/api/academico/gestao/cursos', 'POST', form);
+      const payload = { ...form, certificateDurationMinutes: form.certificateDurationHours * 60 + form.certificateDurationRemainingMinutes };
+      if (course) await sendJson(`/api/academico/gestao/cursos/${course.id}`, 'PATCH', payload);
+      else await sendJson('/api/academico/gestao/cursos', 'POST', payload);
       setMessage('Curso salvo.'); onSaved();
     } catch (cause) { setMessage(errorMessage(cause)); }
   }
@@ -35,6 +40,8 @@ export function CourseEditor({ course, onSaved }: { course?: AcademicCourse; onS
     <Input label="Título" value={form.title} onChange={(title) => setForm({ ...form, title })} required />
     <label className="block"><span className="mb-1 block text-xs font-bold">Descrição</span><textarea rows={3} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className="w-full rounded-xl border border-psi-soft bg-psi-light p-3 text-sm outline-none" /></label>
     <Input label="URL da capa (opcional)" value={form.coverUrl} onChange={(coverUrl) => setForm({ ...form, coverUrl })} />
+    <label className="block"><span className="mb-1 block text-xs font-bold">Modelo do texto do certificado</span><select value={form.certificateTextModel} onChange={(event) => setForm({ ...form, certificateTextModel: event.target.value as 'standard' | 'online-course-with-instructor' })} className="w-full rounded-xl border border-psi-soft bg-psi-light px-3 py-2.5 text-sm outline-none"><option value="standard">Modelo padrão</option><option value="online-course-with-instructor">Curso online com professora e duração oficial</option></select></label>
+    {form.certificateTextModel === 'online-course-with-instructor' && <div className="space-y-3 rounded-2xl border border-psi-vibrant/20 bg-psi-soft/40 p-4"><p className="text-[10px] font-black uppercase tracking-[.16em] text-psi-vibrant">Texto exclusivo do certificado</p><Input label="Professora do certificado" value={form.certificateInstructor} onChange={(certificateInstructor) => setForm({ ...form, certificateInstructor })} required /><div className="grid grid-cols-2 gap-3"><Input label="Duração — horas" type="number" value={String(form.certificateDurationHours)} onChange={(value) => setForm({ ...form, certificateDurationHours: Math.max(0, Number(value)) })} /><Input label="Duração — minutos" type="number" value={String(form.certificateDurationRemainingMinutes)} onChange={(value) => setForm({ ...form, certificateDurationRemainingMinutes: Math.max(0, Math.min(59, Number(value))) })} /></div><p className="text-[11px] leading-5 text-muted">Aplicado somente a este curso. O certificado sai no layout padrão da Viver Mais Psicologia, sem usar arte de template.</p></div>}
     <Input label="Ordem" type="number" value={String(form.position)} onChange={(position) => setForm({ ...form, position: Number(position) })} />
     <div className="grid gap-2 sm:grid-cols-2"><Check label="Curso ativo" checked={form.active} onChange={(active) => setForm({ ...form, active })} /><Check label="Publicar no portal" checked={form.published} onChange={(published) => setForm({ ...form, published })} /></div>
     {message && <p role="status" className="text-xs font-bold text-psi-deep">{message}</p>}

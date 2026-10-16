@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   assertAcademicPassword,
+  isCourseCertificateEligible,
   nextIncompleteLesson,
   normalizeVimeoId,
   parseVimeoVideo,
@@ -67,6 +68,19 @@ describe('domínio acadêmico', () => {
     const unpublished = lessons.map((lesson) => lesson.id === 'lesson-2' ? { ...lesson, published: false } : lesson);
     expect(summarizeCourseProgress(unpublished, [completion])).toEqual({ completed: 0, total: 1, percentage: 0 });
     expect(completion.lessonId).toBe('lesson-2');
+  });
+
+  it('só libera certificado com todas as aulas publicadas concluídas', () => {
+    const completion = (lessonId: string) => ({
+      studentId: 'student-1', lessonId, completedAt: '2026-10-13T12:00:00.000Z',
+    });
+    expect(isCourseCertificateEligible([], [])).toBe(false);
+    expect(isCourseCertificateEligible(lessons, [completion('lesson-1')])).toBe(false);
+    expect(isCourseCertificateEligible(lessons, [completion('lesson-1'), completion('lesson-2')])).toBe(true);
+    expect(isCourseCertificateEligible(
+      lessons.map((lesson) => lesson.id === 'lesson-2' ? { ...lesson, published: false } : lesson),
+      [completion('lesson-1')],
+    )).toBe(true);
   });
 
   it('seleciona a primeira aula publicada e não concluída na ordem módulo/aula', () => {

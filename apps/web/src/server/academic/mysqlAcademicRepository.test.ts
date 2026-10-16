@@ -47,6 +47,25 @@ describe('MysqlAcademicRepository', () => {
     expect(tree?.modules[0].lessons[0]).toMatchObject({ id: 'lesson-1', courseId: '2', modulePosition: 1, vimeoHash: 'abc123' });
   });
 
+  it('mapeia e persiste os metadados exclusivos do certificado', async () => {
+    query.mockResolvedValueOnce([[
+      { id: 9, nome: 'Curso especial', descricao: '', capa_url: null, professor_certificado: 'Professora',
+        duracao_certificado_min: 90, modelo_texto_certificado: 'online-course-with-instructor', ordem: 1, ativo: 1, publicado: 1 },
+    ], []] as never);
+    await expect(repository.listCoursesForManagement()).resolves.toEqual([
+      expect.objectContaining({ certificateTextModel: 'online-course-with-instructor', certificateInstructor: 'Professora', certificateDurationMinutes: 90 }),
+    ]);
+
+    await repository.saveCourse({
+      id: '9', institutionId: 'inst-1', title: 'Curso especial', description: '', position: 1, active: true, published: true,
+      certificateTextModel: 'online-course-with-instructor', certificateInstructor: 'Professora', certificateDurationMinutes: 90,
+    });
+    const [sql, values] = execute.mock.calls[0] as unknown as [string, unknown[]];
+    expect(sql).toContain('professor_certificado = ?');
+    expect(sql).toContain('modelo_texto_certificado = ?');
+    expect(values).toEqual(expect.arrayContaining(['Professora', 90, 'online-course-with-instructor']));
+  });
+
   it('persiste o hash do Vimeo e a data da troca de senha', async () => {
     await repository.saveLesson({
       id: 'lesson-1', courseId: '2', moduleId: 'module-1', modulePosition: 1, title: 'Aula', durationMinutes: 10,

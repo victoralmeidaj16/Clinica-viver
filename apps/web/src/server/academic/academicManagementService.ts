@@ -28,6 +28,9 @@ export interface SaveCourseInput {
   position: number;
   active: boolean;
   published: boolean;
+  certificateTextModel?: AcademicCourse['certificateTextModel'];
+  certificateInstructor?: string;
+  certificateDurationMinutes?: number;
 }
 
 export interface SaveModuleInput {
@@ -123,10 +126,12 @@ export class AcademicManagementService {
   }
 
   async createCourse(input: SaveCourseInput): Promise<AcademicCourse> {
+    const certificate = certificateSettings(input);
     return this.repository.saveCourse({
       id: '', institutionId: this.institutionId, title: required(input.title, 'Título'),
       description: input.description?.trim() ?? '', coverUrl: input.coverUrl?.trim() || undefined,
       position: input.position, active: input.active, published: input.published,
+      ...certificate,
     });
   }
 
@@ -137,6 +142,7 @@ export class AcademicManagementService {
       ...current, title: required(input.title, 'Título'), description: input.description?.trim() ?? '',
       coverUrl: input.coverUrl?.trim() || undefined, position: input.position,
       active: input.active, published: input.published,
+      ...certificateSettings(input),
     });
   }
 
@@ -214,4 +220,19 @@ export class AcademicManagementService {
       published: input.published,
     };
   }
+}
+
+function certificateSettings(input: SaveCourseInput): Pick<AcademicCourse, 'certificateTextModel' | 'certificateInstructor' | 'certificateDurationMinutes'> {
+  const certificateTextModel = input.certificateTextModel === 'online-course-with-instructor'
+    ? 'online-course-with-instructor'
+    : 'standard';
+  if (certificateTextModel === 'standard') {
+    return { certificateTextModel, certificateInstructor: undefined, certificateDurationMinutes: undefined };
+  }
+  const certificateInstructor = required(input.certificateInstructor ?? '', 'Professora do certificado');
+  const certificateDurationMinutes = Number(input.certificateDurationMinutes);
+  if (!Number.isFinite(certificateDurationMinutes) || certificateDurationMinutes <= 0) {
+    throw new ApplicationError('INVALID_INPUT', 'A duração oficial do certificado deve ser maior que zero.', 400);
+  }
+  return { certificateTextModel, certificateInstructor, certificateDurationMinutes: Math.round(certificateDurationMinutes) };
 }

@@ -14,6 +14,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return success(await service.updateCourse(id, {
       title: stringValue(body.title), description: stringValue(body.description), coverUrl: stringValue(body.coverUrl) || undefined,
       position: numberValue(body.position), active: body.active !== false, published: booleanValue(body.published),
+      certificateTextModel: stringValue(body.certificateTextModel) === 'online-course-with-instructor' ? 'online-course-with-instructor' : 'standard',
+      certificateInstructor: stringValue(body.certificateInstructor) || undefined,
+      certificateDurationMinutes: numberValue(body.certificateDurationMinutes),
     }));
   } catch (error) { return academicApiFailure(error); }
 }

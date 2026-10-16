@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import PDFDocument from 'pdfkit';
 import { certificadosRepo } from '@/server/certificados/certificadosRepository';
-import qrcode from 'qrcode-generator';
+import {
+  drawFallbackBack,
+  drawFallbackFront,
+  drawQr,
+  registerCertificateFonts,
+} from '@/server/certificados/certificatePdfLayout';
 import {
   CERT_FONT_BASE_WIDTH,
   DEFAULT_FRONT_QR_SIZE,
@@ -12,31 +17,13 @@ import {
   STAMP_LINE_HEIGHT,
   STAMP_QR_FONT_RATIO,
   certificatePublicValidationUrl,
+  certificateUsesBrandLayout,
   resolveCertificateStampText,
 } from '@thats-life/core';
 import { proxyToPersistentBackend } from '@/server/http/persistentBackendProxy';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-/** Desenha o QR em vetor (um retângulo por módulo), com a zona silenciosa branca. */
-function drawQr(doc: PDFKit.PDFDocument, value: string, x: number, y: number, size: number) {
-  const qr = qrcode(0, 'M');
-  qr.addData(value);
-  qr.make();
-  const modules = qr.getModuleCount();
-  const margin = 2;
-  const cell = size / (modules + margin * 2);
-  doc.rect(x, y, size, size).fill('#ffffff');
-  for (let row = 0; row < modules; row += 1) {
-    for (let col = 0; col < modules; col += 1) {
-      if (qr.isDark(row, col)) {
-        doc.rect(x + (col + margin) * cell, y + (row + margin) * cell, cell, cell);
-      }
-    }
-  }
-  doc.fill('#1e1b4b');
-}
 
 /** Área que a arte ocupa na página — a mesma referência das % gravadas no editor. */
 interface ArtRect {
@@ -91,6 +78,9 @@ export async function GET(
     }
 
     const versoText = resolveCertificateStampText(record);
+    // Cursos online com ministrante ignoram a arte gravada e usam o layout da marca.
+    const frontImageUrl = certificateUsesBrandLayout(record) ? undefined : record.frontImageUrl;
+    const backImageUrl = certificateUsesBrandLayout(record) ? undefined : record.backImageUrl;
 
     const doc = new PDFDocument({
       size: 'A4',
@@ -103,6 +93,8 @@ export async function GET(
       },
     });
 
+    registerCertificateFonts(doc);
+
     const chunks: Buffer[] = [];
     doc.on('data', (chunk) => chunks.push(chunk));
 
@@ -111,8 +103,8 @@ export async function GET(
     const FULL_PAGE: ArtRect = { x: 0, y: 0, width: PAGE_WIDTH, height: PAGE_HEIGHT };
 
     // --- PÁGINA 1: FRENTE DO CERTIFICADO ---
-    if (record.frontImageUrl) {
-      const frontBuf = extractBase64Buffer(record.frontImageUrl);
+    if (frontImageUrl) {
+      const frontBuf = extractBase64Buffer(frontImageUrl);
       const frontArt = frontBuf ? drawArt(doc, frontBuf, PAGE_WIDTH, PAGE_HEIGHT) : FULL_PAGE;
 
       // Sobreposição do QR code oficial de conferência na Frente (se habilitado)
@@ -123,33 +115,19 @@ export async function GET(
         drawQr(doc, certificatePublicValidationUrl(), qrFrontXPt, qrFrontYPt, qrFrontSizePt);
       }
     } else {
-      // Template padrão limpo se não tiver imagem
-      doc.rect(0, 0, PAGE_WIDTH, PAGE_HEIGHT).fill('#ffffff');
-      doc.font('Helvetica-Bold').fontSize(26).fillColor('#3B1B54')
-        .text('Viver Mais Psicologia', 60, 80, { align: 'center', width: PAGE_WIDTH - 120 });
-      doc.font('Helvetica').fontSize(14).fillColor('#666666')
-        .text('Certificado Oficial de Conclusão', 60, 120, { align: 'center', width: PAGE_WIDTH - 120 });
-      doc.font('Helvetica-Bold').fontSize(22).fillColor('#111827')
-        .text(record.studentName, 60, 230, { align: 'center', width: PAGE_WIDTH - 120 });
-      doc.font('Helvetica').fontSize(14).fillColor('#4B5563')
-        .text(record.courseTitle, 60, 270, { align: 'center', width: PAGE_WIDTH - 120 });
-      doc.font('Helvetica').fontSize(11).fillColor('#6B7280')
-        .text(`Carga Horária: ${record.durationHours} · Emissão: ${record.issueDate}`, 60, 310, { align: 'center', width: PAGE_WIDTH - 120 });
+      // Sem arte: template padrão com a identidade da marca.
+      drawFallbackFront(doc, record);
     }
 
     // --- PÁGINA 2: VERSO COM CARIMBO OFICIAL TRANSPARENTE ---
     doc.addPage({ size: 'A4', layout: 'landscape', margin: 0 });
 
     let backArt = FULL_PAGE;
-    if (record.backImageUrl) {
-      const backBuf = extractBase64Buffer(record.backImageUrl);
+    if (backImageUrl) {
+      const backBuf = extractBase64Buffer(backImageUrl);
       if (backBuf) backArt = drawArt(doc, backBuf, PAGE_WIDTH, PAGE_HEIGHT);
     } else {
-      doc.rect(0, 0, PAGE_WIDTH, PAGE_HEIGHT).fill('#ffffff');
-      doc.font('Helvetica-Bold').fontSize(14).fillColor('#3B1B54')
-        .text('Registro Acadêmico Oficial', 60, 80, { align: 'left' });
-      doc.font('Helvetica').fontSize(11).fillColor('#4B5563')
-        .text(`Curso: ${record.courseTitle}\nAluno(a): ${record.studentName}\nCarga: ${record.durationHours}\nCódigo: ${record.code}`, 60, 110, { lineGap: 4 });
+      drawFallbackBack(doc, record);
     }
 
     // Sobreposição do Carimbo Oficial Transparente no Verso

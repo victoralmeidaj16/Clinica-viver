@@ -82,4 +82,31 @@ describe('AcademicManagementService', () => {
     expect(enrollment.status).toBe('suspended');
     expect(repository.saveEnrollment).toHaveBeenCalledWith(expect.objectContaining({ status: 'suspended' }));
   });
+
+  it('valida e persiste o modelo exclusivo do certificado no curso', async () => {
+    vi.mocked(repository.saveCourse).mockImplementation(async (value) => ({ ...value, id: 'course-special' }));
+    const input = {
+      title: 'Orientação Parental', description: '', position: 1, active: true, published: true,
+      certificateTextModel: 'online-course-with-instructor' as const,
+      certificateInstructor: 'Dra. Rafaela Dias Matavelli', certificateDurationMinutes: 180,
+    };
+    await expect(service.createCourse(input)).resolves.toMatchObject({
+      certificateTextModel: 'online-course-with-instructor',
+      certificateInstructor: 'Dra. Rafaela Dias Matavelli', certificateDurationMinutes: 180,
+    });
+    await expect(service.createCourse({ ...input, certificateInstructor: '' }))
+      .rejects.toMatchObject({ code: 'INVALID_INPUT' });
+    await expect(service.createCourse({ ...input, certificateDurationMinutes: 0 }))
+      .rejects.toMatchObject({ code: 'INVALID_INPUT' });
+  });
+
+  it('remove metadados exclusivos quando o curso volta ao modelo padrão', async () => {
+    vi.mocked(repository.saveCourse).mockImplementation(async (value) => ({ ...value, id: 'course-standard' }));
+    await expect(service.createCourse({
+      title: 'Curso comum', description: '', position: 1, active: true, published: true,
+      certificateTextModel: 'standard', certificateInstructor: 'Não deve persistir', certificateDurationMinutes: 90,
+    })).resolves.toMatchObject({
+      certificateTextModel: 'standard', certificateInstructor: undefined, certificateDurationMinutes: undefined,
+    });
+  });
 });

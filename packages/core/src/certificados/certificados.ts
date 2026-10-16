@@ -5,6 +5,7 @@
 
 export type CertificateStatus = 'valid' | 'revoked' | 'cancelled';
 export type CertificateStampQr = 'left' | 'top';
+export type CertificateTextModel = 'standard' | 'online-course-with-instructor';
 
 export const STAMP_WIDTH_MIN = 10;
 export const STAMP_WIDTH_MAX = 90;
@@ -39,12 +40,16 @@ export const FRONT_QR_SIZE_MAX = 25;
 export interface CertificateRecord {
   id: string;
   code: string;
+  institutionId?: string;
   studentId?: string;
   studentName: string;
   studentCpf?: string;
   studentEmail?: string;
   courseId?: string;
   courseTitle: string;
+  certificateTextModel?: CertificateTextModel;
+  certificateInstructor?: string;
+  certificateDurationMinutes?: number;
   durationHours: string;
   issueDate: string;
   startDate?: string;
@@ -78,6 +83,83 @@ export interface CertificateRecord {
   createdAt: string;
   createdBy?: string;
 }
+
+export function formatCertificateDuration(minutes: number): string {
+  if (!Number.isFinite(minutes) || minutes <= 0) return '';
+  const rounded = Math.round(minutes);
+  const hours = Math.floor(rounded / 60);
+  const remainingMinutes = rounded % 60;
+  const parts: string[] = [];
+  if (hours > 0) parts.push(`${hours} ${hours === 1 ? 'hora' : 'horas'}`);
+  if (remainingMinutes > 0) parts.push(`${remainingMinutes} ${remainingMinutes === 1 ? 'minuto' : 'minutos'}`);
+  return parts.join(' e ');
+}
+
+/** Frase do certificado em partes, para o layout dar destaque ao nome e ao curso. */
+export interface CertificateBodyParts {
+  lead: string;
+  studentName: string;
+  /** Texto entre o nome e o título do curso. */
+  before: string;
+  courseTitle: string;
+  /** Texto depois do título do curso, até o ponto final. */
+  after: string;
+}
+
+export function certificateBodyParts(record: CertificateRecord): CertificateBodyParts | null {
+  if (record.certificateTextModel !== 'online-course-with-instructor') return null;
+  const instructor = record.certificateInstructor?.trim();
+  const duration = formatCertificateDuration(record.certificateDurationMinutes ?? 0);
+  if (!instructor || !duration) return null;
+  return {
+    lead: 'Certificamos que',
+    studentName: record.studentName,
+    before: 'concluiu o curso',
+    courseTitle: record.courseTitle,
+    after: `, ministrado pela ${instructor}, promovido pela Viver Mais Psicologia, na modalidade online, com duração de ${duration}.`,
+  };
+}
+
+/**
+ * Cursos online com ministrante usam sempre o layout da marca: a arte gravada em
+ * template ou no registro não se aplica a eles.
+ */
+export function certificateUsesBrandLayout(record: Pick<CertificateRecord, 'certificateTextModel'>): boolean {
+  return record.certificateTextModel === 'online-course-with-instructor';
+}
+
+export function certificateBodyText(record: CertificateRecord): string | null {
+  const parts = certificateBodyParts(record);
+  if (!parts) return null;
+  return `${parts.lead} ${parts.studentName} ${parts.before} ${parts.courseTitle}${parts.after}`;
+}
+
+/** Identidade visual dos certificados gerados sem arte (design.md da plataforma). */
+export const CERTIFICATE_BRAND = {
+  primary: '#5C397D',
+  primaryDark: '#46285F',
+  primaryLight: '#7E5BA6',
+  accent: '#F99E29',
+  capri: '#00C1FF',
+  coral: '#E0484E',
+  ink: '#241B30',
+  muted: '#6B6275',
+  soft: '#EFEAF3',
+  line: '#E4DEEC',
+} as const;
+
+/** Faixa lateral do certificado sem arte: largura em pt sobre a página A4 paisagem (841,89 × 595,28). */
+export const CERTIFICATE_BAND_WIDTH = 206;
+export const CERTIFICATE_PAGE_WIDTH = 841.89;
+export const CERTIFICATE_PAGE_HEIGHT = 595.28;
+
+/** Formas da faixa (caminhos SVG no espaço da faixa), ecoando o símbolo da marca. */
+export const CERTIFICATE_BAND_SHAPES: ReadonlyArray<{ d: string; fill: string; opacity: number }> = [
+  { d: 'M 190 450 m -170 0 a 170 170 0 1 0 340 0 a 170 170 0 1 0 -340 0 Z', fill: '#7E5BA6', opacity: 0.5 },
+  { d: 'M -10 372 L 126 478 L -10 560 Z', fill: '#F99E29', opacity: 1 },
+  { d: 'M 150 392 m -23 0 a 23 23 0 1 0 46 0 a 23 23 0 1 0 -46 0 Z', fill: '#00C1FF', opacity: 1 },
+  { d: 'M 36 595.28 A 78 78 0 0 1 192 595.28 Z', fill: '#E0484E', opacity: 1 },
+];
 
 export interface CertificateField {
   id: string;

@@ -1,14 +1,23 @@
 'use client';
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import Link from 'next/link';
 import { Award, Check, Copy, Download, FileText, Printer } from 'lucide-react';
 import {
   CertificateRecord,
   DEFAULT_FRONT_QR_SIZE,
   DEFAULT_STAMP_FONT_SIZE,
+  DEFAULT_STAMP_X,
+  DEFAULT_STAMP_Y,
   DEFAULT_STAMP_WIDTH,
   certificatePublicValidationUrl,
+  CERTIFICATE_BAND_SHAPES,
+  CERTIFICATE_BAND_WIDTH,
+  CERTIFICATE_BRAND,
+  CERTIFICATE_PAGE_HEIGHT,
+  CERTIFICATE_PAGE_WIDTH,
+  certificateBodyParts,
+  certificateUsesBrandLayout,
+  formatCertificateDuration,
   resolveCertificateStampText,
 } from '@thats-life/core';
 import { QrCodeConferencia } from '@/components/declaracao/QrCodeConferencia';
@@ -23,6 +32,10 @@ export function CertificateDocumentView({ record, publicValidationUrl }: Props) 
   const [copied, setCopied] = useState(false);
 
   const versoText = resolveCertificateStampText(record);
+  // Cursos online com ministrante ignoram a arte gravada e usam o layout da marca.
+  const brandLayout = certificateUsesBrandLayout(record);
+  const frontImageUrl = brandLayout ? undefined : record.frontImageUrl;
+  const backImageUrl = brandLayout ? undefined : record.backImageUrl;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(publicValidationUrl);
@@ -32,12 +45,12 @@ export function CertificateDocumentView({ record, publicValidationUrl }: Props) 
 
   // Carimbo do verso: X/Y/largura em % da arte e fonte em milésimos da largura, como no PDF.
   const stamp =
-    record.stampX !== undefined && record.stampY !== undefined ? (
+    brandLayout || (record.stampX !== undefined && record.stampY !== undefined) ? (
       <div
         style={{
           position: 'absolute',
-          left: `${record.stampX}%`,
-          top: `${record.stampY}%`,
+          left: `${record.stampX ?? DEFAULT_STAMP_X}%`,
+          top: `${record.stampY ?? DEFAULT_STAMP_Y}%`,
           width: `${record.stampWidth || DEFAULT_STAMP_WIDTH}%`,
         }}
         className="z-10 select-text"
@@ -119,8 +132,8 @@ export function CertificateDocumentView({ record, publicValidationUrl }: Props) 
             style={{ containerType: 'size' }}
             className="cert-page relative aspect-[1.414/1] w-full bg-white rounded-2xl md:rounded-3xl border border-line overflow-hidden shadow-card flex items-center justify-center"
           >
-            {record.frontImageUrl ? (
-              <CertificateArtFrame src={record.frontImageUrl} alt="Frente do Certificado">
+            {frontImageUrl ? (
+              <CertificateArtFrame src={frontImageUrl} alt="Frente do Certificado">
                 {record.frontQrEnabled !== false && record.frontQrX != null && record.frontQrY != null && (
                   <div
                     style={{
@@ -138,66 +151,7 @@ export function CertificateDocumentView({ record, publicValidationUrl }: Props) 
                 )}
               </CertificateArtFrame>
             ) : (
-              <div className="p-8 md:p-12 w-full h-full flex flex-col justify-between">
-                {/* Faixa superior estética */}
-                <div className="absolute inset-x-0 top-0 h-2 bg-gradient-to-r from-psi-deep via-psi-vibrant to-psi-soft" />
-
-                {/* Topo institucional */}
-                <div className="flex items-center justify-between border-b border-psi-soft/60 pb-4">
-                  <div className="flex items-center gap-2">
-                    <span className="h-8 w-8 rounded-xl bg-psi-deep text-white font-black grid place-items-center text-sm shadow-sm">
-                      V+
-                    </span>
-                    <div>
-                      <p className="font-extrabold text-sm text-ink tracking-tight">Viver Mais Psicologia</p>
-                      <p className="text-[10px] text-muted uppercase tracking-wider font-semibold">
-                        Secretaria de Cursos & Pós-Graduação
-                      </p>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-psi-deep bg-psi-soft/60 px-3 py-1 rounded-full border border-psi-vibrant/20">
-                    Certificado de Conclusão
-                  </span>
-                </div>
-
-                {/* Corpo do Certificado */}
-                <div className="my-auto text-center space-y-4 py-6">
-                  <p className="text-xs font-medium text-muted uppercase tracking-widest">
-                    Certificamos oficialmente que
-                  </p>
-                  <h2 className="font-heading text-2xl md:text-3xl font-black text-ink tracking-tight">
-                    {record.studentName}
-                  </h2>
-                  <p className="text-xs md:text-sm text-muted max-w-xl mx-auto leading-relaxed">
-                    concluiu com aproveitamento e frequência integral o curso de extensão / formação profissional em
-                  </p>
-                  <p className="font-heading text-lg md:text-xl font-extrabold text-psi-deep max-w-2xl mx-auto">
-                    {record.courseTitle}
-                  </p>
-                  <p className="text-xs font-semibold text-muted pt-2">
-                    Carga Horária Total: <strong className="text-ink">{record.durationHours}</strong> · Data de Emissão: <strong className="text-ink">{record.issueDate}</strong>
-                  </p>
-                </div>
-
-                {/* Rodapé da Frente */}
-                <div className="flex items-end justify-between gap-4 pt-4 border-t border-psi-soft/60">
-                  <div className="text-center">
-                    <div className="w-44 md:w-56 border-t border-ink/40 pt-1" />
-                    <p className="text-xs font-bold text-ink">Dra. Viviane Jeremias</p>
-                    <p className="text-[10px] text-muted">Direção Acadêmica · Viver Mais Psicologia</p>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted">Código de Registro</p>
-                      <p className="font-mono text-xs font-bold text-psi-deep">{record.code}</p>
-                    </div>
-                    <div className="p-1.5 rounded-xl bg-white border border-psi-soft/80 shadow-xs">
-                      <QrCodeConferencia valor={publicValidationUrl} tamanho={64} />
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <FallbackFront record={record} publicValidationUrl={publicValidationUrl} />
             )}
           </div>
         </div>
@@ -216,29 +170,13 @@ export function CertificateDocumentView({ record, publicValidationUrl }: Props) 
             style={{ containerType: 'size' }}
             className="cert-page relative aspect-[1.414/1] w-full bg-white rounded-2xl md:rounded-3xl border border-line overflow-hidden shadow-card flex items-center justify-center"
           >
-            {record.backImageUrl ? (
-              <CertificateArtFrame src={record.backImageUrl} alt="Verso do Certificado">
+            {backImageUrl ? (
+              <CertificateArtFrame src={backImageUrl} alt="Verso do Certificado">
                 {stamp}
               </CertificateArtFrame>
             ) : (
               <div className="relative w-full h-full" style={{ containerType: 'inline-size' }}>
-                <div className="p-8 md:p-12 w-full h-full flex flex-col justify-between">
-                  <div className="flex items-center justify-between border-b border-line pb-3">
-                    <div>
-                      <h3 className="font-bold text-xs md:text-sm text-ink">Registro Acadêmico e Ementa Oficial</h3>
-                      <p className="text-[10px] text-muted mt-0.5">{record.courseTitle}</p>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-[10px] font-mono font-bold text-muted">REGISTRO LIVRO N° 2026/VVR</span>
-                    </div>
-                  </div>
-
-                  <div className="py-6 space-y-3 text-xs text-muted leading-relaxed">
-                    <p>• Curso livre de formação continuada e aprofundamento técnico em Psicologia.</p>
-                    <p>• Aluno com frequência atestada e cumprimento de 100% das atividades pedagógicas programadas.</p>
-                    <p>• Documento assinado eletronicamente sob conformidade com a legislação educacional e arquivado na Secretaria Acadêmica da Viver Mais Psicologia.</p>
-                  </div>
-                </div>
+                <FallbackBack record={record} />
                 {stamp}
               </div>
             )}
@@ -285,6 +223,201 @@ function CertificateArtFrame({ src, alt, children }: { src: string; alt: string;
         className="absolute inset-0 w-full h-full"
       />
       {children}
+    </div>
+  );
+}
+
+/*
+ * Frente e verso sem arte própria. Medidas em pt da página A4 paisagem do PDF,
+ * convertidas para `cqw`: o preview escala igual ao papel e o que se vê é o que sai.
+ */
+const BRAND = CERTIFICATE_BRAND;
+const cqw = (pt: number) => `${((pt / CERTIFICATE_PAGE_WIDTH) * 100).toFixed(3)}cqw`;
+const CONTENT_LEFT = CERTIFICATE_BAND_WIDTH + 56;
+const CONTENT_RIGHT_GAP = 54;
+const LABEL_CLASS = 'font-extrabold uppercase text-[color:var(--cert-muted)]';
+
+function BrandBand() {
+  return (
+    <>
+      <svg
+        aria-hidden
+        className="absolute left-0 top-0 h-full"
+        style={{ width: cqw(CERTIFICATE_BAND_WIDTH) }}
+        viewBox={`0 0 ${CERTIFICATE_BAND_WIDTH} ${CERTIFICATE_PAGE_HEIGHT}`}
+        preserveAspectRatio="none"
+      >
+        <rect width={CERTIFICATE_BAND_WIDTH} height={CERTIFICATE_PAGE_HEIGHT} fill={BRAND.primary} />
+        {CERTIFICATE_BAND_SHAPES.map((shape) => (
+          <path key={shape.d} d={shape.d} fill={shape.fill} fillOpacity={shape.opacity} />
+        ))}
+      </svg>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/logo-viver-mais-white.png"
+        alt="Viver Mais Psicologia"
+        className="absolute"
+        style={{ left: cqw(30), top: cqw(40), width: cqw(146) }}
+      />
+    </>
+  );
+}
+
+function Eyebrow({ children }: { children: string }) {
+  return (
+    <div className="absolute flex items-center" style={{ top: cqw(62), left: cqw(CONTENT_LEFT), gap: cqw(10) }}>
+      <span style={{ width: cqw(22), height: cqw(3), background: BRAND.accent }} />
+      <span
+        className="font-extrabold uppercase"
+        style={{ fontSize: cqw(8.5), letterSpacing: '0.26em', color: BRAND.primary }}
+      >
+        {children}
+      </span>
+    </div>
+  );
+}
+
+function Fact({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className={LABEL_CLASS} style={{ fontSize: cqw(7), letterSpacing: '0.2em' }}>{label}</p>
+      <p className="font-semibold" style={{ fontSize: cqw(12), marginTop: cqw(4), color: BRAND.ink }}>{value}</p>
+    </div>
+  );
+}
+
+function certificateDuration(record: CertificateRecord): string {
+  const minutes = record.certificateDurationMinutes;
+  return (minutes ? formatCertificateDuration(minutes) : '') || record.durationHours;
+}
+
+function FallbackFront({ record, publicValidationUrl }: { record: CertificateRecord; publicValidationUrl: string }) {
+  const parts = certificateBodyParts(record) ?? {
+    lead: 'Certificamos oficialmente que',
+    studentName: record.studentName,
+    before: 'concluiu com aproveitamento e frequência integral o curso de extensão / formação profissional em',
+    courseTitle: record.courseTitle,
+    after: '.',
+  };
+  const online = record.certificateTextModel === 'online-course-with-instructor';
+  const nameSize = parts.studentName.length > 40 ? 26 : parts.studentName.length > 28 ? 32 : 40;
+  const validationHost = publicValidationUrl.replace(/^https?:\/\//, '');
+
+  return (
+    <div
+      className="absolute inset-0 bg-white"
+      style={{ fontFamily: 'var(--font-sans)', color: BRAND.ink, ['--cert-muted' as string]: BRAND.muted }}
+    >
+      <BrandBand />
+      <Eyebrow>CERTIFICADO DE CONCLUSÃO</Eyebrow>
+
+      <div className="absolute" style={{ left: cqw(CONTENT_LEFT), right: cqw(CONTENT_RIGHT_GAP), top: cqw(134) }}>
+        <p style={{ fontSize: cqw(13), color: BRAND.muted }}>{parts.lead}</p>
+        <h2
+          className="font-display font-semibold"
+          style={{ fontSize: cqw(nameSize), lineHeight: 1.15, marginTop: cqw(8), color: BRAND.ink }}
+        >
+          {parts.studentName}
+        </h2>
+        <div className="relative" style={{ marginTop: cqw(12), height: cqw(3) }}>
+          <span className="absolute inset-x-0" style={{ top: cqw(1), height: 1, background: BRAND.line }} />
+          <span className="absolute left-0 top-0" style={{ width: cqw(56), height: cqw(3), background: BRAND.accent }} />
+        </div>
+        <p style={{ fontSize: cqw(14), lineHeight: 1.75, marginTop: cqw(22) }}>
+          {parts.before}{' '}
+          <span className="font-semibold" style={{ color: BRAND.primary }}>{parts.courseTitle}</span>
+          {parts.after}
+        </p>
+      </div>
+
+      <div
+        className="absolute grid"
+        style={{
+          left: cqw(CONTENT_LEFT), right: cqw(CONTENT_RIGHT_GAP), top: cqw(388),
+          gridTemplateColumns: `repeat(${online ? 3 : 2}, 1fr)`, paddingTop: cqw(14), borderTop: `1px solid ${BRAND.line}`,
+        }}
+      >
+        <Fact label={online ? 'Duração' : 'Carga horária'} value={certificateDuration(record)} />
+        {online && <Fact label="Modalidade" value="Online" />}
+        <Fact label="Emissão" value={record.issueDate} />
+      </div>
+
+      <div className="absolute" style={{ left: cqw(CONTENT_LEFT), top: cqw(486 + 36), width: cqw(190) }}>
+        <div style={{ height: 1, background: BRAND.ink }} />
+        <p className="font-semibold" style={{ fontSize: cqw(10.5), marginTop: cqw(7) }}>Dra. Viviane Jeremias</p>
+        <p style={{ fontSize: cqw(8.5), marginTop: cqw(3), color: BRAND.muted, whiteSpace: 'nowrap' }}>
+          Direção Acadêmica · Viver Mais Psicologia
+        </p>
+      </div>
+
+      <div
+        className="absolute flex items-start justify-end"
+        style={{ right: cqw(CONTENT_RIGHT_GAP), top: cqw(482), gap: cqw(14) }}
+      >
+        <div className="text-right" style={{ paddingTop: cqw(12) }}>
+          <p className={LABEL_CLASS} style={{ fontSize: cqw(7), letterSpacing: '0.2em' }}>Código de registro</p>
+          <p className="font-semibold" style={{ fontSize: cqw(12), marginTop: cqw(3), color: BRAND.primary }}>{record.code}</p>
+          <p style={{ fontSize: cqw(8), marginTop: cqw(6), color: BRAND.muted }}>Valide em {validationHost}</p>
+        </div>
+        <div style={{ width: cqw(66), height: cqw(66), border: `1px solid ${BRAND.line}`, background: '#fff' }}>
+          <QrCodeConferencia valor={publicValidationUrl} className="block h-full w-full" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FallbackBack({ record }: { record: CertificateRecord }) {
+  const online = record.certificateTextModel === 'online-course-with-instructor';
+  const instructor = record.certificateInstructor?.trim();
+  const rows: Array<[string, string]> = [
+    ['Curso', record.courseTitle],
+    ['Aluno(a)', record.studentName],
+    [online ? 'Duração' : 'Carga horária', certificateDuration(record)],
+  ];
+  if (instructor) rows.push(['Ministrante', instructor]);
+  if (online) rows.push(['Modalidade', 'Online']);
+  rows.push(['Emitido em', record.issueDate], ['Código', record.code]);
+
+  return (
+    <div
+      className="absolute inset-0 bg-white"
+      style={{ fontFamily: 'var(--font-sans)', color: BRAND.ink, ['--cert-muted' as string]: BRAND.muted }}
+    >
+      <BrandBand />
+      <Eyebrow>DOCUMENTO OFICIAL</Eyebrow>
+      <h3
+        className="absolute font-display font-semibold"
+        style={{ left: cqw(CONTENT_LEFT), top: cqw(100), fontSize: cqw(28), lineHeight: 1.2 }}
+      >
+        Registro Acadêmico Oficial
+      </h3>
+      <dl
+        className="absolute"
+        style={{ left: cqw(CONTENT_LEFT), right: cqw(CONTENT_RIGHT_GAP), top: cqw(160), borderTop: `1px solid ${BRAND.line}` }}
+      >
+        {rows.map(([label, value]) => {
+          const isCode = label === 'Código';
+          return (
+            <div
+              key={label}
+              className="grid"
+              style={{
+                gridTemplateColumns: cqw(118) + ' 1fr', padding: `${cqw(10)} 0`,
+                borderBottom: `1px solid ${BRAND.line}`,
+              }}
+            >
+              <dt className={LABEL_CLASS} style={{ fontSize: cqw(7), letterSpacing: '0.2em', paddingTop: cqw(3) }}>{label}</dt>
+              <dd
+                className={isCode ? 'font-extrabold' : 'font-semibold'}
+                style={{ fontSize: cqw(11.5), lineHeight: 1.3, color: isCode ? BRAND.primary : BRAND.ink }}
+              >
+                {value}
+              </dd>
+            </div>
+          );
+        })}
+      </dl>
     </div>
   );
 }

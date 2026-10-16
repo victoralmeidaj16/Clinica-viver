@@ -1,5 +1,8 @@
 import 'server-only';
 
+import { assertMudancasDeCadastroUnicas } from '@/server/application/psychologistUniqueness';
+import { assertEmailsDeCadastroDisponiveis, syncIdentidadeDoCadastro } from '@/server/application/psychologistIdentityGuard';
+
 import type { RowDataPacket } from 'mysql2';
 import type { Pool, PoolConnection } from 'mysql2/promise';
 import type { PreferenciaGeneroPsicologo } from '@thats-life/core';
@@ -311,9 +314,17 @@ export class MysqlCaptureRepository {
     const connection = await this.pool.getConnection();
     try {
       await connection.beginTransaction();
+      // Serializa inclusive a primeira inscrição, quando ainda não há cadastro para travar.
+      await connection.query(
+        'SELECT id FROM clinica_organizacoes WHERE instituicao_id = ? AND ref_core = ? FOR UPDATE',
+        [instituicaoId(), organizacaoRef()]
+      );
       const current = await this.readState(connection, true);
       const migrated = await this.importLegacyIfNeeded(connection, current);
       const change = mutator(migrated);
+      assertMudancasDeCadastroUnicas(migrated.cadastrosPsicologos, change.next.cadastrosPsicologos);
+      await assertEmailsDeCadastroDisponiveis(connection, migrated.cadastrosPsicologos, change.next.cadastrosPsicologos);
+      await syncIdentidadeDoCadastro(connection, migrated.cadastrosPsicologos, change.next.cadastrosPsicologos);
       await this.writeState(connection, change.next);
       await connection.commit();
       return change.result;

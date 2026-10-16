@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { assertCadastroUnico, CadastroDuplicadoError } from './psychologistUniqueness';
+
 import { createHash, randomBytes } from 'node:crypto';
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import type { CadastroPsicologoRecord } from './persistence';
@@ -67,7 +69,7 @@ function displayName(record: CadastroPsicologoRecord): string {
 async function findOrganization(connection: PoolConnection): Promise<{ id: string; ref: string }> {
   const ref = organizationId();
   const [rows] = await connection.query<Array<RowDataPacket & { id: string }>>(
-    `SELECT id FROM clinica_organizacoes WHERE instituicao_id = ? AND ref_core = ? LIMIT 1`,
+    `SELECT id FROM clinica_organizacoes WHERE instituicao_id = ? AND ref_core = ? LIMIT 1 FOR UPDATE`,
     [instituicaoId(), ref]
   );
   if (!rows[0]) throw new Error('Organização da clínica não encontrada para criar o acesso.');
@@ -87,6 +89,17 @@ export async function provisionPsychologistAccess(
   try {
     await connection.beginTransaction();
     const organization = await findOrganization(connection);
+    const [registrations] = await connection.query<Array<RowDataPacket & CadastroPsicologoRecord>>(
+      `SELECT ref_core AS id, email, whatsapp, usuario_ref AS usuarioRef, profissional_ref AS profissionalRef
+         FROM clinica_cadastros_psicologos WHERE instituicao_id = ? FOR UPDATE`,
+      [instituicaoId()]
+    );
+    const persisted = registrations.find((item) => item.id === record.id);
+    if (!persisted) throw new Error('Cadastro não encontrado para criar o acesso.');
+    assertCadastroUnico(record, registrations);
+    if (persisted.usuarioRef && registrations.some((item) => item.id !== record.id
+      && item.usuarioRef === persisted.usuarioRef)) throw new CadastroDuplicadoError();
+
     const [userRows] = await connection.query<ExistingUserRow[]>(
       `SELECT ref_core, status, senha_hash
          FROM clinica_usuarios
@@ -96,6 +109,11 @@ export async function provisionPsychologistAccess(
     );
 
     const existingUser = userRows[0];
+    // O e-mail localiza a conta, mas nunca autoriza anexar outro cadastro a ela.
+    if ((existingUser && existingUser.ref_core !== persisted.usuarioRef)
+      || (persisted.usuarioRef && existingUser?.ref_core !== persisted.usuarioRef)) {
+      throw new CadastroDuplicadoError();
+    }
     if (existingUser?.status === 'disabled') {
       throw new Error('Já existe uma conta desativada com este e-mail. Reative-a antes da aprovação.');
     }
@@ -117,6 +135,9 @@ export async function provisionPsychologistAccess(
         WHERE instituicao_id = ? AND usuario_ref = ? LIMIT 1 FOR UPDATE`,
       [instituicaoId(), userId]
     );
+    if (professionalRows[0] && professionalRows[0].ref_core !== persisted.profissionalRef) {
+      throw new CadastroDuplicadoError();
+    }
     const professionalId = professionalRows[0]?.ref_core ?? `professional-${record.id}`;
     const modalidades = record.modalidadeAtendimento?.toLocaleLowerCase('pt-BR').includes('online')
       ? 'online'

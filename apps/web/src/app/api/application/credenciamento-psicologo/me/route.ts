@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server';
+import { assertCadastroUnico, CadastroDuplicadoError } from '@/server/application/psychologistUniqueness';
+import { assertEmailsDeCadastroDisponiveis } from '@/server/application/psychologistIdentityGuard';
+import { getMysqlPool, isMysqlConfigured } from '@/server/oci/runtime';
 import { readSession } from '@/server/auth';
 import { getCaptureRepository } from '@/server/persistence/captureRepository';
 import { cadastroDaSessao, SemAcessoError } from '@/server/application/psychologistSelf';
@@ -53,7 +56,10 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 function tratarErro(error: unknown, contexto: string) {
-  if (error instanceof SemAcessoError || error instanceof CorpoInvalidoError) {
+  if (error && typeof error === 'object' && 'code' in error && error.code === 'ER_DUP_ENTRY') {
+    error = new CadastroDuplicadoError();
+  }
+  if (error instanceof SemAcessoError || error instanceof CorpoInvalidoError || error instanceof CadastroDuplicadoError) {
     return NextResponse.json({ success: false, error: error.message }, { status: error.status });
   }
   console.error(contexto, error);
@@ -112,29 +118,38 @@ export async function PATCH(request: Request) {
 
     const atualizado = aplicarMudancas(cadastro, corpo, CAMPOS_DO_PROPRIO_PSICOLOGO);
 
+    const existentes = await getCaptureRepository().read();
+    assertCadastroUnico(atualizado, existentes.cadastrosPsicologos);
+    if (isMysqlConfigured()) {
+      await assertEmailsDeCadastroDisponiveis(getMysqlPool(), [cadastro], [atualizado]);
+    }
+
     // O credenciamento alimenta a vitrine; identidade e perfil profissional
     // alimentam login, agenda e prontuário. Os três precisam refletir a mesma
     // edição para não criar versões divergentes do nome, CRP ou e-mail.
-    const store = getApplicationStore();
-    const now = new Date().toISOString();
-    const user = await store.identities.getUser(session.userId);
-    if (user) {
-      await store.identities.saveUser({
-        ...user,
-        displayName: atualizado.nomeSocial?.trim() || atualizado.nomeCompleto,
-        normalizedEmail: atualizado.email?.trim().toLocaleLowerCase('pt-BR'),
-        updatedAt: now,
-      });
-    }
-    if (atualizado.profissionalRef) {
-      const professional = await store.identities.getProfessional(session.organizationId, atualizado.profissionalRef);
-      if (professional) {
-        await store.identities.saveProfessional({
-          ...professional,
+    // No MySQL a sincronização ocorre dentro de mutate, junto do cadastro.
+    if (!isMysqlConfigured()) {
+      const store = getApplicationStore();
+      const now = new Date().toISOString();
+      const user = await store.identities.getUser(session.userId);
+      if (user) {
+        await store.identities.saveUser({
+          ...user,
           displayName: atualizado.nomeSocial?.trim() || atualizado.nomeCompleto,
-          councilRegistration: atualizado.crp,
+          normalizedEmail: atualizado.email?.trim().toLocaleLowerCase('pt-BR'),
           updatedAt: now,
         });
+      }
+      if (atualizado.profissionalRef) {
+        const professional = await store.identities.getProfessional(session.organizationId, atualizado.profissionalRef);
+        if (professional) {
+          await store.identities.saveProfessional({
+            ...professional,
+            displayName: atualizado.nomeSocial?.trim() || atualizado.nomeCompleto,
+            councilRegistration: atualizado.crp,
+            updatedAt: now,
+          });
+        }
       }
     }
 

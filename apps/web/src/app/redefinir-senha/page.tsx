@@ -1,8 +1,8 @@
 'use client';
 
-import { FormEvent, Suspense, useState } from 'react';
+import { FormEvent, Suspense, useId, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowRight, KeyRound, LockKeyhole, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Eye, EyeOff, KeyRound, LockKeyhole, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { PasswordResetRequest } from '@/components/auth/PasswordResetRequest';
 
@@ -69,5 +69,35 @@ function ResetForm() {
 }
 
 function PasswordField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return <label className="block"><span className="mb-2 block text-xs font-bold text-white/75">{label}</span><div className="relative"><LockKeyhole className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" /><input className="w-full rounded-xl border border-white/10 bg-black/15 px-4 py-3.5 pl-11 text-sm text-white outline-none focus:border-[#c38cff]" type="password" value={value} onChange={(event) => onChange(event.target.value)} minLength={10} required autoComplete="new-password" /></div></label>;
+  const id = useId();
+  const [visible, setVisible] = useState(false);
+
+  return (
+    <div>
+      <label htmlFor={id} className="mb-2 block text-xs font-bold text-white/75">{label}</label>
+      <div className="relative">
+        <LockKeyhole aria-hidden="true" className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
+        <input
+          id={id}
+          className="w-full rounded-xl border border-white/10 bg-black/15 py-3.5 pl-11 pr-14 text-sm text-white outline-none focus:border-[#c38cff]"
+          type={visible ? 'text' : 'password'}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          minLength={10}
+          required
+          autoComplete="new-password"
+        />
+        <button
+          type="button"
+          onClick={() => setVisible((previous) => !previous)}
+          aria-label={`${visible ? 'Ocultar' : 'Exibir'} ${label.toLocaleLowerCase('pt-BR')}`}
+          aria-controls={id}
+          title={visible ? 'Ocultar senha' : 'Exibir senha'}
+          className="absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-lg text-white/60 transition-colors hover:text-[#c38cff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c38cff]"
+        >
+          {visible ? <EyeOff aria-hidden="true" className="h-4 w-4" /> : <Eye aria-hidden="true" className="h-4 w-4" />}
+        </button>
+      </div>
+    </div>
+  );
 }

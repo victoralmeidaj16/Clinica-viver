@@ -187,10 +187,11 @@ export default function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setShowPassword((prev) => !prev)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 p-1 text-muted transition-colors hover:text-psi-deep"
+                    className="absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-lg text-muted transition-colors hover:text-psi-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-psi-deep"
                     aria-label={showPassword ? 'Ocultar senha' : 'Exibir senha'}
+                    title={showPassword ? 'Ocultar senha' : 'Exibir senha'}
                   >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showPassword ? <EyeOff aria-hidden="true" className="h-4 w-4" /> : <Eye aria-hidden="true" className="h-4 w-4" />}
                   </button>
                 </div>
               </div>

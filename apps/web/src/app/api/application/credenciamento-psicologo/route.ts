@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server';
+import { randomUUID } from 'node:crypto';
+import { CadastroDuplicadoError } from '@/server/application/psychologistUniqueness';
 import type { RowDataPacket } from 'mysql2';
 import { getMysqlPool } from '@/server/oci/runtime';
 import { instituicaoId } from '@/server/persistence/mysql/mappers';
 import {
-  emptySnapshot,
-  readSnapshot,
-  writeSnapshot,
   type CadastroPsicologoRecord,
 } from '@/server/application/persistence';
 import { isMysqlConfigured } from '@/server/oci/runtime';
@@ -198,7 +197,7 @@ export async function POST(request: Request) {
     const aceite = registrarAceiteTermoAdesao(request, body.versaoTermos);
 
     const novoPsicologo: CadastroPsicologoRecord = {
-      id: `psi-cad-${Date.now()}`,
+      id: `psi-cad-${randomUUID()}`,
       nomeCompleto: body.nomeCompleto,
       nomeSocial: body.nomeSocial || undefined,
       crp: body.crp,
@@ -256,26 +255,13 @@ export async function POST(request: Request) {
       };
     }
 
-    if (isMysqlConfigured()) {
-      await new MysqlCaptureRepository().mutate((state) => ({
-        next: {
-          ...state,
-          cadastrosPsicologos: [...state.cadastrosPsicologos, novoPsicologo],
-        },
-        result: novoPsicologo,
-      }));
-
-    } else {
-      const snapshot = readSnapshot() ?? emptySnapshot();
-      await writeSnapshot({
-        ...snapshot,
-        savedAt: new Date().toISOString(),
-        cadastrosPsicologos: [
-          ...(snapshot.cadastrosPsicologos ?? []),
-          novoPsicologo,
-        ],
-      });
-    }
+    await getCaptureRepository().mutate((state) => ({
+      next: {
+        ...state,
+        cadastrosPsicologos: [...state.cadastrosPsicologos, novoPsicologo],
+      },
+      result: novoPsicologo,
+    }));
 
     const [emailDelivery, comprovanteTermo] = await Promise.all([
       avisarCadastroRecebidoPorEmail(novoPsicologo),
@@ -289,6 +275,9 @@ export async function POST(request: Request) {
       comprovanteTermo,
     });
   } catch (error) {
+    if (error instanceof CadastroDuplicadoError) {
+      return NextResponse.json({ success: false, code: error.code, error: error.message }, { status: error.status });
+    }
     console.error('Erro ao salvar cadastro do psicólogo:', error);
     return NextResponse.json({ success: false, error: 'Falha ao salvar credenciamento no banco.' }, { status: 500 });
   }

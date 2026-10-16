@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import Link from 'next/link';
+import { CadastroExistenteNotice } from './CadastroExistenteNotice';
 import { UserPlus, Upload, ShieldCheck, ExternalLink } from 'lucide-react';
 import { BrazilLocationFields } from '@/components/forms/BrazilLocationFields';
 import { GenderFields } from '@/components/forms/GenderFields';
@@ -58,6 +60,7 @@ export function CadastroPsicologoForm({
   const [temSegundaPos, setTemSegundaPos] = useState(false);
   const [segundaPosGraduacao, setSegundaPosGraduacao] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [cadastroExistente, setCadastroExistente] = useState<string | null>(null);
   const [modalTermosAberto, setModalTermosAberto] = useState(false);
   const [aceitouTermos, setAceitouTermos] = useState(false);
 
@@ -90,6 +93,8 @@ export function CadastroPsicologoForm({
 
   const handleSubmitPsicologo = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+    setCadastroExistente(null);
     if (!normalizeBrazilPhone(formPsicologo.whatsapp)) {
       alert('Informe um telefone brasileiro válido com DDD.');
       return;
@@ -136,9 +141,11 @@ export function CadastroPsicologoForm({
           versaoTermos: VERSAO_TERMOS_PARCERIA,
         }),
       });
-      const data = (await resp.json()) as { success: boolean; error?: string; data?: CadastroPsicologoCriado };
+      const data = (await resp.json()) as { success: boolean; code?: string; error?: string; data?: CadastroPsicologoCriado };
       if (data.success) {
         await onSucesso(data.data ?? ({ id: '' } as CadastroPsicologoCriado));
+      } else if (resp.status === 409 && data.code === 'CADASTRO_DUPLICADO') {
+        setCadastroExistente(formPsicologo.email.trim());
       } else {
         alert(data.error ?? 'Erro ao cadastrar psicólogo. Tente novamente.');
       }
@@ -168,6 +175,9 @@ export function CadastroPsicologoForm({
           </button>
         )}
       </div>
+
+      <p className="text-sm text-slate-600">Já se cadastrou? <Link href="/redefinir-senha" className="font-bold text-purple-700 underline">Recupere seu acesso</Link> sem criar outro cadastro.</p>
+      {cadastroExistente !== null && <CadastroExistenteNotice key={cadastroExistente} email={cadastroExistente} />}
 
       <form onSubmit={handleSubmitPsicologo} className="space-y-4 text-xs">
         <div className="space-y-3">

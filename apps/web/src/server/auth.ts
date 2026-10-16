@@ -6,6 +6,8 @@ import type { RowDataPacket } from 'mysql2';
 import { getMysqlPool, isMysqlConfigured } from '@/server/oci/runtime';
 import { instituicaoId } from '@/server/persistence/mysql/mappers';
 import { verifyPasswordHash } from '@/server/security/passwordHash';
+import { psychologistAccountIsAmbiguous } from '@/server/application/psychologistAccountIntegrity';
+import { ApplicationError } from '@/server/application/http';
 
 export { hashPassword } from '@/server/security/passwordHash';
 
@@ -149,7 +151,9 @@ export async function authenticate(email: string, password: string): Promise<Log
 
 export async function readSession(): Promise<AuthSession | null> {
   const value = (await cookies()).get(SESSION_COOKIE)?.value;
-  return value ? deserialize(value) : null;
+  const session = value ? deserialize(value) : null;
+  if (session?.role === 'psicologo' && await psychologistAccountIsAmbiguous(session.userId)) return null;
+  return session;
 }
 
 export function readSessionValue(value: string | undefined): AuthSession | null {
@@ -157,6 +161,9 @@ export function readSessionValue(value: string | undefined): AuthSession | null 
 }
 
 export async function startSession(user: Pick<LoginUser, 'userId' | 'organizationId'> & { role: AuthSession['role'] }): Promise<void> {
+  if (user.role === 'psicologo' && await psychologistAccountIsAmbiguous(user.userId)) {
+    throw new ApplicationError('AMBIGUOUS_ACCOUNT', 'Há mais de um cadastro vinculado a esta conta. Procure a gestão para revisar seu acesso.', 409);
+  }
   const issuedAt = Date.now();
   const session: AuthSession = {
     userId: user.userId,

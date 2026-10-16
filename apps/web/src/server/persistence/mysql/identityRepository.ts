@@ -216,23 +216,25 @@ export class MysqlIdentityRepository implements IdentityRepository, PatientConta
   }
 
   async saveUser(user: IdentityUser): Promise<void> {
+    // Uma colisão no índice de e-mail nunca pode atualizar a linha de outra pessoa.
+    const existing = await this.first<{ ref_core: string }>(
+      'SELECT ref_core FROM clinica_usuarios WHERE instituicao_id = ? AND ref_core = ?',
+      [instituicaoId(), user.id]
+    );
+    if (existing) {
+      await this.pool.execute(
+        `UPDATE clinica_usuarios SET nome_exibicao = ?, email_normalizado = ?, status = ?, atualizado_em = ?
+          WHERE instituicao_id = ? AND ref_core = ?`,
+        [user.displayName, user.normalizedEmail ?? null, user.status, toSqlTimestamp(user.updatedAt), instituicaoId(), user.id]
+      );
+      return;
+    }
     await this.pool.execute(
       `INSERT INTO clinica_usuarios
          (id, instituicao_id, ref_core, nome_exibicao, email_normalizado, status, criado_em, atualizado_em)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE
-         nome_exibicao = VALUES(nome_exibicao), email_normalizado = VALUES(email_normalizado),
-         status = VALUES(status), atualizado_em = VALUES(atualizado_em)`,
-      [
-        rowId('usuario', user.id),
-        instituicaoId(),
-        user.id,
-        user.displayName,
-        user.normalizedEmail ?? null,
-        user.status,
-        toSqlTimestamp(user.createdAt),
-        toSqlTimestamp(user.updatedAt),
-      ]
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [rowId('usuario', user.id), instituicaoId(), user.id, user.displayName,
+        user.normalizedEmail ?? null, user.status, toSqlTimestamp(user.createdAt), toSqlTimestamp(user.updatedAt)]
     );
   }
 

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { CadastroDuplicadoError } from '@/server/application/psychologistUniqueness';
 import { getCaptureRepository } from '@/server/persistence/captureRepository';
 import { isMysqlConfigured } from '@/server/oci/runtime';
 import { exigirGestao, NaoAutorizadoError } from '@/server/viverMaisGestaoAuth';
@@ -35,6 +36,9 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
     const entregas = await enviarConvitePsicologo(cadastro);
     return NextResponse.json({ success: true, data: entregas });
   } catch (error) {
+    if (error instanceof CadastroDuplicadoError) {
+      return NextResponse.json({ success: false, code: error.code, error: error.message }, { status: error.status });
+    }
     if (error instanceof CadastroIncompletoError) {
       return NextResponse.json(
         { success: false, error: error.message, campos: error.campos },

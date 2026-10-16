@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { CadastroDuplicadoError, assertCadastroUnico } from '@/server/application/psychologistUniqueness';
 import { readSnapshot, writeSnapshot } from '@/server/application/persistence';
 import { isMysqlConfigured } from '@/server/oci/runtime';
 import { MysqlCaptureRepository } from '@/server/persistence/mysql/captureRepository';
@@ -88,6 +89,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
 
     const atualizado = aplicarMudancas(existente, corpo, CAMPOS_DA_GESTAO);
+    assertCadastroUnico(atualizado, snapshot.cadastrosPsicologos ?? []);
 
     await writeSnapshot({
       ...snapshot,
@@ -101,6 +103,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   } catch (error) {
     if (error instanceof CorpoInvalidoError) {
       return NextResponse.json({ success: false, error: error.message }, { status: error.status });
+    }
+    if (error instanceof CadastroDuplicadoError) {
+      return NextResponse.json({ success: false, code: error.code, error: error.message }, { status: error.status });
     }
     if (error instanceof CadastroIncompletoError) {
       return NextResponse.json({ success: false, error: error.message, campos: error.campos }, { status: 422 });

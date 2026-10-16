@@ -48,27 +48,35 @@ export async function cadastroDaSessao(
   const repositorio = getCaptureRepository();
   const state = await repositorio.read();
 
-  const porUsuario = state.cadastrosPsicologos.find((item) => item.usuarioRef === session.userId);
-  if (porUsuario) return porUsuario;
+  const porUsuario = state.cadastrosPsicologos.filter((item) => item.usuarioRef === session.userId);
+  if (porUsuario.length > 1) throw new SemAcessoError('Há mais de um cadastro vinculado a esta conta. Procure a gestão para revisar seu acesso.', 409);
+  if (porUsuario[0]) return porUsuario[0];
 
   const user = await store.identities.getUser(session.userId);
   const email = user?.normalizedEmail?.trim().toLocaleLowerCase('pt-BR');
   if (!email) return null;
 
-  const porEmail = state.cadastrosPsicologos.find(
+  const porEmail = state.cadastrosPsicologos.filter(
     (item) => item.email?.trim().toLocaleLowerCase('pt-BR') === email
   );
-  if (!porEmail) return null;
+  if (porEmail.length > 1 || porEmail.some((item) => item.usuarioRef && item.usuarioRef !== session.userId)) {
+    throw new SemAcessoError('O vínculo deste cadastro precisa ser revisado pela gestão.', 409);
+  }
+  if (!porEmail[0]) return null;
 
-  const vinculado: CadastroPsicologoRecord = { ...porEmail, usuarioRef: session.userId };
-  await repositorio.mutate((atual) => ({
-    next: {
-      ...atual,
-      cadastrosPsicologos: atual.cadastrosPsicologos.map((psi) =>
-        psi.id === vinculado.id ? vinculado : psi
-      ),
-    },
-    result: null,
-  }));
-  return vinculado;
+  return repositorio.mutate((atual) => {
+    const candidatos = atual.cadastrosPsicologos.filter((item) => item.usuarioRef === session.userId
+      || item.email?.trim().toLocaleLowerCase('pt-BR') === email);
+    if (candidatos.length !== 1 || (candidatos[0].usuarioRef && candidatos[0].usuarioRef !== session.userId)) {
+      throw new SemAcessoError('O vínculo deste cadastro precisa ser revisado pela gestão.', 409);
+    }
+    const vinculado: CadastroPsicologoRecord = { ...candidatos[0], usuarioRef: session.userId };
+    return {
+      next: {
+        ...atual,
+        cadastrosPsicologos: atual.cadastrosPsicologos.map((psi) => psi.id === vinculado.id ? vinculado : psi),
+      },
+      result: vinculado,
+    };
+  });
 }

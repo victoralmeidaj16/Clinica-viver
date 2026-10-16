@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { assertMudancasDeCadastroUnicas } from '@/server/application/psychologistUniqueness';
+
 import {
   emptySnapshot,
   readSnapshot,
@@ -58,7 +60,9 @@ export class FileCaptureRepository implements CaptureRepository {
 
   async mutate<T>(mutator: (state: CaptureState) => CaptureResult<T>): Promise<T> {
     const snapshot = readSnapshot() ?? emptySnapshot();
-    const change = mutator(await this.comDerivados(captureStateFromSnapshot(snapshot)));
+    const current = await this.comDerivados(captureStateFromSnapshot(snapshot));
+    const change = mutator(current);
+    assertMudancasDeCadastroUnicas(current.cadastrosPsicologos, change.next.cadastrosPsicologos);
 
     await writeSnapshot({
       ...snapshot,

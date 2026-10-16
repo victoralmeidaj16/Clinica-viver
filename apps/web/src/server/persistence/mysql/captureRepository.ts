@@ -10,6 +10,7 @@ import {
   type AceiteTermoAdesao,
   type AusenciaAgenda,
   type CadastroPsicologoRecord,
+  type EnvioComprovanteTermo,
   type PersistedSnapshot,
   type StatusCadastroPsicologo,
   type StatusTriagem,
@@ -347,6 +348,21 @@ export class MysqlCaptureRepository {
       return this.mutate((atual) => ({ next: atual, result: atual }));
     }
     return state;
+  }
+
+  /**
+   * Anota na prova do aceite o que o provedor de e-mail respondeu ao envio do
+   * comprovante. `JSON_SET` mexe só nessa chave: data, IP e hashes gravados no
+   * credenciamento continuam intocados.
+   */
+  async registrarEnvioComprovanteTermo(cadastroId: string, envio: EnvioComprovanteTermo): Promise<void> {
+    if (!(await this.supportsAceiteTermoColumn(this.pool))) return;
+    await this.pool.execute(
+      `UPDATE clinica_cadastros_psicologos
+          SET aceite_termo_adesao = JSON_SET(aceite_termo_adesao, '$.envioComprovante', CAST(? AS JSON))
+        WHERE id = ? AND aceite_termo_adesao IS NOT NULL`,
+      [JSON.stringify(envio), rowId('cadastro_psicologo', cadastroId)]
+    );
   }
 
   private static hasNomeSocialColumn: boolean | null = null;

@@ -27,12 +27,12 @@ function nomeDeExibicao(record: CadastroPsicologoRecord): string {
   return record.nomeSocial?.trim() || record.nomeCompleto.trim();
 }
 
-function normalizarEmail(value: string | undefined): string | undefined {
+export function normalizarEmail(value: string | undefined): string | undefined {
   const email = value?.trim().toLocaleLowerCase('pt-BR');
   return email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : undefined;
 }
 
-function escaparHtml(value: string): string {
+export function escaparHtml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   })[character] as string);
@@ -43,7 +43,7 @@ function escaparHtml(value: string): string {
  * provedor. Endereços de e-mail são ocultados e respostas inesperadamente
  * grandes são truncadas para não transformar logs em depósito de dados.
  */
-async function detalheSeguroDaFalha(response: Response): Promise<string | undefined> {
+export async function detalheSeguroDaFalha(response: Response): Promise<string | undefined> {
   try {
     const raw = await response.text();
     if (!raw.trim()) return undefined;
@@ -68,7 +68,7 @@ async function detalheSeguroDaFalha(response: Response): Promise<string | undefi
   }
 }
 
-function configuracaoEmail() {
+export function configuracaoEmail() {
   const apiKey = process.env.RESEND_API_KEY?.trim();
   const from = process.env.PSYCHOLOGIST_EMAIL_FROM?.trim()
     || process.env.RESEND_FROM?.trim()

@@ -1,6 +1,7 @@
 import React from 'react';
 import { FileCheck2, FileWarning } from 'lucide-react';
 import type { PsicologoItem } from './types';
+import { ComprovanteTermoAdesao } from './ComprovanteTermoAdesao';
 
 const DATA_HORA = new Intl.DateTimeFormat('pt-BR', {
   dateStyle: 'short',
@@ -60,6 +61,7 @@ export function AceiteTermoAdesaoInfo({ psicologo }: { psicologo: PsicologoItem 
           <code className="mt-1 block break-all font-mono text-[10px] text-slate-500">{aceite.cadeiaIp}</code>
         </details>
       )}
+      <ComprovanteTermoAdesao psicologoId={psicologo.id} aceite={aceite} />
     </div>
   );
 }

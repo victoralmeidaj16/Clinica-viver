@@ -22,6 +22,9 @@ import {
 } from '@/server/application/psychologistRegistration';
 import { avisarCadastroRecebidoPorEmail } from '@/server/application/psychologistRegistrationEmail';
 import { registrarAceiteTermoAdesao } from '@/server/application/termoAdesaoAceite';
+import type { ComprovanteGerado } from '@/server/application/termoAdesaoComprovante';
+import { montarComprovanteTermoAdesao } from '@/server/application/termoAdesaoComprovantePdf';
+import { enviarComprovanteTermoAdesao } from '@/server/application/termoAdesaoComprovanteEmail';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -94,6 +97,34 @@ async function comEstadoDeAcesso(
  * porque qualquer psicólogo pode se oferecer, mas a lista de quem se candidatou
  * — com CRP, telefone e e-mail — não é assunto de quem passa pelo site.
  */
+/**
+ * Gera o PDF do aceite antes de gravar o cadastro, para que o SHA-256 do
+ * arquivo que vai por e-mail fique na própria prova. Uma falha aqui não impede
+ * o credenciamento: a prova continua gravada e o PDF pode ser regerado.
+ */
+async function prepararComprovante(cadastro: CadastroPsicologoRecord): Promise<ComprovanteGerado | null> {
+  try {
+    return await montarComprovanteTermoAdesao(cadastro);
+  } catch (error) {
+    console.error('Não foi possível gerar o comprovante do Termo de Adesão:', error);
+    return null;
+  }
+}
+
+/** Envia a via do termo ao profissional e à clínica e anota o resultado na prova. */
+async function entregarComprovante(cadastro: CadastroPsicologoRecord, comprovante: ComprovanteGerado | null) {
+  if (!comprovante) return 'nao_gerado' as const;
+  const envio = await enviarComprovanteTermoAdesao(cadastro, comprovante);
+  if (isMysqlConfigured()) {
+    try {
+      await new MysqlCaptureRepository().registrarEnvioComprovanteTermo(cadastro.id, envio);
+    } catch (error) {
+      console.error('Não foi possível registrar o envio do comprovante do termo:', error);
+    }
+  }
+  return envio.situacao;
+}
+
 export async function GET() {
   try {
     await exigirGestao();
@@ -213,6 +244,18 @@ export async function POST(request: Request) {
       pacientesAtivosCount: 0,
     };
 
+    const comprovante = await prepararComprovante(novoPsicologo);
+    if (comprovante) {
+      novoPsicologo.aceiteTermoAdesao = {
+        ...aceite,
+        comprovante: {
+          arquivo: comprovante.arquivo,
+          sha256: comprovante.sha256,
+          codigoVerificacao: comprovante.codigoVerificacao,
+        },
+      };
+    }
+
     if (isMysqlConfigured()) {
       await new MysqlCaptureRepository().mutate((state) => ({
         next: {
@@ -234,12 +277,16 @@ export async function POST(request: Request) {
       });
     }
 
-    const emailDelivery = await avisarCadastroRecebidoPorEmail(novoPsicologo);
+    const [emailDelivery, comprovanteTermo] = await Promise.all([
+      avisarCadastroRecebidoPorEmail(novoPsicologo),
+      entregarComprovante(novoPsicologo, comprovante),
+    ]);
 
     return NextResponse.json({
       success: true,
       data: novoPsicologo,
       email: emailDelivery.situacao,
+      comprovanteTermo,
     });
   } catch (error) {
     console.error('Erro ao salvar cadastro do psicólogo:', error);

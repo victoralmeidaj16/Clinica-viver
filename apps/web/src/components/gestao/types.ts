@@ -74,6 +74,14 @@ export interface PsicologoItem {
     navegador?: string;
     hashAlgoritmo: 'SHA-256';
     hashTexto?: string;
+    comprovante?: { arquivo: string; sha256: string; codigoVerificacao: string };
+    envioComprovante?: {
+      situacao: 'enviada' | 'destinatario_invalido' | 'provedor_desconfigurado' | 'falha';
+      tentadoEm: string;
+      paraProfissional?: boolean;
+      paraClinica?: boolean;
+      detalhe?: string;
+    };
   };
   aceitouTermosEm?: string;
   versaoTermos?: string;

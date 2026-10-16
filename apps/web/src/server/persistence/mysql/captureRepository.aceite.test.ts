@@ -58,3 +58,19 @@ describe('gravação da prova do aceite', () => {
     expect(conn.execute.mock.calls.some(([sql]) => String(sql).includes('aceite_termo_adesao'))).toBe(false);
   });
 });
+
+describe('registro do envio do comprovante', () => {
+  it('anota só o envio, sem regravar a prova', async () => {
+    (MysqlCaptureRepository as unknown as { hasAceiteTermoColumn: boolean }).hasAceiteTermoColumn = false;
+    const conn = conexao(true);
+    await new MysqlCaptureRepository(conn as never).registrarEnvioComprovanteTermo('psi-teste', {
+      situacao: 'enviada',
+      tentadoEm: '2026-10-15T17:32:11.000Z',
+    });
+
+    const [sql, params] = conn.execute.mock.calls[0];
+    expect(sql).toContain("JSON_SET(aceite_termo_adesao, '$.envioComprovante'");
+    expect(sql).toContain('aceite_termo_adesao IS NOT NULL');
+    expect(JSON.parse(String(params?.[0]))).toEqual({ situacao: 'enviada', tentadoEm: '2026-10-15T17:32:11.000Z' });
+  });
+});

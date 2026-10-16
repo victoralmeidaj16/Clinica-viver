@@ -270,6 +270,24 @@ export interface AceiteTermoAdesao {
   navegador?: string;
   hashAlgoritmo: 'SHA-256';
   hashTexto?: string;
+  /** PDF do aceite (manifesto + íntegra) gerado antes de gravar, com o hash do arquivo enviado. */
+  comprovante?: {
+    arquivo: string;
+    sha256: string;
+    codigoVerificacao: string;
+  };
+  /** Gravado depois do envio, à parte da prova: só registra o que o provedor respondeu. */
+  envioComprovante?: EnvioComprovanteTermo;
+}
+
+/** Resultado do e-mail que leva o comprovante ao profissional e à clínica. */
+export interface EnvioComprovanteTermo {
+  situacao: 'enviada' | 'destinatario_invalido' | 'provedor_desconfigurado' | 'falha';
+  tentadoEm: string;
+  paraProfissional?: boolean;
+  paraClinica?: boolean;
+  idMensagem?: string;
+  detalhe?: string;
 }
 
 export interface LancamentoLedgerAluno {

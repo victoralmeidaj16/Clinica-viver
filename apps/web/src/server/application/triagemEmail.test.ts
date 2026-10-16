@@ -51,6 +51,8 @@ describe('e-mails de confirmação de agendamento/triagem', () => {
   it('inclui protocolo, prazo de 24h e alerta do CVV 188 no texto e HTML', () => {
     const conteudo = conteudoTriagemRecebida(lead, psicologo);
     expect(conteudo.text).toContain('Protocolo de Acompanhamento: VM-123456');
+    expect(conteudo.text).toContain('WhatsApp / Telefone informado: 5548988887777');
+    expect(conteudo.html).toContain('<strong>WhatsApp / Telefone informado:</strong> 5548988887777');
     expect(conteudo.text).toContain('Dra. Beatriz Santos');
     expect(conteudo.text).toContain('Psicólogo(a): Dra. Beatriz Santos');
     expect(conteudo.text).toContain('O psicólogo(a) entrará em contato com você via WhatsApp em até 24 horas para combinar o melhor dia e horário da sua primeira sessão.');

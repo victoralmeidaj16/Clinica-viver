@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { generoProfissional } from '@/lib/gender';
 import { desligadoPorTurma } from '@/lib/turmaEncerrada';
-import { getCaptureRepository } from '@/server/persistence/captureRepository';
+import { paraPsicologoPerfil, recalcularPacientesAtivos } from '@/server/application/viverMaisRodizio';
+import { captureStateAsSnapshot, getCaptureRepository } from '@/server/persistence/captureRepository';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -9,7 +10,8 @@ export const dynamic = 'force-dynamic';
 /** Dados mínimos e públicos de profissionais aprovados para a vitrine. */
 export async function GET() {
   try {
-    const state = await getCaptureRepository().read();
+    const state = recalcularPacientesAtivos(captureStateAsSnapshot(await getCaptureRepository().read()));
+    const agora = new Date();
     const data = (state.cadastrosPsicologos ?? [])
       // Turma encerrada: o perfil some da vitrine junto com a saída do rodízio.
       .filter(
@@ -39,7 +41,7 @@ export async function GET() {
         publicoAlvo: item.publicoAlvo ?? [],
         necessidadesAtendidas: item.necessidadesAtendidas ?? [],
         disponivelParaNovosPacientes:
-          !item.pausadoNoRodizio &&
+          !paraPsicologoPerfil(item, agora).pausadoNoRodizio &&
           (item.pacientesAtivosCount ?? 0) < (item.limitePacientesAtivos ?? 5),
       }));
     return NextResponse.json({ success: true, data }, { headers: { 'Cache-Control': 'no-store' } });

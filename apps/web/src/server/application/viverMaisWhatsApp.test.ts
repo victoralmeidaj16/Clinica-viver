@@ -10,7 +10,7 @@ vi.mock('@/server/viverMaisConfirmToken', () => ({
   gerarTokenConfirmacao: vi.fn(() => 'token-mock-123'),
 }));
 
-import { textoParaPsicologo, textoParaPaciente, textoRecebimentoPaciente, avisarRecebimentoPaciente, avisarConfirmacaoPaciente, avisarAlocacao, avisarTransbordo } from './viverMaisWhatsApp';
+import { enviarTexto, textoParaPsicologo, textoParaPaciente, textoRecebimentoPaciente, avisarRecebimentoPaciente, avisarConfirmacaoPaciente, avisarAlocacao, avisarTransbordo } from './viverMaisWhatsApp';
 import type { CadastroPsicologoRecord, TriagemPacienteRecord } from './persistence';
 
 describe('mensagens de WhatsApp para o psicólogo', () => {
@@ -141,4 +141,23 @@ describe('mensagens de WhatsApp para o psicólogo', () => {
       }
     }
   );
+});
+
+it.each([400, 429, 500])('distingue recusa HTTP %s de resultado incerto para reenvio', async (status) => {
+  vi.stubEnv('EVOLUTION_API_URL', 'https://evolution.example');
+  vi.stubEnv('EVOLUTION_API_KEY', 'test-key');
+  vi.stubEnv('EVOLUTION_INSTANCE_NAME', 'test');
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status }));
+  const result = await enviarTexto('48999991234', 'Teste', 'recebimento_paciente', `recusa-http-${status}`);
+  expect(result.situacao).toBe('falha');
+  expect(result.reenvioSeguro).toBe(status < 500);
+});
+it('não autoriza reenvio automático após timeout com entrega incerta', async () => {
+  vi.stubEnv('EVOLUTION_API_URL', 'https://evolution.example');
+  vi.stubEnv('EVOLUTION_API_KEY', 'test-key');
+  vi.stubEnv('EVOLUTION_INSTANCE_NAME', 'test');
+  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('timeout')));
+  const result = await enviarTexto('48999991234', 'Teste', 'recebimento_paciente', 'timeout-envio');
+  expect(result.situacao).toBe('falha');
+  expect(result.reenvioSeguro).not.toBe(true);
 });

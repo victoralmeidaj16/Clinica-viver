@@ -73,6 +73,7 @@ export function conteudoTriagemRecebida(
       '',
       `Protocolo de Acompanhamento: ${lead.protocolo}`,
       `Paciente: ${nomePaciente}`,
+      `WhatsApp / Telefone informado: ${lead.telefone}`,
       `Serviço Solicitado: ${lead.servico || 'Psicoterapia'}`,
       ...(nomePsicologo ? [`Psicólogo(a): ${nomePsicologo}`] : []),
       '',
@@ -93,6 +94,7 @@ export function conteudoTriagemRecebida(
       <div style="background-color: #f3e8ff; border: 1px solid #d8b4fe; border-radius: 12px; padding: 16px; margin: 20px 0;">
         <p style="margin: 0 0 8px 0;"><strong>Protocolo:</strong> <span style="font-family: monospace; font-size: 1.1em; color: #581c87;">${protocoloSeguro}</span></p>
         <p style="margin: 0 0 8px 0;"><strong>Paciente:</strong> ${nomePacienteSeguro}</p>
+        <p style="margin: 0 0 8px 0;"><strong>WhatsApp / Telefone informado:</strong> ${escaparHtml(lead.telefone)}</p>
         <p style="margin: 0 0 8px 0;"><strong>Serviço:</strong> ${servicoSeguro}</p>
         ${psicologoSeguro ? `<p style="margin: 0;"><strong>Psicólogo(a):</strong> ${psicologoSeguro}</p>` : ''}
       </div>

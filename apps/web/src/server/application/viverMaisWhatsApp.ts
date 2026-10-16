@@ -34,6 +34,8 @@ export interface ResultadoEnvio {
   finalidade: FinalidadeMensagem;
   chaveDedupe: string;
   situacao: 'enviada' | 'bloqueada_allowlist' | 'provedor_desconfigurado' | 'falha';
+  /** Recusa explícita antes da entrega; timeout não permite presumir falha de entrega. */
+  reenvioSeguro?: boolean;
 }
 
 /**
@@ -98,11 +100,12 @@ export async function enviarTexto(
       method: 'POST',
       headers: { 'Content-Type': 'application/json', apikey: config.apiKey },
       body: JSON.stringify({ number: normalizeBrazilPhone(telefone) ?? telefone.replace(/\D/g, ''), text: texto }),
+      signal: AbortSignal.timeout(10_000),
     });
 
     if (!resposta.ok) {
       console.warn(`[whatsapp] Provedor recusou "${finalidade}": HTTP ${resposta.status}.`);
-      return { finalidade, chaveDedupe, situacao: 'falha' };
+      return { finalidade, chaveDedupe, situacao: 'falha', reenvioSeguro: resposta.status >= 400 && resposta.status < 500 };
     }
 
     jaDisparado.add(chaveDedupe);

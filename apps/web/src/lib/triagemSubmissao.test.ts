@@ -224,3 +224,9 @@ it.each([['MANHA,NOITE'], [['MANHA', 'NOITE']]])('preserva a seleção múltipla
 it.each([{ turno: [] }, { turno: ['MANHA', 'INVALIDO'] }, { turno: 'MANHA,INVALIDO' }])('recusa seleção vazia ou inválida %j', ({ turno }) => {
   expect(validarSubmissaoTriagem({ ...valido, turno }).ok).toBe(false);
 });
+
+it('compara confirmação pelo número normalizado sem ignorar divergências', () => {
+  expect(validarSubmissaoTriagem({ ...valido, whatsappConfirmacao: '+55 51 99999-9999' }).ok).toBe(true);
+  expect(validarSubmissaoTriagem({ ...valido, whatsappConfirmacao: '(51) 99999-9998' }).ok).toBe(false);
+  expect(validarSubmissaoTriagem({ ...valido, whatsappConfirmacao: '' }).ok).toBe(false);
+});

@@ -1,3 +1,4 @@
+import { receberTriagemWhatsApp, verificarWhatsApp } from '@/server/application/triagemWhatsApp';
 import { NextResponse } from 'next/server';
 import type { CadastroPsicologoRecord, TriagemPacienteRecord } from '@/server/application/persistence';
 import {
@@ -5,7 +6,7 @@ import {
   getCaptureRepository,
 } from '@/server/persistence/captureRepository';
 import { alocarLead, alocarLeadEscolhido, classificarSla, horasDesdeAlocacao, varrerSla } from '@/server/application/viverMaisRodizio';
-import { avisarAlocacao, avisarTransbordo, avisarRecebimentoPaciente } from '@/server/application/viverMaisWhatsApp';
+import { avisarAlocacao, avisarTransbordo } from '@/server/application/viverMaisWhatsApp';
 import {
   avisarAlocacaoPsicologoPorEmail,
   avisarTriagemRecebidaPorEmail,
@@ -79,6 +80,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: validacao.erro }, { status: validacao.status });
     }
     const dados = validacao.dados;
+    if (await verificarWhatsApp(dados.telefone) === 'inexistente') {
+      return NextResponse.json({ success: false, error: 'Não foi possível localizar esse número no WhatsApp. Confira o DDD e todos os dígitos, incluindo o nono dígito do celular. Se o número estiver correto, entre em contato com a clínica.' }, { status: 400 });
+    }
 
     // O protocolo é gerado aqui, sempre. Aceitá-lo do cliente — como esta rota
     // fazia — deixava qualquer envio escolher o número que a pessoa leva embora
@@ -177,6 +181,8 @@ export async function POST(request: Request) {
       );
     }
 
+    const recebimento = await receberTriagemWhatsApp(resultado.lead, resultado.situacao === 'reenvio');
+
     if (resultado.situacao === 'reenvio') {
       console.info(`[triagem] Reenvio do mesmo telefone; devolvido o protocolo ${resultado.lead.protocolo}.`);
     } else if (resultado.psicologo) {
@@ -185,7 +191,6 @@ export async function POST(request: Request) {
       // encerrada assim que o HTTP termina — o lead fica gravado, mas o
       // psicólogo não recebe o WhatsApp.
       const notificacoes = await Promise.allSettled([
-        avisarRecebimentoPaciente(resultado.lead),
         avisarAlocacao(resultado.lead, resultado.psicologo),
         avisarTriagemRecebidaPorEmail(resultado.lead, resultado.psicologo),
         avisarAlocacaoPsicologoPorEmail(
@@ -203,7 +208,6 @@ export async function POST(request: Request) {
         `[triagem] Lead ${novaTriagem.protocolo} sem profissional elegível; aguardando decisão da gestão.`
       );
       await Promise.allSettled([
-        avisarRecebimentoPaciente(resultado.lead),
         avisarTriagemRecebidaPorEmail(resultado.lead),
       ]);
     }
@@ -211,6 +215,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       protocolo: resultado.lead.protocolo,
+      whatsappRecebimento: recebimento?.situacao ?? 'nao_verificado',
       data: resultado.lead,
     });
   } catch (error) {

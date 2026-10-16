@@ -180,6 +180,11 @@ export function validarSubmissaoTriagem(corpo: unknown): ResultadoValidacao {
     return recusa('Informe um WhatsApp válido, com DDD.');
   }
 
+  if (body.whatsappConfirmacao !== undefined &&
+      normalizeBrazilPhone(body.whatsappConfirmacao) !== normalizeBrazilPhone(telefoneDigitado)) {
+    return recusa('Os números de WhatsApp informados não coincidem. Confira o DDD e todos os dígitos.');
+  }
+
   const genero = validateGender(body.genero, body.generoOutro);
   if (!genero) {
     return recusa('Selecione o gênero e informe a descrição quando escolher Outro.');

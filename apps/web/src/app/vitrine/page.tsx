@@ -9,7 +9,10 @@ import { LISTA_NECESSIDADES } from '@/components/forms/necessidades';
 import { validateGender, type GenderValue } from '@/lib/gender';
 import { CAMPO_ARMADILHA } from '@/lib/triagemSubmissao';
 import { maskCpf, validCpf } from '@/lib/cpf';
-import { normalizarTurnoPreferencia, normalizarTurnosPreferencia, rotuloTurnoPreferencia } from '@/lib/turnos';
+import { maskBrazilPhoneInput, normalizeBrazilPhone } from '@/lib/brazilPhone';
+import { BookingReceipt } from '@/components/vitrine/BookingReceipt';
+import { normalizarTurnosPreferencia, rotuloTurnoPreferencia } from '@/lib/turnos';
+import { profissionalCompativelNaVitrine } from '@/lib/vitrineMatching';
 import PublicHeader from '@/components/layout/PublicHeader';
 import PublicFooter from '@/components/layout/PublicFooter';
 import FloatingWhatsAppButton from '@/components/layout/FloatingWhatsAppButton';
@@ -103,6 +106,7 @@ const PASSOS_AGENDAMENTO: PassoJornada[] = [
 ];
 
 export default function ViverMaisLandingPage() {
+  const [recebimento, setRecebimento] = useState<{ protocolo: string; whatsappEnviado: boolean } | null>(null);
   const [selectedService, setSelectedService] = useState<ServicoKey | null>(null);
   const [selectedModalidade, setSelectedModalidade] = useState<ModalidadeKey | null>(null);
   const [servicoSanfonaAberto, setServicoSanfonaAberto] = useState<ServicoKey | null>('PSICOTERAPIA');
@@ -236,15 +240,6 @@ export default function ViverMaisLandingPage() {
   // Máscara CPF: 000.000.000-00
   const maskCPF = (val: string) => maskCpf(val);
 
-
-  // Máscara Telefone: (00) 00000-0000
-  const maskPhone = (val: string) => {
-    return val
-      .replace(/\D/g, '')
-      .replace(/^(\d{2})(\d)/g, '($1) $2')
-      .replace(/(\d{5})(\d)/, '$1-$2')
-      .substring(0, 15);
-  };
 
   // Máscara CEP: 00000-000
   const maskCEP = (val: string) => {
@@ -456,26 +451,16 @@ export default function ViverMaisLandingPage() {
     setStep('FORMULARIO');
   };
 
-  const psicologoAtendeModalidade = (modalidades: readonly string[] | undefined, modalidadeDesejada: ModalidadeKey | null) => {
-    if (!modalidades || modalidades.length === 0) return true;
-    const isParticular = modalidadeDesejada?.includes('PARTICULAR');
-    if (isParticular) {
-      return modalidades.some((m) => m === 'PARTICULAR' || m === 'CASAL_PARTICULAR' || m === 'FAMILIA_PARTICULAR');
-    }
-    return modalidades.some((m) => m === 'SOCIAL' || m === 'CASAL_SOCIAL' || m === 'FAMILIA_SOCIAL' || m === 'ACESSIVEL_SOCIAL');
-  };
-
-  const profissionaisCompativeis = psicologosCredenciados.filter((psi) => {
-    if (psi.disponivelParaNovosPacientes === false) return false;
-    if (selectedService && psi.servicosHabilitados.length > 0 && !psi.servicosHabilitados.includes(selectedService)) return false;
-    const atendeModalidade = psicologoAtendeModalidade(psi.modalidadesAtendidas, selectedModalidade);
-    const turnosEscolhidos = normalizarTurnosPreferencia(form.turno);
-    const atendeTurno = Boolean(psi.turnosDisponiveis?.some(
-      (turno) => turnosEscolhidos.some((escolhido) => normalizarTurnoPreferencia(turno) === escolhido)
-    ));
-    return atendeModalidade && atendeTurno;
-  });
-
+  const profissionaisCompativeis = psicologosCredenciados.filter((psi) =>
+    profissionalCompativelNaVitrine(psi, {
+      turno: form.turno,
+      modalidade: selectedModalidade,
+      servicoKey: selectedService,
+      paraQuemE: form.paraQuemE === 'Outro' && form.paraQuemEOutro.trim()
+        ? `Outro: ${form.paraQuemEOutro.trim()}` : form.paraQuemE,
+      necessidadesPaciente: form.necessidadesPaciente,
+    })
+  );
 
   const handleSubmitPaciente = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -483,7 +468,7 @@ export default function ViverMaisLandingPage() {
       alert('Selecione pelo menos um período de preferência.');
       return;
     }
-    if (form.whatsapp !== form.whatsappConfirmacao) {
+    if (!normalizeBrazilPhone(form.whatsapp) || normalizeBrazilPhone(form.whatsapp) !== normalizeBrazilPhone(form.whatsappConfirmacao)) {
       alert('Os números de telefone informados não coincidem!');
       return;
     }
@@ -521,8 +506,18 @@ export default function ViverMaisLandingPage() {
       });
       const data = await resp.json();
       if (data.success) {
+        setRecebimento({ protocolo: data.protocolo, whatsappEnviado: data.whatsappRecebimento === 'enviada' });
         setStep('SUCESSO');
       } else {
+        if (resp.status === 409) {
+          setPsicologoEscolhido(null);
+          setStep('PROFISSIONAIS');
+          // Mantém os dados preenchidos e atualiza a disponibilidade antes da nova escolha.
+          setPsicologosCredenciados([]);
+          const atualizacao = await fetch('/api/application/credenciamento-psicologo/public', { cache: 'no-store' });
+          const catalogo = await atualizacao.json();
+          if (catalogo.success && Array.isArray(catalogo.data)) setPsicologosCredenciados(catalogo.data);
+        }
         alert(data.error || 'Erro ao enviar solicitação. Tente novamente.');
       }
     } catch (err) {
@@ -1205,9 +1200,8 @@ export default function ViverMaisLandingPage() {
                     type="text"
                     required
                     value={form.whatsapp}
-                    onChange={(e) => setForm({ ...form, whatsapp: maskPhone(e.target.value) })}
+                    onChange={(e) => setForm({ ...form, whatsapp: maskBrazilPhoneInput(e.target.value) })}
                     placeholder="(00) 00000-0000"
-                    maxLength={15}
                     className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
                   />
                 </div>
@@ -1217,9 +1211,8 @@ export default function ViverMaisLandingPage() {
                     type="text"
                     required
                     value={form.whatsappConfirmacao}
-                    onChange={(e) => setForm({ ...form, whatsappConfirmacao: maskPhone(e.target.value) })}
+                    onChange={(e) => setForm({ ...form, whatsappConfirmacao: maskBrazilPhoneInput(e.target.value) })}
                     placeholder="(00) 00000-0000"
-                    maxLength={15}
                     className="w-full border border-slate-300 rounded-xl p-3 focus:outline-none focus:border-purple-600"
                   />
                 </div>
@@ -1528,7 +1521,7 @@ export default function ViverMaisLandingPage() {
                 Seu psicólogo credenciado entrará em contato via WhatsApp em até <strong>24 horas</strong> para alinhar o melhor dia e horário.
               </p>
               <div className="bg-purple-50/70 border border-purple-100 rounded-2xl p-3.5 text-[11px] text-purple-900 text-left space-y-1">
-                <p>• Enviamos uma confirmação detalhada para o seu e-mail e WhatsApp.</p>
+                <BookingReceipt protocolo={recebimento?.protocolo} whatsappEnviado={recebimento?.whatsappEnviado ?? false} />
                 <p className="text-slate-500 italic">
                   *Se o prazo de 24h coincidir com finais de semana ou feriados, o contato ocorrerá no próximo dia útil.
                 </p>

@@ -23,7 +23,9 @@ export function formatBrazilPhone(value: string): string {
 }
 
 export function maskBrazilPhoneInput(value: string): string {
-  const digits = value.replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '').slice(0, 11);
+  const digits = value.replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '');
+  // Não transforme um número longo inválido em outro número válido por truncamento.
+  if (digits.length > 11) return digits;
   if (digits.length <= 2) return digits ? `(${digits}` : '';
   const ddd = digits.slice(0, 2);
   const number = digits.slice(2);

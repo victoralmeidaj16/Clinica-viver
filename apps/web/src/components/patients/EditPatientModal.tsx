@@ -70,6 +70,7 @@ export default function EditPatientModal({ patientId, patientName, onClose, onSa
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (!record) return;
     if (!validCpf(form.cpf)) {
       setError('Informe um CPF válido.');
       return;
@@ -128,7 +129,7 @@ export default function EditPatientModal({ patientId, patientName, onClose, onSa
         <label className="block font-bold text-ink">Observações cadastrais<textarea rows={3} className={input} value={form.registrationNotes} onChange={(e) => update('registrationNotes', e.target.value)} /></label>
         {record?.lastRegistrationUpdate && <p className="flex items-center gap-2 rounded-xl border border-line bg-canvas p-3 text-[11px] text-muted"><ShieldCheck className="h-4 w-4 text-emerald-600" /> Última alteração por {record.lastRegistrationUpdate.actorDisplayName ?? record.lastRegistrationUpdate.actorUserId}, em {new Date(record.lastRegistrationUpdate.updatedAt).toLocaleString('pt-BR')}.</p>}
         {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 font-bold text-rose-700">{error}</p>}
-        <div className="flex flex-col-reverse gap-2 border-t border-line pt-4 sm:flex-row sm:justify-end"><button type="button" onClick={onClose} disabled={saving} className="btn-outline justify-center">Cancelar</button><button type="submit" disabled={saving} className="btn-primary justify-center"><Save className="h-4 w-4" /> {saving ? 'Salvando…' : 'Salvar alterações'}</button></div>
+        <div className="flex flex-col-reverse gap-2 border-t border-line pt-4 sm:flex-row sm:justify-end"><button type="button" onClick={onClose} disabled={saving} className="btn-outline justify-center">Cancelar</button><button type="submit" disabled={saving || !record} className="btn-primary justify-center"><Save className="h-4 w-4" /> {saving ? 'Salvando…' : 'Salvar alterações'}</button></div>
       </form>}
     </section>
   </div>;

@@ -516,6 +516,7 @@ export default function GestaoCockpitPage() {
         convenios={conveniosGestao}
         onClose={() => setLeadAberto(null)}
         onReassign={encaminharPaciente}
+        onRegistrationChange={recarregar}
         onDropoutChange={recarregar}
         onConvenioChange={alterarConvenio}
       />

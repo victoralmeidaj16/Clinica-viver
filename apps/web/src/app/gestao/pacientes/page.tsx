@@ -368,6 +368,7 @@ export default function GestaoPacientesPage() {
         convenios={convenios}
         onClose={() => setSelected(null)}
         onReassign={reassign}
+        onRegistrationChange={load}
         onDropoutChange={load}
         onConvenioChange={changeConvenio}
       />

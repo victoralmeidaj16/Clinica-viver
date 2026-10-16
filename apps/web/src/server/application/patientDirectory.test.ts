@@ -7,11 +7,15 @@ vi.mock('server-only', () => ({}));
 const state = vi.hoisted(() => ({
   patients: new Map<string, PatientProfile>(),
   listPatients: vi.fn(),
+  getRegistration: vi.fn(),
+  updateRegistration: vi.fn(),
   capture: { triagensPacientes: [], cadastrosPsicologos: [] } as CaptureState,
 }));
 vi.mock('./store', () => ({
   getApplicationStore: () => ({ appointments: { list: async () => [] }, identities: {
     listPatients: state.listPatients,
+    getPatientRegistration: state.getRegistration,
+    updatePatientRegistration: state.updateRegistration,
     getPatient: async (_organizationId: string, id: string) => state.patients.get(id),
     savePatient: async (patient: PatientProfile) => { state.patients.set(patient.id, patient); },
     getProfessional: async () => ({ id: 'professional-roster-1', displayName: 'Profissional fictício' }),
@@ -36,7 +40,7 @@ vi.mock('./persistence', async (importOriginal) => ({
   writeSnapshot: vi.fn(async () => {}),
 }));
 
-import { createPatient, listPatientDirectory, registerPatientDropout } from './patientDirectory';
+import { createPatient, listPatientDirectory, registerPatientDropout, getPatientRegistration, updatePatientRegistration } from './patientDirectory';
 import { writeSnapshot } from './persistence';
 
 const context: RequestContext = {
@@ -154,5 +158,43 @@ describe('escopo do diretório de pacientes', () => {
   });
   it('preserva o acesso administrativo sem perfil clínico', async () => {
     expect(await listPatientDirectory({ ...context, actor: { ...context.actor, roles: ['admin'], professionalProfileId: undefined } })).toHaveLength(2);
+  });
+});
+
+
+describe('edição cadastral pela gestão', () => {
+  const admin: RequestContext = { ...context, actor: { ...context.actor, roles: ['admin'], professionalProfileId: undefined } };
+  beforeEach(() => {
+    state.getRegistration.mockReset().mockResolvedValue({ patientId: 'patient-1', legalName: 'Nome atual' });
+    state.updateRegistration.mockReset().mockResolvedValue({ patientId: 'patient-1', legalName: 'Nome corrigido' });
+    state.patients.set('patient-1', createPatientProfile({ id: 'patient-1', organizationId: 'org-test',
+      displayName: 'Paciente', primaryProfessionalId: 'other', assignedProfessionalIds: ['other'],
+      createdAt: '2026-01-01T12:00:00.000Z' }));
+  });
+  it('admin sem perfil clínico abre e salva o cadastro com autoria da sessão', async () => {
+    await expect(getPatientRegistration(admin, 'patient-1')).resolves.toMatchObject({ legalName: 'Nome atual' });
+    await expect(updatePatientRegistration(admin, 'patient-1', { ...body, actorUserId: 'forjado' }))
+      .resolves.toMatchObject({ legalName: 'Nome corrigido' });
+    expect(state.updateRegistration).toHaveBeenCalledWith(expect.objectContaining({
+      organizationId: 'org-test', patientId: 'patient-1', actorUserId: 'user-test', changedAt: expect.any(String),
+    }));
+  });
+  it('recusa CPF inválido antes de salvar', async () => {
+    await expect(updatePatientRegistration(admin, 'patient-1', { ...body, cpf: '123' })).rejects.toMatchObject({ status: 400 });
+    expect(state.updateRegistration).not.toHaveBeenCalled();
+  });
+  it('mantém o bloqueio para psicólogo não responsável', async () => {
+    await expect(updatePatientRegistration(context, 'patient-1', body)).rejects.toThrow('professional_not_assigned');
+    expect(state.updateRegistration).not.toHaveBeenCalled();
+  });
+  it('recusa papel financeiro sem permissão de escrita', async () => {
+    await expect(updatePatientRegistration({ ...admin, actor: { ...admin.actor, roles: ['billing'] } }, 'patient-1', body))
+      .rejects.toThrow('permission_missing');
+    expect(state.updateRegistration).not.toHaveBeenCalled();
+  });
+  it('recusa vínculo inativo mesmo para admin', async () => {
+    await expect(updatePatientRegistration({ ...admin, actor: { ...admin.actor, membershipStatus: 'disabled' } }, 'patient-1', body))
+      .rejects.toThrow('inactive_membership');
+    expect(state.updateRegistration).not.toHaveBeenCalled();
   });
 });

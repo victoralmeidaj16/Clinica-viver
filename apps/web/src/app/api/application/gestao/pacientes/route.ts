@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { managedPatientRegistration } from '@/server/application/managedPatientRegistration';
 import type { PatientProfile } from '@thats-life/core';
 import { readSession } from '@/server/auth';
 import { getApplicationStore } from '@/server/application/store';
@@ -151,13 +152,8 @@ export async function GET() {
         patientId,
         leadId: lead?.id,
         protocolo: lead?.protocolo ?? patient?.externalReference,
-        nome: lead?.nomePaciente ?? patient?.displayName ?? 'Paciente',
-        whatsapp: lead?.telefone ?? (patientId ? contactMap[patientId]?.phone : undefined),
-        email: lead?.email ?? (patientId ? contactMap[patientId]?.email : undefined),
-        cpf: lead?.cpf,
+        ...managedPatientRegistration(patient, patientId ? contactMap[patientId] : undefined, lead),
         idade: lead?.idade,
-        cep: lead?.cep,
-        numeroResidencia: lead?.numeroResidencia,
         servicoKey: lead?.servicoKey,
         servicoNome: lead?.servico,
         modalidade: lead?.modalidade,

@@ -21,6 +21,8 @@ export interface JanelaDisponibilidade {
   horaInicio: string;
   horaFim: string;
   duracaoMin: number;
+  /** Respiro entre o fim de uma sessão e o início da próxima; ausente vale 0. */
+  intervaloMin?: number;
   modalidade: 'presencial' | 'online';
   /** `YYYY-MM-DD`; ausente significa janela sem data de corte. */
   vigenciaInicio?: string;
@@ -85,6 +87,7 @@ export function disponibilidadePadraoDoCadastro(
       diaSemana,
       ...JANELA_POR_TURNO[turno],
       duracaoMin: 50,
+      intervaloMin: 0,
       modalidade,
     }))
   );
@@ -150,6 +153,9 @@ function colide(inicio: number, fim: number, ocupados: readonly IntervaloOcupado
  * Uma janela que não fecha em múltiplo da duração perde o resto — 08:00–09:30
  * com 50 minutos oferece 08:00 e nada mais. Oferecer um slot de 40 minutos
  * seria vender uma sessão mais curta do que a combinada.
+ *
+ * O intervalo separa uma sessão da seguinte, mas não precisa caber depois da
+ * última: 18:00–22:00 com 50 + 10 oferece 18:00, 19:00, 20:00 e 21:00.
  */
 export function gerarSlots(
   janelas: readonly JanelaDisponibilidade[],
@@ -175,10 +181,11 @@ export function gerarSlots(
     for (const janela of janelas) {
       if (janela.diaSemana !== diaSemana || !vigente(janela, dia)) continue;
       const duracaoMs = Math.max(1, janela.duracaoMin) * 60_000;
+      const passoMs = duracaoMs + Math.max(0, janela.intervaloMin ?? 0) * 60_000;
       const abertura = instanteLocal(dia, janela.horaInicio);
       const fechamento = instanteLocal(dia, janela.horaFim);
 
-      for (let inicio = abertura; inicio + duracaoMs <= fechamento; inicio += duracaoMs) {
+      for (let inicio = abertura; inicio + duracaoMs <= fechamento; inicio += passoMs) {
         const fim = inicio + duracaoMs;
         if (inicio < limiteInferior || inicio >= limiteSuperior) continue;
         if (colide(inicio, fim, ocupados)) continue;

@@ -4,7 +4,7 @@ import { blocosDaData, dataLocal, dataPorExtenso, slotsDaData } from './agendaCa
 describe('agendaCalendarModel', () => {
   it('gera os horários recorrentes para uma data específica', () => {
     const slots = slotsDaData('2026-08-25', [{
-      diaSemana: 2, horaInicio: '13:00', horaFim: '16:00', duracaoMin: 50, modalidade: 'online',
+      diaSemana: 2, horaInicio: '13:00', horaFim: '16:00', duracaoMin: 50, intervaloMin: 0, modalidade: 'online',
     }]);
     expect(slots.map((slot) => `${slot.horaInicio}-${slot.horaFim}`)).toEqual([
       '13:00-13:50', '13:50-14:40', '14:40-15:30',

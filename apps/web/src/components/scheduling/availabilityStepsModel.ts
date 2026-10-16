@@ -12,6 +12,7 @@ export interface ConfigDisponibilidade {
   dias: number[];
   periodos: { horaInicio: string; horaFim: string }[];
   duracaoMin: number;
+  intervaloMin: number;
   modalidade: JanelaEditavel['modalidade'];
 }
 
@@ -24,12 +25,13 @@ export const CONFIG_INICIAL: ConfigDisponibilidade = {
   dias: [1, 2, 3, 4, 5],
   periodos: [{ horaInicio: '08:00', horaFim: '12:00' }],
   duracaoMin: 50,
+  intervaloMin: 0,
   modalidade: 'online',
 };
 
 function regraDoDia(janelas: readonly JanelaEditavel[]) {
-  return JSON.stringify(janelas.map(({ horaInicio, horaFim, duracaoMin, modalidade }) => (
-    { horaInicio, horaFim, duracaoMin, modalidade }
+  return JSON.stringify(janelas.map(({ horaInicio, horaFim, duracaoMin, intervaloMin, modalidade }) => (
+    { horaInicio, horaFim, duracaoMin, intervaloMin, modalidade }
   )));
 }
 
@@ -50,13 +52,15 @@ export function configDaGrade(janelas: readonly JanelaEditavel[]): {
   const base = doDia(dias[0]);
   const regraBase = regraDoDia(base);
   const uniforme = dias.every((dia) => regraDoDia(doDia(dia)) === regraBase)
-    && base.every((janela) => janela.duracaoMin === base[0].duracaoMin && janela.modalidade === base[0].modalidade);
+    && base.every((janela) => janela.duracaoMin === base[0].duracaoMin
+      && janela.intervaloMin === base[0].intervaloMin && janela.modalidade === base[0].modalidade);
 
   return {
     config: {
       dias,
       periodos: base.map(({ horaInicio, horaFim }) => ({ horaInicio, horaFim })),
       duracaoMin: base[0].duracaoMin,
+      intervaloMin: base[0].intervaloMin,
       modalidade: base[0].modalidade,
     },
     uniforme,
@@ -69,6 +73,7 @@ export function gradeDaConfig(config: ConfigDisponibilidade): JanelaEditavel[] {
     horaInicio: periodo.horaInicio,
     horaFim: periodo.horaFim,
     duracaoMin: config.duracaoMin,
+    intervaloMin: config.intervaloMin,
     modalidade: config.modalidade,
   }))));
 }
@@ -97,7 +102,8 @@ export function horariosDoDia(config: ConfigDisponibilidade): string[] {
     .flatMap((periodo) => {
       const inicios: string[] = [];
       const fim = minutos(periodo.horaFim);
-      for (let inicio = minutos(periodo.horaInicio); inicio + config.duracaoMin <= fim; inicio += config.duracaoMin) {
+      const passo = config.duracaoMin + config.intervaloMin;
+      for (let inicio = minutos(periodo.horaInicio); inicio + config.duracaoMin <= fim; inicio += passo) {
         inicios.push(hhmm(inicio));
       }
       return inicios;

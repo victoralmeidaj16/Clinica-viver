@@ -5,7 +5,7 @@ import {
   AlertCircle, CalendarCheck2, CalendarDays, Check, CheckCircle2, Clock3, Info, Laptop, Lightbulb, Plus, Timer, Trash2,
 } from 'lucide-react';
 import { AvailabilityEditor } from './AvailabilityEditor';
-import { assinatura, DIAS, DURACOES, type JanelaEditavel } from './availabilityEditorModel';
+import { assinatura, DIAS, DURACOES, INTERVALOS, rotuloIntervalo, type JanelaEditavel } from './availabilityEditorModel';
 import {
   configDaGrade, erroDaConfig, gradeDaConfig, horariosDoDia, ORDEM_SEMANA,
   rotuloDias, rotuloDuracao, rotuloPeriodos, type ConfigDisponibilidade,
@@ -65,6 +65,7 @@ export function AvailabilitySteps({ janelas, onSalvar, bloqueios }: Props) {
   const erro = erroDaConfig(config);
   const horarios = horariosDoDia(config);
   const duracoes = DURACOES.includes(config.duracaoMin) ? DURACOES : [...DURACOES, config.duracaoMin].sort((a, b) => a - b);
+  const intervalos = INTERVALOS.includes(config.intervaloMin) ? INTERVALOS : [...INTERVALOS, config.intervaloMin].sort((a, b) => a - b);
 
   const mudar = (parcial: Partial<ConfigDisponibilidade>) => {
     setConfig((atual) => ({ ...atual, ...parcial }));
@@ -163,7 +164,7 @@ export function AvailabilitySteps({ janelas, onSalvar, bloqueios }: Props) {
       </Passo>
 
       <Passo id="agenda-passo-2" numero={2} titulo="Horários e duração das sessões" descricao="Defina o período em que você pode atender, a duração das sessões e a modalidade.">
-        <div className="grid gap-4 md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)] md:gap-0">
+        <div className="grid gap-4 md:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,1fr))] md:gap-0">
           <div className="flex flex-col gap-2 md:pr-5">
             <span className="text-[12.5px] font-extrabold text-psi-darkest">Período de atendimento</span>
             {config.periodos.map((periodo, indice) => (
@@ -192,6 +193,12 @@ export function AvailabilitySteps({ janelas, onSalvar, bloqueios }: Props) {
               {duracoes.map((valor) => <option key={valor} value={valor}>{rotuloDuracao(valor)}</option>)}
             </select>
           </label>
+          <label className="flex flex-col gap-2 border-line md:border-l md:px-5">
+            <span className="text-[12.5px] font-extrabold text-psi-darkest">Intervalo entre sessões</span>
+            <select value={config.intervaloMin} onChange={(evento) => mudar({ intervaloMin: Number(evento.target.value) })} className={`${CAMPO} md:mt-[19px]`}>
+              {intervalos.map((valor) => <option key={valor} value={valor}>{rotuloIntervalo(valor)}</option>)}
+            </select>
+          </label>
           <label className="flex flex-col gap-2 border-line md:border-l md:pl-5">
             <span className="text-[12.5px] font-extrabold text-psi-darkest">Modalidade</span>
             <select value={config.modalidade} onChange={(evento) => mudar({ modalidade: evento.target.value as JanelaEditavel['modalidade'] })} className={`${CAMPO} md:mt-[19px]`}>
@@ -204,8 +211,9 @@ export function AvailabilitySteps({ janelas, onSalvar, bloqueios }: Props) {
         <div className="flex items-start gap-3 rounded-2xl bg-[#F4EEFA] px-4 py-3.5 text-[12.5px] leading-relaxed text-[#4A3D58]">
           <Lightbulb className="mt-0.5 h-5 w-5 shrink-0 text-psi-vibrant" />
           <span>
-            O sistema divide cada período em sessões de {rotuloDuracao(config.duracaoMin)}, uma em seguida da outra.
-            Quer uma pausa no meio do dia? Use &quot;Adicionar outro período&quot; e deixe um espaço entre eles.
+            O sistema divide cada período em sessões de {rotuloDuracao(config.duracaoMin)}
+            {config.intervaloMin > 0 ? `, com ${config.intervaloMin} min de intervalo entre uma e outra` : ', uma em seguida da outra'}.
+            Quer uma pausa maior no meio do dia? Use &quot;Adicionar outro período&quot; e deixe um espaço entre eles.
           </span>
         </div>
 
@@ -228,7 +236,7 @@ export function AvailabilitySteps({ janelas, onSalvar, bloqueios }: Props) {
           {[
             { icone: CalendarDays, rotulo: 'Dias de atendimento', valor: rotuloDias(config.dias) },
             { icone: Clock3, rotulo: 'Horário', valor: rotuloPeriodos(config) },
-            { icone: Timer, rotulo: 'Duração da sessão', valor: rotuloDuracao(config.duracaoMin) },
+            { icone: Timer, rotulo: 'Duração da sessão', valor: rotuloDuracao(config.duracaoMin) + (config.intervaloMin > 0 ? ` + ${config.intervaloMin} min de intervalo` : '') },
             { icone: Laptop, rotulo: 'Modalidade', valor: config.modalidade === 'online' ? 'Online' : 'Presencial' },
           ].map(({ icone: Icone, rotulo, valor }, indice) => (
             <div key={rotulo} className={`flex min-w-0 items-start gap-3 px-4 ${indice > 0 ? 'lg:border-l lg:border-[#E6DCF0]' : ''} ${indice % 2 === 1 ? 'sm:border-l sm:border-[#E6DCF0]' : ''}`}>

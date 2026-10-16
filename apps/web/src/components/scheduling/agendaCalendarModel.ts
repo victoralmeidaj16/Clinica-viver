@@ -71,7 +71,7 @@ export function slotsDaData(data: string, janelas: readonly JanelaEditavel[]): S
     const inicio = minutos(janela.horaInicio);
     const fim = minutos(janela.horaFim);
     const slots: SlotDoDia[] = [];
-    for (let atual = inicio; atual + janela.duracaoMin <= fim; atual += janela.duracaoMin) {
+    for (let atual = inicio; atual + janela.duracaoMin <= fim; atual += janela.duracaoMin + (janela.intervaloMin ?? 0)) {
       const horaInicio = horaPorMinutos(atual);
       const horaFim = horaPorMinutos(atual + janela.duracaoMin);
       slots.push({

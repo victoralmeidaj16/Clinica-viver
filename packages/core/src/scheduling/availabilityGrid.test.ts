@@ -24,6 +24,7 @@ describe('disponibilidadePadraoDoCadastro', () => {
         horaInicio: '08:00',
         horaFim: '12:00',
         duracaoMin: 50,
+        intervaloMin: 0,
         modalidade: 'online',
       },
       {
@@ -31,6 +32,7 @@ describe('disponibilidadePadraoDoCadastro', () => {
         horaInicio: '18:00',
         horaFim: '22:00',
         duracaoMin: 50,
+        intervaloMin: 0,
         modalidade: 'online',
       },
     ]);
@@ -83,6 +85,13 @@ describe('conversão de fuso da clínica', () => {
 });
 
 describe('gerarSlots', () => {
+  it('deixa o intervalo entre uma sessão e a seguinte, mas não depois da última', () => {
+    const noite = { ...janelaQuarta, horaInicio: '18:00', horaFim: '22:00', intervaloMin: 10 };
+    const slots = gerarSlots([noite], [], inicioDoDia, fimDoDia, vespera);
+    expect(slots.map((slot) => slot.hora)).toEqual(['18:00', '19:00', '20:00', '21:00']);
+    expect(slots[0].fim).toBe(new Date(instanteLocal(QUARTA, '18:50')).toISOString());
+  });
+
   it('parte a janela em horários da duração declarada', () => {
     const slots = gerarSlots([janelaQuarta], [], inicioDoDia, fimDoDia, vespera);
     expect(slots.map((slot) => slot.hora)).toEqual(['08:00', '08:50']);

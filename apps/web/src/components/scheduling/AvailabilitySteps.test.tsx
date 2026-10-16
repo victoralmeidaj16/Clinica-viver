@@ -5,7 +5,7 @@ import { AvailabilitySteps } from './AvailabilitySteps';
 import type { JanelaEditavel } from './availabilityEditorModel';
 
 const janela = (diaSemana: number, horaInicio: string, horaFim: string): JanelaEditavel => ({
-  diaSemana, horaInicio, horaFim, duracaoMin: 50, modalidade: 'online',
+  diaSemana, horaInicio, horaFim, duracaoMin: 50, intervaloMin: 0, modalidade: 'online',
 });
 
 describe('AvailabilitySteps', () => {

@@ -1,13 +1,13 @@
 'use client';
 
 import { ChevronDown, Clock3, Copy, Plus, Trash2, Video } from 'lucide-react';
-import { DIAS, DURACOES, quantidadeSlots, type JanelaEditavel } from './availabilityEditorModel';
+import { DIAS, DURACOES, INTERVALOS, quantidadeSlots, rotuloIntervalo, type JanelaEditavel } from './availabilityEditorModel';
 
 interface Props {
   dia: number;
   janelas: readonly JanelaEditavel[];
   expandido: boolean;
-  padrao: Pick<JanelaEditavel, 'duracaoMin' | 'modalidade'>;
+  padrao: Pick<JanelaEditavel, 'duracaoMin' | 'intervaloMin' | 'modalidade'>;
   onExpandir: () => void;
   onAlternar: () => void;
   onAlterar: (indice: number, campo: Partial<JanelaEditavel>) => void;
@@ -23,6 +23,7 @@ export function AvailabilityDayCard({
 }: Props) {
   const ativo = janelas.length > 0;
   const duracao = janelas[0]?.duracaoMin ?? padrao.duracaoMin;
+  const intervalo = janelas[0]?.intervaloMin ?? padrao.intervaloMin;
   const modalidade = janelas[0]?.modalidade ?? padrao.modalidade;
   const totalSlots = janelas.reduce((total, janela) => total + quantidadeSlots(janela), 0);
   const resumo = ativo ? janelas.map((janela) => `${janela.horaInicio}–${janela.horaFim}`).join(' · ') : 'Sem atendimento';
@@ -63,11 +64,17 @@ export function AvailabilityDayCard({
             </button>
           ) : (
             <div className="space-y-4">
-              <div className="grid gap-3 rounded-xl border border-psi-soft bg-white p-3 sm:grid-cols-2">
+              <div className="grid gap-3 rounded-xl border border-psi-soft bg-white p-3 sm:grid-cols-3">
                 <label className="text-[11px] font-bold text-muted">
                   Duração das sessões
                   <select value={duracao} onChange={(event) => onAlterarRegra({ duracaoMin: Number(event.target.value) })} className="input mt-1 py-2 text-sm font-bold">
                     {DURACOES.map((valor) => <option key={valor} value={valor}>{valor} minutos</option>)}
+                  </select>
+                </label>
+                <label className="text-[11px] font-bold text-muted">
+                  Intervalo entre sessões
+                  <select value={intervalo} onChange={(event) => onAlterarRegra({ intervaloMin: Number(event.target.value) })} className="input mt-1 py-2 text-sm font-bold">
+                    {(INTERVALOS.includes(intervalo) ? INTERVALOS : [...INTERVALOS, intervalo]).map((valor) => <option key={valor} value={valor}>{rotuloIntervalo(valor)}</option>)}
                   </select>
                 </label>
                 <label className="text-[11px] font-bold text-muted">

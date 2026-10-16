@@ -5,7 +5,7 @@ import {
 } from './availabilityStepsModel';
 
 const janela = (diaSemana: number, horaInicio: string, horaFim: string, extra: Partial<JanelaEditavel> = {}): JanelaEditavel => ({
-  diaSemana, horaInicio, horaFim, duracaoMin: 50, modalidade: 'online', ...extra,
+  diaSemana, horaInicio, horaFim, duracaoMin: 50, intervaloMin: 0, modalidade: 'online', ...extra,
 });
 
 describe('availabilityStepsModel', () => {
@@ -31,12 +31,21 @@ describe('availabilityStepsModel', () => {
   });
 
   it('gera os horários do dia em sequência, como o link do paciente', () => {
-    expect(horariosDoDia({ dias: [1], periodos: [{ horaInicio: '18:00', horaFim: '22:00' }], duracaoMin: 50, modalidade: 'online' }))
+    expect(horariosDoDia({ dias: [1], periodos: [{ horaInicio: '18:00', horaFim: '22:00' }], duracaoMin: 50, intervaloMin: 0, modalidade: 'online' }))
       .toEqual(['18:00', '18:50', '19:40', '20:30']);
   });
 
+  it('respeita o intervalo entre sessões, sem exigi-lo depois da última', () => {
+    expect(horariosDoDia({ dias: [1], periodos: [{ horaInicio: '18:00', horaFim: '22:00' }], duracaoMin: 50, intervaloMin: 10, modalidade: 'online' }))
+      .toEqual(['18:00', '19:00', '20:00', '21:00']);
+  });
+
+  it('abre dia a dia quando os intervalos diferem entre os dias', () => {
+    expect(configDaGrade([janela(1, '18:00', '22:00'), janela(2, '18:00', '22:00', { intervaloMin: 10 })]).uniforme).toBe(false);
+  });
+
   it('recusa período invertido ou sobreposto', () => {
-    const base = { dias: [1], duracaoMin: 50, modalidade: 'online' as const };
+    const base = { dias: [1], duracaoMin: 50, intervaloMin: 0, modalidade: 'online' as const };
     expect(erroDaConfig({ ...base, periodos: [{ horaInicio: '12:00', horaFim: '08:00' }] })).toMatch(/posterior/);
     expect(erroDaConfig({ ...base, periodos: [{ horaInicio: '08:00', horaFim: '12:00' }, { horaInicio: '11:00', horaFim: '14:00' }] })).toMatch(/sobrepõem/);
     expect(erroDaConfig({ ...base, periodos: [{ horaInicio: '08:00', horaFim: '12:00' }] })).toBeUndefined();

@@ -176,6 +176,7 @@ export interface JanelaEditavel {
   horaInicio: string;
   horaFim: string;
   duracaoMin: number;
+  intervaloMin: number;
   modalidade: 'presencial' | 'online';
 }
 
@@ -210,7 +211,7 @@ async function disponibilidadePadrao(professionalId: string): Promise<JanelaEdit
   return disponibilidadePadraoDoCadastro({
     turnos: listaJson(rows[0]?.turnos_disponiveis),
     modalidadeAtendimento: rows[0]?.modalidade_atendimento ?? undefined,
-  });
+  }).map((janela) => ({ ...janela, intervaloMin: janela.intervaloMin ?? 0 }));
 }
 
 export async function listAvailability(
@@ -218,7 +219,7 @@ export async function listAvailability(
   professionalId: string
 ): Promise<JanelaEditavel[]> {
   const [rows] = await getMysqlPool().query<RowDataPacket[]>(
-    `SELECT d.dia_semana, d.hora_inicio, d.hora_fim, d.duracao_min, d.modalidade
+    `SELECT d.dia_semana, d.hora_inicio, d.hora_fim, d.duracao_min, d.intervalo_min, d.modalidade
        FROM clinica_disponibilidades d
        JOIN clinica_profissionais p ON p.id = d.profissional_id
        JOIN clinica_organizacoes o ON o.id = p.organizacao_id
@@ -234,6 +235,7 @@ export async function listAvailability(
     horaInicio: String(row.hora_inicio).slice(0, 5),
     horaFim: String(row.hora_fim).slice(0, 5),
     duracaoMin: Number(row.duracao_min),
+    intervaloMin: Number(row.intervalo_min ?? 0),
     modalidade: row.modalidade === 'online' ? 'online' : 'presencial',
   }));
 }
@@ -272,8 +274,8 @@ export async function replaceAvailability(
       await connection.execute(
         `INSERT INTO clinica_disponibilidades
            (id, instituicao_id, profissional_id, dia_semana, hora_inicio, hora_fim,
-            duracao_min, modalidade)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            duracao_min, intervalo_min, modalidade)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           randomUUID(),
           instituicaoId(),
@@ -282,6 +284,7 @@ export async function replaceAvailability(
           `${janela.horaInicio}:00`,
           `${janela.horaFim}:00`,
           janela.duracaoMin,
+          janela.intervaloMin,
           janela.modalidade,
         ]
       );
@@ -1176,7 +1179,7 @@ async function janelas(
   professionalId: string
 ): Promise<JanelaDisponibilidade[]> {
   const [rows] = await getMysqlPool().query<RowDataPacket[]>(
-    `SELECT dia_semana, hora_inicio, hora_fim, duracao_min, modalidade,
+    `SELECT dia_semana, hora_inicio, hora_fim, duracao_min, intervalo_min, modalidade,
             vigencia_inicio, vigencia_fim
        FROM clinica_disponibilidades
       WHERE instituicao_id = ? AND profissional_id = ?`,
@@ -1190,6 +1193,7 @@ async function janelas(
     horaInicio: String(row.hora_inicio).slice(0, 5),
     horaFim: String(row.hora_fim).slice(0, 5),
     duracaoMin: Number(row.duracao_min),
+    intervaloMin: Number(row.intervalo_min ?? 0),
     modalidade: row.modalidade === 'online' ? 'online' : 'presencial',
     vigenciaInicio: row.vigencia_inicio ? String(row.vigencia_inicio).slice(0, 10) : undefined,
     vigenciaFim: row.vigencia_fim ? String(row.vigencia_fim).slice(0, 10) : undefined,

@@ -3,12 +3,18 @@ export interface JanelaEditavel {
   horaInicio: string;
   horaFim: string;
   duracaoMin: number;
+  intervaloMin: number;
   modalidade: 'presencial' | 'online';
 }
 
 export const DIAS = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
 export const DIAS_CURTOS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 export const DURACOES = [30, 45, 50, 60, 90];
+export const INTERVALOS = [0, 5, 10, 15, 20, 30];
+
+export function rotuloIntervalo(intervaloMin: number) {
+  return intervaloMin === 0 ? 'Sem intervalo' : `${intervaloMin} min`;
+}
 
 export function ordenar(janelas: readonly JanelaEditavel[]) {
   return [...janelas].sort(
@@ -26,7 +32,8 @@ export function minutos(hora: string) {
 }
 
 export function quantidadeSlots(janela: JanelaEditavel) {
-  return Math.max(0, Math.floor((minutos(janela.horaFim) - minutos(janela.horaInicio)) / janela.duracaoMin));
+  const passo = janela.duracaoMin + janela.intervaloMin;
+  return Math.max(0, Math.floor((minutos(janela.horaFim) - minutos(janela.horaInicio) + janela.intervaloMin) / passo));
 }
 
 export function erroDaGrade(janelas: readonly JanelaEditavel[]): string | undefined {
@@ -50,6 +57,7 @@ export function padraoDaGrade(janelas: readonly JanelaEditavel[]) {
   const primeira = janelas[0];
   return {
     duracaoMin: primeira?.duracaoMin ?? 50,
+    intervaloMin: primeira?.intervaloMin ?? 0,
     modalidade: primeira?.modalidade ?? 'online' as const,
   };
 }

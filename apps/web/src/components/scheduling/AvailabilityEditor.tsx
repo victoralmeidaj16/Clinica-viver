@@ -60,6 +60,7 @@ export function AvailabilityEditor({ janelas, onSalvar }: Props) {
       horaInicio: inicio,
       horaFim,
       duracaoMin: ultimo?.duracaoMin ?? padrao.duracaoMin,
+      intervaloMin: ultimo?.intervaloMin ?? padrao.intervaloMin,
       modalidade: ultimo?.modalidade ?? padrao.modalidade,
     }]);
   };

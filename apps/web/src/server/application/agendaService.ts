@@ -82,6 +82,7 @@ export function parseAvailability(body: Record<string, unknown>): JanelaEditavel
     const horaInicio = String(janela.horaInicio ?? '');
     const horaFim = String(janela.horaFim ?? '');
     const duracaoMin = Number(janela.duracaoMin ?? 50);
+    const intervaloMin = Number(janela.intervaloMin ?? 0);
 
     if (!Number.isInteger(diaSemana) || diaSemana < 0 || diaSemana > 6) {
       throw new ApplicationError('INVALID_INPUT', 'Dia da semana inválido.', 400);
@@ -99,11 +100,15 @@ export function parseAvailability(body: Record<string, unknown>): JanelaEditavel
     if (!Number.isInteger(duracaoMin) || duracaoMin < 15 || duracaoMin > 240) {
       throw new ApplicationError('INVALID_INPUT', 'A duração deve ficar entre 15 e 240 minutos.', 400);
     }
+    if (!Number.isInteger(intervaloMin) || intervaloMin < 0 || intervaloMin > 60) {
+      throw new ApplicationError('INVALID_INPUT', 'O intervalo entre sessões deve ficar entre 0 e 60 minutos.', 400);
+    }
     return {
       diaSemana,
       horaInicio,
       horaFim,
       duracaoMin,
+      intervaloMin,
       modalidade: janela.modalidade === 'online' ? 'online' : 'presencial',
     } as JanelaEditavel;
   });

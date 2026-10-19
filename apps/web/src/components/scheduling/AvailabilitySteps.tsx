@@ -5,7 +5,8 @@ import {
   AlertCircle, CalendarCheck2, CalendarDays, Check, CheckCircle2, Clock3, Info, Laptop, Lightbulb, Plus, Timer, Trash2,
 } from 'lucide-react';
 import { AvailabilityEditor } from './AvailabilityEditor';
-import { assinatura, DIAS, DURACOES, INTERVALOS, rotuloIntervalo, type JanelaEditavel } from './availabilityEditorModel';
+import { assinatura, DIAS, INTERVALOS, rotuloIntervalo, type JanelaEditavel } from './availabilityEditorModel';
+import { SessionDurationField } from './SessionDurationField';
 import {
   configDaGrade, erroDaConfig, gradeDaConfig, horariosDoDia, ORDEM_SEMANA,
   rotuloDias, rotuloDuracao, rotuloPeriodos, type ConfigDisponibilidade,
@@ -16,6 +17,7 @@ interface Props {
   onSalvar: (janelas: JanelaEditavel[]) => Promise<void>;
   /** O passo 3, de bloqueios, que salva por conta própria. */
   bloqueios: ReactNode;
+  permiteDuracaoVariavel?: boolean;
 }
 
 function Passo({ id, numero, titulo, opcional, descricao, children }: {
@@ -46,7 +48,7 @@ const CAMPO = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 te
  * com horários diferentes em cada dia continua tendo o editor dia a dia, que é
  * aberto sozinho quando a grade salva já não cabe numa regra única.
  */
-export function AvailabilitySteps({ janelas, onSalvar, bloqueios }: Props) {
+export function AvailabilitySteps({ janelas, onSalvar, bloqueios, permiteDuracaoVariavel = false }: Props) {
   const lida = useMemo(() => configDaGrade(janelas), [janelas]);
   const [config, setConfig] = useState<ConfigDisponibilidade>(lida.config);
   // Salvar pelo editor dia a dia troca a grade por fora; o rascunho dos passos
@@ -64,7 +66,6 @@ export function AvailabilitySteps({ janelas, onSalvar, bloqueios }: Props) {
   const alterado = assinatura(grade) !== assinatura(janelas);
   const erro = erroDaConfig(config);
   const horarios = horariosDoDia(config);
-  const duracoes = DURACOES.includes(config.duracaoMin) ? DURACOES : [...DURACOES, config.duracaoMin].sort((a, b) => a - b);
   const intervalos = INTERVALOS.includes(config.intervaloMin) ? INTERVALOS : [...INTERVALOS, config.intervaloMin].sort((a, b) => a - b);
 
   const mudar = (parcial: Partial<ConfigDisponibilidade>) => {
@@ -123,7 +124,7 @@ export function AvailabilitySteps({ janelas, onSalvar, bloqueios }: Props) {
             {lida.uniforme ? 'Voltar à configuração em passos' : 'Usar o mesmo horário em todos os dias'}
           </button>
         </div>
-        <AvailabilityEditor janelas={janelas} onSalvar={onSalvar} />
+        <AvailabilityEditor janelas={janelas} onSalvar={onSalvar} permiteDuracaoVariavel={permiteDuracaoVariavel} />
         <section id="agenda-passo-3" className="flex flex-col gap-3 rounded-[20px] border border-line bg-surface p-4 shadow-card sm:p-6">
           <div>
             <h3 className="text-base font-black text-psi-darkest">Bloqueios <small className="text-[13px] font-semibold text-muted">(opcional)</small></h3>
@@ -189,9 +190,12 @@ export function AvailabilitySteps({ janelas, onSalvar, bloqueios }: Props) {
           </div>
           <label className="flex flex-col gap-2 border-line md:border-l md:px-5">
             <span className="text-[12.5px] font-extrabold text-psi-darkest">Duração da sessão</span>
-            <select value={config.duracaoMin} onChange={(evento) => mudar({ duracaoMin: Number(evento.target.value) })} className={`${CAMPO} md:mt-[19px]`}>
-              {duracoes.map((valor) => <option key={valor} value={valor}>{rotuloDuracao(valor)}</option>)}
-            </select>
+            <SessionDurationField
+              value={config.duracaoMin}
+              onChange={(duracaoMin) => mudar({ duracaoMin })}
+              permiteVariavel={permiteDuracaoVariavel}
+              className={`${CAMPO} md:mt-[19px]`}
+            />
           </label>
           <label className="flex flex-col gap-2 border-line md:border-l md:px-5">
             <span className="text-[12.5px] font-extrabold text-psi-darkest">Intervalo entre sessões</span>

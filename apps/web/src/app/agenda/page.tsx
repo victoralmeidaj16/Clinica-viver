@@ -21,6 +21,7 @@ interface AgendaOverview {
   blocks: BloqueioAgenda[];
   appointments: AgendamentoResumo[];
   servicosHabilitados: string[];
+  permiteDuracaoVariavel?: boolean;
 }
 
 function normalizarBuscaPaciente(value: string): string {
@@ -216,6 +217,7 @@ export default function AgendaPage() {
             <AvailabilitySteps
               janelas={dados.availability}
               onSalvar={salvarGrade}
+              permiteDuracaoVariavel={dados.permiteDuracaoVariavel ?? false}
               bloqueios={<AgendaBlocks bloqueios={dados.blocks} onAdicionar={adicionarBloqueio} onRemover={removerBloqueio} />}
             />
 

@@ -13,9 +13,10 @@ export type { JanelaEditavel } from './availabilityEditorModel';
 interface Props {
   janelas: readonly JanelaEditavel[];
   onSalvar: (janelas: JanelaEditavel[]) => Promise<void>;
+  permiteDuracaoVariavel?: boolean;
 }
 
-export function AvailabilityEditor({ janelas, onSalvar }: Props) {
+export function AvailabilityEditor({ janelas, onSalvar, permiteDuracaoVariavel = false }: Props) {
   const [rascunho, setRascunho] = useState<JanelaEditavel[]>(() => ordenar(janelas));
   const [expandido, setExpandido] = useState(() => janelas[0]?.diaSemana ?? 1);
   const [copiarDe, setCopiarDe] = useState<number>();
@@ -128,6 +129,7 @@ export function AvailabilityEditor({ janelas, onSalvar }: Props) {
                 janelas={doDia}
                 expandido={expandido === dia}
                 padrao={padrao}
+                permiteDuracaoVariavel={permiteDuracaoVariavel}
                 onExpandir={() => setExpandido((atual) => atual === dia ? -1 : dia)}
                 onAlternar={() => alternarDia(dia)}
                 onAlterar={(indice, campo) => alterarJanela(dia, indice, campo)}

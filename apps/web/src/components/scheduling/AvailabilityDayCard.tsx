@@ -1,13 +1,15 @@
 'use client';
 
 import { ChevronDown, Clock3, Copy, Plus, Trash2, Video } from 'lucide-react';
-import { DIAS, DURACOES, INTERVALOS, quantidadeSlots, rotuloIntervalo, type JanelaEditavel } from './availabilityEditorModel';
+import { DIAS, INTERVALOS, quantidadeSlots, rotuloIntervalo, type JanelaEditavel } from './availabilityEditorModel';
+import { SessionDurationField } from './SessionDurationField';
 
 interface Props {
   dia: number;
   janelas: readonly JanelaEditavel[];
   expandido: boolean;
   padrao: Pick<JanelaEditavel, 'duracaoMin' | 'intervaloMin' | 'modalidade'>;
+  permiteDuracaoVariavel?: boolean;
   onExpandir: () => void;
   onAlternar: () => void;
   onAlterar: (indice: number, campo: Partial<JanelaEditavel>) => void;
@@ -18,7 +20,7 @@ interface Props {
 }
 
 export function AvailabilityDayCard({
-  dia, janelas, expandido, padrao, onExpandir, onAlternar,
+  dia, janelas, expandido, padrao, permiteDuracaoVariavel = false, onExpandir, onAlternar,
   onAlterar, onAlterarRegra, onAdicionar, onRemover, onCopiar,
 }: Props) {
   const ativo = janelas.length > 0;
@@ -67,9 +69,12 @@ export function AvailabilityDayCard({
               <div className="grid gap-3 rounded-xl border border-psi-soft bg-white p-3 sm:grid-cols-3">
                 <label className="text-[11px] font-bold text-muted">
                   Duração das sessões
-                  <select value={duracao} onChange={(event) => onAlterarRegra({ duracaoMin: Number(event.target.value) })} className="input mt-1 py-2 text-sm font-bold">
-                    {DURACOES.map((valor) => <option key={valor} value={valor}>{valor} minutos</option>)}
-                  </select>
+                  <SessionDurationField
+                    value={duracao}
+                    onChange={(duracaoMin) => onAlterarRegra({ duracaoMin })}
+                    permiteVariavel={permiteDuracaoVariavel}
+                    className="input mt-1 py-2 text-sm font-bold"
+                  />
                 </label>
                 <label className="text-[11px] font-bold text-muted">
                   Intervalo entre sessões

@@ -21,6 +21,8 @@ import {
   type UpdateAppointmentInput,
 } from '@/server/scheduling/agendaRepository';
 import { avisarSessaoCancelada } from '@/server/scheduling/agendaAvisos';
+import { getCaptureRepository } from '@/server/persistence/captureRepository';
+import { permiteDuracaoVariavel } from '@/lib/duracaoSessao';
 import { atualizarVencimentoCobrancaSessao, cancelarCobrancaDaSessao, garantirCobrancaDaSessao } from '@/server/payments/sessionCharge';
 
 /**
@@ -53,15 +55,18 @@ export async function getAgendaOverview(context: RequestContext) {
   // Sessões antigas ainda não confirmadas continuam visíveis pelo repositório;
   // as já encerradas permanecem por 90 dias para conferência e pagamento.
   const desde = new Date(Date.now() - 90 * 24 * 60 * 60_000);
-  const [availability, blocks, appointments] = await Promise.all([
+  const [availability, blocks, appointments, captacao] = await Promise.all([
     listAvailability(organizationId, professionalId),
     listBlocks(organizationId, professionalId),
     listAppointments(organizationId, professionalId, desde),
+    getCaptureRepository().read(),
   ]);
+  const cadastro = captacao.cadastrosPsicologos.find((psi) => psi.profissionalRef === professionalId);
 
   return {
     professionalName: profile.professionalName,
     servicosHabilitados: profile.servicosHabilitados,
+    permiteDuracaoVariavel: permiteDuracaoVariavel(cadastro),
     agendaToken: profile.token,
     availability,
     blocks,

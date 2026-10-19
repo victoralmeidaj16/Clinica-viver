@@ -9,7 +9,6 @@ export interface JanelaEditavel {
 
 export const DIAS = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
 export const DIAS_CURTOS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-export const DURACOES = [30, 45, 50, 60, 90];
 export const INTERVALOS = [0, 5, 10, 15, 20, 30];
 
 export function rotuloIntervalo(intervaloMin: number) {

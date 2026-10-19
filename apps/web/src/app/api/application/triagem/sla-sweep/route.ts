@@ -4,7 +4,7 @@ import { varrerSla } from '@/server/application/viverMaisRodizio';
 import { avisarTransbordo } from '@/server/application/viverMaisWhatsApp';
 import { avisarAlocacaoPsicologoPorEmail } from '@/server/application/triagemEmail';
 import { exigirVarreduraAutorizada, NaoAutorizadoError } from '@/server/viverMaisGestaoAuth';
-import { reconciliarPacientes } from '@/server/application/patientPromotion';
+import { desvincularPacientesTransbordados, reconciliarPacientes } from '@/server/application/patientPromotion';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -52,6 +52,10 @@ export async function POST(request: Request) {
       );
       void avisarAlocacaoPsicologoPorEmail(transbordo.lead, transbordo.psicologoNovo, 'RODIZIO');
     }
+    // Quem perdeu o lead no prazo deixa de ver o paciente que tinha aceitado.
+    await desvincularPacientesTransbordados(resultado.transbordos, resultado.snapshot.cadastrosPsicologos ?? []).catch((erro) =>
+      console.error('[triagem] Falha ao desvincular pacientes transbordados:', erro)
+    );
     const pacientesPromovidos = await reconciliarPacientes(repositorio);
 
     return NextResponse.json({

@@ -12,6 +12,7 @@ import {
   Users,
   ArrowRightLeft,
   UserRoundCog,
+  UserX,
   FileText,
   X,
   Save,
@@ -114,12 +115,47 @@ const cadastroIncompletoParaRodizio = (psi: PsicologoCadastro): boolean =>
   psi.status === 'APROVADO' &&
   ((psi.modalidadesAtendidas ?? []).length === 0 || (psi.turnosDisponiveis ?? []).length === 0);
 
+const contarPacientes = (n: number) => `${n} ${n === 1 ? 'paciente' : 'pacientes'}`;
+
+/** Card de indicador nas cores da marca; só fica vermelho quando há algo crítico a resolver. */
+function CardKpi({
+  titulo,
+  valor,
+  icone: Icone,
+  critico = false,
+}: {
+  titulo: string;
+  valor: string;
+  icone: React.ComponentType<{ className?: string }>;
+  critico?: boolean;
+}) {
+  return (
+    <div className="bg-surface p-5 rounded-3xl border border-line shadow-card flex items-center justify-between">
+      <div>
+        <span className="text-xs font-bold text-muted">{titulo}</span>
+        <h3 className={`text-2xl font-black mt-1 ${critico ? 'text-rose-600' : 'text-psi-darkest'}`}>{valor}</h3>
+      </div>
+      <div className={`p-3 rounded-2xl ${critico ? 'bg-rose-100 text-rose-700' : 'bg-psi-soft text-psi-deep'}`}>
+        <Icone className="w-5 h-5" />
+      </div>
+    </div>
+  );
+}
+
 /** Status do prazo reutilizado na leitura em cartões da fila, no celular. */
 function BadgeSla({ item }: { item: LeadFila }) {
   if (item.confirmadoEm) {
     return (
       <span className="bg-sky-100 text-sky-800 border border-sky-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full whitespace-nowrap">
         Contato confirmado
+      </span>
+    );
+  }
+  // Sem psicólogo alocado o relógio das 24h nem começou: não há prazo a estourar.
+  if (!item.psicologoAlocadoId) {
+    return (
+      <span className="bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full whitespace-nowrap">
+        Aguardando alocação
       </span>
     );
   }
@@ -418,47 +454,25 @@ export default function GestaoCockpitPage() {
       )}
 
       {/* KPI Cards SLA */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-        <div className="bg-surface p-5 rounded-3xl border border-line shadow-card flex items-center justify-between">
-          <div>
-            <span className="text-xs font-bold text-muted">Aguardando contato</span>
-            <h3 className="text-2xl font-black text-emerald-600 mt-1">
-              {aguardandoContato.length} {aguardandoContato.length === 1 ? 'paciente' : 'pacientes'}
-            </h3>
-            {semProfissional > 0 && (
-              <p className="text-[10px] font-bold text-amber-700 mt-1">
-                + {semProfissional} sem profissional elegível
-              </p>
-            )}
-          </div>
-          <div className="p-3 bg-emerald-100 text-emerald-700 rounded-2xl">
-            <CheckCircle2 className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="bg-surface p-5 rounded-3xl border border-line shadow-card flex items-center justify-between">
-          <div>
-            <span className="text-xs font-bold text-muted">Credenciamentos em análise</span>
-            <h3 className="text-2xl font-black text-purple-600 mt-1">
-              {psicologosPendentes.filter((p) => p.status === 'EM_ANALISE').length} psicólogos
-            </h3>
-          </div>
-          <div className="p-3 bg-purple-100 text-purple-700 rounded-2xl">
-            <UserCheck className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="bg-surface p-5 rounded-3xl border border-line shadow-card flex items-center justify-between">
-          <div>
-            <span className="text-xs font-bold text-muted">Prazo para contato vencido (&gt; 24h)</span>
-            <h3 className="text-2xl font-black text-rose-600 mt-1">
-              {slasEstourados} {slasEstourados === 1 ? 'paciente' : 'pacientes'}
-            </h3>
-          </div>
-          <div className="p-3 bg-rose-100 text-rose-700 rounded-2xl">
-            <AlertTriangle className="w-5 h-5" />
-          </div>
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+        <CardKpi titulo="Aguardando contato" valor={contarPacientes(aguardandoContato.length)} icone={CheckCircle2} />
+        <CardKpi
+          titulo="Sem profissional atribuído"
+          valor={contarPacientes(semProfissional)}
+          icone={UserX}
+          critico={semProfissional > 0}
+        />
+        <CardKpi
+          titulo="Credenciamentos em análise"
+          valor={`${psicologosPendentes.filter((p) => p.status === 'EM_ANALISE').length} psicólogos`}
+          icone={UserCheck}
+        />
+        <CardKpi
+          titulo="Prazo para contato vencido (> 24h)"
+          valor={contarPacientes(slasEstourados)}
+          icone={AlertTriangle}
+          critico={slasEstourados > 0}
+        />
       </div>
 
       {/* Navegação de Abas — deslizam de lado no celular em vez de encolher
@@ -735,6 +749,10 @@ export default function GestaoCockpitPage() {
                         {item.confirmadoEm ? (
                           <span className="bg-sky-100 text-sky-800 border border-sky-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full">
                             Contato confirmado
+                          </span>
+                        ) : !item.psicologoAlocadoId ? (
+                          <span className="bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full">
+                            Aguardando alocação
                           </span>
                         ) : item.slaStatus === 'VERDE' ? (
                           <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full">

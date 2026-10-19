@@ -704,7 +704,7 @@ export function confirmarContato(
 
 export interface ResultadoEncaminhamento {
   snapshot: PersistedSnapshot;
-  situacao: 'encaminhado' | 'sem_candidato' | 'nao_encontrado' | 'nao_aplicavel';
+  situacao: 'encaminhado' | 'sem_candidato' | 'nao_encontrado' | 'nao_aplicavel' | 'ja_aceito';
   lead?: TriagemPacienteRecord;
   psicologoNovo?: CadastroPsicologoRecord;
   psicologoAnteriorNome?: string;
@@ -741,6 +741,12 @@ export function encaminharParaProximo(
     leadRecord.confirmadoEm
   ) {
     return { snapshot: atual, situacao: 'nao_aplicavel', lead: leadRecord };
+  }
+
+  // Depois do "Quero o paciente" ele já é paciente desse profissional. O link e
+  // o WhatsApp deixam de encaminhar: a troca passa a ser decisão da clínica.
+  if (leadRecord.aceitoEm) {
+    return { snapshot: atual, situacao: 'ja_aceito', lead: leadRecord };
   }
 
   const lead = paraLeadTriagem(leadRecord);

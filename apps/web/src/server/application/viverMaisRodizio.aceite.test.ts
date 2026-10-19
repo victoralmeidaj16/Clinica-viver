@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 import { emptySnapshot, type CadastroPsicologoRecord, type TriagemPacienteRecord } from './persistence';
-import { aceitarPaciente } from './viverMaisRodizio';
+import { aceitarPaciente, encaminharParaProximo } from './viverMaisRodizio';
 
 const alocadoEm = '2026-10-15T10:00:00.000Z';
 const lead: TriagemPacienteRecord = {
@@ -59,5 +59,12 @@ describe('aceite do paciente pelo psicólogo', () => {
   it('rejeita o link quando o paciente já pertence a outro psicólogo', () => {
     const resultado = aceitarPaciente(snapshot({ ...lead, psicologoAlocadoId: 'psi-2' }), 'lead-1', 'psi-1');
     expect(resultado.result.kind).toBe('conflict');
+  });
+
+  it('não deixa o link encaminhar o paciente depois do aceite', () => {
+    const aceitoEm = '2026-10-15T12:00:00.000Z';
+    const resultado = encaminharParaProximo(snapshot({ ...lead, aceitoEm }), 'lead-1', 'psi-1');
+    expect(resultado.situacao).toBe('ja_aceito');
+    expect(resultado.snapshot.triagensPacientes![0]).toMatchObject({ psicologoAlocadoId: 'psi-1', aceitoEm });
   });
 });

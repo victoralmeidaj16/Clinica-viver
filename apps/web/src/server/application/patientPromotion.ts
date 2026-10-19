@@ -3,6 +3,7 @@ import 'server-only';
 import { ensurePatientFromExternalSource } from '@thats-life/core';
 import type { CaptureRepository, CaptureState } from '@/server/persistence/captureRepository';
 import type { CadastroPsicologoRecord, TriagemPacienteRecord } from './persistence';
+import type { TransbordoOcorrido } from './viverMaisRodizio';
 import type { PatientContact, PatientContactCapable } from '@/server/persistence/mysql/identityRepository';
 import { getApplicationStore, persistApplicationState } from './store';
 
@@ -135,6 +136,48 @@ export async function promoverLeadEmPaciente(
 
   await persistApplicationState();
   return paciente.id;
+}
+
+/**
+ * Tira o paciente de quem perdeu o encaminhamento no prazo de 24h.
+ *
+ * O aceite cria o paciente já vinculado ao psicólogo. Se o contato não for
+ * confirmado a tempo, o lead segue para o próximo da fila, e o vínculo antigo
+ * não pode ficar para trás: quem desistiu continuaria vendo telefone e endereço
+ * de alguém que não atende mais. O paciente fica sem responsável até o novo
+ * psicólogo aceitar — aí `promoverLeadEmPaciente` o vincula a ele.
+ *
+ * Só desfaz o vínculo que ainda aponta para o psicólogo anterior: se a gestão
+ * já trocou o responsável à mão, essa decisão não é tocada.
+ */
+export async function desvincularPacientesTransbordados(
+  transbordos: readonly TransbordoOcorrido[],
+  psicologos: readonly CadastroPsicologoRecord[]
+): Promise<void> {
+  const store = getApplicationStore();
+  const organizationId = organizacaoDoStore();
+  let alterado = false;
+
+  for (const { lead, psicologoAnteriorId } of transbordos) {
+    if (!lead.pacienteRef || !psicologoAnteriorId) continue;
+    const anterior = psicologos.find((psi) => psi.id === psicologoAnteriorId)?.profissionalRef;
+    if (!anterior) continue;
+    try {
+      const paciente = await store.identities.getPatient(organizationId, lead.pacienteRef);
+      if (!paciente || paciente.primaryProfessionalId !== anterior) continue;
+      await store.identities.savePatient({
+        ...paciente,
+        primaryProfessionalId: undefined,
+        assignedProfessionalIds: paciente.assignedProfessionalIds.filter((id) => id !== anterior),
+        updatedAt: new Date().toISOString(),
+      });
+      alterado = true;
+    } catch (erro) {
+      console.error(`[promoção] Não foi possível desvincular o paciente do lead ${lead.id}:`, erro);
+    }
+  }
+
+  if (alterado) await persistApplicationState();
 }
 
 /**

@@ -6,6 +6,7 @@ import {
   getCaptureRepository,
 } from '@/server/persistence/captureRepository';
 import { alocarLead, alocarLeadEscolhido, classificarSla, horasDesdeAlocacao, varrerSla } from '@/server/application/viverMaisRodizio';
+import { desvincularPacientesTransbordados } from '@/server/application/patientPromotion';
 import { avisarAlocacao, avisarTransbordo } from '@/server/application/viverMaisWhatsApp';
 import {
   avisarAlocacaoPsicologoPorEmail,
@@ -255,6 +256,10 @@ export async function GET() {
         transbordo.psicologoAnteriorNome
       );
     }
+    // Quem perdeu o lead no prazo deixa de ver o paciente que tinha aceitado.
+    await desvincularPacientesTransbordados(varrido.transbordos, varrido.snapshot.cadastrosPsicologos ?? []).catch((erro) =>
+      console.error('[triagem] Falha ao desvincular pacientes transbordados:', erro)
+    );
 
     const fila = (varrido.snapshot.triagensPacientes ?? []).map((lead) => ({
       ...lead,

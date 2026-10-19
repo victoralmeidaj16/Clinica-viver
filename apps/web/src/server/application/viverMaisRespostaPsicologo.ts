@@ -23,6 +23,7 @@ export type SituacaoResposta =
   | 'sem_candidato'
   | 'limite_atingido'
   | 'sem_lead_pendente'
+  | 'ja_aceito'
   | 'remetente_desconhecido'
   | 'comando_nao_reconhecido';
 
@@ -199,6 +200,15 @@ export async function processarRespostaDoPsicologo(
       `encaminhado:${lead.id}:${psicologo.id}`
     );
     return { ...base, situacao: 'encaminhado' };
+  }
+
+  if (resultado.situacao === 'ja_aceito') {
+    void responderPsicologo(
+      psicologo,
+      `Você já aceitou o protocolo ${lead.protocolo}, então ele não pode mais ser encaminhado por aqui. Para repassá-lo a outro profissional, fale com a coordenação da clínica.`,
+      `ja-aceito:${lead.id}:${psicologo.id}`
+    );
+    return { ...base, situacao: 'ja_aceito' };
   }
 
   if (resultado.situacao === 'sem_candidato') {

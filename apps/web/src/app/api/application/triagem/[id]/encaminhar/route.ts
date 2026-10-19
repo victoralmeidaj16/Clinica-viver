@@ -56,6 +56,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       );
     }
 
+    if (resultado.situacao === 'ja_aceito') {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            'Você já aceitou este paciente, então este link não pode mais encaminhá-lo. Para repassá-lo a outro profissional, fale com a coordenação da clínica.',
+        },
+        { status: 409 }
+      );
+    }
+
     if (resultado.situacao === 'sem_candidato') {
       const protocolo = resultado.lead?.protocolo || id;
       void avisarCoordenacao(

@@ -1,35 +1,39 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { permiteDuracaoVariavel } from '@/lib/duracaoSessao';
+import { regrasDuracaoSessao } from '@/lib/duracaoSessao';
 import { SessionDurationField } from './SessionDurationField';
 
-const html = (value: number, permiteVariavel: boolean) =>
-  renderToStaticMarkup(<SessionDurationField value={value} onChange={vi.fn()} permiteVariavel={permiteVariavel} className="" />);
+const html = (value: number, duracoesFixas: readonly number[], permiteVariavel = false) =>
+  renderToStaticMarkup(<SessionDurationField value={value} onChange={vi.fn()} duracoesFixas={duracoesFixas} permiteVariavel={permiteVariavel} className="" />);
 
 describe('SessionDurationField', () => {
-  it('oferece só 50 min e 1h30 para quem não é aluno de Avaliação Psicológica', () => {
-    const markup = html(50, false);
+  it('oferece apenas 50 min no atendimento individual', () => {
+    const markup = html(50, [50]);
     expect(markup).toContain('50 min');
-    expect(markup).toContain('1h30min');
+    expect(markup).not.toContain('1h30min');
     expect(markup).not.toContain('Variável');
     expect(markup).not.toContain('type="number"');
   });
 
-  it('mostra Variável e o campo de minutos para quem pode escolher a duração', () => {
-    expect(html(50, true)).toContain('Variável');
-    expect(html(120, true)).toContain('type="number"');
+  it('oferece 1h30 para casal/família', () => {
+    expect(html(50, [50, 90])).toContain('1h30min');
+  });
+
+  it('mostra Variável e o campo de minutos para avaliação psicológica', () => {
+    expect(html(50, [50, 90], true)).toContain('Variável');
+    expect(html(120, [50, 90], true)).toContain('type="number"');
   });
 
   it('mantém visível a duração de uma grade salva antes das novas opções', () => {
-    expect(html(60, false)).toContain('1h</option>');
+    expect(html(60, [50])).toContain('1h</option>');
   });
 });
 
-describe('permiteDuracaoVariavel', () => {
-  it('vale para a primeira ou a segunda pós em Avaliação Psicológica', () => {
-    expect(permiteDuracaoVariavel({ posGraduacaoViverMais: 'Pós-graduação em Avaliação Psicológica' })).toBe(true);
-    expect(permiteDuracaoVariavel({ segundaPosGraduacao: 'Pós-graduação em Avaliação Psicológica' })).toBe(true);
-    expect(permiteDuracaoVariavel({ posGraduacaoViverMais: 'Pós-graduação em Neuropsicologia Clínica' })).toBe(false);
-    expect(permiteDuracaoVariavel(undefined)).toBe(false);
+describe('regrasDuracaoSessao', () => {
+  it('deriva as opções do cadastro de psicólogo', () => {
+    expect(regrasDuracaoSessao(undefined)).toEqual({ duracoesFixas: [50], permiteVariavel: false });
+    expect(regrasDuracaoSessao({ publicoAlvo: ['Casais'] })).toEqual({ duracoesFixas: [50, 90], permiteVariavel: false });
+    expect(regrasDuracaoSessao({ publicoAlvo: ['Família'] })).toEqual({ duracoesFixas: [50, 90], permiteVariavel: false });
+    expect(regrasDuracaoSessao({ servicosPrestados: ['Avaliação Psicológica'] })).toEqual({ duracoesFixas: [50, 90], permiteVariavel: true });
   });
 });

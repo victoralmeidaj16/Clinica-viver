@@ -9,6 +9,7 @@ interface Props {
   janelas: readonly JanelaEditavel[];
   expandido: boolean;
   padrao: Pick<JanelaEditavel, 'duracaoMin' | 'intervaloMin' | 'modalidade'>;
+  duracoesFixas: readonly number[];
   permiteDuracaoVariavel?: boolean;
   onExpandir: () => void;
   onAlternar: () => void;
@@ -20,7 +21,7 @@ interface Props {
 }
 
 export function AvailabilityDayCard({
-  dia, janelas, expandido, padrao, permiteDuracaoVariavel = false, onExpandir, onAlternar,
+  dia, janelas, expandido, padrao, duracoesFixas, permiteDuracaoVariavel = false, onExpandir, onAlternar,
   onAlterar, onAlterarRegra, onAdicionar, onRemover, onCopiar,
 }: Props) {
   const ativo = janelas.length > 0;
@@ -72,6 +73,7 @@ export function AvailabilityDayCard({
                   <SessionDurationField
                     value={duracao}
                     onChange={(duracaoMin) => onAlterarRegra({ duracaoMin })}
+                    duracoesFixas={duracoesFixas}
                     permiteVariavel={permiteDuracaoVariavel}
                     className="input mt-1 py-2 text-sm font-bold"
                   />

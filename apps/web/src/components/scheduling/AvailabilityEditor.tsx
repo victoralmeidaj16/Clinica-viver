@@ -7,16 +7,18 @@ import { AvailabilityDayCard } from './AvailabilityDayCard';
 import {
   assinatura, DIAS, erroDaGrade, ordenar, padraoDaGrade, type JanelaEditavel,
 } from './availabilityEditorModel';
+import { DURACOES_SESSAO } from '@/lib/duracaoSessao';
 
 export type { JanelaEditavel } from './availabilityEditorModel';
 
 interface Props {
   janelas: readonly JanelaEditavel[];
   onSalvar: (janelas: JanelaEditavel[]) => Promise<void>;
+  duracoesFixas?: readonly number[];
   permiteDuracaoVariavel?: boolean;
 }
 
-export function AvailabilityEditor({ janelas, onSalvar, permiteDuracaoVariavel = false }: Props) {
+export function AvailabilityEditor({ janelas, onSalvar, duracoesFixas = DURACOES_SESSAO, permiteDuracaoVariavel = false }: Props) {
   const [rascunho, setRascunho] = useState<JanelaEditavel[]>(() => ordenar(janelas));
   const [expandido, setExpandido] = useState(() => janelas[0]?.diaSemana ?? 1);
   const [copiarDe, setCopiarDe] = useState<number>();
@@ -129,6 +131,7 @@ export function AvailabilityEditor({ janelas, onSalvar, permiteDuracaoVariavel =
                 janelas={doDia}
                 expandido={expandido === dia}
                 padrao={padrao}
+                duracoesFixas={duracoesFixas}
                 permiteDuracaoVariavel={permiteDuracaoVariavel}
                 onExpandir={() => setExpandido((atual) => atual === dia ? -1 : dia)}
                 onAlternar={() => alternarDia(dia)}

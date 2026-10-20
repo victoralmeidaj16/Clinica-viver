@@ -21,6 +21,7 @@ interface AgendaOverview {
   blocks: BloqueioAgenda[];
   appointments: AgendamentoResumo[];
   servicosHabilitados: string[];
+  duracoesFixas?: number[];
   permiteDuracaoVariavel?: boolean;
 }
 
@@ -217,6 +218,7 @@ export default function AgendaPage() {
             <AvailabilitySteps
               janelas={dados.availability}
               onSalvar={salvarGrade}
+              duracoesFixas={dados.duracoesFixas}
               permiteDuracaoVariavel={dados.permiteDuracaoVariavel ?? false}
               bloqueios={<AgendaBlocks bloqueios={dados.blocks} onAdicionar={adicionarBloqueio} onRemover={removerBloqueio} />}
             />

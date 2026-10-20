@@ -22,7 +22,7 @@ import {
 } from '@/server/scheduling/agendaRepository';
 import { avisarSessaoCancelada } from '@/server/scheduling/agendaAvisos';
 import { getCaptureRepository } from '@/server/persistence/captureRepository';
-import { permiteDuracaoVariavel } from '@/lib/duracaoSessao';
+import { regrasDuracaoSessao } from '@/lib/duracaoSessao';
 import { atualizarVencimentoCobrancaSessao, cancelarCobrancaDaSessao, garantirCobrancaDaSessao } from '@/server/payments/sessionCharge';
 
 /**
@@ -66,7 +66,10 @@ export async function getAgendaOverview(context: RequestContext) {
   return {
     professionalName: profile.professionalName,
     servicosHabilitados: profile.servicosHabilitados,
-    permiteDuracaoVariavel: permiteDuracaoVariavel(cadastro),
+    ...(() => {
+      const regras = regrasDuracaoSessao({ ...cadastro, servicosHabilitados: profile.servicosHabilitados });
+      return { duracoesFixas: regras.duracoesFixas, permiteDuracaoVariavel: regras.permiteVariavel };
+    })(),
     agendaToken: profile.token,
     availability,
     blocks,
@@ -141,6 +144,19 @@ export function parseAvailability(body: Record<string, unknown>): JanelaEditavel
 
 export async function saveAvailability(context: RequestContext, janelas: readonly JanelaEditavel[]) {
   const { organizationId, professionalId } = perfilDaSessao(context);
+  const [captacao, profile] = await Promise.all([
+    getCaptureRepository().read(),
+    getProfessionalAgendaProfile(organizationId, professionalId),
+  ]);
+  const cadastro = captacao.cadastrosPsicologos.find((psi) => psi.profissionalRef === professionalId);
+  const regras = regrasDuracaoSessao({ ...cadastro, servicosHabilitados: profile?.servicosHabilitados });
+  const temDuracaoInvalida = janelas.some((janela) =>
+    !regras.duracoesFixas.includes(janela.duracaoMin)
+    && !(regras.permiteVariavel && janela.duracaoMin >= 15 && janela.duracaoMin <= 240)
+  );
+  if (temDuracaoInvalida) {
+    throw new ApplicationError('INVALID_INPUT', 'A duração escolhida não está disponível para o seu tipo de atendimento.', 400);
+  }
   await replaceAvailability(organizationId, professionalId, janelas);
   return { availability: await listAvailability(organizationId, professionalId) };
 }

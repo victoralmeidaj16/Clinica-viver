@@ -11,12 +11,14 @@ import {
   configDaGrade, erroDaConfig, gradeDaConfig, horariosDoDia, ORDEM_SEMANA,
   rotuloDias, rotuloDuracao, rotuloPeriodos, type ConfigDisponibilidade,
 } from './availabilityStepsModel';
+import { DURACOES_SESSAO } from '@/lib/duracaoSessao';
 
 interface Props {
   janelas: readonly JanelaEditavel[];
   onSalvar: (janelas: JanelaEditavel[]) => Promise<void>;
   /** O passo 3, de bloqueios, que salva por conta própria. */
   bloqueios: ReactNode;
+  duracoesFixas?: readonly number[];
   permiteDuracaoVariavel?: boolean;
 }
 
@@ -48,7 +50,7 @@ const CAMPO = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 te
  * com horários diferentes em cada dia continua tendo o editor dia a dia, que é
  * aberto sozinho quando a grade salva já não cabe numa regra única.
  */
-export function AvailabilitySteps({ janelas, onSalvar, bloqueios, permiteDuracaoVariavel = false }: Props) {
+export function AvailabilitySteps({ janelas, onSalvar, bloqueios, duracoesFixas = DURACOES_SESSAO, permiteDuracaoVariavel = false }: Props) {
   const lida = useMemo(() => configDaGrade(janelas), [janelas]);
   const [config, setConfig] = useState<ConfigDisponibilidade>(lida.config);
   // Salvar pelo editor dia a dia troca a grade por fora; o rascunho dos passos
@@ -124,7 +126,7 @@ export function AvailabilitySteps({ janelas, onSalvar, bloqueios, permiteDuracao
             {lida.uniforme ? 'Voltar à configuração em passos' : 'Usar o mesmo horário em todos os dias'}
           </button>
         </div>
-        <AvailabilityEditor janelas={janelas} onSalvar={onSalvar} permiteDuracaoVariavel={permiteDuracaoVariavel} />
+        <AvailabilityEditor janelas={janelas} onSalvar={onSalvar} duracoesFixas={duracoesFixas} permiteDuracaoVariavel={permiteDuracaoVariavel} />
         <section id="agenda-passo-3" className="flex flex-col gap-3 rounded-[20px] border border-line bg-surface p-4 shadow-card sm:p-6">
           <div>
             <h3 className="text-base font-black text-psi-darkest">Bloqueios <small className="text-[13px] font-semibold text-muted">(opcional)</small></h3>
@@ -193,6 +195,7 @@ export function AvailabilitySteps({ janelas, onSalvar, bloqueios, permiteDuracao
             <SessionDurationField
               value={config.duracaoMin}
               onChange={(duracaoMin) => mudar({ duracaoMin })}
+              duracoesFixas={duracoesFixas}
               permiteVariavel={permiteDuracaoVariavel}
               className={`${CAMPO} md:mt-[19px]`}
             />

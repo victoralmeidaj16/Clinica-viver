@@ -1,19 +1,36 @@
-/** Durações fixas oferecidas na grade de disponibilidade. */
+/** Durações que podem constar na grade de disponibilidade. */
 export const DURACOES_SESSAO = [50, 90] as const;
 
 export const DURACAO_VARIAVEL_MIN = 15;
 export const DURACAO_VARIAVEL_MAX = 240;
 
-const POS_AVALIACAO_PSICOLOGICA = 'Pós-graduação em Avaliação Psicológica';
+export interface RegrasDuracaoSessao {
+  duracoesFixas: readonly number[];
+  permiteVariavel: boolean;
+}
+
+const INDIVIDUAL: RegrasDuracaoSessao = { duracoesFixas: [50], permiteVariavel: false };
+
+function normalizar(valor: string): string {
+  return valor.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
+}
 
 /**
- * Avaliação psicológica não cabe em 50 min nem em 1h30: o tempo depende do
- * instrumento aplicado. Por isso só os alunos dessa pós escolhem a duração.
+ * A duração vem do serviço e do público do cadastro, não da pós-graduação:
+ * individual usa 50 min; casal/família pode usar 1h30; avaliação também pode
+ * informar manualmente o tempo de cada sessão.
  */
-export function permiteDuracaoVariavel(cadastro: {
-  posGraduacaoViverMais?: string;
-  segundaPosGraduacao?: string;
-} | undefined): boolean {
-  return cadastro?.posGraduacaoViverMais === POS_AVALIACAO_PSICOLOGICA
-    || cadastro?.segundaPosGraduacao === POS_AVALIACAO_PSICOLOGICA;
+export function regrasDuracaoSessao(cadastro: {
+  servicosPrestados?: readonly string[];
+  servicosHabilitados?: readonly string[];
+  publicoAlvo?: readonly string[];
+} | undefined): RegrasDuracaoSessao {
+  const servicos = [...(cadastro?.servicosPrestados ?? []), ...(cadastro?.servicosHabilitados ?? [])]
+    .map(normalizar);
+  const publicos = (cadastro?.publicoAlvo ?? []).map(normalizar);
+  const avaliacao = servicos.some((servico) => servico.includes('avaliacao'));
+  if (avaliacao) return { duracoesFixas: DURACOES_SESSAO, permiteVariavel: true };
+
+  const casalOuFamilia = publicos.some((publico) => publico.includes('casal') || publico.includes('casai') || publico.includes('familia'));
+  return casalOuFamilia ? { duracoesFixas: DURACOES_SESSAO, permiteVariavel: false } : INDIVIDUAL;
 }

@@ -20,7 +20,9 @@ CREATE TABLE IF NOT EXISTS clinica_solicitacoes_reagendamento (
   respondido_em TIMESTAMP(3) NULL,
   PRIMARY KEY (id),
   CONSTRAINT solicitacoes_reagendamento_instituicao_fk FOREIGN KEY (instituicao_id) REFERENCES instituicoes(id),
-  CONSTRAINT solicitacoes_reagendamento_agendamento_fk FOREIGN KEY (agendamento_id) REFERENCES clinica_agendamentos(id) ON DELETE CASCADE,
+  -- Sem ON DELETE CASCADE: o InnoDB não permite cascade quando a coluna-base
+  -- participa da expressão de uma coluna gerada indexada (`chave_pendente`).
+  CONSTRAINT solicitacoes_reagendamento_agendamento_fk FOREIGN KEY (agendamento_id) REFERENCES clinica_agendamentos(id),
   CONSTRAINT solicitacoes_reagendamento_paciente_fk FOREIGN KEY (paciente_id) REFERENCES clinica_pacientes(id),
   CONSTRAINT solicitacoes_reagendamento_profissional_fk FOREIGN KEY (profissional_id) REFERENCES clinica_profissionais(id),
   UNIQUE KEY solicitacoes_reagendamento_pendente_uq (chave_pendente),

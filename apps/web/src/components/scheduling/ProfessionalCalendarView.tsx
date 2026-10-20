@@ -1,38 +1,59 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock3, X } from 'lucide-react';
-import type { BloqueioAgenda, NovoBloqueioAgenda } from './AgendaBlocks';
-import type { JanelaEditavel } from './AvailabilityEditor';
+import {
+  Calendar as CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
+  Globe,
+  MapPin,
+  Phone,
+} from 'lucide-react';
 import type { AgendamentoResumo } from './UpcomingSessions';
 import { CalendarMonthGrid } from './CalendarMonthGrid';
-import { DaySchedulePanel } from './DaySchedulePanel';
-import { dataLocal, formatMonthYear, monthCells } from './agendaCalendarModel';
+import {
+  dataLocal,
+  dataPorExtenso,
+  formatMonthYear,
+  horaLocal,
+  monthCells,
+  sessoesDaData,
+} from './agendaCalendarModel';
 
 interface Props {
-  availability: readonly JanelaEditavel[];
-  blocks: readonly BloqueioAgenda[];
   appointments: readonly AgendamentoResumo[];
-  onAdicionarBloqueio: (input: NovoBloqueioAgenda) => Promise<void>;
-  onRemoverBloqueio: (id: string) => Promise<void>;
 }
 
-export function ProfessionalCalendarView({
-  availability,
-  blocks,
-  appointments,
-  onAdicionarBloqueio,
-  onRemoverBloqueio,
-}: Props) {
-  const [hoje, setHoje] = useState(() => dataLocal(Date.now()));
+function statusDaSessao(sessao: AgendamentoResumo) {
+  if (sessao.status === 'realizado' || sessao.realizadoEm) {
+    return { rotulo: 'Realizada', classe: 'bg-emerald-100 text-emerald-700' };
+  }
+  if (sessao.podeConfirmarRealizacao) {
+    return { rotulo: 'Aguardando confirmação', classe: 'bg-amber-100 text-amber-700' };
+  }
+  if (sessao.status === 'confirmado' || sessao.status === 'confirmada') {
+    return { rotulo: 'Confirmada', classe: 'bg-emerald-100 text-emerald-700' };
+  }
+  return { rotulo: 'Agendada', classe: 'bg-psi-soft text-psi-deep' };
+}
+
+function IconeModalidade({ modalidade }: Pick<AgendamentoResumo, 'modalidade'>) {
+  if (modalidade === 'presencial') return <MapPin className="h-3.5 w-3.5" />;
+  if (modalidade === 'telefone') return <Phone className="h-3.5 w-3.5" />;
+  return <Globe className="h-3.5 w-3.5" />;
+}
+
+export function ProfessionalCalendarView({ appointments }: Props) {
+  const [hoje] = useState(() => dataLocal(Date.now()));
   const [ano, setAno] = useState(() => Number(hoje.slice(0, 4)));
   const [mes, setMes] = useState(() => Number(hoje.slice(5, 7)) - 1);
-  const [selecionados, setSelecionados] = useState<string[]>(() => [hoje]);
+  const [selecionado, setSelecionado] = useState(hoje);
 
   const celulas = useMemo(() => monthCells(ano, mes), [ano, mes]);
-  const diasDisponiveis = useMemo(
-    () => new Set(availability.map((janela) => janela.diaSemana)),
-    [availability]
+  const sessoesSelecionadas = useMemo(
+    () => [...sessoesDaData(appointments, selecionado)].sort((a, b) => a.inicio.localeCompare(b.inicio)),
+    [appointments, selecionado]
   );
 
   const navegarMes = (direcao: -1 | 1) => {
@@ -41,136 +62,87 @@ export function ProfessionalCalendarView({
     setMes(data.getUTCMonth());
   };
 
-  const selecionar = (data: string) => {
-    setSelecionados((atual) =>
-      atual.includes(data) ? atual.filter((item) => item !== data) : [...atual, data]
-    );
-  };
-
-  const selecionarDiasUteis = () => {
-    const uteis = celulas.filter((data): data is string => {
-      if (!data) return false;
-      const dia = new Date(`${data}T12:00:00Z`).getUTCDay();
-      return dia >= 1 && dia <= 5;
-    });
-    setSelecionados((atual) => Array.from(new Set([...atual, ...uteis])));
-  };
-
   const abrirHoje = () => {
-    const dataAtual = dataLocal(Date.now());
-    setHoje(dataAtual);
-    setAno(Number(dataAtual.slice(0, 4)));
-    setMes(Number(dataAtual.slice(5, 7)) - 1);
-    setSelecionados((atual) => (atual.includes(dataAtual) ? atual : [...atual, dataAtual]));
+    setAno(Number(hoje.slice(0, 4)));
+    setMes(Number(hoje.slice(5, 7)) - 1);
+    setSelecionado(hoje);
   };
 
   return (
-    <section className="overflow-hidden rounded-3xl border border-line bg-surface shadow-card">
-      <header className="flex flex-wrap items-center justify-between gap-4 bg-psi-darkest p-5 text-white sm:p-6">
+    <section id="agenda-calendario" className="overflow-hidden rounded-3xl border border-line bg-surface shadow-card">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4 sm:px-6">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-[.2em] text-psi-vibrant">Agenda sem conflitos</p>
-          <h2 className="mt-1 flex items-center gap-2 text-lg font-extrabold">
-            <CalendarIcon className="h-5 w-5 text-psi-vibrant" /> Calendário do profissional
+          <h2 className="flex items-center gap-2 text-base font-extrabold text-ink">
+            <CalendarIcon className="h-4 w-4 text-psi-vibrant" /> Calendário de marcações
           </h2>
-          <p className="mt-1 text-xs text-psi-soft/75">
-            Selecione uma ou mais datas para bloquear horários pontuais sem alterar sua rotina semanal.
+          <p className="mt-0.5 text-xs text-muted">
+            Selecione um dia para consultar as sessões agendadas.
           </p>
         </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {selecionados.length > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-xs font-extrabold text-white">
-                {selecionados.length} {selecionados.length === 1 ? 'dia ativo' : 'dias ativos'}
-              </span>
-              <button
-                type="button"
-                onClick={() => setSelecionados([])}
-                className="flex items-center gap-1.5 rounded-xl border border-rose-400/30 bg-rose-500/20 px-3 py-2 text-xs font-bold text-rose-200 transition hover:bg-rose-500/30"
-              >
-                <X className="h-3.5 w-3.5" /> Limpar seleção
-              </button>
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={abrirHoje}
-            className="flex items-center gap-1.5 rounded-xl bg-psi-vibrant px-3.5 py-2.5 text-xs font-extrabold text-white transition hover:bg-psi-vibrant/90"
-          >
-            <Clock3 className="h-4 w-4" /> Hoje
-          </button>
-        </div>
+        <button type="button" onClick={abrirHoje} className="btn-outline px-3 py-2 text-xs">
+          <Clock3 className="h-3.5 w-3.5" /> Hoje
+        </button>
       </header>
 
       <div className="grid divide-y divide-line lg:grid-cols-12 lg:divide-x lg:divide-y-0">
-        {/* COLUNA DA ESQUERDA: GRADE DO CALENDÁRIO */}
-        <div id="agenda-calendario-mes" className="space-y-4 p-4 sm:p-6 lg:col-span-7">
+        <div className="space-y-4 p-4 sm:p-6 lg:col-span-6">
           <div className="flex items-center justify-between">
-            <button
-              type="button"
-              onClick={() => navegarMes(-1)}
-              aria-label="Mês anterior"
-              className="rounded-xl border border-slate-200 p-2 transition hover:bg-slate-100"
-            >
+            <button type="button" onClick={() => navegarMes(-1)} aria-label="Mês anterior" className="rounded-xl border border-line p-2 text-muted transition hover:bg-canvas hover:text-ink">
               <ChevronLeft className="h-4 w-4" />
             </button>
             <h3 className="text-sm font-black capitalize text-ink">{formatMonthYear(ano, mes)}</h3>
-            <button
-              type="button"
-              onClick={() => navegarMes(1)}
-              aria-label="Próximo mês"
-              className="rounded-xl border border-slate-200 p-2 transition hover:bg-slate-100"
-            >
+            <button type="button" onClick={() => navegarMes(1)} aria-label="Próximo mês" className="rounded-xl border border-line p-2 text-muted transition hover:bg-canvas hover:text-ink">
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200/80 bg-slate-50/80 p-2.5 text-[11px] font-bold text-slate-700">
-            <span>Clique nas datas para adicionar ou remover da lista ao lado.</span>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={selecionarDiasUteis}
-                className="text-psi-deep underline hover:text-psi-darkest"
-              >
-                + Dias úteis do mês
-              </button>
-              {selecionados.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setSelecionados([])}
-                  className="text-rose-600 underline hover:text-rose-800"
-                >
-                  Limpar ({selecionados.length})
-                </button>
-              )}
-            </div>
-          </div>
-
           <CalendarMonthGrid
             celulas={celulas}
-            diasDisponiveis={diasDisponiveis}
-            bloqueios={blocks}
             agendamentos={appointments}
-            selecionados={selecionados}
+            selecionado={selecionado}
             hoje={hoje}
-            onSelecionar={selecionar}
+            onSelecionar={setSelecionado}
           />
         </div>
 
-        {/* COLUNA DA DIREITA: PAINEL DE HORÁRIOS DOS DIAS SELECIONADOS */}
-        <aside id="agenda-calendario-dia" className="space-y-5 bg-canvas/40 p-4 sm:p-6 lg:col-span-5">
-          <DaySchedulePanel
-            datas={selecionados}
-            availability={availability}
-            bloqueios={blocks}
-            agendamentos={appointments}
-            onAdicionar={onAdicionarBloqueio}
-            onRemover={onRemoverBloqueio}
-            onRemoverData={(data) => setSelecionados((atual) => atual.filter((d) => d !== data))}
-            onLimparTodasDatas={() => setSelecionados([])}
-          />
+        <aside className="bg-canvas/40 p-4 sm:p-6 lg:col-span-6">
+          <div className="mb-4">
+            <p className="text-[10px] font-black uppercase tracking-[.16em] text-psi-vibrant">Agenda do dia</p>
+            <h3 className="mt-1 text-base font-black capitalize text-ink">{dataPorExtenso(selecionado)}</h3>
+          </div>
+
+          {sessoesSelecionadas.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-line bg-white/70 px-4 py-10 text-center">
+              <CalendarIcon className="mx-auto h-5 w-5 text-muted" />
+              <p className="mt-2 text-xs font-bold text-muted">Nenhuma sessão agendada neste dia.</p>
+            </div>
+          ) : (
+            <ul className="space-y-2.5">
+              {sessoesSelecionadas.map((sessao) => {
+                const status = statusDaSessao(sessao);
+                return (
+                  <li key={sessao.id} className="rounded-2xl border border-line bg-white p-4 shadow-sm">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-bold text-muted">{horaLocal(sessao.inicio)} – {horaLocal(sessao.fim)}</p>
+                        <p className="mt-0.5 text-sm font-extrabold text-ink">{sessao.pacienteNome}</p>
+                        <p className="mt-1 flex items-center gap-1.5 text-xs capitalize text-muted">
+                          <IconeModalidade modalidade={sessao.modalidade} /> {sessao.modalidade}
+                        </p>
+                      </div>
+                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-extrabold ${status.classe}`}>
+                        {status.rotulo}
+                      </span>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          <p className="mt-4 rounded-xl border border-psi-soft bg-psi-soft/30 px-3 py-2.5 text-[11px] text-psi-deep">
+            Esta visualização é somente para consulta. As alterações continuam disponíveis na lista abaixo.
+          </p>
         </aside>
       </div>
     </section>

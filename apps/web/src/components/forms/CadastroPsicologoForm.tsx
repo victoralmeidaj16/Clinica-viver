@@ -9,12 +9,11 @@ import { ModalTermosParceria, VERSAO_TERMOS_PARCERIA } from '@/components/forms/
 import {
   MODALIDADES_ATENDIMENTO,
   POS_GRADUACOES_VIVER_MAIS,
-  PUBLICO_ALVO,
   SEGUNDAS_POS_GRADUACOES,
-  SERVICOS_PRESTADOS,
   TIPOS_ATENDIMENTO,
   TURMAS_VIVER_MAIS,
   TURNOS_PSICOLOGO,
+  opcoesAtendimentoDaPos,
 } from '@/components/forms/opcoesPsicologo';
 import { processImageUpload } from '@/lib/imageUpload';
 import { maskBrazilPhoneInput, normalizeBrazilPhone } from '@/lib/brazilPhone';
@@ -82,6 +81,7 @@ export function CadastroPsicologoForm({
     turmaViverMais: '22A',
     posGraduacaoViverMais: POS_GRADUACOES_VIVER_MAIS[0],
     servicosPrestados: ['Atendimento Psicológico'] as string[],
+    temposAtendimento: [50] as number[],
     publicoAlvo: ['Homens'] as string[],
     publicoAlvoOutro: '',
     especificarNecessidades: false,
@@ -111,11 +111,28 @@ export function CadastroPsicologoForm({
       alert('Selecione o gênero e, se escolher Outro, informe a descrição.');
       return;
     }
-    if (formPsicologo.servicosPrestados.length === 0) {
+    const opcoesAtendimento = opcoesAtendimentoDaPos(
+      formPsicologo.posGraduacaoViverMais,
+      temSegundaPos ? segundaPosGraduacao : undefined
+    );
+    const servicosSelecionados = opcoesAtendimento
+      ? formPsicologo.servicosPrestados.filter((servico) => opcoesAtendimento.servicos.includes(servico))
+      : formPsicologo.servicosPrestados;
+    const temposSelecionados = opcoesAtendimento
+      ? formPsicologo.temposAtendimento.filter((tempo) => opcoesAtendimento.tempos.includes(tempo))
+      : formPsicologo.temposAtendimento;
+    const publicoSelecionado = opcoesAtendimento
+      ? formPsicologo.publicoAlvo.filter((publico) => opcoesAtendimento.publico.includes(publico))
+      : formPsicologo.publicoAlvo;
+    if (opcoesAtendimento && servicosSelecionados.length === 0) {
       alert('Selecione ao menos um serviço prestado.');
       return;
     }
-    if (formPsicologo.publicoAlvo.length === 0) {
+    if (opcoesAtendimento && temposSelecionados.length === 0) {
+      alert('Selecione ao menos um tempo de atendimento.');
+      return;
+    }
+    if (opcoesAtendimento && publicoSelecionado.length === 0) {
       alert('Selecione ao menos um público alvo.');
       return;
     }
@@ -135,6 +152,13 @@ export function CadastroPsicologoForm({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formPsicologo,
+          ...(opcoesAtendimento
+            ? {
+                servicosPrestados: servicosSelecionados,
+                temposAtendimento: temposSelecionados,
+                publicoAlvo: publicoSelecionado,
+              }
+            : { temposAtendimento: undefined }),
           segundaPosGraduacao: temSegundaPos ? segundaPosGraduacao : undefined,
           aceitouTermos: true,
           aceitouTermosEm: new Date().toISOString(),
@@ -359,13 +383,19 @@ export function CadastroPsicologoForm({
           </div>
         )}
 
-        {/* SERVIÇO PRESTADO */}
+        {(() => {
+          const opcoesAtendimento = opcoesAtendimentoDaPos(
+            formPsicologo.posGraduacaoViverMais,
+            temSegundaPos ? segundaPosGraduacao : undefined
+          );
+          if (!opcoesAtendimento) return null;
+          return <>
         <div className="space-y-2">
           <label className="font-bold text-slate-700 block">
-            SERVIÇO PRESTADO <span className="text-rose-500">*</span>
+            MODALIDADE DE ATENDIMENTO <span className="text-rose-500">*</span>
           </label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-            {SERVICOS_PRESTADOS.map((servico) => {
+            {opcoesAtendimento.servicos.map((servico) => {
               const checked = formPsicologo.servicosPrestados.includes(servico);
               return (
                 <label
@@ -394,13 +424,26 @@ export function CadastroPsicologoForm({
           </div>
         </div>
 
-        {/* PÚBLICO ALVO */}
+        <div className="space-y-2">
+          <label className="font-bold text-slate-700 block">TEMPO DE ATENDIMENTO <span className="text-rose-500">*</span></label>
+          <div className="flex flex-wrap gap-2 text-xs">
+            {opcoesAtendimento.tempos.map((tempo) => {
+              const checked = formPsicologo.temposAtendimento.includes(tempo);
+              const label = tempo === 90 ? '1h30min' : '50min';
+              return <label key={tempo} className={`flex items-center gap-2 cursor-pointer p-2.5 rounded-xl border transition-all ${checked ? 'bg-purple-50 border-purple-400 text-purple-950 font-bold shadow-xs' : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'}`}>
+                <input type="checkbox" checked={checked} onChange={() => setFormPsicologo((atual) => ({ ...atual, temposAtendimento: checked ? atual.temposAtendimento.filter((item) => item !== tempo) : [...atual.temposAtendimento, tempo] }))} className="accent-purple-600 w-4 h-4 rounded cursor-pointer" />
+                <span>{label}</span>
+              </label>;
+            })}
+          </div>
+        </div>
+
         <div className="space-y-2">
           <label className="font-bold text-slate-700 block">
             PÚBLICO ALVO <span className="text-rose-500">*</span>
           </label>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-            {PUBLICO_ALVO.map((publico) => {
+            {opcoesAtendimento.publico.map((publico) => {
               const checked = formPsicologo.publicoAlvo.includes(publico);
               return (
                 <label
@@ -440,6 +483,8 @@ export function CadastroPsicologoForm({
             </div>
           )}
         </div>
+          </>;
+        })()}
 
         {/* DEMANDAS PARA ATENDIMENTO */}
         <NecessidadesSelector

@@ -109,6 +109,7 @@ interface PsicologoRow extends RowDataPacket {
   modalidades_atendidas: unknown;
   servicos_habilitados: unknown;
   servicos_prestados: unknown;
+  tempos_atendimento: unknown;
   publico_alvo: unknown;
   publico_alvo_outro: string | null;
   especificar_necessidades: number;
@@ -151,7 +152,21 @@ function asStringArray(value: unknown): string[] {
     : [];
 }
 
-function asJson(value: readonly string[] | undefined): string {
+function asNumberArray(value: unknown): number[] {
+  let parsed = value;
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value) as unknown;
+    } catch {
+      parsed = [];
+    }
+  }
+  return Array.isArray(parsed)
+    ? parsed.filter((item): item is number => item === 50 || item === 90)
+    : [];
+}
+
+function asJson(value: readonly unknown[] | undefined): string {
   return JSON.stringify(value ?? []);
 }
 
@@ -247,6 +262,7 @@ function toPsychologist(row: PsicologoRow): CadastroPsicologoRecord {
     modalidadesAtendidas: asStringArray(row.modalidades_atendidas),
     servicosHabilitados: asStringArray(row.servicos_habilitados),
     servicosPrestados: asStringArray(row.servicos_prestados),
+    temposAtendimento: asNumberArray(row.tempos_atendimento),
     publicoAlvo: asStringArray(row.publico_alvo),
     publicoAlvoOutro: row.publico_alvo_outro ?? undefined,
     especificarNecessidades: Boolean(row.especificar_necessidades),
@@ -450,7 +466,7 @@ export class MysqlCaptureRepository {
               genero, genero_outro,
               especialidade, modalidade_atendimento, atendimento_preferencia, minibio, status,
               turnos_disponiveis, modalidades_atendidas, servicos_habilitados,
-              servicos_prestados, publico_alvo, publico_alvo_outro,
+              servicos_prestados, tempos_atendimento, publico_alvo, publico_alvo_outro,
               especificar_necessidades, necessidades_atendidas, necessidades_outro,
               limite_pacientes_ativos, pacientes_ativos_count, exibir_na_vitrine,
               pausado_no_rodizio, motivo_pausa_rodizio, motivo_desativacao, ultimo_lead_recebido_em, turma_viver_mais,
@@ -569,14 +585,14 @@ export class MysqlCaptureRepository {
             genero, genero_outro,
             especialidade, modalidade_atendimento, atendimento_preferencia,
             minibio, status, turnos_disponiveis, modalidades_atendidas,
-            servicos_habilitados, servicos_prestados, publico_alvo, publico_alvo_outro,
+            servicos_habilitados, servicos_prestados, tempos_atendimento, publico_alvo, publico_alvo_outro,
             especificar_necessidades, necessidades_atendidas, necessidades_outro,
             limite_pacientes_ativos, pacientes_ativos_count,
             exibir_na_vitrine, pausado_no_rodizio, motivo_pausa_rodizio,
             motivo_desativacao, ultimo_lead_recebido_em,
             turma_viver_mais, pos_graduacao_viver_mais, segunda_pos_graduacao_viver_mais,
             solicitacao_alteracao_gestao, criado_em)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
            nome_completo = VALUES(nome_completo), nome_social = VALUES(nome_social),
            crp = VALUES(crp), whatsapp = VALUES(whatsapp), email = VALUES(email),
@@ -594,6 +610,7 @@ export class MysqlCaptureRepository {
            modalidades_atendidas = VALUES(modalidades_atendidas),
            servicos_habilitados = VALUES(servicos_habilitados),
            servicos_prestados = VALUES(servicos_prestados),
+           tempos_atendimento = VALUES(tempos_atendimento),
            publico_alvo = VALUES(publico_alvo), publico_alvo_outro = VALUES(publico_alvo_outro),
            especificar_necessidades = VALUES(especificar_necessidades),
            necessidades_atendidas = VALUES(necessidades_atendidas),
@@ -640,6 +657,7 @@ export class MysqlCaptureRepository {
           asJson(psych.modalidadesAtendidas),
           asJson(psych.servicosHabilitados),
           asJson(psych.servicosPrestados),
+          asJson(psych.temposAtendimento),
           asJson(psych.publicoAlvo),
           psych.publicoAlvoOutro ?? null,
           psych.especificarNecessidades ? 1 : 0,

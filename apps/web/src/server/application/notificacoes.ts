@@ -296,6 +296,19 @@ export function notificacoesDeAgendamentos(
       pendente: false,
     });
 
+    if (agendamento.solicitacaoReagendamento) {
+      itens.push({
+        chave: `reagendamento-solicitado:${agendamento.solicitacaoReagendamento.id}`,
+        tipo: 'reagendamento-solicitado',
+        titulo: 'Reagendamento solicitado',
+        descricao: `${agendamento.pacienteNome} solicitou mudança para ${dataHoraSessao(agendamento.solicitacaoReagendamento.requestedStartsAt)}.`,
+        ocorridoEm: agendamento.solicitacaoReagendamento.requestedAt,
+        severidade: 'ATENCAO',
+        href: comFoco('/agenda', focoSessao(agendamento.id)),
+        pendente: true,
+      });
+    }
+
     const aguardaConfirmacao =
       ['agendado', 'confirmado'].includes(agendamento.status) &&
       Date.parse(agendamento.fim) <= agora.getTime();

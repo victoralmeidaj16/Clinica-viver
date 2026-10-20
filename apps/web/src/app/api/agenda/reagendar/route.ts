@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import { rateLimited, validCpf } from '@/server/http/publicRequest';
 import {
+  getContatosDaSessao,
   identifyPatient,
-  rescheduleAppointmentPublic,
 } from '@/server/scheduling/agendaRepository';
+import { requestPatientReschedule } from '@/server/scheduling/rescheduleRequestRepository';
+import { avisarSolicitacaoReagendamentoPsicologo } from '@/server/scheduling/agendaAvisos';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -46,9 +48,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const resultado = await rescheduleAppointmentPublic(paciente, appointmentId, inicio);
+    const resultado = await requestPatientReschedule(paciente, appointmentId, inicio);
     if (!resultado.ok) {
-      if (resultado.motivo === 'PRAZO_EXPIRADO') {
+      if (resultado.reason === 'TOO_LATE') {
         return NextResponse.json(
           {
             error:
@@ -57,8 +59,17 @@ export async function POST(request: Request) {
           { status: 400 }
         );
       }
-      if (resultado.motivo === 'NAO_ENCONTRADO') {
+      if (resultado.reason === 'NOT_FOUND') {
         return NextResponse.json({ error: 'Agendamento não encontrado para este paciente.' }, { status: 404 });
+      }
+      if (resultado.reason === 'UNCHANGED') {
+        return NextResponse.json({ error: 'Escolha um horário diferente do horário atual.' }, { status: 400 });
+      }
+      if (resultado.reason === 'ALREADY_PENDING') {
+        return NextResponse.json(
+          { error: 'Você já possui uma solicitação de reagendamento aguardando resposta do psicólogo.' },
+          { status: 409 }
+        );
       }
       return NextResponse.json(
         { error: 'Este horário acabou de ser preenchido ou está indisponível. Por favor, escolha outro.' },
@@ -66,18 +77,32 @@ export async function POST(request: Request) {
       );
     }
 
+    try {
+      const contatos = await getContatosDaSessao(resultado.request.appointmentId);
+      if (contatos) {
+        await avisarSolicitacaoReagendamentoPsicologo(
+          contatos,
+          resultado.request.requestedStartsAt,
+          resultado.request.sequence
+        );
+      }
+    } catch (noticeError) {
+      console.error('[agenda] Solicitação gravada, mas o aviso ao psicólogo falhou:', noticeError);
+    }
+
     return NextResponse.json(
       {
-        inicio: resultado.inicio,
-        fim: resultado.fim,
-        modalidade: resultado.modalidade,
-        linkPagamento: resultado.linkPagamento,
-        mensagem: 'Sessão reagendada com sucesso!',
+        agendamentoAtual: {
+          inicio: resultado.request.currentStartsAt,
+          fim: resultado.request.currentEndsAt,
+        },
+        solicitacao: resultado.request,
+        mensagem: 'Reagendamento solicitado ao psicólogo. Seu horário atual continua válido enquanto você aguarda a resposta.',
       },
       { headers: { 'Cache-Control': 'private, no-store' } }
     );
   } catch (error) {
-    console.error('[agenda] Falha ao reagendar:', error instanceof Error ? error.message : error);
-    return NextResponse.json({ error: 'Não foi possível reagendar a sessão agora.' }, { status: 500 });
+    console.error('[agenda] Falha ao solicitar reagendamento:', error instanceof Error ? error.message : error);
+    return NextResponse.json({ error: 'Não foi possível solicitar o reagendamento agora.' }, { status: 500 });
   }
 }

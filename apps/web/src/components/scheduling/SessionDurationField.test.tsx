@@ -36,4 +36,9 @@ describe('regrasDuracaoSessao', () => {
     expect(regrasDuracaoSessao({ publicoAlvo: ['Família'] })).toEqual({ duracoesFixas: [50, 90], permiteVariavel: false });
     expect(regrasDuracaoSessao({ servicosPrestados: ['Avaliação Psicológica'] })).toEqual({ duracoesFixas: [50, 90], permiteVariavel: true });
   });
+
+  it('prioriza o tempo informado no cadastro da pós-graduação', () => {
+    expect(regrasDuracaoSessao({ temposAtendimento: [90], publicoAlvo: ['Criança'] }))
+      .toEqual({ duracoesFixas: [90], permiteVariavel: false });
+  });
 });

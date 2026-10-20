@@ -19,6 +19,7 @@ import {
   derivarModalidadesAtendidas,
   derivarServicosHabilitados,
 } from '@/server/application/psychologistRegistration';
+import { opcoesAtendimentoDaPos } from '@/components/forms/opcoesPsicologo';
 import { avisarCadastroRecebidoPorEmail } from '@/server/application/psychologistRegistrationEmail';
 import { registrarAceiteTermoAdesao } from '@/server/application/termoAdesaoAceite';
 import type { ComprovanteGerado } from '@/server/application/termoAdesaoComprovante';
@@ -190,7 +191,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Selecione ao menos um turno de atendimento.' }, { status: 400 });
     }
 
-    const servicosPrestados = Array.isArray(body.servicosPrestados) ? body.servicosPrestados : [];
+    const opcoesAtendimento = opcoesAtendimentoDaPos(
+      typeof body.posGraduacaoViverMais === 'string' ? body.posGraduacaoViverMais : undefined,
+      typeof body.segundaPosGraduacao === 'string' ? body.segundaPosGraduacao : undefined
+    );
+    const servicosPrestados = Array.isArray(body.servicosPrestados)
+      ? body.servicosPrestados.filter((servico: unknown): servico is string =>
+          typeof servico === 'string' && (!opcoesAtendimento || opcoesAtendimento.servicos.includes(servico))
+        )
+      : [];
+    const temposAtendimento = Array.isArray(body.temposAtendimento)
+      ? body.temposAtendimento.filter((tempo: unknown): tempo is number => tempo === 50 || tempo === 90)
+      : [];
+    if (opcoesAtendimento && (servicosPrestados.length === 0 || temposAtendimento.length === 0)) {
+      return NextResponse.json({ success: false, error: 'Selecione uma modalidade e um tempo de atendimento.' }, { status: 400 });
+    }
 
     // A prova do aceite é apurada aqui, não no navegador: data e hora do
     // servidor, IP, navegador e hash do texto da versão exibida.
@@ -221,6 +236,7 @@ export async function POST(request: Request) {
       // O que o próprio profissional declara sobre o que atende.
       turnosDisponiveis,
       servicosPrestados,
+      temposAtendimento: temposAtendimento.length > 0 ? temposAtendimento : undefined,
       publicoAlvo: Array.isArray(body.publicoAlvo) ? body.publicoAlvo : [],
       publicoAlvoOutro: body.publicoAlvoOutro || undefined,
       especificarNecessidades: Boolean(body.especificarNecessidades),

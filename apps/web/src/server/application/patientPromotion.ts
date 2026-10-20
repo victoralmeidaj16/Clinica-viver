@@ -81,7 +81,10 @@ export async function promoverLeadEmPaciente(
 
   const store = getApplicationStore();
   const organizationId = organizacaoDoStore();
-  const id = idDoPacientePromovido(lead.id);
+  // Lead já vinculado reaproveita o paciente: o cadastro manual nasce com
+  // `pacienteRef` próprio, e derivar o id do lead criaria um segundo paciente
+  // a cada varredura de SLA.
+  const id = lead.pacienteRef ?? idDoPacientePromovido(lead.id);
 
   // `ensurePatientFromExternalSource` lança se o profissional não existir ou
   // estiver inativo no cadastro clínico. Aqui isso não pode virar erro para

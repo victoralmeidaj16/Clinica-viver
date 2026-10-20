@@ -6,6 +6,8 @@ import { FUSO_CLINICA } from '@thats-life/core';
 import { getMysqlPool } from '@/server/oci/runtime';
 import { instituicaoId } from '@/server/persistence/mysql/mappers';
 import { enviarTexto, type ResultadoEnvio } from '@/server/application/viverMaisWhatsApp';
+import { appBaseUrl } from '@/server/application/appUrl';
+import { comFoco, focoSessao } from '@/lib/focoNotificacao';
 import type { ContatosDaSessao } from './agendaRepository';
 
 /**
@@ -28,7 +30,7 @@ import type { ContatosDaSessao } from './agendaRepository';
  *      impede a mesma confirmação de sair duas vezes de duas instâncias.
  */
 
-export type TipoAviso = 'confirmacao_paciente' | 'confirmacao_psicologo' | 'cancelamento_paciente' | 'remarcacao_paciente' | 'remarcacao_psicologo';
+export type TipoAviso = 'confirmacao_paciente' | 'confirmacao_psicologo' | 'cancelamento_paciente' | 'remarcacao_paciente' | 'remarcacao_psicologo' | 'solicitacao_reagendamento_psicologo' | 'recusa_reagendamento_paciente';
 
 /**
  * Reserva o aviso. `true` significa "é sua vez de enviar".
@@ -248,4 +250,48 @@ export async function avisarSessaoRemarcada(sessao: ContatosDaSessao, inicioAnte
     'agenda_remarcacao_psicologo',
     `Olá, ${sessao.profissionalNome}! A sessão de ${sessao.pacienteNome} foi remarcada.\n\n${detalhes}`,
     versao);
+}
+
+export function textoSolicitacaoReagendamentoPsicologo(
+  sessao: ContatosDaSessao,
+  inicioSolicitado: string
+): string {
+  const link = `${appBaseUrl()}${comFoco('/agenda', focoSessao(sessao.agendamentoId))}`;
+  return [
+    `Olá, ${sessao.profissionalNome}! ${sessao.pacienteNome} solicitou um reagendamento.`,
+    '',
+    `Horário atual: ${quandoPorExtenso(sessao.inicio)}`,
+    `Horário solicitado: ${quandoPorExtenso(inicioSolicitado)}`,
+    '',
+    `Acesse a plataforma para aceitar ou recusar: ${link}`,
+  ].join('\n');
+}
+
+export async function avisarSolicitacaoReagendamentoPsicologo(
+  sessao: ContatosDaSessao,
+  inicioSolicitado: string,
+  sequencia: number
+): Promise<void> {
+  await despachar(
+    sessao.agendamentoId,
+    'solicitacao_reagendamento_psicologo',
+    sessao.profissionalTelefone,
+    'agenda_solicitacao_reagendamento_psicologo',
+    textoSolicitacaoReagendamentoPsicologo(sessao, inicioSolicitado),
+    sequencia
+  );
+}
+
+export async function avisarRecusaReagendamentoPaciente(
+  sessao: ContatosDaSessao,
+  sequencia: number
+): Promise<void> {
+  await despachar(
+    sessao.agendamentoId,
+    'recusa_reagendamento_paciente',
+    sessao.pacienteTelefone,
+    'agenda_recusa_reagendamento_paciente',
+    `Olá, ${sessao.pacienteNome}. A solicitação de mudança não foi aceita. Sua sessão continua confirmada para ${quandoPorExtenso(sessao.inicio)}.`,
+    sequencia
+  );
 }

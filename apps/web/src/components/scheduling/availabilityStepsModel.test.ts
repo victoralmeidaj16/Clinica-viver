@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { JanelaEditavel } from './availabilityEditorModel';
+import { padraoDaGrade, type JanelaEditavel } from './availabilityEditorModel';
 import {
   configDaGrade, erroDaConfig, gradeDaConfig, horariosDoDia, rotuloDias, rotuloDuracao,
 } from './availabilityStepsModel';
@@ -26,8 +26,16 @@ describe('availabilityStepsModel', () => {
     expect(config.duracaoMin).toBe(60);
   });
 
-  it('começa de segunda a sexta quando ainda não há grade', () => {
-    expect(configDaGrade([]).config.dias).toEqual([1, 2, 3, 4, 5]);
+  it('começa de segunda a sexta e com intervalo de 10 min quando ainda não há grade', () => {
+    const config = configDaGrade([]).config;
+    expect(config.dias).toEqual([1, 2, 3, 4, 5]);
+    expect(config.intervaloMin).toBe(10);
+    expect(padraoDaGrade([]).intervaloMin).toBe(10);
+  });
+
+  it('preserva o intervalo salvo, inclusive sem intervalo', () => {
+    expect(configDaGrade([janela(1, '08:00', '12:00')]).config.intervaloMin).toBe(0);
+    expect(padraoDaGrade([janela(1, '08:00', '12:00')]).intervaloMin).toBe(0);
   });
 
   it('gera os horários do dia em sequência, como o link do paciente', () => {

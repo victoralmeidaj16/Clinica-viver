@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+vi.mock('server-only', () => ({}));
 import { POST } from './route';
 
 vi.mock('@/server/http/publicRequest', () => ({
@@ -7,6 +8,11 @@ vi.mock('@/server/http/publicRequest', () => ({
 }));
 
 vi.mock('@/server/scheduling/agendaRepository', () => ({
+  getContatosDaSessao: vi.fn(async () => ({
+    agendamentoId: 'apt-valido', inicio: '2026-10-09T14:00:00.000Z', fim: '2026-10-09T14:50:00.000Z',
+    modalidade: 'online', status: 'agendado', pacienteNome: 'Paciente Teste', pacienteTelefone: '11999999999',
+    profissionalNome: 'Psicólogo Teste', profissionalTelefone: '11988888888',
+  })),
   identifyPatient: vi.fn(async (token: string, cpf: string) => {
     if (token === 'a'.repeat(32) && cpf === '12345678901') {
       return {
@@ -22,22 +28,28 @@ vi.mock('@/server/scheduling/agendaRepository', () => ({
     }
     return null;
   }),
-  rescheduleAppointmentPublic: vi.fn(async (_paciente, appointmentId: string, novoInicio: string) => {
+}));
+
+vi.mock('@/server/scheduling/rescheduleRequestRepository', () => ({
+  requestPatientReschedule: vi.fn(async (_paciente, appointmentId: string, novoInicio: string) => {
     if (appointmentId === 'apt-expirado') {
-      return { ok: false, motivo: 'PRAZO_EXPIRADO' as const };
+      return { ok: false, reason: 'TOO_LATE' as const };
     }
     if (appointmentId === 'apt-conflito') {
-      return { ok: false, motivo: 'INDISPONIVEL' as const };
+      return { ok: false, reason: 'UNAVAILABLE' as const };
     }
     return {
       ok: true as const,
-      agendamentoId: appointmentId,
-      inicio: novoInicio,
-      fim: new Date(new Date(novoInicio).getTime() + 50 * 60_000).toISOString(),
-      modalidade: 'online',
-      linkPagamento: '/pagar/sessao/tokenteste',
+      request: { id: 'request-1', sequence: 1, appointmentId,
+        currentStartsAt: '2026-10-09T14:00:00.000Z', currentEndsAt: '2026-10-09T14:50:00.000Z',
+        requestedStartsAt: novoInicio, requestedEndsAt: new Date(new Date(novoInicio).getTime() + 50 * 60_000).toISOString(),
+        requestedModality: 'online', requestedAt: '2026-10-01T10:00:00.000Z' },
     };
   }),
+}));
+
+vi.mock('@/server/scheduling/agendaAvisos', () => ({
+  avisarSolicitacaoReagendamentoPsicologo: vi.fn(async () => {}),
 }));
 
 describe('POST /api/agenda/reagendar', () => {
@@ -90,7 +102,7 @@ describe('POST /api/agenda/reagendar', () => {
     expect(res.status).toBe(409);
   });
 
-  it('reagenda com sucesso quando dados e regras forem atendidos', async () => {
+  it('cria solicitação sem afirmar que a sessão foi reagendada', async () => {
     const req = new Request('http://localhost/api/agenda/reagendar', {
       method: 'POST',
       body: JSON.stringify({ token: 'a'.repeat(32), cpf: '12345678901', appointmentId: 'apt-valido', inicio: '2026-10-10T14:00:00.000Z' }),
@@ -98,8 +110,10 @@ describe('POST /api/agenda/reagendar', () => {
     const res = await POST(req);
     expect(res.status).toBe(200);
     const data = await res.json();
-    expect(data.mensagem).toBe('Sessão reagendada com sucesso!');
-    expect(data.inicio).toBe('2026-10-10T14:00:00.000Z');
-    expect(data.linkPagamento).toBe('/pagar/sessao/tokenteste');
+    expect(data.mensagem).toContain('Reagendamento solicitado ao psicólogo');
+    expect(data.mensagem).not.toContain('reagendada');
+    expect(data.agendamentoAtual.inicio).toBe('2026-10-09T14:00:00.000Z');
+    expect(data.solicitacao.requestedStartsAt).toBe('2026-10-10T14:00:00.000Z');
+    expect(data.linkPagamento).toBeUndefined();
   });
 });

@@ -5,7 +5,7 @@ const state = vi.hoisted(() => ({ execute: vi.fn(), enviar: vi.fn(), reservation
 vi.mock('@/server/oci/runtime', () => ({ getMysqlPool: () => ({ execute: state.execute }) }));
 vi.mock('@/server/persistence/mysql/mappers', () => ({ instituicaoId: () => 'inst' }));
 vi.mock('@/server/application/viverMaisWhatsApp', () => ({ enviarTexto: state.enviar }));
-import { avisarSessaoRemarcada } from './agendaAvisos';
+import { avisarSessaoRemarcada, avisarSolicitacaoReagendamentoPsicologo } from './agendaAvisos';
 const session: ContatosDaSessao = {
   agendamentoId: 'appointment', inicio: '2026-09-25T18:00:00Z', fim: '2026-09-25T19:00:00Z',
   modalidade: 'online', status: 'agendado', pacienteNome: 'Paciente fictício', pacienteTelefone: '11999999999',
@@ -52,5 +52,20 @@ describe('avisos de remarcação', () => {
     expect(state.enviar).toHaveBeenCalledTimes(2);
     expect(state.execute).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM clinica_agenda_avisos'),
       ['inst', 'appointment', 'remarcacao_paciente', 2]);
+  });
+});
+
+describe('solicitação de reagendamento', () => {
+  it('avisa que houve solicitação, com os dois horários e link focado', async () => {
+    await avisarSolicitacaoReagendamentoPsicologo(session, '2026-09-27T16:00:00Z', 4);
+    expect(state.enviar).toHaveBeenCalledOnce();
+    const [, text, purpose, key] = state.enviar.mock.calls[0];
+    expect(text).toContain('solicitou um reagendamento');
+    expect(text).toContain('Horário atual:');
+    expect(text).toContain('Horário solicitado:');
+    expect(text).toContain('https://clinicavivermais.cloud/agenda?foco=sessao-appointment');
+    expect(text).not.toContain('foi remarcada');
+    expect(purpose).toBe('agenda_solicitacao_reagendamento_psicologo');
+    expect(key).toBe('agenda:solicitacao_reagendamento_psicologo:appointment:4');
   });
 });

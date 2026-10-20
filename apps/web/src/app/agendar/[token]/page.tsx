@@ -46,6 +46,12 @@ interface AgendamentoAtual {
   linkPagamento?: string;
   podeReagendar: boolean;
   horasAteInicio: number;
+  solicitacaoReagendamento?: {
+    id: string;
+    requestedStartsAt: string;
+    requestedEndsAt: string;
+    requestedModality: string;
+  };
 }
 interface Agenda {
   pacienteNome: string;
@@ -58,7 +64,6 @@ interface Confirmado {
   fim: string;
   modalidade: string;
   linkPagamento: string;
-  reagendado?: boolean;
   sessoes?: Array<{ inicio: string; fim: string; modalidade: string; linkPagamento: string }>;
 }
 
@@ -182,7 +187,15 @@ export default function AgendarPage({ params }: Props) {
         if (response.status === 409) await recarregarHorarios();
         throw new Error(body.error || 'Não foi possível agendar.');
       }
-      setConfirmado({ ...body, reagendado: isReagendando });
+      if (isReagendando) {
+        setAgenda((atual) => atual?.agendamentoAtual ? {
+          ...atual,
+          agendamentoAtual: { ...atual.agendamentoAtual, solicitacaoReagendamento: body.solicitacao },
+        } : atual);
+        setModoReagendar(false);
+      } else {
+        setConfirmado(body);
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Não foi possível agendar.');
     } finally {
@@ -238,7 +251,7 @@ export default function AgendarPage({ params }: Props) {
       {confirmado ? (
         <section className="card border-psi-vibrant/40 text-center space-y-4">
           <div className="chip-accent text-xs">
-            <CalendarCheck className="w-4 h-4" /> {confirmado.reagendado ? 'Sessão Reagendada com Sucesso' : 'Sessão Agendada com Sucesso'}
+            <CalendarCheck className="w-4 h-4" /> Sessão Agendada com Sucesso
           </div>
           <p className="text-2xl text-ink font-black capitalize">
             {confirmado.sessoes && confirmado.sessoes.length > 1 ? `${confirmado.sessoes.length} sessões reservadas` : rotuloDia(confirmado.inicio.slice(0, 10))}
@@ -358,7 +371,11 @@ export default function AgendarPage({ params }: Props) {
                       </p>
                     </div>
 
-                    {agenda.agendamentoAtual.podeReagendar ? (
+                    {agenda.agendamentoAtual.solicitacaoReagendamento ? (
+                      <span className="rounded-lg border border-amber-300 bg-amber-100 px-2.5 py-1 text-[10px] font-bold text-amber-900">
+                        Aguardando resposta
+                      </span>
+                    ) : agenda.agendamentoAtual.podeReagendar ? (
                       <button
                         type="button"
                         onClick={iniciarReagendamento}
@@ -373,6 +390,17 @@ export default function AgendarPage({ params }: Props) {
                       </span>
                     )}
                   </div>
+
+                  {agenda.agendamentoAtual.solicitacaoReagendamento && (
+                    <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-950">
+                      <p className="font-extrabold">Reagendamento solicitado ao psicólogo.</p>
+                      <p className="mt-1">Seu horário atual continua válido enquanto você aguarda a resposta.</p>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        <p><span className="font-bold">Horário confirmado:</span><br />{new Date(agenda.agendamentoAtual.inicio).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</p>
+                        <p><span className="font-bold">Horário solicitado:</span><br />{new Date(agenda.agendamentoAtual.solicitacaoReagendamento.requestedStartsAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}<br /><span className="font-bold">Aguardando resposta do psicólogo</span></p>
+                      </div>
+                    </div>
+                  )}
 
                   {!agenda.agendamentoAtual.podeReagendar && (
                     <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-[11px] text-amber-900 font-medium flex items-start gap-2">

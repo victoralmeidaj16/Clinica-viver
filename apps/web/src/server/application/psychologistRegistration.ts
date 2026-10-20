@@ -33,7 +33,7 @@ export const CAMPOS_DA_GESTAO = new Set([
   'estadoUf', 'cidade', 'logradouro', 'bairro', 'genero', 'generoOutro', 'especialidade',
   'modalidadeAtendimento', 'atendimentoPreferencia', 'minibio',
   'turnosDisponiveis', 'modalidadesAtendidas', 'servicosHabilitados',
-  'servicosPrestados', 'publicoAlvo', 'publicoAlvoOutro',
+  'servicosPrestados', 'temposAtendimento', 'publicoAlvo', 'publicoAlvoOutro',
   'especificarNecessidades', 'necessidadesAtendidas', 'necessidadesOutro',
   'limitePacientesAtivos', 'exibirNaVitrine', 'motivoDesativacao',
   'pausadoNoRodizio', 'motivoPausaRodizio',
@@ -56,7 +56,7 @@ export const CAMPOS_DO_PROPRIO_PSICOLOGO = new Set([
   'nomeCompleto', 'crp', 'email', 'nomeSocial', 'whatsapp', 'fotoUrl', 'minibio', 'especialidade',
   'estadoUf', 'cidade', 'logradouro', 'bairro', 'genero', 'generoOutro',
   'modalidadeAtendimento', 'atendimentoPreferencia', 'turnosDisponiveis',
-  'publicoAlvo', 'publicoAlvoOutro',
+  'temposAtendimento', 'publicoAlvo', 'publicoAlvoOutro',
   'especificarNecessidades', 'necessidadesAtendidas', 'necessidadesOutro',
   'turmaViverMais', 'posGraduacaoViverMais', 'segundaPosGraduacao',
   'solicitacaoAlteracaoGestao',
@@ -218,6 +218,15 @@ export async function validarCorpo(
       throw new CorpoInvalidoError('Selecione ao menos um turno de atendimento.');
     }
   }
+
+  if (corpo.temposAtendimento !== undefined) {
+    if (
+      !Array.isArray(corpo.temposAtendimento) ||
+      corpo.temposAtendimento.some((tempo) => tempo !== 50 && tempo !== 90)
+    ) {
+      throw new CorpoInvalidoError('Selecione somente 50 min ou 1h30 min.');
+    }
+  }
 }
 
 /**
@@ -340,6 +349,9 @@ export function aplicarMudancas(
         : ['SOCIAL', 'PARTICULAR'],
     servicosHabilitados,
     servicosPrestados,
+    temposAtendimento: pode('temposAtendimento')
+      ? Array.from(new Set(corpo.temposAtendimento as number[]))
+      : existente.temposAtendimento,
     publicoAlvo: pode('publicoAlvo')
       ? listaDeTexto(corpo.publicoAlvo) ?? existente.publicoAlvo
       : existente.publicoAlvo,

@@ -27,6 +27,47 @@ export const SERVICOS_PRESTADOS: readonly string[] = [
   'Orientação Profissional',
 ];
 
+export const TEMPOS_ATENDIMENTO_POS: readonly number[] = [50, 90];
+
+const POS_COM_OPCOES_AMPLAS_DE_ATENDIMENTO: readonly string[] = [
+  'Programa de Estudos e Pós-graduação em Psicanálise',
+  'Formação e Pós-graduação em Psicodrama',
+  'Formação e Pós-graduação em Psicologia Existencialista Clínica',
+  'Formação e Pós-graduação em Psicologia Junguiana Clínica',
+  'Pós-graduação em Psicologia Perinatal e Parentalidade',
+  'Pós-graduação em Psicoterapia da Sexualidade',
+  'Formação e Pós-graduação em Terapia Cognitivo-Comportamental',
+  'Pós-graduação em Terapias Cognitivo-Comportamentais de Terceira Geração',
+  'Formação e Pós-graduação em Terapia Familiar Sistêmica',
+  'Formação e Pós-graduação em Psicodrama Didata e Psicoterapeuta do Aluno - Nível II',
+  'Formação e Pós-graduação em Psicodrama Didata Orientador e Supervisor - Nível III',
+];
+
+const POS_COM_OPCOES_RESTRITAS_DE_ATENDIMENTO: readonly string[] = [
+  'Pós-graduação em Psicoterapia de Casal e Família',
+  'Pós-graduação em Psicoterapia Infantil e de Adolescentes',
+];
+
+const SERVICOS_POS_AMPLAS: readonly string[] = [
+  'Atendimento Psicológico',
+  'Orientação Vocacional e Profissional',
+  'Orientação Parental',
+  'Orientação Vocacional',
+  'Orientação Profissional',
+];
+
+const SERVICOS_POS_RESTRITAS: readonly string[] = [
+  'Atendimento Psicológico',
+  'Orientação Parental',
+  'Orientação Vocacional e Profissional',
+];
+
+export interface OpcoesAtendimentoDaPos {
+  tempos: readonly number[];
+  servicos: readonly string[];
+  publico: readonly string[];
+}
+
 export const PUBLICO_ALVO: readonly string[] = [
   'Criança',
   'Adolescente',
@@ -38,6 +79,26 @@ export const PUBLICO_ALVO: readonly string[] = [
   'Grupo',
   'Outro',
 ];
+
+/**
+ * Regras de atendimento supervisionado por pós-graduação.
+ *
+ * Psicologia Perinatal e Parentalidade integra os dois agrupamentos recebidos
+ * da coordenação. A configuração ampla tem precedência, conforme definido.
+ */
+export function opcoesAtendimentoDaPos(
+  posGraduacao?: string,
+  segundaPosGraduacao?: string
+): OpcoesAtendimentoDaPos | null {
+  const pos = [posGraduacao, segundaPosGraduacao].filter((curso): curso is string => Boolean(curso));
+  if (pos.some((curso) => POS_COM_OPCOES_AMPLAS_DE_ATENDIMENTO.includes(curso))) {
+    return { tempos: TEMPOS_ATENDIMENTO_POS, servicos: SERVICOS_POS_AMPLAS, publico: PUBLICO_ALVO };
+  }
+  if (pos.some((curso) => POS_COM_OPCOES_RESTRITAS_DE_ATENDIMENTO.includes(curso))) {
+    return { tempos: TEMPOS_ATENDIMENTO_POS, servicos: SERVICOS_POS_RESTRITAS, publico: PUBLICO_ALVO };
+  }
+  return null;
+}
 
 export const MODALIDADES_ATENDIMENTO: readonly Opcao[] = [
   { value: 'ONLINE', label: 'Online' },

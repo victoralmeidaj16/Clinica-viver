@@ -39,7 +39,7 @@ export default function AgendaPage() {
   const [buscaPaciente, setBuscaPaciente] = useState('');
   const [agendamentoManualAberto, setAgendamentoManualAberto] = useState(false);
   const [erro, setErro] = useState<string>();
-  const [aba, setAba] = useState<AbaAgenda>('agenda');
+  const [aba, setAba] = useState<AbaAgenda>('sessoes');
   const [tourAberto, setTourAberto] = useState(false);
   const fecharTour = useCallback(() => setTourAberto(false), []);
 
@@ -139,6 +139,14 @@ export default function AgendaPage() {
     setDados((atual) => (atual ? { ...atual, appointments: resposta.appointments } : atual));
   };
 
+  const decidirReagendamento = async (requestId: string, decision: 'accept' | 'reject') => {
+    const resposta = await applicationRequest<{ appointments: AgendamentoResumo[] }>(
+      `/agenda/reagendamentos/${encodeURIComponent(requestId)}`,
+      { method: 'PATCH', body: JSON.stringify({ decision }) }
+    );
+    setDados((atual) => (atual ? { ...atual, appointments: resposta.appointments } : atual));
+  };
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -186,8 +194,8 @@ export default function AgendaPage() {
             className="sticky top-[4.5rem] z-20 flex gap-1.5 overflow-x-auto rounded-[18px] border border-line bg-surface p-1.5 shadow-card sm:top-[5.5rem]"
           >
             {([
-              ['agenda', 'Agenda e disponibilidade'],
               ['sessoes', 'Sessões e confirmações'],
+              ['agenda', 'Agenda e disponibilidade'],
             ] as const).map(([valor, rotulo]) => {
               const ativa = aba === valor;
               return (
@@ -221,14 +229,6 @@ export default function AgendaPage() {
               duracoesFixas={dados.duracoesFixas}
               permiteDuracaoVariavel={dados.permiteDuracaoVariavel ?? false}
               bloqueios={<AgendaBlocks bloqueios={dados.blocks} onAdicionar={adicionarBloqueio} onRemover={removerBloqueio} />}
-            />
-
-            <ProfessionalCalendarView
-              availability={dados.availability}
-              blocks={dados.blocks}
-              appointments={dados.appointments}
-              onAdicionarBloqueio={adicionarBloqueio}
-              onRemoverBloqueio={removerBloqueio}
             />
           </div>
 
@@ -272,6 +272,8 @@ export default function AgendaPage() {
               </p>
             </section>
 
+            <ProfessionalCalendarView appointments={agendamentosVisiveis} />
+
             <div id="agenda-sessoes">
               <UpcomingSessions
                 agendamentos={agendamentosVisiveis}
@@ -281,6 +283,7 @@ export default function AgendaPage() {
                 onAtualizarVencimento={atualizarVencimento}
                 onReagendar={reagendarSessao}
                 onRecarregar={carregar}
+                onDecidirReagendamento={decidirReagendamento}
               />
             </div>
           </div>

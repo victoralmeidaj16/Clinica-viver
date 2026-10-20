@@ -56,7 +56,7 @@ export function padraoDaGrade(janelas: readonly JanelaEditavel[]) {
   const primeira = janelas[0];
   return {
     duracaoMin: primeira?.duracaoMin ?? 50,
-    intervaloMin: primeira?.intervaloMin ?? 0,
+    intervaloMin: primeira?.intervaloMin ?? 10,
     modalidade: primeira?.modalidade ?? 'online' as const,
   };
 }

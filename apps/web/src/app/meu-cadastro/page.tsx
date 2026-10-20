@@ -20,12 +20,14 @@ import { LISTA_NECESSIDADES } from '@/components/forms/necessidades';
 import {
   MODALIDADES_ATENDIMENTO,
   PUBLICO_ALVO,
+  TEMPOS_ATENDIMENTO_POS,
   TIPOS_ATENDIMENTO,
   TURNOS_PSICOLOGO,
   comValoresRegistrados,
   rotuloModalidade,
   rotuloTipoAtendimento,
   rotuloTurno,
+  opcoesAtendimentoDaPos,
 } from '@/components/forms/opcoesPsicologo';
 import { BrazilLocationFields } from '@/components/forms/BrazilLocationFields';
 import { processImageUpload } from '@/lib/imageUpload';
@@ -59,6 +61,7 @@ interface Cadastro {
   modalidadesAtendidas?: string[];
   servicosHabilitados?: string[];
   servicosPrestados?: string[];
+  temposAtendimento?: number[];
   publicoAlvo?: string[];
   publicoAlvoOutro?: string;
   especificarNecessidades?: boolean;
@@ -115,6 +118,7 @@ type Rascunho = {
   modalidadeAtendimento: string;
   atendimentoPreferencia: 'PARTICULAR' | 'SOCIAL' | 'AMBOS';
   turnosDisponiveis: string[];
+  temposAtendimento: number[];
   publicoAlvo: string[];
   publicoAlvoOutro: string;
   especificarNecessidades: boolean;
@@ -138,6 +142,7 @@ function rascunhoDe(c: Cadastro): Rascunho {
     modalidadeAtendimento: c.modalidadeAtendimento ?? 'AMBOS',
     atendimentoPreferencia: c.atendimentoPreferencia ?? 'AMBOS',
     turnosDisponiveis: [...(c.turnosDisponiveis ?? [])],
+    temposAtendimento: [...(c.temposAtendimento ?? [])],
     publicoAlvo: [...(c.publicoAlvo ?? [])],
     publicoAlvoOutro: c.publicoAlvoOutro ?? '',
     especificarNecessidades: Boolean(
@@ -234,6 +239,13 @@ export default function MeuCadastroPage() {
     }
     if (rascunho.turnosDisponiveis.length === 0) {
       setAviso('Selecione ao menos um turno — é por ele que os encaminhamentos chegam até você.');
+      return;
+    }
+    if (
+      opcoesAtendimentoDaPos(cadastro?.posGraduacaoViverMais, cadastro?.segundaPosGraduacao) &&
+      rascunho.temposAtendimento.length === 0
+    ) {
+      setAviso('Selecione ao menos um tempo de atendimento.');
       return;
     }
 
@@ -462,6 +474,20 @@ export default function MeuCadastroPage() {
             </div>
           </div>
 
+          {opcoesAtendimentoDaPos(cadastro.posGraduacaoViverMais, cadastro.segundaPosGraduacao) && (
+            <div>
+              <label className="text-[10px] uppercase tracking-wider font-extrabold text-muted block mb-2">Tempo de atendimento</label>
+              <div className="flex flex-wrap gap-2">
+                {TEMPOS_ATENDIMENTO_POS.map((tempo) => (
+                  <label key={tempo} className={chipClasse(rascunho.temposAtendimento.includes(tempo))}>
+                    <input type="checkbox" className="sr-only" checked={rascunho.temposAtendimento.includes(tempo)} onChange={() => setRascunho({ ...rascunho, temposAtendimento: alternar(rascunho.temposAtendimento.map(String), String(tempo)).map(Number) })} />
+                    {tempo === 90 ? '1h30min' : '50min'}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/*
             "Serviços que presto" não aparece aqui: ele é homologado pela
             gestão e só muda por solicitação aprovada, no card "Definido pela
@@ -602,6 +628,7 @@ export default function MeuCadastroPage() {
                   )}
                 </div>
                 <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Público que atendo</p><Chips itens={[...(cadastro.publicoAlvo ?? []), ...(cadastro.publicoAlvoOutro ? [cadastro.publicoAlvoOutro] : [])]} /></div>
+                {cadastro.temposAtendimento?.length ? <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Tempo de atendimento</p><Chips itens={cadastro.temposAtendimento.map((tempo) => tempo === 90 ? '1h30min' : '50min')} /></div> : null}
                 {(cadastro.especificarNecessidades || cadastro.necessidadesAtendidas?.length || cadastro.necessidadesOutro) && (
                   <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Demandas específicas</p><Chips itens={[...(cadastro.necessidadesAtendidas ?? []), ...(cadastro.necessidadesOutro ? [cadastro.necessidadesOutro] : [])]} /></div>
                 )}

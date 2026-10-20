@@ -201,6 +201,8 @@ export interface CadastroPsicologoRecord {
   modalidadesAtendidas?: readonly string[];
   servicosHabilitados?: readonly string[];
   servicosPrestados?: readonly string[];
+  /** Durações de sessão que o aluno habilitado pode oferecer. */
+  temposAtendimento?: readonly number[];
   publicoAlvo?: readonly string[];
   publicoAlvoOutro?: string;
   especificarNecessidades?: boolean;

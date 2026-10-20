@@ -25,7 +25,7 @@ export const CONFIG_INICIAL: ConfigDisponibilidade = {
   dias: [1, 2, 3, 4, 5],
   periodos: [{ horaInicio: '08:00', horaFim: '12:00' }],
   duracaoMin: 50,
-  intervaloMin: 0,
+  intervaloMin: 10,
   modalidade: 'online',
 };
 

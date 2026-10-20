@@ -21,10 +21,15 @@ function normalizar(valor: string): string {
  * informar manualmente o tempo de cada sessão.
  */
 export function regrasDuracaoSessao(cadastro: {
+  temposAtendimento?: readonly number[];
   servicosPrestados?: readonly string[];
   servicosHabilitados?: readonly string[];
   publicoAlvo?: readonly string[];
 } | undefined): RegrasDuracaoSessao {
+  const temposConfigurados = cadastro?.temposAtendimento?.filter((tempo): tempo is number => tempo === 50 || tempo === 90);
+  if (temposConfigurados?.length) {
+    return { duracoesFixas: Array.from(new Set(temposConfigurados)), permiteVariavel: false };
+  }
   const servicos = [...(cadastro?.servicosPrestados ?? []), ...(cadastro?.servicosHabilitados ?? [])]
     .map(normalizar);
   const publicos = (cadastro?.publicoAlvo ?? []).map(normalizar);

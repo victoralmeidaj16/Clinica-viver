@@ -10,6 +10,8 @@ import { focoSessao } from '@/lib/focoNotificacao';
 import { permiteNovoPagamento, rotuloFormaPagamento } from '@/lib/modalidadesPagamento';
 import { RescheduleModal } from './RescheduleModal';
 import { EditSessionModal, type SessionEditableData } from './EditSessionModal';
+import { RescheduleRequestCard } from './RescheduleRequestCard';
+import type { RescheduleRequestSummary } from '@/server/scheduling/rescheduleRequestRepository';
 
 export interface AgendamentoResumo {
   pacienteRef?: string;
@@ -30,6 +32,7 @@ export interface AgendamentoResumo {
   custeadoPelaEmpresa: boolean;
   convenioNome?: string;
   podeConfirmarRealizacao: boolean;
+  solicitacaoReagendamento?: RescheduleRequestSummary;
 }
 
 interface Props {
@@ -40,13 +43,14 @@ interface Props {
   onAtualizarVencimento: (id: string, dueAt: string) => Promise<void>;
   onReagendar?: (id: string, startsAt: string, endsAt: string) => Promise<void>;
   onRecarregar?: () => Promise<void>;
+  onDecidirReagendamento?: (requestId: string, decision: 'accept' | 'reject') => Promise<void>;
 }
 
 const FORMATO = new Intl.DateTimeFormat('pt-BR', {
   dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo',
 });
 
-export function UpcomingSessions({ agendamentos, filtroPaciente, onCancelar, onConfirmarRealizacao, onAtualizarVencimento, onReagendar, onRecarregar }: Props) {
+export function UpcomingSessions({ agendamentos, filtroPaciente, onCancelar, onConfirmarRealizacao, onAtualizarVencimento, onReagendar, onRecarregar, onDecidirReagendamento }: Props) {
   const [cancelando, setCancelando] = useState<AgendamentoResumo>();
   const [reagendando, setReagendando] = useState<AgendamentoResumo>();
   const [editingSession, setEditingSession] = useState<SessionEditableData>();
@@ -183,6 +187,9 @@ export function UpcomingSessions({ agendamentos, filtroPaciente, onCancelar, onC
             !item.custeadoPelaEmpresa && permiteNovoPagamento(item.pagamentoStatus);
           return (
             <li key={item.id} data-foco={focoSessao(item.id)} className="space-y-3 px-6 py-4">
+              {item.solicitacaoReagendamento && onDecidirReagendamento && (
+                <RescheduleRequestCard request={item.solicitacaoReagendamento} patientName={item.pacienteNome} onDecision={onDecidirReagendamento} />
+              )}
               {item.status === 'realizado' && item.pacienteRef && item.agendamentoRef && <Link
                 href={`/pacientes/${encodeURIComponent(item.pacienteRef)}/documentos?atendimento=${encodeURIComponent(item.agendamentoRef)}`}
                 className="inline-flex items-center gap-2 text-xs font-semibold text-emerald-700"

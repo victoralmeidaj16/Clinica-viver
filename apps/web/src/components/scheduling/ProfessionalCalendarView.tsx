@@ -69,10 +69,10 @@ export function ProfessionalCalendarView({ appointments }: Props) {
   };
 
   return (
-    <section id="agenda-calendario" className="overflow-hidden rounded-3xl border border-line bg-surface shadow-card">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4 sm:px-6">
+    <section id="agenda-calendario" className="overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3.5 sm:px-5">
         <div>
-          <h2 className="flex items-center gap-2 text-base font-extrabold text-ink">
+          <h2 className="flex items-center gap-2 text-sm font-extrabold text-ink sm:text-base">
             <CalendarIcon className="h-4 w-4 text-psi-vibrant" /> Calendário de marcações
           </h2>
           <p className="mt-0.5 text-xs text-muted">
@@ -85,7 +85,7 @@ export function ProfessionalCalendarView({ appointments }: Props) {
       </header>
 
       <div className="grid divide-y divide-line lg:grid-cols-12 lg:divide-x lg:divide-y-0">
-        <div className="space-y-4 p-4 sm:p-6 lg:col-span-6">
+        <div className="space-y-3 p-3.5 sm:p-4 lg:col-span-6">
           <div className="flex items-center justify-between">
             <button type="button" onClick={() => navegarMes(-1)} aria-label="Mês anterior" className="rounded-xl border border-line p-2 text-muted transition hover:bg-canvas hover:text-ink">
               <ChevronLeft className="h-4 w-4" />
@@ -105,14 +105,14 @@ export function ProfessionalCalendarView({ appointments }: Props) {
           />
         </div>
 
-        <aside className="bg-canvas/40 p-4 sm:p-6 lg:col-span-6">
-          <div className="mb-4">
+        <aside className="bg-canvas/40 p-3.5 sm:p-4 lg:col-span-6">
+          <div className="mb-3">
             <p className="text-[10px] font-black uppercase tracking-[.16em] text-psi-vibrant">Agenda do dia</p>
-            <h3 className="mt-1 text-base font-black capitalize text-ink">{dataPorExtenso(selecionado)}</h3>
+            <h3 className="mt-1 text-sm font-black capitalize text-ink">{dataPorExtenso(selecionado)}</h3>
           </div>
 
           {sessoesSelecionadas.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-line bg-white/70 px-4 py-10 text-center">
+            <div className="rounded-xl border border-dashed border-line bg-white/70 px-4 py-8 text-center">
               <CalendarIcon className="mx-auto h-5 w-5 text-muted" />
               <p className="mt-2 text-xs font-bold text-muted">Nenhuma sessão agendada neste dia.</p>
             </div>
@@ -121,7 +121,7 @@ export function ProfessionalCalendarView({ appointments }: Props) {
               {sessoesSelecionadas.map((sessao) => {
                 const status = statusDaSessao(sessao);
                 return (
-                  <li key={sessao.id} className="rounded-2xl border border-line bg-white p-4 shadow-sm">
+                  <li key={sessao.id} className="rounded-xl border border-line bg-white p-3 shadow-sm">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <p className="text-xs font-bold text-muted">{horaLocal(sessao.inicio)} – {horaLocal(sessao.fim)}</p>

@@ -272,8 +272,6 @@ export default function AgendaPage() {
               </p>
             </section>
 
-            <ProfessionalCalendarView appointments={agendamentosVisiveis} />
-
             <div id="agenda-sessoes">
               <UpcomingSessions
                 agendamentos={agendamentosVisiveis}
@@ -285,6 +283,10 @@ export default function AgendaPage() {
                 onRecarregar={carregar}
                 onDecidirReagendamento={decidirReagendamento}
               />
+            </div>
+
+            <div className="mx-auto w-full max-w-4xl pt-4 sm:pt-6">
+              <ProfessionalCalendarView appointments={agendamentosVisiveis} />
             </div>
           </div>
         </>

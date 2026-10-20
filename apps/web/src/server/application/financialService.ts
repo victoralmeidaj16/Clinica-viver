@@ -14,6 +14,10 @@ import { getMysqlPool, isMysqlConfigured } from '@/server/oci/runtime';
 import { instituicaoId } from '@/server/persistence/mysql/mappers';
 import { custeioDoAgendamentoSql, custeioEfetivoSql } from '@/server/persistence/mysql/custeioSql';
 import { readSnapshot } from './persistence';
+import {
+  financialAttendanceStatus,
+  type FinancialAttendanceStatus,
+} from '@/lib/financialAttendanceStatus';
 
 export async function getFinancialReportsData(
   context: RequestContext,
@@ -76,10 +80,10 @@ export async function getMyFinancialData(
     })
     .sort((left, right) => right.receivedAt.localeCompare(left.receivedAt));
 
-  // Mapeamento dos agendamentos para obter o status de atendimento (agendado vs realizado)
+  // Mapeamento dos agendamentos para obter o status confirmado pelo psicólogo.
   const appointmentsMap = new Map<string, {
     appointmentId: string;
-    attendanceStatus: 'agendado' | 'realizado' | 'cancelado';
+    attendanceStatus: FinancialAttendanceStatus;
     startsAt: string;
     endsAt: string;
     modalidade: 'online' | 'presencial' | 'telefone';
@@ -115,14 +119,9 @@ export async function getMyFinancialData(
   try {
     const appointments = await store.appointments.list({ organizationId, professionalId });
     for (const apt of appointments) {
-      const fimDate = new Date(apt.endsAt || apt.startsAt);
-      const jaOcorreu = fimDate.getTime() <= Date.now();
-      const statusNorm: 'agendado' | 'realizado' | 'cancelado' =
-        apt.status === 'completed' || jaOcorreu ? 'realizado' :
-        apt.status === 'cancelled' ? 'cancelado' : 'agendado';
       const entry = {
         appointmentId: apt.id,
-        attendanceStatus: statusNorm,
+        attendanceStatus: financialAttendanceStatus(apt.status),
         startsAt: apt.startsAt,
         endsAt: apt.endsAt,
         modalidade: (apt.mode === 'in_person' ? 'presencial' : apt.mode === 'phone' ? 'telefone' : 'online') as 'online' | 'presencial' | 'telefone',
@@ -139,10 +138,8 @@ export async function getMyFinancialData(
   if (isMysqlConfigured()) {
     try {
       const pool = getMysqlPool();
-      // Aqui não há sincronização de status: abrir o financeiro não conclui
-      // atendimento. O "realizado" desta tela é derivado do horário logo
-      // abaixo, e a conclusão de verdade — com sessão clínica e cobrança
-      // empresarial — continua sendo do fluxo da agenda.
+      // Abrir o financeiro não conclui atendimento. A confirmação explícita
+      // do psicólogo, pelo fluxo da agenda, é a única origem de "realizado".
 
       // Convênios dos pacientes da clínica
       const [patientRows] = await pool.query<RowDataPacket[]>(
@@ -193,15 +190,11 @@ export async function getMyFinancialData(
         const fimDate = row.fim
           ? new Date(row.fim)
           : new Date(new Date(row.inicio).getTime() + dur * 60_000);
-        const jaOcorreu = fimDate.getTime() <= Date.now();
-        const statusNorm: 'agendado' | 'realizado' | 'cancelado' =
-          rawStatus === 'cancelado' ? 'cancelado' :
-          (rawStatus === 'realizado' || jaOcorreu) ? 'realizado' : 'agendado';
 
         const isConveniado = Boolean(row.conveniado || row.convenio_nome);
         const entry = {
           appointmentId: String(row.id),
-          attendanceStatus: statusNorm,
+          attendanceStatus: financialAttendanceStatus(rawStatus),
           startsAt: new Date(row.inicio).toISOString(),
           endsAt: fimDate.toISOString(),
           modalidade: (row.modalidade === 'presencial' ? 'presencial' : row.modalidade === 'telefone' ? 'telefone' : 'online') as 'online' | 'presencial' | 'telefone',
@@ -234,8 +227,7 @@ export async function getMyFinancialData(
       const convenioNome = apt?.convenioNome || patientConv?.convenioNome;
       const custeadoPelaEmpresa = Boolean(apt?.custeadoPelaEmpresa ?? patientConv?.custeadoPelaEmpresa);
 
-      const duePassed = Date.parse(receivable.dueAt) <= Date.now();
-      const attendanceStatus = apt?.attendanceStatus ?? (receivable.chargeStatus === 'paid' || duePassed ? 'realizado' : 'agendado');
+      const attendanceStatus = apt?.attendanceStatus ?? 'a_confirmar';
 
       return {
         chargeId: receivable.chargeId,

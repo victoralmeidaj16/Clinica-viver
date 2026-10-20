@@ -29,7 +29,7 @@ interface Receivable {
   startsAt?: string;
   endsAt?: string;
   status: PaymentStatus;
-  attendanceStatus?: 'agendado' | 'realizado' | 'cancelado';
+  attendanceStatus?: 'a_confirmar' | 'realizado' | 'cancelado';
   modalidade?: 'online' | 'presencial' | 'telefone';
   conveniado?: boolean;
   convenioNome?: string;
@@ -105,15 +105,6 @@ export default function MeuFinanceiroPage() {
   const [pacientesMap, setPacientesMap] = useState<Map<string, { conveniado?: boolean; convenioNome?: string }>>(new Map());
   const [linkCopiado, setLinkCopiado] = useState<string>();
 
-  // "Já passou" depende do relógio, que não pode ser lido durante a render.
-  // O instante fica no estado e avança de minuto em minuto, o que também faz a
-  // sessão virar realizada na tela assim que o horário termina.
-  const [agora, setAgora] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = setInterval(() => setAgora(Date.now()), 60_000);
-    return () => clearInterval(timer);
-  }, []);
-
   const load = useCallback(() => {
     const { start, end } = periodoDoMes(mes);
     return applicationRequest<FinancialData>(
@@ -173,10 +164,8 @@ export default function MeuFinanceiroPage() {
   };
 
   const handleEditSession = (item: Receivable) => {
-    const sessionTime = Date.parse(item.startsAt || item.dueAt);
-    const jaPassou = Number.isFinite(sessionTime) && sessionTime <= agora;
     const isCancelado = item.attendanceStatus === 'cancelado';
-    const isRealizado = item.attendanceStatus === 'realizado' || (!isCancelado && jaPassou);
+    const isRealizado = item.attendanceStatus === 'realizado';
 
     setEditingSession({
       id: item.appointmentId || item.sessionId,
@@ -258,10 +247,8 @@ export default function MeuFinanceiroPage() {
                   pacientesMap.get(item.sessionId ?? '') ||
                   pacientesMap.get(item.patientName.trim().toLowerCase());
 
-                const sessionTime = Date.parse(item.startsAt || item.dueAt);
-                const jaPassou = Number.isFinite(sessionTime) && sessionTime <= agora;
                 const isCancelado = item.attendanceStatus === 'cancelado';
-                const isRealizado = item.attendanceStatus === 'realizado' || (!isCancelado && jaPassou);
+                const isRealizado = item.attendanceStatus === 'realizado';
 
                 const isConveniado = Boolean(item.conveniado || patientInfo?.conveniado);
                 const convenioNome = item.convenioNome || patientInfo?.convenioNome;
@@ -284,7 +271,7 @@ export default function MeuFinanceiroPage() {
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-extrabold text-sky-800">
-                          <CalendarDays className="w-3 h-3" /> Agendado
+                          <CalendarDays className="w-3 h-3" /> A confirmar
                         </span>
                       )}
                     </td>

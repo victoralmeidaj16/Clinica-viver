@@ -140,9 +140,6 @@ export function ProfessionalCalendarView({ appointments }: Props) {
             </ul>
           )}
 
-          <p className="mt-4 rounded-xl border border-psi-soft bg-psi-soft/30 px-3 py-2.5 text-[11px] text-psi-deep">
-            Esta visualização é somente para consulta. As alterações continuam disponíveis na lista abaixo.
-          </p>
         </aside>
       </div>
     </section>

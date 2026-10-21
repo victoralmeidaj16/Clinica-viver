@@ -65,6 +65,7 @@ export async function GET() {
           getMysqlPool().query<RowDataPacket[]>(
             `SELECT p.ref_core, p.convenio_ref, p.custeado_pela_empresa,
                     p.custeio_sessoes_cota, p.custeio_sessoes_ciclo,
+                    p.categoria_valor_sessao, p.valor_sessao_personalizado_centavos,
                     ${custeioEfetivoSql({ paciente: 'p', convenio: 'c' })} AS custeado_efetivo,
                     (SELECT COUNT(*) FROM clinica_agendamentos cota_ag
                       WHERE cota_ag.instituicao_id = p.instituicao_id
@@ -173,6 +174,18 @@ export async function GET() {
           ? undefined : Number(agreement.custeio_sessoes_cota),
         custeioCiclo: normalizarCicloCusteio(agreement?.custeio_sessoes_ciclo) ?? undefined,
         custeioConsumidas: Number(agreement?.custeio_consumidas ?? 0),
+        sessionPricing: {
+          category: agreement?.categoria_valor_sessao === 'acessivel'
+            || agreement?.categoria_valor_sessao === 'particular'
+            || agreement?.categoria_valor_sessao === 'personalizado'
+            ? agreement.categoria_valor_sessao
+            : null,
+          ...(agreement?.categoria_valor_sessao === 'personalizado'
+            && Number.isSafeInteger(Number(agreement?.valor_sessao_personalizado_centavos))
+            && Number(agreement?.valor_sessao_personalizado_centavos) > 0
+            ? { customAmountCents: Number(agreement.valor_sessao_personalizado_centavos) }
+            : {}),
+        },
         paraQuemE: lead?.paraQuemE,
         turno: lead?.turno,
         necessidadesPaciente: lead?.necessidadesPaciente,

@@ -45,6 +45,10 @@ export interface ManagedPatient {
   custeioCiclo?: CusteioCiclo;
   /** Sessões já realizadas por conta da empresa no ciclo corrente. */
   custeioConsumidas?: number;
+  sessionPricing?: {
+    category: 'acessivel' | 'particular' | 'personalizado' | null;
+    customAmountCents?: number;
+  };
   paraQuemE?: string;
   turno?: string;
   necessidadesPaciente?: readonly string[];

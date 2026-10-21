@@ -68,7 +68,7 @@ export default function PatientConvenioPanel({ patient, convenios, onConvenioCha
                   <label className="block text-xs font-bold text-ink">
                     Quem paga as sessões
                     <select value={custeio} onChange={(event) => setCusteio(event.target.value as typeof custeio)} className="mt-1 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-xs font-medium text-ink">
-                      <option value="herdar">Herdar: {selectedConvenio?.empresaPagaSessoes ? 'empresa paga' : 'paciente paga'}</option>
+                      <option value="herdar">Padrão do convênio ({selectedConvenio?.empresaPagaSessoes ? 'empresa paga' : 'paciente paga'})</option>
                       <option value="sim">Empresa paga (exceção)</option>
                       <option value="nao">Paciente paga (exceção)</option>
                       <option value="personalizado">Personalizada: empresa cobre uma quantidade</option>

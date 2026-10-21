@@ -5,7 +5,7 @@ const state = vi.hoisted(() => ({ execute: vi.fn(), enviar: vi.fn(), reservation
 vi.mock('@/server/oci/runtime', () => ({ getMysqlPool: () => ({ execute: state.execute }) }));
 vi.mock('@/server/persistence/mysql/mappers', () => ({ instituicaoId: () => 'inst' }));
 vi.mock('@/server/application/viverMaisWhatsApp', () => ({ enviarTexto: state.enviar }));
-import { avisarSessaoRemarcada, avisarSolicitacaoReagendamentoPsicologo } from './agendaAvisos';
+import { avisarSessaoMarcada, avisarSessaoRemarcada, avisarSolicitacaoReagendamentoPsicologo } from './agendaAvisos';
 const session: ContatosDaSessao = {
   agendamentoId: 'appointment', inicio: '2026-09-25T18:00:00Z', fim: '2026-09-25T19:00:00Z',
   modalidade: 'online', status: 'agendado', pacienteNome: 'Paciente fictício', pacienteTelefone: '11999999999',
@@ -67,5 +67,20 @@ describe('solicitação de reagendamento', () => {
     expect(text).not.toContain('foi remarcada');
     expect(purpose).toBe('agenda_solicitacao_reagendamento_psicologo');
     expect(key).toBe('agenda:solicitacao_reagendamento_psicologo:appointment:4');
+  });
+});
+
+describe('confirmação de sessão marcada', () => {
+  it('em horário comercial confirma ao paciente na hora', async () => {
+    await avisarSessaoMarcada(session, new Date('2026-09-23T13:00:00Z'));
+    expect(state.enviar).toHaveBeenCalledWith(session.pacienteTelefone, expect.stringContaining('Sua sessão foi marcada'),
+      'agenda_confirmacao_paciente', 'agenda:confirmacao_paciente:appointment:0');
+  });
+  it('fora do horário deixa a confirmação na fila e avisa só o profissional', async () => {
+    await avisarSessaoMarcada(session, new Date('2026-09-23T02:00:00Z'));
+    expect(state.enviar).toHaveBeenCalledOnce();
+    expect(state.enviar.mock.calls[0][2]).toBe('agenda_confirmacao_psicologo');
+    expect(state.execute).toHaveBeenCalledWith(expect.stringContaining("'aguardando_horario'"),
+      [expect.any(String), 'inst', 'appointment', 'confirmacao_paciente', 0, new Date('2026-09-23T11:00:00Z')]);
   });
 });

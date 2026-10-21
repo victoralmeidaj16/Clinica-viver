@@ -63,6 +63,7 @@ services:
     env_file: .env
     environment:
       SLA_SWEEP_URL: http://web:3000/api/application/triagem/sla-sweep
+      AGENDA_AVISOS_URL: http://web:3000/api/application/agenda/avisos/liberar
     command: ["node", "infra/clinic/sla-sweep.mjs"]
     depends_on:
       web:

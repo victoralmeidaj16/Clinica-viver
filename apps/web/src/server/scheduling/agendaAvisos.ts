@@ -8,6 +8,7 @@ import { instituicaoId } from '@/server/persistence/mysql/mappers';
 import { enviarTexto, type ResultadoEnvio } from '@/server/application/viverMaisWhatsApp';
 import { appBaseUrl } from '@/server/application/appUrl';
 import { comFoco, focoSessao } from '@/lib/focoNotificacao';
+import { proximaAberturaComercial } from './horarioComercial';
 import type { ContatosDaSessao } from './agendaRepository';
 
 /**
@@ -78,7 +79,7 @@ async function encerrar(
   );
 }
 
-export type SituacaoAviso = ResultadoEnvio['situacao'] | 'sem_telefone' | 'ja_enviado' | 'erro';
+export type SituacaoAviso = ResultadoEnvio['situacao'] | 'sem_telefone' | 'ja_enviado' | 'aguardando_horario' | 'erro';
 
 /**
  * Envia sem nunca lançar.
@@ -121,6 +122,37 @@ async function tentarDespachar(
   const resultado = await enviarTexto(telefone, texto, finalidade, `agenda:${tipo}:${agendamentoId}:${versao}`);
   await encerrar(agendamentoId, tipo, resultado.situacao, versao);
   return resultado.situacao;
+}
+
+/**
+ * Deixa o aviso na fila até a abertura do expediente.
+ *
+ * A linha é a mesma reserva do envio imediato, só que em `aguardando_horario`:
+ * a UNIQUE continua impedindo o segundo aviso, e o texto não é guardado — a
+ * liberação o monta de novo com a sessão como ela estiver naquela hora.
+ */
+async function adiar(
+  agendamentoId: string,
+  tipo: TipoAviso,
+  telefone: string | null,
+  enviarEm: Date,
+  versao = 0
+): Promise<SituacaoAviso> {
+  try {
+    if (!telefone?.trim()) {
+      console.warn(`[agenda] Aviso "${tipo}" não enviado: contato sem telefone cadastrado.`);
+      return 'sem_telefone';
+    }
+    const [resultado] = await getMysqlPool().execute<ResultSetHeader>(
+      `INSERT IGNORE INTO clinica_agenda_avisos (id, instituicao_id, agendamento_id, tipo, versao, situacao, enviar_em)
+       VALUES (?, ?, ?, ?, ?, 'aguardando_horario', ?)`,
+      [randomUUID(), instituicaoId(), agendamentoId, tipo, versao, enviarEm]
+    );
+    return resultado.affectedRows > 0 ? 'aguardando_horario' : 'ja_enviado';
+  } catch (erro) {
+    console.error(`[agenda] Falha ao adiar aviso "${tipo}":`, erro);
+    return 'erro';
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -207,15 +239,26 @@ export function textoCancelamentoPaciente(sessao: ContatosDaSessao): string {
 // Disparos
 // ---------------------------------------------------------------------------
 
-/** Disparo duplo da marcação: confirma ao paciente e avisa o profissional. */
-export async function avisarSessaoMarcada(sessao: ContatosDaSessao): Promise<void> {
-  await despachar(
-    sessao.agendamentoId,
-    'confirmacao_paciente',
-    sessao.pacienteTelefone,
-    'agenda_confirmacao_paciente',
-    textoConfirmacaoPaciente(sessao)
-  );
+/**
+ * Disparo duplo da marcação: confirma ao paciente e avisa o profissional.
+ *
+ * A confirmação ao paciente respeita o horário comercial — fora dele, fica na
+ * fila que `liberarAvisosAguardando` esvazia. O aviso ao profissional sai na
+ * hora: é a agenda dele que mudou.
+ */
+export async function avisarSessaoMarcada(sessao: ContatosDaSessao, agora = new Date()): Promise<void> {
+  const abertura = proximaAberturaComercial(agora);
+  if (abertura) {
+    await adiar(sessao.agendamentoId, 'confirmacao_paciente', sessao.pacienteTelefone, abertura);
+  } else {
+    await despachar(
+      sessao.agendamentoId,
+      'confirmacao_paciente',
+      sessao.pacienteTelefone,
+      'agenda_confirmacao_paciente',
+      textoConfirmacaoPaciente(sessao)
+    );
+  }
   await despachar(
     sessao.agendamentoId,
     'confirmacao_psicologo',

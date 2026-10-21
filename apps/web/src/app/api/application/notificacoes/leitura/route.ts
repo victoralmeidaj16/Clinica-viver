@@ -1,13 +1,9 @@
 import { NextResponse } from 'next/server';
 import { readSession } from '@/server/auth';
-import { getCaptureRepository } from '@/server/persistence/captureRepository';
 import { getLeiturasRepository } from '@/server/persistence/notificacoesLeituras';
-import { cadastroDaSessao, SemAcessoError } from '@/server/application/psychologistSelf';
-import {
-  montarLista,
-  notificacoesDaGestao,
-  notificacoesDoPsicologo,
-} from '@/server/application/notificacoes';
+import { SemAcessoError } from '@/server/application/psychologistSelf';
+import { montarLista } from '@/server/application/notificacoes';
+import { notificacoesDaSessao } from '@/server/application/notificacoesDaSessao';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -47,16 +43,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const state = await getCaptureRepository().read();
+    // A mesma lista do sino: montar uma menor aqui deixaria agendamentos,
+    // pagamentos e alterações de perfil sem marca, voltando como não lidos.
     const agora = new Date();
-
-    const derivadas =
-      session.role === 'admin'
-        ? notificacoesDaGestao(state, agora)
-        : await (async () => {
-            const cadastro = await cadastroDaSessao(session);
-            return cadastro ? notificacoesDoPsicologo(state, cadastro, agora) : [];
-          })();
+    const derivadas = await notificacoesDaSessao(session, agora);
 
     const lidas = await getLeiturasRepository().lidas(session.userId);
     const lista = montarLista(derivadas, lidas, agora);

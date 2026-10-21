@@ -13,6 +13,7 @@ import {
   getOrCreateAsaasCustomer,
 } from '@/server/adapters/asaasAdapter';
 import { gerarRelatorioConvenioPdf } from '@/server/reports/convenioReportPdf';
+import { transferirCobrancasParaEmpresa } from '@/server/payments/convenioChargeTransfer';
 import { normalizarCicloCusteio } from '@/lib/convenioBilling';
 
 function admin(context: RequestContext) {
@@ -202,7 +203,15 @@ export async function updatePatientConvenio(context: RequestContext, patientId: 
     : null;
   const ciclo = cota === null ? null : normalizarCicloCusteio(body.custeioCiclo) ?? 'total';
   await vincularPacienteConvenio(organizationId, patientId, convenioId, custeio, { cota, ciclo });
-  return { patientId, convenioId, custeadoPelaEmpresa: custeio, custeioCota: cota, custeioCiclo: ciclo };
+  // O vínculo vale também para sessões já marcadas: as que a empresa passou a
+  // cobrir deixam a cobrança individual e entram no que ela tem a faturar.
+  const cobrancas = convenioId
+    ? await transferirCobrancasParaEmpresa(organizationId, patientId)
+    : { transferidas: 0, mantidas: 0 };
+  return {
+    patientId, convenioId, custeadoPelaEmpresa: custeio, custeioCota: cota, custeioCiclo: ciclo,
+    cobrancasTransferidas: cobrancas.transferidas,
+  };
 }
 
 function csvCell(value: string | number) {

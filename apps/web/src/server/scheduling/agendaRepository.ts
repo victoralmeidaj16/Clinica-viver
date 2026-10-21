@@ -538,6 +538,7 @@ export async function completeAppointment(
               (SELECT c.ref_core FROM financeiro_cobrancas c
                 WHERE c.instituicao_id = a.instituicao_id
                   AND c.organizacao_ref = o.ref_core AND c.sessao_ref = a.ref_core
+                  AND c.status <> 'cancelled'
                 ORDER BY c.criado_em DESC LIMIT 1) AS cobranca_ref
          FROM clinica_agendamentos a
          JOIN clinica_profissionais p ON p.id = a.profissional_id

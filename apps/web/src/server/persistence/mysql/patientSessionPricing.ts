@@ -13,6 +13,30 @@ export interface PatientSessionPricing {
   customAmountCents: number | null;
 }
 
+export function resolvePatientSessionAmountCents(input: {
+  pricing: PatientSessionPricing;
+  triageMode?: unknown;
+  socialAmountCents: unknown;
+  standardAmountCents: unknown;
+}): number {
+  const social = Number(input.socialAmountCents);
+  const standard = Number(input.standardAmountCents);
+  const fallback = String(input.triageMode ?? '').toLocaleUpperCase('pt-BR').includes('SOCIAL')
+    ? social
+    : standard;
+  const resolved = input.pricing.category === 'personalizado' && input.pricing.customAmountCents
+    ? input.pricing.customAmountCents
+    : input.pricing.category === 'acessivel'
+      ? social
+      : input.pricing.category === 'particular'
+        ? standard
+        : fallback;
+  if (!Number.isSafeInteger(resolved) || resolved <= 0) {
+    throw new Error('O valor da sessão não está configurado para este atendimento.');
+  }
+  return resolved;
+}
+
 function category(value: unknown): PatientSessionPricingCategory | null {
   if (value === null || value === undefined || value === '') return null;
   return patientSessionPricingCategories.includes(value as PatientSessionPricingCategory)

@@ -19,7 +19,7 @@ describe.skipIf(!sqlite)('CPF atual prevalece sobre a triagem nos links público
     db.exec(`
       CREATE TABLE clinica_organizacoes(id TEXT, ref_core TEXT);
       CREATE TABLE clinica_profissionais(id TEXT, ref_core TEXT, instituicao_id TEXT, organizacao_id TEXT, nome TEXT, valor_social_centavos INT, valor_sessao_centavos INT, token_link_agenda TEXT, ativo INT);
-      CREATE TABLE clinica_pacientes(id TEXT, ref_core TEXT, instituicao_id TEXT, nome TEXT, nome_social TEXT, profissional_id TEXT, documento TEXT, convenio_ref TEXT, telefone TEXT, email TEXT);
+      CREATE TABLE clinica_pacientes(id TEXT, ref_core TEXT, instituicao_id TEXT, nome TEXT, nome_social TEXT, profissional_id TEXT, documento TEXT, convenio_ref TEXT, telefone TEXT, email TEXT, categoria_valor_sessao TEXT, valor_sessao_personalizado_centavos INT);
       CREATE TABLE clinica_triagens_pacientes(instituicao_id TEXT, organizacao_ref TEXT, paciente_ref TEXT, cpf TEXT, modalidade TEXT, atualizado_em TEXT, telefone TEXT, email TEXT);
       CREATE TABLE clinica_pacientes_profissionais(paciente_id TEXT, profissional_id TEXT);
       CREATE TABLE clinica_agendamentos(ref_core TEXT, instituicao_id TEXT, organizacao_id TEXT, paciente_id TEXT, profissional_id TEXT, inicio TEXT, token_pagamento_sessao TEXT, status TEXT, valor_centavos INT, sessao_clinica_ref TEXT, custeado INT);
@@ -27,7 +27,7 @@ describe.skipIf(!sqlite)('CPF atual prevalece sobre a triagem nos links público
       CREATE TABLE financeiro_cobrancas(instituicao_id TEXT, sessao_ref TEXT, status TEXT);
       INSERT INTO clinica_organizacoes VALUES ('org-row', 'org');
       INSERT INTO clinica_profissionais VALUES ('pro-row','pro','inst','org-row','Profissional fictício',5000,10000,'token',1);
-      INSERT INTO clinica_pacientes VALUES ('patient-row','patient','inst','Paciente fictício',NULL,'pro-row','11144477735',NULL,NULL,NULL);
+      INSERT INTO clinica_pacientes VALUES ('patient-row','patient','inst','Paciente fictício',NULL,'pro-row','11144477735',NULL,NULL,NULL,NULL,NULL);
       INSERT INTO clinica_triagens_pacientes VALUES ('inst','org','patient','52998224725','SOCIAL','2026-09-22',NULL,NULL);
       INSERT INTO clinica_agendamentos VALUES ('appt','inst','org-row','patient-row','pro-row','2099-01-01T15:00:00Z','payment-token','agendado',10000,NULL,0);
     `);
@@ -50,6 +50,10 @@ describe.skipIf(!sqlite)('CPF atual prevalece sobre a triagem nos links público
   it('mantém o acesso pelo cadastro quando não existe triagem', async () => {
     db.exec('DELETE FROM clinica_triagens_pacientes');
     expect(await identifyPatient('token', '11144477735')).toMatchObject({ patientRef: 'patient' });
+  });
+  it('prioriza o valor personalizado do paciente à modalidade da triagem', async () => {
+    db.exec("UPDATE clinica_pacientes SET categoria_valor_sessao = 'personalizado', valor_sessao_personalizado_centavos = 6800");
+    await expect(identifyPatient('token', '11144477735')).resolves.toMatchObject({ sessionAmountCents: 6800 });
   });
   it('aplica a mesma precedência à lista de sessões para pagamento', async () => {
     expect(await listPayablePatientSessions({ token: 'payment-token', cpf: '52998224725' })).toEqual([]);

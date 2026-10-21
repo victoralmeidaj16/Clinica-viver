@@ -7,6 +7,7 @@ vi.mock('./mappers', () => ({ instituicaoId: () => 'inst' }));
 
 import {
   patientSessionPricingFromRow,
+  resolvePatientSessionAmountCents,
   updatePatientSessionPricing,
   validatePatientSessionPricing,
 } from './patientSessionPricing';
@@ -32,6 +33,14 @@ describe('configuração financeira individual do paciente', () => {
     expect(patientSessionPricingFromRow({})).toEqual({ category: null, customAmountCents: null });
     expect(patientSessionPricingFromRow({ categoria_valor_sessao: 'personalizado', valor_sessao_personalizado_centavos: 0 }))
       .toEqual({ category: 'personalizado', customAmountCents: null });
+  });
+
+  it('resolve Personalizado antes das categorias padrão e preserva o fallback legado', () => {
+    const base = { socialAmountCents: 7500, standardAmountCents: 13000 };
+    expect(resolvePatientSessionAmountCents({ ...base, pricing: { category: 'personalizado', customAmountCents: 6800 }, triageMode: 'PARTICULAR' })).toBe(6800);
+    expect(resolvePatientSessionAmountCents({ ...base, pricing: { category: 'acessivel', customAmountCents: null }, triageMode: 'PARTICULAR' })).toBe(7500);
+    expect(resolvePatientSessionAmountCents({ ...base, pricing: { category: 'particular', customAmountCents: null }, triageMode: 'SOCIAL' })).toBe(13000);
+    expect(resolvePatientSessionAmountCents({ ...base, pricing: { category: null, customAmountCents: null }, triageMode: 'SOCIAL' })).toBe(7500);
   });
 
   it('atualiza somente o paciente da organização e devolve 404 se não o encontrar', async () => {

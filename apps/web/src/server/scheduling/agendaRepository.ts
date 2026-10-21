@@ -9,6 +9,7 @@ import type { RowDataPacket } from 'mysql2';
 import { getMysqlPool, isMysqlConfigured } from '@/server/oci/runtime';
 import { instituicaoId, rowId } from '@/server/persistence/mysql/mappers';
 import { custeioDoAgendamentoSql, custeioEfetivoSql } from '@/server/persistence/mysql/custeioSql';
+import { patientSessionPricingFromRow, resolvePatientSessionAmountCents } from '@/server/persistence/mysql/patientSessionPricing';
 import {
   disponibilidadePadraoDoCadastro,
   FUSO_CLINICA,
@@ -1109,6 +1110,7 @@ export async function identifyPatient(
             p.id AS profissional_id, p.nome AS profissional_nome,
             p.valor_social_centavos, p.valor_sessao_centavos,
             pa.ref_core AS paciente_ref, pa.id AS paciente_id,
+            pa.categoria_valor_sessao, pa.valor_sessao_personalizado_centavos,
             COALESCE(NULLIF(TRIM(pa.nome_social), ''), pa.nome) AS nome_paciente,
             t.modalidade AS modalidade_triagem
        FROM clinica_profissionais p
@@ -1140,6 +1142,7 @@ export async function identifyPatient(
               p.id AS profissional_id, p.nome AS profissional_nome,
               p.valor_social_centavos, p.valor_sessao_centavos,
               pa.ref_core AS paciente_ref, pa.id AS paciente_id,
+              pa.categoria_valor_sessao, pa.valor_sessao_personalizado_centavos,
               COALESCE(NULLIF(TRIM(pa.nome_social), ''), pa.nome) AS nome_paciente,
               (SELECT t.modalidade FROM clinica_triagens_pacientes t
                 WHERE t.instituicao_id = p.instituicao_id
@@ -1161,7 +1164,6 @@ export async function identifyPatient(
   }
 
   if (!row) return null;
-  const social = String(row.modalidade_triagem ?? '').toLocaleUpperCase('pt-BR').includes('SOCIAL');
   return {
     patientRef: String(row.paciente_ref),
     patientRowId: String(row.paciente_id),
@@ -1170,9 +1172,12 @@ export async function identifyPatient(
     professionalId: String(row.profissional_ref),
     professionalRowId: String(row.profissional_id),
     professionalName: String(row.profissional_nome),
-    sessionAmountCents: Number(
-      social ? row.valor_social_centavos : row.valor_sessao_centavos
-    ),
+    sessionAmountCents: resolvePatientSessionAmountCents({
+      pricing: patientSessionPricingFromRow(row),
+      triageMode: row.modalidade_triagem,
+      socialAmountCents: row.valor_social_centavos,
+      standardAmountCents: row.valor_sessao_centavos,
+    }),
   };
 }
 

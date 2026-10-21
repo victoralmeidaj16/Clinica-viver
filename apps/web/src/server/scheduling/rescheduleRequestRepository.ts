@@ -26,7 +26,7 @@ export type RequestRescheduleResult =
 export type DecideRescheduleResult =
   | { ok: true; decision: 'accepted'; appointmentId: string; previousStartsAt: string; startsAt: string; endsAt: string; version: number }
   | { ok: true; decision: 'rejected'; appointmentId: string; startsAt: string; requestSequence: number }
-  | { ok: false; reason: 'NOT_FOUND' | 'NOT_PENDING' | 'APPOINTMENT_CHANGED' | 'UNAVAILABLE' };
+  | { ok: false; reason: 'NOT_FOUND' | 'NOT_PENDING' | 'APPOINTMENT_CHANGED' | 'UNAVAILABLE' | 'EXPIRED' };
 
 function summary(row: RowDataPacket): RescheduleRequestSummary {
   return {
@@ -127,7 +127,8 @@ export async function decidePatientRescheduleRequest(
   organizationId: string,
   professionalId: string,
   requestId: string,
-  decision: 'accept' | 'reject'
+  decision: 'accept' | 'reject',
+  now: Date = new Date()
 ): Promise<DecideRescheduleResult> {
   const connection = await getMysqlPool().getConnection();
   try {
@@ -166,6 +167,10 @@ export async function decidePatientRescheduleRequest(
     }
     const requestedStart = new Date(request.inicio_solicitado);
     const requestedEnd = new Date(request.fim_solicitado);
+    // A solicitação pode ficar pendente até depois do horário pedido.
+    if (requestedStart.getTime() <= now.getTime()) {
+      await connection.rollback(); return { ok: false, reason: 'EXPIRED' };
+    }
     const [conflicts] = await connection.query<RowDataPacket[]>(
       `SELECT id FROM clinica_agendamentos WHERE instituicao_id = ? AND profissional_id = ?
         AND status <> 'cancelado' AND id <> ? AND inicio < ?

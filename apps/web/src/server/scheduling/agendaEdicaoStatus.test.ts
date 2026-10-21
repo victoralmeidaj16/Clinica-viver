@@ -72,6 +72,21 @@ describe('updateAppointmentDetails', () => {
     expect(connection.query.mock.calls[0][0]).toContain('FOR UPDATE');
   });
 
+  it('recusa mover a sessão para um horário que já passou', async () => {
+    const agora = new Date('2099-01-01T15:00:00Z');
+    expect(await updateAppointmentDetails('org-1', 'pro-1', 'apt-1',
+      { startsAt: '2099-01-01T14:50:00Z', endsAt: '2099-01-01T15:40:00Z' }, {}, agora)).toBe('past_start');
+    expect(connection.execute).not.toHaveBeenCalled();
+    expect(connection.rollback).toHaveBeenCalled();
+  });
+
+  it('aceita reenviar o horário atual de uma sessão já passada', async () => {
+    const agora = new Date('2099-01-01T15:00:00Z');
+    expect(await updateAppointmentDetails('org-1', 'pro-1', 'apt-1',
+      { startsAt: '2099-01-01T12:00:00Z', endsAt: '2099-01-01T12:50:00Z', modalidade: 'presencial' },
+      {}, agora)).toBe('ok');
+  });
+
   it.each(['agendado', 'confirmado'])('permite edição administrativa de sessão %s', async (status) => {
     comAgendamento({ status });
     expect(await updateAppointmentDetails('org-1', 'pro-1', 'apt-1',

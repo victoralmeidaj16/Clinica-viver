@@ -799,7 +799,9 @@ export type ResultadoEdicaoAgendamento =
   /** O atendimento está num status que a conclusão não aceita. */
   | 'invalid_status'
   /** Sessão cancelada não volta por edição: a cobrança dela já foi cancelada. */
-  | 'cancelled_locked';
+  | 'cancelled_locked'
+  /** Mover a sessão para um horário que já passou: o paciente seria avisado de uma remarcação impossível. */
+  | 'past_start';
 
 export interface UpdateAppointmentOptions {
   somenteAgendadas?: boolean;
@@ -932,6 +934,15 @@ export async function updateAppointmentDetails(
         novoDuracao = Math.round((novoFim.getTime() - novoInicio.getTime()) / 60_000);
       } else {
         novoFim = new Date(novoInicio.getTime() + novoDuracao * 60_000);
+      }
+
+      // O formulário sempre reenvia o horário; só a troca de horário precisa
+      // apontar para o futuro. Manter o horário de uma sessão já passada
+      // (ajustar modalidade, concluir) continua valendo.
+      const inicioAtual = agendamento.inicio ? new Date(agendamento.inicio).getTime() : Number.NaN;
+      if (novoInicio.getTime() !== inicioAtual && novoInicio.getTime() <= agora.getTime()) {
+        await connection.rollback();
+        return 'past_start';
       }
 
       // Conflitos de agendamento (apenas se horário estiver ativo)

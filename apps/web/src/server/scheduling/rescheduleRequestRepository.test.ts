@@ -60,10 +60,19 @@ describe('solicitação pública de reagendamento', () => {
   });
 });
 
+const ANTES = new Date('2026-10-20T12:00:00Z');
+
 describe('decisão do psicólogo', () => {
+  it('não aceita pedido cujo horário já passou', async () => {
+    expect(await decidePatientRescheduleRequest('org', 'pro-ref', 'request-1', 'accept', new Date('2026-10-22T15:10:00Z')))
+      .toEqual({ ok: false, reason: 'EXPIRED' });
+    expect(state.connection.execute).not.toHaveBeenCalled();
+    expect(state.connection.rollback).toHaveBeenCalled();
+  });
+
   it('não altera nada quando o horário solicitado foi ocupado', async () => {
     state.conflict = true;
-    expect(await decidePatientRescheduleRequest('org', 'pro-ref', 'request-1', 'accept'))
+    expect(await decidePatientRescheduleRequest('org', 'pro-ref', 'request-1', 'accept', ANTES))
       .toEqual({ ok: false, reason: 'UNAVAILABLE' });
     expect(state.connection.execute).not.toHaveBeenCalled();
     expect(state.connection.rollback).toHaveBeenCalled();
@@ -77,7 +86,7 @@ describe('decisão do psicólogo', () => {
   });
 
   it('aceitar altera sessão e pedido na mesma transação', async () => {
-    const result = await decidePatientRescheduleRequest('org', 'pro-ref', 'request-1', 'accept');
+    const result = await decidePatientRescheduleRequest('org', 'pro-ref', 'request-1', 'accept', ANTES);
     expect(result).toMatchObject({ ok: true, decision: 'accepted', appointmentId: 'appointment-1', version: 3 });
     expect(state.connection.execute.mock.calls.some(([sql]) => String(sql).includes('UPDATE clinica_agendamentos'))).toBe(true);
     expect(state.connection.execute.mock.calls.some(([sql]) => String(sql).includes("status = 'aceita'"))).toBe(true);

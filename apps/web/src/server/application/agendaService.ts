@@ -381,6 +381,9 @@ export async function editAgendaAppointment(
   if (outcome === 'conflict') {
     throw new ApplicationError('SLOT_CONFLICT', 'Este horário já possui outro agendamento ou bloqueio.', 409);
   }
+  if (outcome === 'past_start') {
+    throw new ApplicationError('INVALID_INPUT', 'O novo horário deve estar no futuro.', 400);
+  }
   if (outcome === 'completed_locked') {
     throw new ApplicationError(
       'APPOINTMENT_ALREADY_COMPLETED',

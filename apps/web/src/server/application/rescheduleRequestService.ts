@@ -23,6 +23,7 @@ export async function decideRescheduleRequest(
   if (!result.ok) {
     if (result.reason === 'NOT_FOUND') throw new ApplicationError('NOT_FOUND', 'Solicitação não encontrada.', 404);
     if (result.reason === 'UNAVAILABLE') throw new ApplicationError('SLOT_UNAVAILABLE', 'O horário solicitado não está mais disponível. Recuse a solicitação e combine outro horário com o paciente.', 409);
+    if (result.reason === 'EXPIRED') throw new ApplicationError('REQUEST_EXPIRED', 'O horário solicitado já passou. Recuse a solicitação e combine outro horário com o paciente.', 409);
     if (result.reason === 'APPOINTMENT_CHANGED') throw new ApplicationError('APPOINTMENT_CHANGED', 'A sessão foi alterada ou cancelada depois da solicitação. Revise a agenda antes de responder.', 409);
     throw new ApplicationError('REQUEST_ALREADY_DECIDED', 'Esta solicitação já foi respondida.', 409);
   }

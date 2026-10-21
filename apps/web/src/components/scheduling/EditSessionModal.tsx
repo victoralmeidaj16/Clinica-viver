@@ -116,6 +116,11 @@ function FormularioEdicao({
       setError('Data ou horário inválido.');
       return;
     }
+    const horarioMudou = data !== iniciais.data || hora !== iniciais.hora;
+    if (horarioMudou && startsAtDate.getTime() <= Date.now()) {
+      setError('O novo horário deve estar no futuro.');
+      return;
+    }
 
     const endsAtDate = new Date(startsAtDate.getTime() + duracaoMin * 60_000);
     const endsAtIso = endsAtDate.toISOString();

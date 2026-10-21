@@ -387,7 +387,7 @@ export async function editAgendaAppointment(
   if (outcome === 'completed_locked') {
     throw new ApplicationError(
       'APPOINTMENT_ALREADY_COMPLETED',
-      'Este atendimento já foi confirmado como realizado e gerou registro de sessão; use o cancelamento se precisar desfazê-lo.',
+      'Este atendimento já foi confirmado como realizado e gerou registro de sessão, por isso não pode mais ser alterado.',
       409
     );
   }

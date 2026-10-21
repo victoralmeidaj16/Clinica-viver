@@ -54,6 +54,10 @@ export async function createAppointmentFlow(context: RequestContext, input: Sche
   if (!isManagement && profile.servicosHabilitados.length > 0 && !profile.servicosHabilitados.includes(serviceKey.trim())) {
     throw new ApplicationError('FORBIDDEN', 'Este serviço não está habilitado para o perfil profissional.', 403);
   }
+  const inicio = Date.parse(resolvedInput.startsAt);
+  if (!Number.isFinite(inicio) || inicio <= Date.now()) {
+    throw new ApplicationError('INVALID_INPUT', 'O horário da sessão deve estar no futuro.', 400);
+  }
   const effectiveDueAt = chargeDueAt || resolvedInput.startsAt;
   if (!isFutureChargeDueAt(effectiveDueAt)) {
     throw new ApplicationError('INVALID_INPUT', 'O vencimento da cobrança deve estar no futuro.', 400);
@@ -81,6 +85,9 @@ export async function createAppointmentFlow(context: RequestContext, input: Sche
 export async function changeAppointment(context: RequestContext, id: string, body: Record<string, unknown>) {
   const store = getApplicationStore(); const metadata = { actorUserId: context.actor.userId, occurredAt: String(body.occurredAt ?? new Date().toISOString()), correlationId: context.correlationId, commandId: context.idempotencyKey! };
   const dependencies = { appointments: store.appointments, identities: store.identities };
+  if (body.action === 'reschedule' && !(Date.parse(String(body.startsAt ?? '')) > Date.now())) {
+    throw new ApplicationError('INVALID_INPUT', 'O novo horário deve estar no futuro.', 400);
+  }
   const cancelled = body.action === 'cancel'
     ? await store.appointments.getById(context.actor.organizationId, id)
     : null;

@@ -121,6 +121,10 @@ export function ManualAppointmentDialog({
       setMessage({ kind: 'error', text: 'Informe a duração da sessão, entre 15 e 240 minutos.' });
       return;
     }
+    if (recurrenceDates.some((d) => Date.parse(manualAppointmentTimes({ date: d, time, durationMinutes }).startsAt) <= Date.now())) {
+      setMessage({ kind: 'error', text: 'O horário da sessão deve estar no futuro.' });
+      return;
+    }
     setSaving(true);
     let createdCount = 0;
     try {

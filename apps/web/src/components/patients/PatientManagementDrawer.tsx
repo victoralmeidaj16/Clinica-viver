@@ -5,9 +5,11 @@ import { UserRoundPen, CalendarDays, CircleDollarSign, Clock3, UserRoundCog, X }
 import { rotuloTurnoPreferencia } from '@/lib/turnos';
 import EditPatientModal from './EditPatientModal';
 import PatientConvenioPanel from './PatientConvenioPanel';
+import PatientSessionPricingPanel from './PatientSessionPricingPanel';
 import PatientDropoutPanel from './PatientDropoutPanel';
 import type { ManagedConvenio, ManagedPatient, ManagedPsychologist } from './managementTypes';
 import type { CusteioCiclo } from '@/lib/convenioBilling';
+import type { SessionPricingCategory } from './patientSessionPricingView';
 
 interface Props {
   patient: ManagedPatient | null;
@@ -24,13 +26,14 @@ interface Props {
     custeadoPelaEmpresa: boolean | null,
     cota: { custeioCota: number | null; custeioCiclo: CusteioCiclo | null },
   ) => Promise<void>;
+  onSessionPricingChange: (patientId: string, input: { category: SessionPricingCategory; customAmountCents?: number }) => Promise<void>;
 }
 
 const money = (cents: number) => new Intl.NumberFormat('pt-BR', {
   style: 'currency', currency: 'BRL',
 }).format(cents / 100);
 
-export default function PatientManagementDrawer({ patient, psychologists, convenios, onClose, onReassign, onDropoutChange, onConvenioChange, onRegistrationChange }: Props) {
+export default function PatientManagementDrawer({ patient, psychologists, convenios, onClose, onReassign, onDropoutChange, onConvenioChange, onSessionPricingChange, onRegistrationChange }: Props) {
   const [editing, setEditing] = useState(false);
   const [professionalId, setProfessionalId] = useState(patient?.psicologoId ?? '');
   const [reason, setReason] = useState('');
@@ -84,6 +87,7 @@ export default function PatientManagementDrawer({ patient, psychologists, conven
           </section>
 
           <PatientConvenioPanel patient={patient} convenios={convenios} onConvenioChange={onConvenioChange} />
+          <PatientSessionPricingPanel patient={patient} onChange={onSessionPricingChange} />
 
           {/* O que a pessoa pediu na triagem, do jeito que pediu. */}
           <section className="grid grid-cols-1 gap-3 border-t border-psi-soft/60 pt-4 sm:grid-cols-2">

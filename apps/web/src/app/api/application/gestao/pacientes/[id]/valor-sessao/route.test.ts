@@ -14,10 +14,11 @@ vi.mock('@/server/auth', () => ({ readSession: state.readSession }));
 vi.mock('@/server/persistence/mysql/patientSessionPricing', () => ({
   updatePatientSessionPricing: state.update,
   validatePatientSessionPricing: (input: Record<string, unknown>) => {
-    if (input.category !== 'personalizado' || !Number.isSafeInteger(input.customAmountCents) || input.customAmountCents <= 0) {
+    const amount = input.customAmountCents;
+    if (input.category !== 'personalizado' || !Number.isSafeInteger(amount) || typeof amount !== 'number' || amount <= 0) {
       throw new Error('Informe um valor personalizado válido para a sessão.');
     }
-    return { category: 'personalizado', customAmountCents: input.customAmountCents };
+    return { category: 'personalizado', customAmountCents: amount };
   },
 }));
 vi.mock('@/server/application/http', () => ({

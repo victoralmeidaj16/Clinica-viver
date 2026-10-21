@@ -1,6 +1,7 @@
 import { commandHeaders } from '@/lib/applicationApi';
 import type { CusteioCiclo } from '@/lib/convenioBilling';
 import type { ManagedPatient } from './managementTypes';
+import type { SessionPricingCategory } from './patientSessionPricingView';
 
 /** Mensagem do corpo de erro das rotas de gestão, que vem como texto ou `{ message }`. */
 function failureMessage(body: unknown, fallback: string): string {
@@ -52,5 +53,21 @@ export async function updatePatientConvenio(
   const body = await response.json().catch(() => null);
   if (!response.ok) {
     throw new Error(failureMessage(body, `Falha ao atualizar convênio (HTTP ${response.status}).`));
+  }
+}
+
+/** Atualiza somente a condição comercial futura do paciente. */
+export async function updatePatientSessionPricing(
+  patientId: string,
+  input: { category: SessionPricingCategory; customAmountCents?: number },
+): Promise<void> {
+  const response = await fetch(`/api/application/gestao/pacientes/${encodeURIComponent(patientId)}/valor-sessao`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...commandHeaders() },
+    body: JSON.stringify(input),
+  });
+  const body = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(failureMessage(body, `Falha ao atualizar valor da sessão (HTTP ${response.status}).`));
   }
 }

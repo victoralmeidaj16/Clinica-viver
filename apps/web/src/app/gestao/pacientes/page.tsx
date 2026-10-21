@@ -5,9 +5,10 @@ import { AlertTriangle, ArrowDownWideNarrow, Clock3, HeartHandshake, Search, Shi
 import PatientManagementDrawer from '@/components/patients/PatientManagementDrawer';
 import type { ManagedPatient, ManagedPsychologist, PatientManagementStatus } from '@/components/patients/managementTypes';
 import type { ManagedConvenio } from '@/components/patients/managementTypes';
-import { reassignManagedPatient, updatePatientConvenio } from '@/components/patients/patientManagementActions';
+import { reassignManagedPatient, updatePatientConvenio, updatePatientSessionPricing } from '@/components/patients/patientManagementActions';
 import type { CusteioCiclo } from '@/lib/convenioBilling';
 import { resumoCusteio } from '@/lib/convenioBilling';
+import type { SessionPricingCategory } from '@/components/patients/patientSessionPricingView';
 
 type FilterStatus = 'TODOS' | PatientManagementStatus;
 type SortKey = 'ESPERA' | 'ENTRADA' | 'NOME';
@@ -136,6 +137,14 @@ export default function GestaoPacientesPage() {
     cota: { custeioCota: number | null; custeioCiclo: CusteioCiclo | null },
   ) => {
     await updatePatientConvenio(patientId, convenioId, custeadoPelaEmpresa, cota);
+    await load();
+  };
+
+  const changeSessionPricing = async (
+    patientId: string,
+    input: { category: SessionPricingCategory; customAmountCents?: number },
+  ) => {
+    await updatePatientSessionPricing(patientId, input);
     await load();
   };
 
@@ -371,6 +380,7 @@ export default function GestaoPacientesPage() {
         onRegistrationChange={load}
         onDropoutChange={load}
         onConvenioChange={changeConvenio}
+        onSessionPricingChange={changeSessionPricing}
       />
     </div>
   );

@@ -1173,7 +1173,10 @@ export async function identifyPatient(
     professionalRowId: String(row.profissional_id),
     professionalName: String(row.profissional_nome),
     sessionAmountCents: resolvePatientSessionAmountCents({
-      pricing: patientSessionPricingFromRow(row),
+      pricing: patientSessionPricingFromRow({
+        categoria_valor_sessao: row.categoria_valor_sessao,
+        valor_sessao_personalizado_centavos: row.valor_sessao_personalizado_centavos,
+      }),
       triageMode: row.modalidade_triagem,
       socialAmountCents: row.valor_social_centavos,
       standardAmountCents: row.valor_sessao_centavos,

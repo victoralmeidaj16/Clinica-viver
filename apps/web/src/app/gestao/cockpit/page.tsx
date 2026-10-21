@@ -24,6 +24,7 @@ import PatientManagementDrawer from '@/components/patients/PatientManagementDraw
 import {
   reassignManagedPatient,
   updatePatientConvenio,
+  updatePatientSessionPricing,
 } from '@/components/patients/patientManagementActions';
 import type {
   ManagedConvenio,
@@ -31,6 +32,7 @@ import type {
   ManagedPsychologist,
 } from '@/components/patients/managementTypes';
 import type { CusteioCiclo } from '@/lib/convenioBilling';
+import type { SessionPricingCategory } from '@/components/patients/patientSessionPricingView';
 import type { PsicologoItem } from '@/components/gestao/types';
 import { TIPOS_ATENDIMENTO } from '@/components/forms/opcoesPsicologo';
 import { formatBrazilPhone } from '@/lib/brazilPhone';
@@ -363,6 +365,14 @@ export default function GestaoCockpitPage() {
     await recarregar();
   };
 
+  const alterarValorSessao = async (
+    pacienteId: string,
+    input: { category: SessionPricingCategory; customAmountCents?: number },
+  ) => {
+    await updatePatientSessionPricing(pacienteId, input);
+    await recarregar();
+  };
+
   const aguardandoContato = leads.filter((item) => item.status === 'AGUARDANDO_CONTATO');
   const slasEstourados = aguardandoContato.filter((item) => item.slaStatus === 'VERMELHO').length;
   const semProfissional = leads.filter((item) => item.status === 'PENDENTE_ATRIBUICAO').length;
@@ -533,6 +543,7 @@ export default function GestaoCockpitPage() {
         onRegistrationChange={recarregar}
         onDropoutChange={recarregar}
         onConvenioChange={alterarConvenio}
+        onSessionPricingChange={alterarValorSessao}
       />
 
       {/* Conteúdo da Aba 1: Fila de Triagem */}

@@ -42,6 +42,11 @@ describe('reserva múltipla', () => {
     expect(result.ok && result.agendamentos).toHaveLength(2);
     expect(connection.commit).toHaveBeenCalledOnce();
   });
+  it('grava o valor resolvido como snapshot do novo agendamento', async () => {
+    await expect(bookAppointments({ ...patient, sessionAmountCents: 6800 }, [start], now)).resolves.toMatchObject({ ok: true });
+    const insert = connection.execute.mock.calls.find((call) => String(call[0]).includes('INSERT INTO clinica_agendamentos'));
+    expect(insert?.[1]).toContain(6800);
+  });
   it('respeita horizonte de 60 dias', async () => {
     expect(await bookAppointments(patient, [start, '2099-01-01T12:00:00Z'], now)).toEqual({ ok: false, motivo: 'INDISPONIVEL' });
     expect(poolQuery).not.toHaveBeenCalled();

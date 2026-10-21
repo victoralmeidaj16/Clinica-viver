@@ -277,6 +277,8 @@ export function textoRecebimentoPaciente(): string {
     'Em breve, você receberá as próximas orientações por aqui, neste mesmo contato.',
     '',
     'Estamos à disposição para te acolher! ✨',
+    '',
+    '⚠️ Em caso de urgência: se você estiver em sofrimento emocional intenso ou em uma situação de crise, ligue para o CVV, pelo número 188 (24 horas), ou procure um serviço de emergência da sua região.',
   ].join('\n');
 }
 

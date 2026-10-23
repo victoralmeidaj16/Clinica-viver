@@ -17,6 +17,8 @@ Ao final, cada produto terá código, deploy, banco, usuários administrativos e
 - Gestores acadêmicos terão contas próprias; credenciais e sessões de gestores da clínica não serão reutilizadas.
 - Alunos continuarão com contas e sessões acadêmicas próprias.
 - A primeira entrega será uma extração funcional, sem redesign.
+- O endereço de geração `https://clinicavivermais.cloud/painel-certificados` permanecerá inalterado e sem redirecionamento visível.
+- O endereço de validação `https://vivermaispsicologia.com.br/validarcertificados` permanecerá inalterado.
 - A migração será gradual, com operação paralela, virada controlada e possibilidade de rollback.
 - As tabelas acadêmicas antigas permanecerão somente leitura por 30 dias depois da virada e só serão removidas em uma alteração posterior, explicitamente aprovada.
 
@@ -70,13 +72,14 @@ O domínio público continuará sendo o da clínica. A aplicação de entrada en
 - `/api/academico/:path*`;
 - `/api/certificados/:path*`;
 - `/api/public/certificados/:path*`;
+- `/painel-certificados` e `/painel-certificados/:path*`;
 - `/validar-certificado` e `/validar-certificado/:path*`;
 - o alias `/validarcertificados`;
 - um prefixo exclusivo para assets estáticos da aplicação educacional.
 
-Não será criado rewrite global de `/:path*`. Como os dois projetos usam Next.js, o educacional terá um prefixo de assets exclusivo para que seu conteúdo estático não colida com `/_next` da clínica. A rota antiga `/gestao/academico` redirecionará para `/academico`; as rotas de `painel-certificados` redirecionarão para a seção equivalente da gestão acadêmica.
+Não será criado rewrite global de `/:path*`. Como os dois projetos usam Next.js, o educacional terá um prefixo de assets exclusivo para que seu conteúdo estático não colida com `/_next` da clínica. A rota antiga `/gestao/academico` redirecionará para `/academico`. As rotas `/painel-certificados` e `/painel-certificados/novo` serão atendidas diretamente pelo novo deploy, mantendo a URL exibida no navegador.
 
-O endereço impresso em certificados antigos, `vivermaispsicologia.com.br/validarcertificados`, continuará funcionando permanentemente. Certificados antigos e novos manterão validação por código e QR Code.
+O endereço administrativo `https://clinicavivermais.cloud/painel-certificados` e o endereço impresso em certificados, `https://vivermaispsicologia.com.br/validarcertificados`, continuarão funcionando permanentemente. Certificados antigos e novos manterão validação por código e QR Code.
 
 ## Bancos, permissões e identidade
 
@@ -239,7 +242,7 @@ O rollback não dependerá de recriar tabelas, pois o banco antigo será preserv
 
 - `/aluno` mantém aparência e comportamento atuais.
 - `/gestao/academico` chega à nova gestão acadêmica.
-- Rotas antigas do painel de certificados chegam ao destino equivalente.
+- `https://clinicavivermais.cloud/painel-certificados` e sua tela `/novo` mantêm URL, aparência e comportamento atuais.
 - `vivermaispsicologia.com.br/validarcertificados` valida certificados antigos e novos.
 - QR Codes e links já impressos continuam válidos.
 - PDFs antigos e novos preservam conteúdo e layout, tolerando apenas metadados técnicos não visíveis que variem entre gerações.

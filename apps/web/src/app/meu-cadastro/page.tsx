@@ -485,6 +485,9 @@ export default function MeuCadastroPage() {
                   </label>
                 ))}
               </div>
+              {opcoesAtendimentoDaPos(cadastro.posGraduacaoViverMais, cadastro.segundaPosGraduacao)?.servicos.includes('Avaliação Psicológica') && (
+                <p className="mt-2 text-[11px] text-muted">Duração variável: informe os minutos manualmente ao agendar cada avaliação.</p>
+              )}
             </div>
           )}
 

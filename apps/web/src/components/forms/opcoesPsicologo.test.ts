@@ -26,4 +26,15 @@ describe('opcoesAtendimentoDaPos', () => {
     expect(opcoesAtendimentoDaPos('Pós-graduação em Psicoterapia de Casal e Família', 'Pós-graduação em Psicologia Perinatal e Parentalidade')?.servicos)
       .toContain('Orientação Profissional');
   });
+
+  it.each([
+    'Pós-graduação em Avaliação Psicológica',
+    'Pós-graduação em Neuropsicologia Clínica',
+  ])('restringe %s à avaliação psicológica', (posGraduacao) => {
+    expect(opcoesAtendimentoDaPos(posGraduacao)).toEqual({
+      tempos: [50, 90],
+      servicos: ['Avaliação Psicológica'],
+      publico: ['Adolescente', 'Criança', 'Idoso', 'Homens', 'Mulheres'],
+    });
+  });
 });

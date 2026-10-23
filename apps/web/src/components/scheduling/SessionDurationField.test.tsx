@@ -41,4 +41,11 @@ describe('regrasDuracaoSessao', () => {
     expect(regrasDuracaoSessao({ temposAtendimento: [90], publicoAlvo: ['Criança'] }))
       .toEqual({ duracoesFixas: [90], permiteVariavel: false });
   });
+
+  it('mantém a duração variável para avaliação com tempos configurados na pós', () => {
+    expect(regrasDuracaoSessao({
+      servicosPrestados: ['Avaliação Psicológica'],
+      temposAtendimento: [50, 90],
+    })).toEqual({ duracoesFixas: [50, 90], permiteVariavel: true });
+  });
 });

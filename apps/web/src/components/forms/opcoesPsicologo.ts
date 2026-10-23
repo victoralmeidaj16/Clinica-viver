@@ -48,6 +48,11 @@ const POS_COM_OPCOES_RESTRITAS_DE_ATENDIMENTO: readonly string[] = [
   'Pós-graduação em Psicoterapia Infantil e de Adolescentes',
 ];
 
+const POS_COM_OPCOES_DE_AVALIACAO: readonly string[] = [
+  'Pós-graduação em Avaliação Psicológica',
+  'Pós-graduação em Neuropsicologia Clínica',
+];
+
 const SERVICOS_POS_AMPLAS: readonly string[] = [
   'Atendimento Psicológico',
   'Orientação Vocacional e Profissional',
@@ -60,6 +65,16 @@ const SERVICOS_POS_RESTRITAS: readonly string[] = [
   'Atendimento Psicológico',
   'Orientação Parental',
   'Orientação Vocacional e Profissional',
+];
+
+const SERVICOS_POS_AVALIACAO: readonly string[] = ['Avaliação Psicológica'];
+
+const PUBLICO_POS_AVALIACAO: readonly string[] = [
+  'Adolescente',
+  'Criança',
+  'Idoso',
+  'Homens',
+  'Mulheres',
 ];
 
 export interface OpcoesAtendimentoDaPos {
@@ -96,6 +111,9 @@ export function opcoesAtendimentoDaPos(
   }
   if (pos.some((curso) => POS_COM_OPCOES_RESTRITAS_DE_ATENDIMENTO.includes(curso))) {
     return { tempos: TEMPOS_ATENDIMENTO_POS, servicos: SERVICOS_POS_RESTRITAS, publico: PUBLICO_ALVO };
+  }
+  if (pos.some((curso) => POS_COM_OPCOES_DE_AVALIACAO.includes(curso))) {
+    return { tempos: TEMPOS_ATENDIMENTO_POS, servicos: SERVICOS_POS_AVALIACAO, publico: PUBLICO_POS_AVALIACAO };
   }
   return null;
 }

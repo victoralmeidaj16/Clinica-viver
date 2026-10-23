@@ -389,6 +389,7 @@ export function CadastroPsicologoForm({
             temSegundaPos ? segundaPosGraduacao : undefined
           );
           if (!opcoesAtendimento) return null;
+          const permiteDuracaoVariavel = opcoesAtendimento.servicos.includes('Avaliação Psicológica');
           return <>
         <div className="space-y-2">
           <label className="font-bold text-slate-700 block">
@@ -436,6 +437,9 @@ export function CadastroPsicologoForm({
               </label>;
             })}
           </div>
+          {permiteDuracaoVariavel && (
+            <p className="text-xs text-slate-600">Duração variável: informe os minutos manualmente ao agendar cada avaliação.</p>
+          )}
         </div>
 
         <div className="space-y-2">

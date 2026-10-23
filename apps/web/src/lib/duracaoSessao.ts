@@ -26,14 +26,14 @@ export function regrasDuracaoSessao(cadastro: {
   servicosHabilitados?: readonly string[];
   publicoAlvo?: readonly string[];
 } | undefined): RegrasDuracaoSessao {
-  const temposConfigurados = cadastro?.temposAtendimento?.filter((tempo): tempo is number => tempo === 50 || tempo === 90);
-  if (temposConfigurados?.length) {
-    return { duracoesFixas: Array.from(new Set(temposConfigurados)), permiteVariavel: false };
-  }
   const servicos = [...(cadastro?.servicosPrestados ?? []), ...(cadastro?.servicosHabilitados ?? [])]
     .map(normalizar);
   const publicos = (cadastro?.publicoAlvo ?? []).map(normalizar);
   const avaliacao = servicos.some((servico) => servico.includes('avaliacao'));
+  const temposConfigurados = cadastro?.temposAtendimento?.filter((tempo): tempo is number => tempo === 50 || tempo === 90);
+  if (temposConfigurados?.length) {
+    return { duracoesFixas: Array.from(new Set(temposConfigurados)), permiteVariavel: avaliacao };
+  }
   if (avaliacao) return { duracoesFixas: DURACOES_SESSAO, permiteVariavel: true };
 
   const casalOuFamilia = publicos.some((publico) => publico.includes('casal') || publico.includes('casai') || publico.includes('familia'));

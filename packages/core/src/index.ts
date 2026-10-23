@@ -56,5 +56,6 @@ export * from './academic';
 
 // Viver Mais Psicologia Core Domain
 export * from './viverMaisTypes';
+export * from './viverMaisAudience';
 export * from './viverMaisMatchingEngine';
 export * from './viverMaisAsaasService';

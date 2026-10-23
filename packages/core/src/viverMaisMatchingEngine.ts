@@ -5,12 +5,8 @@ import {
   PreferenciaGeneroPsicologo,
   TurnoAtendimento,
 } from './viverMaisTypes';
-
-/** O credenciamento usa “Homens”; a triagem usa “Homem”. */
-export function normalizarPublicoAlvo(valor: string): string {
-  return valor.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/\bhomens\b/g, 'homem');
-}
+import { publicoAlvoCompativel } from './viverMaisAudience';
+export { normalizarPublicoAlvo } from './viverMaisAudience';
 
 export interface MatchingResult {
   sucesso: boolean;
@@ -84,20 +80,7 @@ export function psicologoCompativel(
       return false;
     }
   }
-  if (paraQuemE && p.publicoAlvo && p.publicoAlvo.length > 0) {
-    const normTarget = normalizarPublicoAlvo(paraQuemE);
-    const matches = p.publicoAlvo.some((pa) => {
-      const normPa = normalizarPublicoAlvo(pa);
-      if (normPa === normTarget || normPa.includes(normTarget) || normTarget.includes(normPa)) return true;
-      if (normTarget.includes("homem") && (normPa.includes("homem") || normPa.includes("adulto"))) return true;
-      if (normTarget.includes("mulher") && (normPa.includes("mulher") || normPa.includes("adulto"))) return true;
-      if (normTarget.includes("lgbt") && normPa.includes("lgbt")) return true;
-      if ((normTarget.includes("casal") || normTarget.includes("casai")) && (normPa.includes("casal") || normPa.includes("casai"))) return true;
-      if (normTarget.startsWith("outro") && normPa.includes("outro")) return true;
-      return false;
-    });
-    if (!matches) return false;
-  }
+  if (!publicoAlvoCompativel(p.publicoAlvo, paraQuemE)) return false;
   if (necessidadesDesejadas && necessidadesDesejadas.length > 0 && p.necessidadesAtendidas && p.necessidadesAtendidas.length > 0) {
     const normAtendidas = p.necessidadesAtendidas.map((n) => n.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
     const temCorrespondencia = necessidadesDesejadas.some((nec) => {

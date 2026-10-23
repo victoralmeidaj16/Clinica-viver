@@ -49,6 +49,8 @@ const MODES: Array<{ value: ManualAppointmentMode; label: string }> = [
   { value: 'in_person', label: 'Presencial' },
 ];
 
+type DurationPreset = 50 | 90 | 'manual';
+
 export function ManualAppointmentDialog({
   patients,
   servicosHabilitados = [],
@@ -81,6 +83,7 @@ export function ManualAppointmentDialog({
       ? servicosHabilitados[0]
       : 'PSICOTERAPIA'
   );
+  const [durationPreset, setDurationPreset] = useState<DurationPreset>(50);
   const [customDuration, setCustomDuration] = useState('');
   const [date, setDate] = useState(() => todayAtClinic());
   const [time, setTime] = useState('14:00');
@@ -94,7 +97,13 @@ export function ManualAppointmentDialog({
   const [message, setMessage] = useState<{ kind: 'error' | 'success'; text: string }>();
 
   const variableDuration = hasVariableDuration(serviceKey);
-  const durationMinutes = variableDuration ? Number(customDuration) : getServiceDuration(serviceKey);
+  const manualDuration = variableDuration && durationPreset === 'manual';
+  const selectedEvaluationDuration = durationPreset === 'manual'
+    ? Number(customDuration)
+    : durationPreset;
+  const durationMinutes = variableDuration
+    ? selectedEvaluationDuration
+    : getServiceDuration(serviceKey);
   const validDuration = Number.isInteger(durationMinutes) && durationMinutes >= 15 && durationMinutes <= 240;
   const selectedService = CLINICAL_SERVICES.find((s) => s.key === serviceKey) ?? CLINICAL_SERVICES[0];
   const recurrenceDates = useMemo(() => frequency === 'custom' ? customDates : monthlyRecurrenceDates(date, frequency), [date, frequency, customDates]);
@@ -233,7 +242,11 @@ export function ManualAppointmentDialog({
               <select
                 required
                 value={serviceKey}
-                onChange={(event) => setServiceKey(event.target.value)}
+                onChange={(event) => {
+                  setServiceKey(event.target.value);
+                  setDurationPreset(50);
+                  setCustomDuration('');
+                }}
                 disabled={saving || message?.kind === 'success'}
                 className="input w-full appearance-none py-3 pl-10 pr-10 text-xs font-bold"
               >
@@ -248,23 +261,42 @@ export function ManualAppointmentDialog({
           </label>
 
           {variableDuration && (
-            <label className="block text-xs font-bold text-ink">
-              Duração da sessão (min) *
-              <input
-                type="number"
-                required
-                min={15}
-                max={240}
-                step={5}
-                inputMode="numeric"
-                placeholder="Ex.: 90"
-                value={customDuration}
-                onChange={(event) => setCustomDuration(event.target.value)}
-                disabled={saving || message?.kind === 'success'}
-                className="input mt-1.5 w-full py-3 text-xs font-bold"
-              />
-              <span className="mt-1 block text-[11px] font-medium text-muted">A avaliação não tem duração fixa: informe o tempo combinado para estas sessões (15 a 240 min).</span>
-            </label>
+            <fieldset disabled={saving || message?.kind === 'success'}>
+              <legend className="text-xs font-bold text-ink">Duração da sessão *</legend>
+              <div className="mt-1.5 grid grid-cols-3 gap-2">
+                {([50, 90, 'manual'] as const).map((option) => {
+                  const label = option === 50 ? '50min' : option === 90 ? '1h30min' : 'Definir outro tempo';
+                  return (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => setDurationPreset(option)}
+                      className={`rounded-xl border px-2 py-3 text-[11px] font-extrabold transition ${durationPreset === option ? 'border-psi-vibrant bg-psi-vibrant text-white shadow-md shadow-psi-vibrant/15' : 'border-line bg-slate-50 text-muted hover:border-psi-vibrant/40 hover:text-ink'}`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              {manualDuration && (
+                <label className="mt-3 block text-xs font-bold text-ink">
+                  Duração manual (min) *
+                  <input
+                    type="number"
+                    required
+                    min={15}
+                    max={240}
+                    step={5}
+                    inputMode="numeric"
+                    placeholder="Ex.: 75"
+                    value={customDuration}
+                    onChange={(event) => setCustomDuration(event.target.value)}
+                    className="input mt-1.5 w-full py-3 text-xs font-bold"
+                  />
+                </label>
+              )}
+              <span className="mt-2 block text-[11px] font-medium text-muted">A definição manual é exclusiva do psicólogo ao registrar uma avaliação.</span>
+            </fieldset>
           )}
 
           <div className="grid gap-4 sm:grid-cols-2">

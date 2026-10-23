@@ -6,7 +6,7 @@
 
 **Architecture:** Criar uma aplicação Next.js irmã que usa o banco lógico `viver_mais_educacional` na instância MySQL atual. Migrar código e dados em paralelo, validar a aplicação em origem técnica e então encaminhar somente os prefixos acadêmicos do domínio da clínica; o código antigo permanece disponível para rollback por 30 dias.
 
-**Tech Stack:** Node.js >= 20.19.4, TypeScript 5.7, Next.js 16.2, React 19.2, MySQL 8, mysql2, Vitest 4, Tailwind CSS 3, PDFKit, qrcode-generator, Vercel e Hostinger.
+**Tech Stack:** Node.js >= 20.19.4, TypeScript 5.7, Next.js 16.4, React 19.2, MySQL 8, mysql2, Vitest 4, Tailwind CSS 3, PDFKit, qrcode-generator, Vercel e Hostinger.
 
 **Spec:** `docs/superpowers/specs/2026-10-23-extracao-plataforma-educacional-design.md`
 
@@ -69,7 +69,7 @@ Expected: `git -C "../Viver Mais Educacional" rev-parse --show-toplevel` termina
 
 - [ ] **Step 2: Criar o scaffold mínimo**
 
-Fixar Next `16.2.12`, React `19.2.3`, TypeScript `^5.7.3`, Vitest `^4.1.10`, Tailwind `^3.4.17`, mysql2 `^3.23.2`, pdfkit `^0.19.1`, qrcode-generator `^2.0.4` e lucide-react `^0.475.0`. A página raiz deve identificar “Viver Mais Educacional” sem incluir funcionalidades novas.
+Fixar Next `16.4.3`, React `19.2.3`, TypeScript `^5.7.3`, Vitest `^4.1.10`, Tailwind `^3.4.17`, mysql2 `^3.23.2`, pdfkit `^0.19.1`, qrcode-generator `^2.0.4` e lucide-react `^0.475.0`. A página raiz deve identificar “Viver Mais Educacional” sem incluir funcionalidades novas. A versão do Next foi elevada em relação ao rascunho inicial para incorporar as correções de segurança reportadas pelo `npm audit`.
 
 - [ ] **Step 3: Instalar as dependências e gerar o lockfile**
 

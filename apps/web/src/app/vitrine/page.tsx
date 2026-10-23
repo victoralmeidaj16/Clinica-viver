@@ -11,8 +11,16 @@ import { CAMPO_ARMADILHA } from '@/lib/triagemSubmissao';
 import { maskCpf, validCpf } from '@/lib/cpf';
 import { maskBrazilPhoneInput, normalizeBrazilPhone } from '@/lib/brazilPhone';
 import { BookingReceipt } from '@/components/vitrine/BookingReceipt';
+import { PublicoAtendimentoField } from '@/components/vitrine/PublicoAtendimentoField';
 import { normalizarTurnosPreferencia, rotuloTurnoPreferencia } from '@/lib/turnos';
 import { profissionalCompativelNaVitrine } from '@/lib/vitrineMatching';
+import {
+  ajustarPublicoVitrineAtual,
+  opcoesPublicoVitrine,
+  publicoVitrinePermitido,
+  type ModalidadeVitrineKey,
+  type ServicoVitrineKey,
+} from '@/lib/vitrinePublico';
 import PublicHeader from '@/components/layout/PublicHeader';
 import PublicFooter from '@/components/layout/PublicFooter';
 import FloatingWhatsAppButton from '@/components/layout/FloatingWhatsAppButton';
@@ -32,20 +40,8 @@ import {
   PhoneCall,
 } from 'lucide-react';
 
-type ServicoKey =
-  | 'PSICOTERAPIA'
-  | 'PSICOTERAPIA_CASAL'
-  | 'AVALIACAO'
-  | 'ORIENTACAO_PROFISSIONAL'
-  | 'ORIENTACAO_PARENTAL';
-
-type ModalidadeKey =
-  | 'SOCIAL'
-  | 'PARTICULAR'
-  | 'CASAL_SOCIAL'
-  | 'CASAL_PARTICULAR'
-  | 'FAMILIA_SOCIAL'
-  | 'FAMILIA_PARTICULAR';
+type ServicoKey = ServicoVitrineKey;
+type ModalidadeKey = ModalidadeVitrineKey;
 
 type PreferenciaGeneroPsicologo = 'SEM_PREFERENCIA' | 'FEMININO' | 'MASCULINO';
 
@@ -411,23 +407,11 @@ export default function ViverMaisLandingPage() {
     setSelectedModalidade(modalidadeType);
     const modalidadeParticular = modalidadeType.includes('PARTICULAR');
     setForm((prev) => {
-      let paraQuemE = prev.paraQuemE;
-      if (serviceKey === 'ORIENTACAO_PARENTAL') {
-        paraQuemE = modalidadeType.startsWith('FAMILIA') ? 'Família' : 'Individual';
-      } else if (serviceKey === 'PSICOTERAPIA_CASAL') {
-        if (paraQuemE !== 'Casal' && paraQuemE !== 'Outro') {
-          paraQuemE = 'Casal';
-        }
-      } else if (serviceKey === 'AVALIACAO') {
-        if (!['Criança', 'Adolescente', 'Homem', 'Mulher', 'Idoso'].includes(paraQuemE)) {
-          paraQuemE = '';
-        }
-      } else if (['Casal', 'Família', 'Grupo'].includes(paraQuemE)) {
-        paraQuemE = '';
-      }
+      const paraQuemE = ajustarPublicoVitrineAtual(serviceKey, modalidadeType, prev.paraQuemE);
       return {
         ...prev,
         paraQuemE,
+        paraQuemEOutro: paraQuemE === 'Outro' ? prev.paraQuemEOutro : '',
         ...(modalidadeParticular ? { possuiConvenio: 'NAO', convenioSelecionado: '' } : {}),
       };
     });
@@ -438,7 +422,11 @@ export default function ViverMaisLandingPage() {
 
   const continuarMatch = () => {
     const paraQuem = form.paraQuemE === 'Outro' ? form.paraQuemEOutro.trim() : form.paraQuemE;
-    if (!paraQuem || !form.turno) {
+    if (
+      !paraQuem
+      || !form.turno
+      || !publicoVitrinePermitido(selectedService ?? undefined, selectedModalidade ?? undefined, paraQuem)
+    ) {
       alert('Responda às perguntas obrigatórias para continuar.');
       return;
     }
@@ -451,19 +439,35 @@ export default function ViverMaisLandingPage() {
     setStep('FORMULARIO');
   };
 
-  const profissionaisCompativeis = psicologosCredenciados.filter((psi) =>
-    profissionalCompativelNaVitrine(psi, {
-      turno: form.turno,
-      modalidade: selectedModalidade,
-      servicoKey: selectedService,
-      paraQuemE: form.paraQuemE === 'Outro' && form.paraQuemEOutro.trim()
-        ? `Outro: ${form.paraQuemEOutro.trim()}` : form.paraQuemE,
-      necessidadesPaciente: form.necessidadesPaciente,
-    })
+  const publicosPermitidos = selectedService && selectedModalidade
+    ? opcoesPublicoVitrine(selectedService, selectedModalidade)
+    : [];
+  const paraQuemSelecionado = form.paraQuemE === 'Outro' && form.paraQuemEOutro.trim()
+    ? `Outro: ${form.paraQuemEOutro.trim()}`
+    : form.paraQuemE;
+  const escolhaPublicoValida = publicoVitrinePermitido(
+    selectedService ?? undefined,
+    selectedModalidade ?? undefined,
+    paraQuemSelecionado,
   );
+  const profissionaisCompativeis = escolhaPublicoValida && form.turno
+    ? psicologosCredenciados.filter((psi) =>
+      profissionalCompativelNaVitrine(psi, {
+        turno: form.turno,
+        modalidade: selectedModalidade,
+        servicoKey: selectedService,
+        paraQuemE: paraQuemSelecionado,
+        necessidadesPaciente: form.necessidadesPaciente,
+      })
+    )
+    : [];
 
   const handleSubmitPaciente = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!escolhaPublicoValida) {
+      alert('Selecione para quem é o atendimento antes de continuar.');
+      return;
+    }
     if (!normalizarTurnosPreferencia(form.turno).length) {
       alert('Selecione pelo menos um período de preferência.');
       return;
@@ -980,26 +984,13 @@ export default function ViverMaisLandingPage() {
             <div className="space-y-7">
               <div className="space-y-3">
                 <label className="text-sm font-black text-ink">1. Para quem é o atendimento? <span className="text-rose-500">*</span></label>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {['Individual', 'Casal', 'Infantil', 'Adolescente', 'Família', 'Outro'].map((opcao) => (
-                    <button
-                      key={opcao}
-                      type="button"
-                      onClick={() => setForm((prev) => ({ ...prev, paraQuemE: opcao }))}
-                      className={`rounded-xl border p-3 text-left text-xs font-bold transition-all ${form.paraQuemE === opcao ? 'border-psi-vibrant bg-psi-soft text-psi-darkest' : 'border-line bg-white text-muted hover:border-psi-soft'}`}
-                    >
-                      {opcao}
-                    </button>
-                  ))}
-                </div>
-                {form.paraQuemE === 'Outro' && (
-                  <input
-                    value={form.paraQuemEOutro}
-                    onChange={(e) => setForm((prev) => ({ ...prev, paraQuemEOutro: e.target.value }))}
-                    placeholder="Especifique para quem é o atendimento"
-                    className="input text-xs"
-                  />
-                )}
+                <PublicoAtendimentoField
+                  opcoes={publicosPermitidos}
+                  value={form.paraQuemE}
+                  outroValue={form.paraQuemEOutro}
+                  onChange={(paraQuemE) => setForm((prev) => ({ ...prev, paraQuemE }))}
+                  onOutroChange={(paraQuemEOutro) => setForm((prev) => ({ ...prev, paraQuemEOutro }))}
+                />
               </div>
 
               <fieldset className="space-y-3">
@@ -1079,7 +1070,7 @@ export default function ViverMaisLandingPage() {
               <div>
                 <span className="text-[10px] font-black uppercase tracking-widest text-psi-vibrant">Catálogo compatível</span>
                 <h3 className="mt-1 text-2xl font-black text-ink">Escolha seu psicólogo</h3>
-                <p className="mt-1 text-xs text-muted">Primeiro informe os períodos desejados. Depois mostraremos somente os psicólogos compatíveis.</p>
+                <p className="mt-1 text-xs text-muted">Primeiro informe para quem é o atendimento e os períodos desejados. Depois mostraremos somente os psicólogos compatíveis.</p>
               </div>
               <button type="button" onClick={() => setStep('CAMINHO')} className="text-xs font-bold text-muted hover:text-ink">Voltar</button>
             </div>
@@ -1088,6 +1079,22 @@ export default function ViverMaisLandingPage() {
               <span className="mb-4 block text-[10px] font-black uppercase tracking-[0.18em] text-psi-vibrant">
                 Antes de conhecer a equipe
               </span>
+              <div className="mb-6 space-y-3">
+                <label className="text-sm font-black text-ink">Para quem é o atendimento? <span className="text-rose-500">*</span></label>
+                <PublicoAtendimentoField
+                  opcoes={publicosPermitidos}
+                  value={form.paraQuemE}
+                  outroValue={form.paraQuemEOutro}
+                  onChange={(paraQuemE) => {
+                    setForm((prev) => ({ ...prev, paraQuemE }));
+                    setPsicologoEscolhido(null);
+                  }}
+                  onOutroChange={(paraQuemEOutro) => {
+                    setForm((prev) => ({ ...prev, paraQuemEOutro }));
+                    setPsicologoEscolhido(null);
+                  }}
+                />
+              </div>
               <TurnoPreferenceField multiple
                 value={form.turno}
                 onChange={(turno) => {
@@ -1097,7 +1104,7 @@ export default function ViverMaisLandingPage() {
               />
             </div>
 
-            {form.turno && (
+            {form.turno && escolhaPublicoValida && (
               profissionaisCompativeis.length > 0 ? (
                 <VitrineCarrossel
                   psicologos={profissionaisCompativeis}

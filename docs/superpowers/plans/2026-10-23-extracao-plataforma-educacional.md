@@ -228,35 +228,35 @@ git -C "../Viver Mais Educacional" commit -m "feat: add independent academic man
 - Consumes: `getMysqlPool()` e `educationInstitutionId()`.
 - Produces: `CertificateRecord`, `CertificateTemplate`, `getCertificateRepository(): CertificateRepository`, `certificatePublicValidationUrl(): 'https://vivermaispsicologia.com.br/validarcertificados'` e `renderCertificatePdf(record, template): Promise<Buffer>`. `CertificateRepository` expõe `findByCode(code)`, `list(filter)`, `listForStudent(studentId, institutionId)`, `findForStudentCourse(studentId, courseId, institutionId)`, `issue(input)`, `issueAutomatic(input)`, `updateStatus(code, status, reason, actorId)`, `getTemplate(courseId)` e `saveTemplate(template)`.
 
-- [ ] **Step 1: Copiar os testes de domínio e persistência antes da implementação**
+- [x] **Step 1: Copiar os testes de domínio e persistência antes da implementação**
 
 Adaptar os testes existentes de `packages/core/src/certificados` e `apps/web/src/server/certificados`. Acrescentar asserções para URL permanente, código único, get-or-create por aluno/curso, status revogado e ausência de fallback em memória.
 
-- [ ] **Step 2: Executar os testes e confirmar a falha**
+- [x] **Step 2: Executar os testes e confirmar a falha**
 
 Run: `npm test --prefix "../Viver Mais Educacional" -- src/domain/certificates src/server/certificates`
 
 Expected: FAIL por implementações ausentes.
 
-- [ ] **Step 3: Portar e dividir o domínio puro**
+- [x] **Step 3: Portar e dividir o domínio puro**
 
 Preservar constantes, modelos `standard` e `online-course-with-instructor`, sanitização, texto dos quatro cursos especiais e layout da marca. Dividir por responsabilidade para manter cada arquivo abaixo de 250 linhas.
 
-- [ ] **Step 4: Portar e dividir o repositório MySQL**
+- [x] **Step 4: Portar e dividir o repositório MySQL**
 
 Manter uma fachada `CertificateRepository`; separar leituras, escritas e templates. Todas as consultas de aluno devem exigir `institutionId`; `emitAutomatic` deve ser idempotente pelo índice único e nenhum método pode cair para armazenamento em memória.
 
-- [ ] **Step 5: Portar assets e PDF sem dependência clínica**
+- [x] **Step 5: Portar assets e PDF sem dependência clínica**
 
 Copiar somente fontes, logo e recursos necessários ao certificado educacional. Substituir imports de componentes de declaração clínica por um QR dedicado ao educacional.
 
-- [ ] **Step 6: Executar testes e build**
+- [x] **Step 6: Executar testes e build**
 
 Run: `npm run check --prefix "../Viver Mais Educacional"`
 
 Expected: domínio, persistência e PDF passam; nenhum arquivo de produção excede 250 linhas.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git -C "../Viver Mais Educacional" add src/domain/certificates src/server/certificates

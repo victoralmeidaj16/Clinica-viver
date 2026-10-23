@@ -114,25 +114,27 @@ git -C "../Viver Mais Educacional" commit -m "chore: initialize educational plat
 - Consumes: `DATABASE_URL` ou `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DATABASE`; `MYSQL_ADMIN_URL` apenas no migrador; `EDUCATION_INSTITUTION_ID` na aplicação.
 - Produces: `isMysqlConfigured(): boolean`, `getMysqlPool(): Pool`, `educationInstitutionId(): string` e as tabelas acadêmicas compatíveis com os IDs atuais.
 
-- [ ] **Step 1: Escrever testes de esquema que falham**
+- [x] **Step 1: Escrever testes de esquema que falham**
 
 `schema.test.ts` deve exigir `instituicoes`, `educacao_gestores`, `clinica_alunos`, `clinica_cursos_pos_graduacao`, `clinica_cursos_modulos`, `clinica_cursos_aulas`, `clinica_aluno_matriculas`, `clinica_aluno_progresso_aulas`, `clinica_certificados` e `clinica_certificados_templates`. Exigir também índices únicos de e-mail do aluno, e-mail do gestor, matrícula, progresso, código do certificado e `(instituicao_id, aluno_id, curso_id)`.
 
-- [ ] **Step 2: Confirmar a falha dos testes**
+- [x] **Step 2: Confirmar a falha dos testes**
 
 Run: `npm test --prefix "../Viver Mais Educacional" -- src/server/database/schema.test.ts`
 
 Expected: FAIL porque migrations e runtime ainda não existem.
 
-- [ ] **Step 3: Implementar migrations independentes e idempotentes**
+- [x] **Step 3: Implementar migrations independentes e idempotentes**
 
 Portar apenas o DDL necessário das migrations clínicas `018`, `030`, `048`, `049` e `053`–`057`. Preservar nomes e tipos das tabelas acadêmicas, criar `instituicoes` local e criar `educacao_gestores`; não copiar tabelas clínicas nem sementes de produção. Documentar criação de `viver_mais_educacional`, usuário exclusivo e grants mínimos sem registrar senha real.
 
-- [ ] **Step 4: Implementar runtime e migrador**
+- [x] **Step 4: Implementar runtime e migrador**
 
 `getMysqlPool()` deve falhar quando não configurado, usar UTC e `dateStrings: true`. O migrador deve conservar controle por checksum e aceitar `--dry-run`; a credencial da aplicação não recebe DDL.
 
 - [ ] **Step 5: Testar banco vazio e privilégios locais**
+
+Pendente por limitação ambiental em 23/10/2026: o Docker CLI está disponível, mas o daemon/socket não está acessível. Os testes unitários do migrador cobrem `--dry-run`, checksum, reaplicação idempotente e divergência; o ensaio integrado real continua obrigatório antes da virada.
 
 Run:
 
@@ -145,7 +147,7 @@ npm test --prefix "../Viver Mais Educacional" -- src/server/database
 
 Expected: migrations aplicam uma vez, a segunda execução não altera o esquema e todos os testes passam.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git -C "../Viver Mais Educacional" add infra/mysql scripts/migrate.mjs src/server/database package.json package-lock.json README.md

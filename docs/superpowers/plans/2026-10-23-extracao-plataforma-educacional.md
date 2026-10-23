@@ -460,37 +460,37 @@ git -C "../Viver Mais Educacional" commit -m "feat: port academic management and
 - Consumes: `StudentPortalService`, `CertificateRepository`, `renderCertificatePdf()` e `AUTH_STUDENT_SESSION_SECRET`.
 - Produces: `STUDENT_SESSION_COOKIE = 'viver_mais_student_session'`, portal completo `/aluno`, APIs autenticadas e validação pública permanente.
 
-- [ ] **Step 1: Portar testes do aluno e escrever os casos críticos de validação**
+- [x] **Step 1: Portar testes do aluno e escrever os casos críticos de validação**
 
 Além dos testes atuais, cobrir: cookie do aluno diferente do gestor; aluno A não lista nem baixa certificado do aluno B; banco indisponível retorna 503 `SERVICE_UNAVAILABLE`; código inexistente retorna 404 `NOT_FOUND`; revogado permanece resposta válida com status `revoked`; `/validarcertificados` usa a mesma tela pública.
 
-- [ ] **Step 2: Executar os testes e confirmar a falha**
+- [x] **Step 2: Executar os testes e confirmar a falha**
 
 Run: `npm test --prefix "../Viver Mais Educacional" -- src/server/auth/studentAuth.test.ts src/app/api/academico/aluno src/app/api/public/certificados src/components/academic/student`
 
 Expected: FAIL por módulos ausentes.
 
-- [ ] **Step 3: Portar sessão, autenticação e APIs do aluno**
+- [x] **Step 3: Portar sessão, autenticação e APIs do aluno**
 
 `verifyPasswordHash(...)` é assíncrono no projeto educacional; todos os consumidores do portal devem usar `await`, com teste que prove a rejeição de senha incorreta para impedir que uma `Promise` truthy autorize o aluno.
 
 Preservar troca obrigatória, revogação por `passwordChangedAt`, matrícula ativa e autorização derivada da sessão. Usar segredo exclusivo do aluno e nunca aceitar `studentId` do navegador como autoridade.
 
-- [ ] **Step 4: Portar telas e player Vimeo sem redesign**
+- [x] **Step 4: Portar telas e player Vimeo sem redesign**
 
 Copiar shell, dashboard, cursos, aula, conta, certificados e estados de erro/vazio. Preservar parsing de vídeos privados e um único listener `ended` por player.
 
-- [ ] **Step 5: Portar validação e PDF públicos**
+- [x] **Step 5: Portar validação e PDF públicos**
 
 Manter `/validarcertificados`, `/validar-certificado`, `/validar-certificado/[codigo]` e as APIs públicas. Mapear indisponibilidade de persistência para 503 sem devolver falso “inválido”. Dividir o visualizador atual entre ações, frente, verso e layout da marca, mantendo o documento final idêntico e cada componente abaixo de 250 linhas.
 
-- [ ] **Step 6: Executar a suíte completa**
+- [x] **Step 6: Executar a suíte completa**
 
 Run: `npm run check --prefix "../Viver Mais Educacional"`
 
 Expected: portal, validação, PDFs, cookies e build passam.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git -C "../Viver Mais Educacional" add src/server/auth/student* src/app/aluno src/app/api/academico/aluno src/app/api/academico/auth src/app/api/public/certificados src/app/validar-certificado src/app/validarcertificados src/components/academic/student src/components/certificates/public

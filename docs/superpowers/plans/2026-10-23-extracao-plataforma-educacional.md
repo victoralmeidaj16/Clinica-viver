@@ -56,7 +56,7 @@
 - Consumes: Node.js `>=20.19.4` e as versões de dependências fixadas no monorepo clínico.
 - Produces: scripts `dev`, `build`, `lint`, `typecheck`, `test`, `check`, `db:migrate`, `db:status`, `manager:create`, `data:copy`, `data:reconcile` e uma aplicação Next.js executável.
 
-- [ ] **Step 1: Criar a pasta irmã e iniciar o Git independente**
+- [x] **Step 1: Criar a pasta irmã e iniciar o Git independente**
 
 Run:
 
@@ -67,27 +67,27 @@ git -C "../Viver Mais Educacional" init -b main
 
 Expected: `git -C "../Viver Mais Educacional" rev-parse --show-toplevel` termina em `/Viver Mais Educacional` e não aponta para o repositório clínico.
 
-- [ ] **Step 2: Criar o scaffold mínimo**
+- [x] **Step 2: Criar o scaffold mínimo**
 
 Fixar Next `16.4.3`, React `19.2.3`, TypeScript `^5.7.3`, Vitest `^4.1.10`, Tailwind `^3.4.17`, mysql2 `^3.23.2`, pdfkit `^0.19.1`, qrcode-generator `^2.0.4` e lucide-react `^0.475.0`. A página raiz deve identificar “Viver Mais Educacional” sem incluir funcionalidades novas. A versão do Next foi elevada em relação ao rascunho inicial para incorporar as correções de segurança reportadas pelo `npm audit`.
 
-- [ ] **Step 3: Instalar as dependências e gerar o lockfile**
+- [x] **Step 3: Instalar as dependências e gerar o lockfile**
 
 Run: `npm install --prefix "../Viver Mais Educacional"`
 
 Expected: `package-lock.json` existe e `npm ls --prefix "../Viver Mais Educacional" --depth=0` não relata dependências inválidas.
 
-- [ ] **Step 4: Escrever o teste de fronteira arquitetural**
+- [x] **Step 4: Escrever o teste de fronteira arquitetural**
 
 Em `src/architecture.test.ts`, testar `sourceFilesRespectRepositoryBoundary` e `sourceFilesStayBelow250Lines`. O primeiro varre `src/**/*.{ts,tsx}` e recusa `@thats-life/core`, `Clinica Viver Mais` e imports que escapem pela pasta pai; o segundo recusa arquivos de produção acima de 250 linhas, excluindo testes e arquivos gerados.
 
-- [ ] **Step 5: Executar os quality gates iniciais**
+- [x] **Step 5: Executar os quality gates iniciais**
 
 Run: `npm run check --prefix "../Viver Mais Educacional"`
 
 Expected: lint, typecheck, teste arquitetural e build passam.
 
-- [ ] **Step 6: Commit no novo repositório**
+- [x] **Step 6: Commit no novo repositório**
 
 ```bash
 git -C "../Viver Mais Educacional" add .

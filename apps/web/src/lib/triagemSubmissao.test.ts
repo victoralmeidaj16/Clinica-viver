@@ -14,6 +14,7 @@ const valido = {
   genero: 'FEMININO',
   servicoKey: 'PSICOTERAPIA',
   modalidade: 'SOCIAL',
+  paraQuemE: 'Individual',
   turno: 'VESPERTINO',
 };
 
@@ -28,6 +29,35 @@ const endereco = {
 };
 
 describe('validação do formulário público de triagem', () => {
+  const estrita = { exigirCompatibilidadeVitrine: true };
+
+  it('aplica a matriz de serviço, modalidade e público na fronteira pública', () => {
+    expect(validarSubmissaoTriagem({ ...valido, servicoKey: 'AVALIACAO', paraQuemE: 'Casal' }, estrita).ok).toBe(false);
+    expect(validarSubmissaoTriagem({ ...valido, servicoKey: 'AVALIACAO', paraQuemE: 'Infantil' }, estrita).ok).toBe(true);
+    expect(validarSubmissaoTriagem({
+      ...valido,
+      servicoKey: 'PSICOTERAPIA_CASAL',
+      modalidade: 'CASAL_SOCIAL',
+      paraQuemE: 'Casal',
+    }, estrita).ok).toBe(true);
+    expect(validarSubmissaoTriagem({ ...valido, paraQuemE: '' }, estrita).ok).toBe(false);
+    expect(validarSubmissaoTriagem({ ...valido, servicoKey: 'DESCONHECIDO' }, estrita).ok).toBe(false);
+  });
+
+  it('aceita Outro descrito na psicoterapia, mas não na avaliação', () => {
+    expect(validarSubmissaoTriagem({ ...valido, paraQuemE: 'Outro: gestante' }, estrita).ok).toBe(true);
+    expect(validarSubmissaoTriagem({
+      ...valido,
+      servicoKey: 'AVALIACAO',
+      paraQuemE: 'Outro: gestante',
+    }, estrita).ok).toBe(false);
+  });
+
+  it('preserva o cadastro interno sem público quando a validação estrita não é pedida', () => {
+    const { paraQuemE: _paraQuemE, ...semPublico } = valido;
+    expect(validarSubmissaoTriagem(semPublico).ok).toBe(true);
+  });
+
   it('aceita o envio mínimo e preenche os padrões da fila', () => {
     const resultado = validarSubmissaoTriagem(valido);
     expect(resultado.ok).toBe(true);

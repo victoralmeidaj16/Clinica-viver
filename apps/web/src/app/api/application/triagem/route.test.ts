@@ -2,7 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { POST } from './route';
 
 vi.mock('server-only', () => ({}));
-const mocks = vi.hoisted(() => ({ mutate: vi.fn(), recebimento: vi.fn(), alocacao: vi.fn(), verificar: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  mutate: vi.fn(),
+  recebimento: vi.fn(),
+  alocacao: vi.fn(),
+  verificar: vi.fn(),
+  validar: vi.fn(() => ({ ok: true, dados: { nome: 'Maria', telefone: '11987654321' } })),
+}));
 vi.mock('@/server/persistence/captureRepository', () => ({
   getCaptureRepository: () => ({ mutate: mocks.mutate }),
   captureStateAsSnapshot: (state: unknown) => state,
@@ -18,7 +24,7 @@ vi.mock('@/server/viverMaisGestaoAuth', () => ({ ehGestao: async () => false }))
 vi.mock('@/server/http/publicRequest', () => ({ rateLimited: () => false }));
 vi.mock('@/lib/triagemSubmissao', () => ({
   LIMITE_CORPO_BYTES: 10000,
-  validarSubmissaoTriagem: () => ({ ok: true, dados: { nome: 'Maria', telefone: '11987654321' } }),
+  validarSubmissaoTriagem: mocks.validar,
 }));
 
 const lead = { id: 'lead-1', protocolo: 'VM-123456' };
@@ -28,6 +34,12 @@ function solicitar() {
 
 beforeEach(() => { vi.clearAllMocks(); mocks.verificar.mockResolvedValue('existe'); mocks.recebimento.mockResolvedValue({ situacao: 'enviada' }); });
 describe('acolhimento na solicitação de agendamento', () => {
+  it('ativa a validação estrita da matriz pública antes de consultar o WhatsApp', async () => {
+    mocks.mutate.mockResolvedValue({ situacao: 'criado', lead });
+    await solicitar();
+    expect(mocks.validar).toHaveBeenCalledWith({}, { exigirCompatibilidadeVitrine: true });
+  });
+
   it.each([undefined, { id: 'psi-1' }])('envia ao paciente com profissional %j', async (psicologo) => {
     mocks.mutate.mockResolvedValue({ situacao: 'criado', lead, psicologo });
     expect((await solicitar()).status).toBe(200);

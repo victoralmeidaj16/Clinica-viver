@@ -3,6 +3,7 @@ import { normalizeBrazilPhone } from './brazilPhone';
 import { validCpf } from './cpf';
 import { validateGender, type GenderValue } from './gender';
 import { normalizarTurnosPreferencia } from './turnos';
+import { publicoVitrinePermitido } from './vitrinePublico';
 
 /**
  * Saneamento do formulário público da vitrine.
@@ -151,7 +152,10 @@ function preferenciaGenero(valor: unknown): PreferenciaGeneroPsicologo {
  * Rejeita com mensagem única quando a armadilha é acionada: dizer ao robô qual
  * regra ele quebrou é ensiná-lo a passar na próxima.
  */
-export function validarSubmissaoTriagem(corpo: unknown): ResultadoValidacao {
+export function validarSubmissaoTriagem(
+  corpo: unknown,
+  opcoes: { exigirCompatibilidadeVitrine?: boolean } = {},
+): ResultadoValidacao {
   if (!corpo || typeof corpo !== 'object' || Array.isArray(corpo)) {
     return recusa('Não foi possível ler os dados enviados.');
   }
@@ -256,6 +260,14 @@ export function validarSubmissaoTriagem(corpo: unknown): ResultadoValidacao {
   }
 
   const modalidade = texto(body.modalidade, 40);
+  const servicoKey = texto(body.servicoKey, 40);
+  const paraQuemE = livres[1];
+  if (
+    opcoes.exigirCompatibilidadeVitrine
+    && !publicoVitrinePermitido(servicoKey, modalidade, paraQuemE)
+  ) {
+    return recusa('Selecione uma combinação válida de serviço e público para continuar.');
+  }
   const modalidadeParticular = modalidade?.toUpperCase().includes('PARTICULAR');
 
   return {
@@ -282,9 +294,9 @@ export function validarSubmissaoTriagem(corpo: unknown): ResultadoValidacao {
       origem: texto(body.origem, 80) ?? 'Formulário Vitrine',
       turno,
       servico: texto(body.servico, 120),
-      servicoKey: texto(body.servicoKey, 40),
+      servicoKey,
       modalidade,
-      paraQuemE: livres[1],
+      paraQuemE,
       preferenciaGeneroPsicologo: preferenciaGenero(body.preferenciaGeneroPsicologo),
       especificarNecessidades: Boolean(body.especificarNecessidades),
       necessidadesPaciente: necessidades,

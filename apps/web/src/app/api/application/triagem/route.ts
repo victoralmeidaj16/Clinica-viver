@@ -76,7 +76,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const validacao = validarSubmissaoTriagem(corpo);
+    const validacao = validarSubmissaoTriagem(corpo, { exigirCompatibilidadeVitrine: true });
     if (!validacao.ok) {
       return NextResponse.json({ success: false, error: validacao.erro }, { status: validacao.status });
     }

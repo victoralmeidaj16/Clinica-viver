@@ -32,6 +32,8 @@ rsync -az --delete \
   --exclude '.next/' \
   --exclude '.demo-state/' \
   --exclude 'output/' \
+  --exclude 'videos/' \
+  --exclude '.DS_Store' \
   ./ "${vps_host}:${remote_dir}/"
 
 # O SHA permanece fora da imagem e é passado como build arg. Assim o endpoint

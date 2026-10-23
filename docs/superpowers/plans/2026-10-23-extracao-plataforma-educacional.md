@@ -175,31 +175,31 @@ git -C "../Viver Mais Educacional" commit -m "feat: add isolated educational dat
 - Consumes: `getMysqlPool()`, `educationInstitutionId()` e `EDUCATION_MANAGER_SESSION_SECRET`.
 - Produces: `MANAGER_SESSION_COOKIE = 'viver_mais_education_manager_session'`, `authenticateManager(email, password): Promise<AcademicManager | null>`, `requireManager(): Promise<ManagerSession>` e `createManagerFromStdin()`.
 
-- [ ] **Step 1: Escrever testes de autenticação e isolamento que falham**
+- [x] **Step 1: Escrever testes de autenticação e isolamento que falham**
 
 Cobrir: e-mail normalizado; hash `scrypt`; gestor desativado; sessão expirada; revogação após troca de senha; cookie diferente de `viver_mais_session` e `viver_mais_student_session`; ausência de credencial demo; senha nunca recebida por argumento do CLI.
 
-- [ ] **Step 2: Executar os testes e confirmar a falha**
+- [x] **Step 2: Executar os testes e confirmar a falha**
 
 Run: `npm test --prefix "../Viver Mais Educacional" -- src/server/auth scripts/create-manager.test.ts`
 
 Expected: FAIL por módulos ausentes.
 
-- [ ] **Step 3: Implementar repositório, hash, sessão e APIs**
+- [x] **Step 3: Implementar repositório, hash, sessão e APIs**
 
 Usar o formato existente `scrypt$<salt>$<hash>`, HMAC SHA-256, TTL de oito horas, cookies `HttpOnly`, `SameSite=Lax`, `Secure` em produção e caminho `/`. Apenas `role: 'admin'` pode acessar a gestão.
 
-- [ ] **Step 4: Implementar criação segura do primeiro gestor**
+- [x] **Step 4: Implementar criação segura do primeiro gestor**
 
 O comando deve receber nome e e-mail por prompts ou variáveis explícitas e ler a senha de `stdin` sem eco; deve recusar senha fraca e e-mail duplicado. Não gravar senha, hash ou `DATABASE_URL` em logs.
 
-- [ ] **Step 5: Executar testes e quality gates**
+- [x] **Step 5: Executar testes e quality gates**
 
 Run: `npm run check --prefix "../Viver Mais Educacional"`
 
 Expected: todos os testes passam e o build inclui `/academico/login` e as três APIs de sessão.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git -C "../Viver Mais Educacional" add src/server/security src/server/auth src/app/academico/login src/app/api/academico/gestao/auth src/components/management scripts package.json
@@ -472,6 +472,8 @@ Expected: FAIL por módulos ausentes.
 
 - [ ] **Step 3: Portar sessão, autenticação e APIs do aluno**
 
+`verifyPasswordHash(...)` é assíncrono no projeto educacional; todos os consumidores do portal devem usar `await`, com teste que prove a rejeição de senha incorreta para impedir que uma `Promise` truthy autorize o aluno.
+
 Preservar troca obrigatória, revogação por `passwordChangedAt`, matrícula ativa e autorização derivada da sessão. Usar segredo exclusivo do aluno e nunca aceitar `studentId` do navegador como autoridade.
 
 - [ ] **Step 4: Portar telas e player Vimeo sem redesign**
@@ -595,6 +597,8 @@ O script deve ler credenciais somente do ambiente, verificar login de gestor e a
 Comparar texto extraído, quantidade/tamanho de páginas e imagens renderizadas com tolerância documentada para metadados invisíveis. Usar um certificado legado, um padrão automático e um `online-course-with-instructor`.
 
 - [ ] **Step 6: Publicar a origem técnica e executar paridade**
+
+Antes de expor a origem, comprovar rate limiting compartilhado no gateway/infraestrutura e impedir acesso público direto ao deploy técnico. O limitador em memória da aplicação é apenas uma defesa local; também validar que o proxy sempre sobrescreve `X-Real-IP` com o endereço confiável do cliente.
 
 Run:
 

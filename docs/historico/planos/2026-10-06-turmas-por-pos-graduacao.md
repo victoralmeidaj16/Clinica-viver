@@ -487,3 +487,68 @@ Expected: sem whitespace errors e somente arquivos esperados. Se a verificação
 git add <arquivos-ajustados>
 git commit -m "fix: finaliza painel de turmas por curso"
 ```
+
+## Pendências conhecidas
+
+Consolidação dos itens desmarcados e das pendências explícitas deste registro histórico. O estado abaixo reproduz o plano; não constitui uma nova auditoria do código ou da produção. Consulte as etapas originais para detalhes e confirme o estado atual antes de retomar o trabalho.
+
+### Task 1: Identidade composta compartilhada
+
+- [ ] **Step 1: Escrever os testes falhos da identidade**
+- [ ] **Step 2: Executar os testes e confirmar a falha**
+- [ ] **Step 3: Implementar os tipos e helpers no módulo compartilhado**
+- [ ] **Step 4: Executar os testes direcionados**
+- [ ] **Step 5: Commit**
+
+### Task 2: Migração e persistência pela chave composta
+
+- [ ] **Step 1: Escrever testes falhos da derivação e do arquivo legado**
+- [ ] **Step 2: Executar os testes e confirmar a falha**
+- [ ] **Step 3: Criar a migração MySQL 052**
+- [ ] **Step 4: Implementar os repositórios MySQL e arquivo**
+- [ ] **Step 5: Implementar a aplicação isolada no roster**
+- [ ] **Step 6: Executar testes e checagem da migração**
+- [ ] **Step 7: Verificar a expansão em MySQL descartável**
+- [ ] **Step 8: Commit**
+
+### Task 3: Isolamento no rodízio, vitrine e notificação
+
+- [ ] **Step 1: Escrever os testes falhos de isolamento**
+- [ ] **Step 2: Executar os testes e confirmar a falha**
+- [ ] **Step 3: Atualizar a notificação acadêmica**
+- [ ] **Step 4: Executar os testes de domínio, rodízio, vitrine e notificação**
+- [ ] **Step 5: Commit**
+
+### Task 4: Contrato composto da API
+
+- [ ] **Step 1: Escrever testes falhos da rota**
+- [ ] **Step 2: Executar o teste e confirmar a falha**
+- [ ] **Step 3: Implementar validação e operações compostas**
+- [ ] **Step 4: Executar o teste da rota**
+- [ ] **Step 5: Commit**
+
+### Task 5: Modelo de apresentação e lista agrupada
+
+- [ ] **Step 1: Substituir testes antigos por testes falhos do modelo agrupado**
+- [ ] **Step 2: Executar o teste e confirmar a falha**
+- [ ] **Step 3: Implementar o modelo puro**
+- [ ] **Step 4: Renderizar a lista agrupada responsiva**
+- [ ] **Step 5: Executar o teste do componente**
+- [ ] **Step 6: Executar typecheck para validar props e consumidores pendentes**
+- [ ] **Step 7: Commit**
+
+### Task 6: Integração da página de gestão
+
+- [ ] **Step 1: Atualizar `alterarTurma` para a identidade composta**
+- [ ] **Step 2: Garantir migração local antes da primeira listagem**
+- [ ] **Step 3: Conectar os callbacks compostos do painel**
+- [ ] **Step 4: Executar testes, typecheck e lint direcionado**
+- [ ] **Step 5: Commit**
+
+### Task 7: Verificação completa e acabamento visual
+
+- [ ] **Step 1: Executar a suíte web completa**
+- [ ] **Step 2: Executar verificações estáticas**
+- [ ] **Step 3: Executar o build de produção pela raiz**
+- [ ] **Step 4: Validar o fluxo no navegador em desktop e mobile**
+- [ ] **Step 5: Revisar o diff e criar commit de acabamento apenas se necessário**

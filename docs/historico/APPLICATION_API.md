@@ -1,5 +1,9 @@
 # API de aplicação demonstrativa
 
+> Histórico do contrato demonstrativo. Os cabeçalhos de identidade abaixo não
+> representam a autenticação atual. Consulte `apps/web/src/server/application/context.ts`
+> e `apps/web/src/server/auth.ts` (caminhos relativos à raiz) para sessão e autorização.
+
 Esta camada coordena casos de uso do core em Route Handlers do Next.js. Ela usa
 estado em memória e não representa autenticação ou persistência de produção.
 

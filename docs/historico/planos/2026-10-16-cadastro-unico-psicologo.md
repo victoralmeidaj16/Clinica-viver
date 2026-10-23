@@ -26,3 +26,12 @@ Conferir duplicação concorrente, identidade já ativa, reenvio legítimo do me
 - A edição MySQL sincroniza cadastro, usuário e profissional na mesma transação; a gravação genérica de usuário também deixou de atualizar outra identidade por colisão no índice de e-mail.
 - Consulta somente de leitura em produção encontrou uma conta associada a dois cadastros. Nenhum registro foi alterado e a correção ainda não foi publicada. A definição do cadastro legítimo exige revisão da gestão.
 - Não foram enviados e-mails ou mensagens reais nos testes.
+
+## Pendências conhecidas
+
+Consolidação dos itens desmarcados e das pendências explícitas deste registro histórico. O estado abaixo reproduz o plano; não constitui uma nova auditoria do código ou da produção. Consulte as etapas originais para detalhes e confirme o estado atual antes de retomar o trabalho.
+
+Pendências registradas em “Resultado”:
+
+- [ ] Submeter à gestão a definição do cadastro legítimo da conta encontrada com dois cadastros associados; o registro informa que nenhum dado foi alterado.
+- [ ] Publicar a correção após as verificações necessárias; o registro informa que ela ainda não havia sido publicada. Confirmar o estado atual do deploy antes de agir.

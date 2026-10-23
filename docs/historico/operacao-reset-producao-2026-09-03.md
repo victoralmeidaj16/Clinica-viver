@@ -4,7 +4,7 @@
 
 Encerrar a fase de testes conduzida dentro do ambiente de produção e devolver a
 base ao estado inicial, antes do cadastro dos primeiros psicólogos e pacientes
-reais. Sucede a limpeza de [25/08](./operacao-limpeza-producao-2026-08-25.md),
+reais. Sucede a limpeza de [25/08](operacao-limpeza-producao-2026-08-25.md),
 cujos critérios de preservação foram mantidos.
 
 ## Backup

@@ -2,7 +2,7 @@
 
 > Este documento registra a arquitetura planejada/antiga na Oracle Cloud
 > Infrastructure. A produção atual usa a VPS Hostinger; consulte
-> [`hostinger-vps.md`](./hostinger-vps.md). Não seguir este roteiro para novos
+> [`hostinger-vps.md`](../operacao/hostinger-vps.md). Não seguir este roteiro para novos
 > deploys, migrations ou configuração de segredos.
 
 Portado de `Sponteiro/docs/oci-migracao.md` e atualizado para este repositório.

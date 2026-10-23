@@ -476,3 +476,17 @@ git commit -m "test(academic): valida jornada completa do aluno"
 - [x] Nenhum componente novo ultrapassa 250 linhas.
 - [x] Lint, typecheck, testes e build passam.
 - [x] O deploy mantém o frontend do monorepo na raiz e encaminha somente APIs específicas.
+
+## Pendências conhecidas
+
+Consolidação dos itens desmarcados e das pendências explícitas deste registro histórico. O estado abaixo reproduz o plano; não constitui uma nova auditoria do código ou da produção. Consulte as etapas originais para detalhes e confirme o estado atual antes de retomar o trabalho.
+
+Pendências registradas em “Execução — 2026-10-13” como menores adiados:
+
+- [ ] Tratar erros de constraint do banco que viram 500 genérico.
+- [ ] Corrigir `updateLesson`, que ecoa um `moduleId` que não foi salvo.
+- [ ] Revisar a reordenação que usa dois PATCH.
+- [ ] Revisar a mudança no fallback de senha em texto puro de `AUTH_USERS_JSON`, registrado como tendo deixado de valer, sem reintroduzir credenciais inseguras.
+- [ ] Melhorar a mensagem genérica no login de conta desativada.
+- [ ] Revisar `INSERT IGNORE`, que esconde erros de FK.
+- [ ] Permitir que o editor de curso volte para “novo curso” sem recarregar.

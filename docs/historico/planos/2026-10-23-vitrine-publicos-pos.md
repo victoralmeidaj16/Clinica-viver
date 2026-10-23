@@ -342,3 +342,59 @@ Na produção, percorrer sem enviar o formulário:
 - [ ] **Step 4: Registrar o resultado**
 
 Relatar commit final, URL do deploy, verificações executadas e qualquer aviso preexistente que não pertença ao escopo.
+
+## Pendências conhecidas
+
+Consolidação dos itens desmarcados e das pendências explícitas deste registro histórico. O estado abaixo reproduz o plano; não constitui uma nova auditoria do código ou da produção. Consulte as etapas originais para detalhes e confirme o estado atual antes de retomar o trabalho.
+
+### Task 1: Centralizar a compatibilidade de públicos no core
+
+- [ ] **Step 1: Escrever os testes de mapeamento que falham**
+- [ ] **Step 2: Rodar os testes e confirmar a falha**
+- [ ] **Step 3: Implementar a regra pura e exportá-la**
+- [ ] **Step 4: Fazer o motor usar a interseção de públicos**
+- [ ] **Step 5: Rodar core completo**
+- [ ] **Step 6: Commit**
+
+### Task 2: Definir as opções públicas permitidas por serviço
+
+- [ ] **Step 1: Escrever a matriz de testes que falha**
+- [ ] **Step 2: Rodar o teste e confirmar a falha**
+- [ ] **Step 3: Implementar a matriz pura**
+- [ ] **Step 4: Rodar o teste direcionado**
+- [ ] **Step 5: Commit**
+
+### Task 3: Aplicar a mesma escolha de público aos dois caminhos da vitrine
+
+- [ ] **Step 1: Escrever os testes de apresentação que falham**
+- [ ] **Step 2: Criar o componente de seleção de público**
+- [ ] **Step 3: Integrar a seleção no caminho de recomendação**
+- [ ] **Step 4: Integrar a seleção antes da escolha direta**
+- [ ] **Step 5: Ajustar troca de serviço e submissão**
+- [ ] **Step 6: Rodar testes e typecheck web**
+- [ ] **Step 7: Commit**
+
+### Task 4: Validar serviço e público na fronteira da triagem
+
+- [ ] **Step 1: Escrever os testes de rejeição que falham**
+- [ ] **Step 2: Rodar o teste e confirmar a falha**
+- [ ] **Step 3: Implementar a validação autoritativa**
+- [ ] **Step 4: Rodar os testes de validação e rota**
+- [ ] **Step 5: Commit**
+
+### Task 5: Provar paridade e a tabela completa das pós
+
+- [ ] **Step 1: Expandir o teste de paridade da escolha direta e rodízio**
+- [ ] **Step 2: Tornar a tabela das pós exaustiva**
+- [ ] **Step 3: Fixar a separação de duração paciente/profissional**
+- [ ] **Step 4: Rodar verificações direcionadas**
+- [ ] **Step 5: Rodar a regressão completa**
+- [ ] **Step 6: Conferir invariantes de deploy e alterações**
+- [ ] **Step 7: Commit de cobertura final**
+
+### Task 6: Validar o fluxo publicado sem criar uma triagem real
+
+- [ ] **Step 1: Enviar a série de commits para `main`**
+- [ ] **Step 2: Aguardar o deploy de produção**
+- [ ] **Step 3: Conferir a vitrine em modo somente leitura**
+- [ ] **Step 4: Registrar o resultado**

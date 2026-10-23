@@ -1,6 +1,6 @@
 # Evolution API — canal de WhatsApp da clínica
 
-Implementa a seção 6 de `docs/clinica-plano-implantacao.md`. Aqui está só a
+Implementa a seção 6 de `docs/historico/clinica-plano-implantacao.md`. Aqui está só a
 operação; a decisão e os riscos estão no plano.
 
 Versão fixada: `evoapicloud/evolution-api:v2.3.7`. A imagem oficial mudou de

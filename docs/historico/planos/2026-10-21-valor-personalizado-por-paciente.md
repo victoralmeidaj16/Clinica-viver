@@ -218,3 +218,46 @@ Expected: reports the missing database URL only; separately inspect that migrati
 git add <only corrected files>
 git commit -m "test: cobre valor personalizado por paciente"
 ```
+
+## Pendências conhecidas
+
+Consolidação dos itens desmarcados e das pendências explícitas deste registro histórico. O estado abaixo reproduz o plano; não constitui uma nova auditoria do código ou da produção. Consulte as etapas originais para detalhes e confirme o estado atual antes de retomar o trabalho.
+
+### Task 1: Contrato financeiro do paciente e migração idempotente
+
+- [ ] **Step 1: Write failing validation and persistence tests**
+- [ ] **Step 2: Run the focused test to verify it fails**
+- [ ] **Step 3: Add migration and persistence module**
+- [ ] **Step 4: Run the focused test to verify it passes**
+- [ ] **Step 5: Commit**
+
+### Task 2: Rota administrativa e dados do drawer
+
+- [ ] **Step 1: Write failing route and list-payload tests**
+- [ ] **Step 2: Run the focused test to verify it fails**
+- [ ] **Step 3: Implement route and list projection**
+- [ ] **Step 4: Run the focused test to verify it passes**
+- [ ] **Step 5: Commit**
+
+### Task 3: Resolver e congelar o preço de novos agendamentos
+
+- [ ] **Step 1: Write failing schedule-resolution tests**
+- [ ] **Step 2: Run the focused tests to verify they fail**
+- [ ] **Step 3: Implement server-side price resolution**
+- [ ] **Step 4: Run the focused tests to verify they pass**
+- [ ] **Step 5: Commit**
+
+### Task 4: Painel “Categoria e valor da sessão” na Gestão
+
+- [ ] **Step 1: Write failing component/action tests**
+- [ ] **Step 2: Run the focused test to verify it fails**
+- [ ] **Step 3: Implement the isolated panel and wire page refresh**
+- [ ] **Step 4: Run the focused test to verify it passes**
+- [ ] **Step 5: Commit**
+
+### Task 5: Regressão integrada e verificação de produção
+
+- [ ] **Step 1: Run all targeted tests and inspect results**
+- [ ] **Step 2: Run type/build verification**
+- [ ] **Step 3: Validate migration ordering without credentials**
+- [ ] **Step 4: Commit any verification-driven correction**

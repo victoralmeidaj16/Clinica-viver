@@ -43,9 +43,9 @@ Existem módulos implementados e integrações que dependem de configuração. A
 
 ## Referências no projeto
 
-- [Apresentação do projeto](../README.md)
+- [Apresentação do projeto](../../README.md)
 - [Documentação de funcionalidades](FUNCIONALIDADES.md)
 - [Fluxo de navegação e funcionalidades](fluxo-navegacao-e-funcionalidades.md)
-- [Cadastro de pacientes](../apps/web/src/components/patients/patientRegistration.ts)
-- [Automação pós-sessão](../apps/web/src/server/application/postSessionService.ts)
-- [Indicadores mensais](../apps/web/src/server/application/monthlyIndicators.ts)
+- [Cadastro de pacientes](../../apps/web/src/components/patients/patientRegistration.ts)
+- [Automação pós-sessão](../../apps/web/src/server/application/postSessionService.ts)
+- [Indicadores mensais](../../apps/web/src/server/application/monthlyIndicators.ts)

@@ -3,7 +3,7 @@
 ## Objetivo
 
 Remover tudo o que foi cadastrado em produção durante os testes, inclusive o
-que entrou depois do [reset de 03/09](./operacao-reset-producao-2026-09-03.md),
+que entrou depois do [reset de 03/09](operacao-reset-producao-2026-09-03.md),
 e deixar a base pronta para os primeiros psicólogos e pacientes reais. Por
 decisão da gestão, **nenhum** login de psicólogo foi mantido: fica apenas a
 conta de coordenação.

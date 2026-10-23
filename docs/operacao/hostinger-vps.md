@@ -3,7 +3,7 @@
 Este é o documento operacional vigente da Clínica Viver Mais. A infraestrutura
 anterior na Oracle Cloud Infrastructure (OCI) foi descontinuada para esta
 aplicação; o roteiro anterior foi preservado em
-[`oci-migracao.md`](./oci-migracao.md) apenas como histórico.
+[`oci-migracao.md`](../historico/oci-migracao.md) apenas como histórico.
 
 ## Arquitetura em produção
 

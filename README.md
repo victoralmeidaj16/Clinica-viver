@@ -1,143 +1,109 @@
-# Thats Life (TL - Psi) 🧠
+# Clínica Viver Mais
 
-> **Plataforma de Inteligência Clínica & Automação Pós-Sessão em 1 Clique**
+Plataforma de gestão clínica da Viver Mais Psicologia, também identificada no código como **Thats Life (TL - Psi)**. Reúne vitrine e triagem, cadastro de pacientes e profissionais, agenda, prontuários, automação pós-sessão, comunicação por WhatsApp e financeiro.
 
-O **Thats Life** é um ecossistema de software de saúde mental desenvolvido para transformar a prática clínica de psicólogos e clínicas, automatizando a burocracia administrativa.
+O monorepo usa npm workspaces, TypeScript, Next.js 16, React 19 e MySQL. Os nomes dos pacotes continuam sendo `@thats-life/web` e `@thats-life/core`.
 
-> [!IMPORTANT]
-> A produção usa Vercel no frontend e MySQL em Docker na VPS Hostinger. Não
-> utilize dados clínicos reais até que os controles de segurança e operação
-> estejam homologados pela clínica.
+## Por onde começar
 
----
+- **Desenvolvimento e agentes de IA:** leia [AGENTS.md](AGENTS.md) e o guia da pasta que será alterada.
+- **Documentação por assunto:** consulte o [índice de documentação](docs/README.md).
+- **Visão do produto:** leia o [resumo da plataforma](docs/produto/RESUMO-DA-PLATAFORMA.md).
+- **Infraestrutura vigente:** consulte [Hostinger VPS](docs/operacao/hostinger-vps.md) e [Vercel](docs/operacao/vercel-setup-guia.md).
 
-## ⚡ Diferenciais Competitivos (vs PsicoManager, PersonCare e SimplePractice)
-
-1. **Automação Pós-Sessão em 1 Clique:**
-   * Síntese pós-sessão do psicólogo $\rightarrow$ Rascunho de Prontuário SOAP por IA $\rightarrow$ Edição e validação humana $\rightarrow$ Envio de recibo/cobrança.
-   * O psicólogo insere a síntese clínica e a IA gera a minuta do SOAP com campos totalmente editáveis antes de salvar no prontuário oficial.
-   * A linha do tempo clínica reúne evidências longitudinais com referência à fonte, permitindo memória verificável sem respostas inventadas.
-2. **Evolution API Nativa & Notificações Inteligentes:**
-   * **Triagem (Disparo Duplo):** Ao preencher o formulário na vitrine, o paciente recebe acolhimento imediato com número de protocolo no WhatsApp (sem necessidade de confirmação manual). O psicólogo alocado recebe os dados da demanda e tem 24h de SLA para acionar o paciente e responder `CONTATO` ou `ENCAMINHAR` no WhatsApp.
-   * **Agendamento Confirmado:** Ao escolher o horário no link seguro (`/agendar/[token]`), a sessão é confirmada imediatamente no banco e o paciente e o psicólogo recebem simultaneamente o comprovante com data por extenso, horário e modalidade via WhatsApp.
-   * **Cobranças Pix & Lembretes:** Envio automático de cobranças e lembretes pré-sessão sem intermediários caros.
-3. **Módulo de Supervisão Clínica:**
-   * Anonimização automática de casos por IA para envio e avaliação por professores e supervisores em clínicas-escola e institutos.
-
----
-
-## 📂 Estrutura do Monorepo
+## Estrutura do projeto
 
 ```text
-TL - Psi/
-├── apps/
-│   └── web/               # Cockpit do Psicólogo & Gestão da Clínica (Next.js 16)
-├── packages/
-│   └── core/              # Regras de Negócio, IA (SOAP), Evolution API e Schemas
-└── docs/                  # PRD e Especificações Técnicas
+Clinica Viver Mais/
+├── AGENTS.md                  # Instruções comuns para agentes
+├── README.md                  # Entrada do projeto e execução local
+├── apps/web/                  # Aplicação Next.js: páginas, APIs e servidor
+│   ├── AGENTS.md              # Guia de navegação e trabalho na aplicação
+│   ├── public/                # Arquivos servidos pelo site
+│   └── src/
+│       ├── app/               # App Router e Route Handlers
+│       ├── components/        # Interface organizada por funcionalidade
+│       ├── lib/               # Utilitários, cliente de API e dados de demonstração
+│       └── server/            # Serviços, autenticação, integrações e persistência
+├── packages/core/             # Regras de domínio, contratos e testes
+├── infra/                     # MySQL, migrations, Docker, deploy e Evolution API
+├── scripts/                   # Utilitários de desenvolvimento e operação
+├── docs/
+│   ├── README.md              # Índice e ordem de leitura
+│   ├── produto/               # Escopo, funcionalidades e jornadas
+│   ├── arquitetura/           # Arquitetura e fluxos técnicos
+│   ├── operacao/              # Guias de infraestrutura e integrações
+│   ├── levantamentos/         # Reuniões, propostas e pesquisa
+│   ├── design/                # Identidade visual e imagens originais
+│   ├── historico/             # Infraestrutura anterior, registros e planos/
+│   ├── referencias/           # Material externo local, quando disponível
+│   ├── superpowers/specs/     # Especificações históricas por data
+│   └── manual-psicologo-fonte/ # Fontes do manual e capturas
+├── videos/                    # Projetos de vídeo, com instruções próprias
+└── output/                    # Artefatos exportados
 ```
 
----
+Os manuais PDF/HTML existentes continuam em `docs/`, junto de seu mapa de navegação. O [registro de organização](docs/organizacao-arquivos.md) relaciona os caminhos anteriores e novos.
 
-## 🚦 Como iniciar
+## Estado do módulo acadêmico
 
-Requisitos: Node.js 20.19.4 ou superior e npm.
+O portal do aluno (`/aluno`), a gestão acadêmica (`/gestao/academico`) e os certificados de cursos ainda têm implementação neste repositório. O aluno usa identidade e sessão próprias; o portal depende de MySQL.
 
-```bash
-npm install
-cp .env.example .env.local
-npm run check
-```
+A separação para **Viver Mais Educacional** está descrita na [especificação](docs/superpowers/specs/2026-10-23-extracao-plataforma-educacional-design.md) e no [plano de extração](docs/historico/planos/2026-10-23-extracao-plataforma-educacional.md). Esses documentos descrevem a migração pretendida; sua existência não significa que a extração já foi concluída. Turmas da clínica-escola, declarações de horas clínicas e NFS-e têm responsabilidades clínicas distintas.
 
-Para executar a aplicação web:
+## Executar localmente
 
-```bash
-npm run web:dev
-```
-
-Para desenvolver contra um MySQL local real:
-
-```bash
-npm run db:up
-MYSQL_ADMIN_URL=mysql://root:dev-root-local@127.0.0.1:3307/viver_mais_clinica npm run db:migrate
-```
-
-Depois, configure `DATABASE_URL`, `ORGANIZATION_ID` e as variáveis de sessão no
-`.env.local`. Sem `DATABASE_URL`, a aplicação continua no modo demonstração.
-
-### Portal do aluno
-
-O portal acadêmico usa MySQL real e uma identidade separada das contas de
-psicólogos e da gestão. A migration `053_portal_aluno.sql` cria alunos,
-matrículas, módulos, aulas e progresso, e a `054_portal_aluno_sessao_vimeo.sql`
-acrescenta a revogação de sessões após troca de senha e o hash de vídeos Vimeo não
-listados; aplique ambas com `npm run db:migrate`.
-
-- Gestão acadêmica: `/gestao/academico`
-- Login exclusivo do aluno: `/aluno/login`
-- Cookie acadêmico: `viver_mais_student_session`, assinado com o mesmo
-  `AUTH_SESSION_SECRET`, mas em domínio criptográfico separado da sessão clínica
-- Vídeos: somente ID ou link do Vimeo; a aula é concluída automaticamente no
-  evento de término do player
-- Primeiro acesso: a gestão cria a conta com uma senha temporária de ao menos
-  10 caracteres, contendo letra e número; o aluno é obrigado a trocá-la
-
-Para um teste local, inicie o MySQL, aplique as migrations, entre como gestão e
-use **Área de Alunos** para criar aluno, curso, módulo, aula e matrícula. Não há
-senha acadêmica padrão ou credencial de produção no repositório.
-
----
-
-## Verificações
-
-- `npm run lint`: lint da aplicação web.
-- `npm run typecheck`: TypeScript do core e web.
-- `npm test`: testes unitários do domínio clínico.
-- `npm run web:build`: build de produção do Next.js.
-- `npm run check`: executa todas as verificações acima.
-
----
-
-## Produção com MySQL na VPS Hostinger
-
-O MySQL e o backend rodam na mesma rede Docker privada na VPS. A porta do banco
-não é exposta; somente o container web a acessa. O fluxo de atualização é:
+Requisitos: Node.js **20.19.4 ou superior** (versão de referência em `.nvmrc`), npm e Docker se for usar o banco local. Execute os comandos abaixo na raiz.
 
 ```bash
 npm ci
-MYSQL_ADMIN_URL="$MYSQL_ADMIN_URL" npm run db:migrate
-npm run check
-npm run web:build
-npm run start --workspace @thats-life/web
+# Somente se ainda não existir uma configuração local da aplicação:
+cp -n .env.example apps/web/.env.local
+npm run web:dev
 ```
 
-Credenciais administrativas são usadas somente pelo runner de migrations; a
-aplicação opera com um usuário restrito a DML. Veja
-[`docs/hostinger-vps.md`](./docs/hostinger-vps.md) para o roteiro vigente.
+Acesse `http://localhost:3000`. O comando inicia o workspace `apps/web`; configure as variáveis do Next.js em `apps/web/.env.local`. Um `.env.local` apenas na raiz não substitui a configuração desse workspace.
 
-## Vercel + backend permanente
+Sem `DATABASE_URL` e sem a configuração alternativa completa `MYSQL_*`, a aplicação usa os adaptadores de demonstração. Deixe `BACKEND_ORIGIN` vazio para trabalhar com as APIs locais. O catálogo de variáveis está em [.env.example](.env.example); use somente dados fictícios na demonstração.
 
-O projeto `clinica-viver-web` continua sendo publicado a partir da **raiz deste
-monorepo**, usando o [`vercel.json`](./vercel.json) da raiz. `BACKEND_ORIGIN`
-encaminha somente as APIs persistentes para `app.clinicavivermais.cloud`; as
-páginas e assets continuam sendo servidos pela Vercel.
+### MySQL local
 
 ```bash
-npm run typecheck
-npm run web:build
-git push origin main
-npx vercel inspect https://clinica-viver-web.vercel.app --wait --timeout 3m
+npm run db:up
+MYSQL_ADMIN_URL='mysql://root:dev-root-local@127.0.0.1:3307/viver_mais_clinica' npm run db:migrate
 ```
 
-> [!WARNING]
-> A aplicação da Vercel deve servir o Next.js deste repositório diretamente.
-> Não adicione um `rewrite` global de `/:path*` para
-> `app.clinicavivermais.cloud` em `next.config.mjs` ou `vercel.json`.
-> Esse proxy faz o deploy terminar com sucesso, mas mantém o domínio exibindo
-> a versão antiga hospedada no servidor externo.
+Configure em `apps/web/.env.local` a `DATABASE_URL` local, `ORGANIZATION_ID` e `AUTH_SESSION_SECRET`. O [Compose de desenvolvimento](infra/mysql/docker-compose.dev.yml) define o banco `viver_mais_clinica`, o usuário local `viver_mais_app` e a senha descartável `dev-app-local`, na porta `3307`. Ajuste também `NEXT_PUBLIC_DEMO_MODE` ao modo de execução.
 
-Se um deploy estiver como `Ready`, mas o site continuar antigo, consulte o
-[guia de deploy e diagnóstico da Vercel](./docs/vercel-setup-guia.md).
+O runner de migrations recebe `MYSQL_ADMIN_URL` pelo ambiente do processo; não depende de carregar o `.env.local` do Next.js. A aplicação usa a credencial própria do banco. Consulte o [guia operacional](docs/operacao/hostinger-vps.md) para provisionamento e acessos; não use credenciais da VPS no ambiente de desenvolvimento.
 
-> O material OCI foi mantido em [`docs/oci-migracao.md`](./docs/oci-migracao.md)
-> exclusivamente como histórico; ele não descreve a produção atual.
+## Comandos de verificação
+
+| Comando na raiz | O que executa |
+| --- | --- |
+| `npm run lint` | ESLint da aplicação web |
+| `npm run typecheck` | TypeScript do core e da aplicação web |
+| `npm test` | Vitest dos dois workspaces |
+| `npm run web:build` | Build de produção do Next.js |
+| `npm run check` | Lint, tipos, testes e build, como no CI |
+| `npm run db:status` | Consulta migrations usando `MYSQL_ADMIN_URL` (`--dry-run`) |
+| `npm run demo:documentos` | Ambiente local de demonstração dos documentos |
+
+Para rodar somente os testes relacionados a uma mudança:
+
+```bash
+npm run test --workspace @thats-life/core -- src/patientHandoff.test.ts
+npm run test --workspace @thats-life/web -- src/server/application/agendaEdicaoConclusao.test.ts
+```
+
+`npm run db:reset` remove o volume do banco local. Não é uma etapa de instalação ou verificação rotineira.
+
+## Deploy
+
+A Vercel serve as páginas e os assets. O backend persistente e o MySQL ficam na VPS Hostinger; a Evolution API atende à integração de WhatsApp. As migrations SQL ficam em `infra/mysql/`.
+
+O projeto Vercel **`clinica-viver-web` é construído pela raiz do monorepo**, conforme [vercel.json](vercel.json). `BACKEND_ORIGIN` permite encaminhar os namespaces de API definidos em [next.config.mjs](apps/web/next.config.mjs) para `app.clinicavivermais.cloud`.
+
+**Nunca adicione um rewrite global de `/:path*`.** A aplicação publicada na Vercel deve servir diretamente o Next.js deste repositório.
+
+Siga os guias de [publicação na Hostinger](docs/operacao/hostinger-vps.md) e [diagnóstico da Vercel](docs/operacao/vercel-setup-guia.md). Material de OCI/Sponteiro está em `docs/historico/`; não descreve a produção vigente.

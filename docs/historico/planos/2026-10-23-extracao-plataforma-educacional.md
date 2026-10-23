@@ -627,8 +627,8 @@ git -C "../Viver Mais Educacional" commit -m "chore: prepare shadow deployment"
 - Modify: `apps/web/src/components/layout/Sidebar.tsx`
 - Create: `apps/web/src/app/academico-indisponivel/page.tsx`
 - Create: `apps/web/src/app/academico-indisponivel/page.test.tsx`
-- Modify: `docs/vercel-setup-guia.md`
-- Modify: `docs/hostinger-vps.md`
+- Modify: `docs/operacao/vercel-setup-guia.md`
+- Modify: `docs/operacao/hostinger-vps.md`
 
 **Interfaces:**
 - Consumes: `ACADEMIC_CUTOVER_STATE = 'legacy' | 'maintenance' | 'education'` e `EDUCATION_ORIGIN`, obrigatório e HTTPS no estado `education`.
@@ -672,7 +672,7 @@ Expected: matriz de roteamento e toda a suíte clínica passam; não existe rewr
 - [ ] **Step 7: Commit no repositório clínico**
 
 ```bash
-git add apps/web/src/server/routing apps/web/src/proxy.ts apps/web/next.config.mjs apps/web/src/components/layout/Sidebar.tsx apps/web/src/app/academico-indisponivel docs/vercel-setup-guia.md docs/hostinger-vps.md
+git add apps/web/src/server/routing apps/web/src/proxy.ts apps/web/next.config.mjs apps/web/src/components/layout/Sidebar.tsx apps/web/src/app/academico-indisponivel docs/operacao/vercel-setup-guia.md docs/operacao/hostinger-vps.md
 git commit -m "feat: route academic traffic to educational platform"
 ```
 
@@ -822,3 +822,79 @@ STOP: validar novamente backup, contagens e ausência de leituras por 30 dias. S
 - [ ] `vivermaispsicologia.com.br/validarcertificados` valida certificados antigos e novos.
 - [ ] Não existe rewrite global e rotas clínicas não atravessam o deploy educacional.
 - [ ] O rollback ensaiado e os backups permanecem disponíveis durante a retenção.
+
+## Pendências conhecidas
+
+Consolidação dos itens desmarcados e das pendências explícitas deste registro histórico. O estado abaixo reproduz o plano; não constitui uma nova auditoria do código ou da produção. Consulte as etapas originais para detalhes e confirme o estado atual antes de retomar o trabalho.
+
+### Task 2: Criar esquema e runtime MySQL isolados
+
+- [ ] **Step 5: Testar banco vazio e privilégios locais**
+
+### Task 8: Criar cópia e reconciliação idempotentes dos dados
+
+- [ ] **Step 1: Escrever testes do manifesto e da idempotência**
+- [ ] **Step 2: Executar os testes e confirmar a falha**
+- [ ] **Step 3: Implementar cópia em lotes e transações por tabela**
+- [ ] **Step 4: Implementar reconciliação por contagem e hash canônico**
+- [ ] **Step 5: Testar com dois bancos locais reais**
+- [ ] **Step 6: Executar quality gates e commit**
+
+### Task 9: Preparar deploy sombra e comprovar paridade
+
+- [ ] **Step 1: Escrever testes de URL e assets que falham**
+- [ ] **Step 2: Executar o teste e confirmar a falha**
+- [ ] **Step 3: Configurar origem, prefixo e identidade visual**
+- [ ] **Step 4: Implementar smoke test sem segredos na linha de comando**
+- [ ] **Step 5: Implementar comparação de certificado**
+- [ ] **Step 6: Publicar a origem técnica e executar paridade**
+- [ ] **Step 7: Commit**
+
+### Task 10: Implementar o roteador de virada na aplicação clínica
+
+- [ ] **Step 1: Escrever a matriz de roteamento que falha**
+- [ ] **Step 2: Adicionar os casos de URL permanente e assets**
+- [ ] **Step 3: Executar os testes e confirmar a falha**
+- [ ] **Step 4: Implementar a função pura e integrá-la ao proxy**
+- [ ] **Step 5: Ajustar rewrites e navegação sem regra global**
+- [ ] **Step 6: Executar regressão clínica**
+- [ ] **Step 7: Commit no repositório clínico**
+
+### Task 11: Ensaiar e executar a virada controlada
+
+- [ ] **Step 1: Escrever o runbook antes de tocar produção**
+- [ ] **Step 2: Ensaiar com cópias locais dos dois bancos**
+- [ ] **Step 3: Verificar isolamento MySQL**
+- [ ] **Step 4: Revisar backups, origem técnica e janela de manutenção**
+- [ ] **Step 5: Executar cópia inicial e reconciliação em produção**
+- [ ] **Step 6: Executar manutenção, delta e virada**
+- [ ] **Step 7: Executar smoke e monitoramento pós-virada**
+- [ ] **Step 8: Commit dos runbooks e evidências sanitizadas**
+
+### Task 12: Remover o legado depois da retenção de 30 dias
+
+- [ ] **Step 1: Criar testes de ausência do legado antes da remoção**
+- [ ] **Step 2: Confirmar que o teste falha com o legado presente**
+- [ ] **Step 3: Desacoplar assets usados pelo termo de adesão**
+- [ ] **Step 4: Remover código, rotas e exports acadêmicos locais**
+- [ ] **Step 5: Verificar instalação clínica do zero sem migrations acadêmicas**
+- [ ] **Step 6: Executar a regressão completa dos dois repositórios**
+- [ ] **Step 7: Commit da remoção de código**
+- [ ] **Step 8: Remover tabelas antigas somente após nova aprovação**
+
+### Verificação final
+
+- [ ] `git status --short` está limpo nos dois repositórios, exceto por mudanças preexistentes e explicitamente preservadas.
+- [ ] `npm run check` passa em `Clinica Viver Mais`.
+- [ ] `npm run check --prefix "../Viver Mais Educacional"` passa.
+- [ ] O deploy educacional pode ser feito sem reconstruir a clínica e vice-versa.
+- [ ] O banco educacional é a única fonte de verdade acadêmica.
+- [ ] A credencial educacional não acessa o banco clínico.
+- [ ] `/painel-certificados` e `/painel-certificados/novo` mantêm URL, aparência e comportamento.
+- [ ] `vivermaispsicologia.com.br/validarcertificados` valida certificados antigos e novos.
+- [ ] Não existe rewrite global e rotas clínicas não atravessam o deploy educacional.
+- [ ] O rollback ensaiado e os backups permanecem disponíveis durante a retenção.
+
+### Bloqueio registrado
+
+- O ensaio integrado da Task 2, Step 5, ficou pendente em 23/10/2026 porque o Docker CLI estava disponível, mas o daemon/socket não estava acessível. Validar banco vazio, reaplicação e privilégios em MySQL real antes da virada; testes unitários não substituem esse ensaio.

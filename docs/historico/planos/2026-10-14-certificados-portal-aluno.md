@@ -375,3 +375,80 @@ Na frente sem arte enviada, substituir somente o bloco textual pelo texto retorn
 Run: `npm test && npm run typecheck && npm run lint && npm run web:build && git diff --check`
 
 Expected: todos os testes e build passam; lint sem novos avisos; o aviso Turbopack preexistente do Asaas pode permanecer.
+
+## Pendências conhecidas
+
+Consolidação dos itens desmarcados e das pendências explícitas deste registro histórico. O estado abaixo reproduz o plano; não constitui uma nova auditoria do código ou da produção. Consulte as etapas originais para detalhes e confirme o estado atual antes de retomar o trabalho.
+
+### Task 1: Fixar a regra de elegibilidade no domínio acadêmico
+
+- [ ] **Step 1: Write the failing tests**
+- [ ] **Step 2: Run the focused test to verify it fails**
+- [ ] **Step 3: Implement `isCourseCertificateEligible` in `packages/core/src/academic/rules.ts`**
+- [ ] **Step 4: Run the focused test to verify it passes**
+
+### Task 2: Tornar certificados automáticos identificáveis e idempotentes
+
+- [ ] **Step 1: Write the failing repository tests**
+- [ ] **Step 2: Run the focused test to verify it fails**
+- [ ] **Step 3: Extend the certificate model and schema**
+- [ ] **Step 4: Implement `listarDoAluno`, `porAlunoECurso` and `emitirAutomatico`**
+- [ ] **Step 5: Run the focused test to verify it passes**
+
+### Task 3: Emitir automaticamente ao concluir o curso
+
+- [ ] **Step 1: Write the failing service tests**
+- [ ] **Step 2: Run the focused test to verify it fails**
+- [ ] **Step 3: Implement the automatic issuance flow**
+- [ ] **Step 4: Run the focused test to verify it passes**
+
+### Task 4: Expor listagem e download protegidos no portal
+
+- [ ] **Step 1: Write failing route tests**
+- [ ] **Step 2: Run the focused tests to verify they fail**
+- [ ] **Step 3: Implement the list and PDF routes**
+- [ ] **Step 4: Run the focused tests to verify they pass**
+
+### Task 5: Adicionar a aba e a página de certificados do aluno
+
+- [ ] **Step 1: Write failing component tests**
+- [ ] **Step 2: Run the focused test to verify it fails**
+- [ ] **Step 3: Implement the page and navigation**
+- [ ] **Step 4: Run the focused test to verify it passes**
+
+### Task 6: Verificar integração completa e regressões
+
+- [ ] **Step 1: Run all core and web tests**
+- [ ] **Step 2: Run lint/type checks**
+- [ ] **Step 3: Execute a verificação manual do fluxo**
+- [ ] **Step 4: Review the diff**
+
+### Task 7: Modelar o texto exclusivo e a duração oficial no domínio
+
+- [ ] **Step 1: Write the failing core tests**
+- [ ] **Step 2: Run the focused tests to verify they fail**
+- [ ] **Step 3: Implement the domain contracts and pure formatters**
+- [ ] **Step 4: Run the focused tests to verify they pass**
+
+### Task 8: Persistir e administrar os metadados exclusivos dos cursos
+
+- [ ] **Step 1: Write failing management and repository tests**
+- [ ] **Step 2: Run the focused tests to verify they fail**
+- [ ] **Step 3: Add the idempotent migration and exact four-course seed**
+- [ ] **Step 4: Extend repository, service validation and course editor**
+- [ ] **Step 5: Run the focused tests to verify they pass**
+
+### Task 9: Copiar os metadados para a emissão e persistência histórica
+
+- [ ] **Step 1: Write failing issuance and persistence tests**
+- [ ] **Step 2: Run the focused tests to verify they fail**
+- [ ] **Step 3: Extend certificate schema, mapper and automatic issuance**
+- [ ] **Step 4: Use official duration only for the explicit special model**
+- [ ] **Step 5: Run the focused tests to verify they pass**
+
+### Task 10: Renderizar o texto exclusivo no layout atual e validar regressões
+
+- [ ] **Step 1: Write failing render tests**
+- [ ] **Step 2: Run focused render tests to verify they fail**
+- [ ] **Step 3: Update HTML and PDF renderers without changing the visual layout**
+- [ ] **Step 4: Run full verification**

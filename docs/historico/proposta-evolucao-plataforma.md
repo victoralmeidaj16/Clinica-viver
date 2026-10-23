@@ -2,7 +2,7 @@
 
 > Avaliação de 07/08/2026 preservada para rastreabilidade. Referências à OCI,
 > snapshot em arquivo e pendências daquele momento não são o estado atual de
-> produção. Consulte [`hostinger-vps.md`](./hostinger-vps.md) para a
+> produção. Consulte [`hostinger-vps.md`](../operacao/hostinger-vps.md) para a
 > infraestrutura vigente.
 
 Documento interno. Consolida os quatro documentos de origem — reunião com
@@ -18,7 +18,7 @@ que a sustenta. A regra deste documento é não declarar pronto o que não gira.
 ## 1. O que a leitura do código mostrou
 
 A base clínica da plataforma é forte e está descrita em
-`docs/FUNCIONALIDADES.md`. A camada específica da Clínica Viver Mais, porém,
+`docs/produto/FUNCIONALIDADES.md`. A camada específica da Clínica Viver Mais, porém,
 estava em grande parte **na vitrine, não no motor**: telas completas sobre
 dados que ninguém calculava.
 
@@ -134,7 +134,7 @@ boleto. É o incentivo que faz o registro acontecer sozinho. Depende de A1.
 
 ### B5. Robô de triagem no WhatsApp
 
-Seção 7 do `clinica-plano-implantacao.md`, com detecção de risco avaliada
+Seção 7 do `docs/historico/clinica-plano-implantacao.md`, com detecção de risco avaliada
 localmente, transferência humana na primeira ocorrência e CVV — nunca
 dependente de serviço externo estar de pé.
 
@@ -152,7 +152,7 @@ que a contabilidade precisa para as NFs federais que a Viver Mais emite.
 
 ## 4. Decisão a revisitar
 
-`docs/FUNCIONALIDADES.md:313` declara que a plataforma **deliberadamente não
+`docs/produto/FUNCIONALIDADES.md:313` declara que a plataforma **deliberadamente não
 faz** lista de espera nem preenchimento de horário cancelado. Numa
 clínica-escola com teto por profissional e fila real — que agora existe de
 verdade, com leads em `PENDENTE_ATRIBUICAO` —, essa posição precisa ser

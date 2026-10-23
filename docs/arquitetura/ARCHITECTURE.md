@@ -10,7 +10,7 @@ A **Clínica Viver Mais** adota uma arquitetura em Monorepo utilizando **TypeScr
 >
 > A autenticação é provida por cookies HTTP seguros assinados (`viver_mais_session`) com derivação de chave criptográfica (`scrypt`/HMAC) e verificação contra o banco de dados. Sem `DATABASE_URL` configurada, a aplicação opera em modo demonstração com adaptadores em memória.
 >
-> Detalhes de infraestrutura e roteiro de deploy: [`docs/hostinger-vps.md`](./hostinger-vps.md) e [`docs/vercel-setup-guia.md`](./vercel-setup-guia.md).
+> Detalhes de infraestrutura e roteiro de deploy: [`docs/operacao/hostinger-vps.md`](../operacao/hostinger-vps.md) e [`docs/operacao/vercel-setup-guia.md`](../operacao/vercel-setup-guia.md).
 
 ```mermaid
 flowchart TD

@@ -286,35 +286,35 @@ git -C "../Viver Mais Educacional" commit -m "feat: port educational certificate
 - Consumes: tipos de certificados, `CertificateRepository`, `getMysqlPool()` e `educationInstitutionId()`.
 - Produces: os tipos `AcademicStudent`, `AcademicCourse`, `AcademicModule`, `AcademicLesson`, `AcademicEnrollment`, `LessonCompletion`; `AcademicRepository`; `AcademicManagementService`; `StudentPortalService`; `isCourseCertificateEligible()` e `summarizeCourseProgress()`.
 
-- [ ] **Step 1: Copiar testes acadêmicos e fixar a paridade**
+- [x] **Step 1: Copiar testes acadêmicos e fixar a paridade**
 
 Portar testes de regras, parsing Vimeo, senha, jornada, isolamento de instituição, matrícula ativa, aulas publicadas, progresso e emissão automática. Manter os nomes e formatos públicos dos tipos atuais.
 
-- [ ] **Step 2: Executar os testes e confirmar a falha**
+- [x] **Step 2: Executar os testes e confirmar a falha**
 
 Run: `npm test --prefix "../Viver Mais Educacional" -- src/domain/academic src/server/academic`
 
 Expected: FAIL por módulos ausentes.
 
-- [ ] **Step 3: Portar o domínio sem `@thats-life/core`**
+- [x] **Step 3: Portar o domínio sem `@thats-life/core`**
 
 Mover regras puras para `src/domain`; imports acadêmicos devem apontar apenas para `src/domain/academic` e `src/domain/certificates`.
 
-- [ ] **Step 4: Dividir e portar a persistência**
+- [x] **Step 4: Dividir e portar a persistência**
 
 `MysqlAcademicRepository` continua implementando `AcademicRepository`, mas delega consultas a `studentRepository`, `courseRepository` e `progressRepository`. Todas recebem `Pool` e `institutionId` explicitamente; nenhum singleton de teste pode escapar para produção.
 
-- [ ] **Step 5: Portar os serviços e integrar certificado por porta**
+- [x] **Step 5: Portar os serviços e integrar certificado por porta**
 
 Preservar assinaturas de entradas existentes. `StudentPortalService` recebe `AcademicRepository` e `CertificateRepository`; falha ao emitir certificado não desfaz conclusão, e nova listagem tenta emissão idempotente novamente.
 
-- [ ] **Step 6: Executar testes e quality gates**
+- [x] **Step 6: Executar testes e quality gates**
 
 Run: `npm run check --prefix "../Viver Mais Educacional"`
 
 Expected: testes acadêmicos passam, build passa e o teste de fronteira não encontra imports clínicos.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git -C "../Viver Mais Educacional" add src/domain/academic src/server/academic src/server/http

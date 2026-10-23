@@ -369,35 +369,35 @@ git -C "../Viver Mais Educacional" commit -m "feat: port academic domain and ser
 - Consumes: `requireManager()`, `AcademicManagementService`, `CertificateRepository` e componentes de certificado da Task 4.
 - Produces: gestão em `/academico`, geração preservada em `/painel-certificados` e `/painel-certificados/novo`, mais APIs protegidas de gestão e certificados.
 
-- [ ] **Step 1: Portar testes de gestão e adicionar as URLs permanentes**
+- [x] **Step 1: Portar testes de gestão e adicionar as URLs permanentes**
 
 Cobrir que gestor ausente recebe 401/redirect, gestor válido administra alunos/cursos/matrículas, `/painel-certificados` renderiza a lista e `/painel-certificados/novo` renderiza o editor sem alterar o pathname.
 
-- [ ] **Step 2: Executar os testes e confirmar a falha**
+- [x] **Step 2: Executar os testes e confirmar a falha**
 
 Run: `npm test --prefix "../Viver Mais Educacional" -- src/components/academic/management src/app/api/academico/gestao src/app/painel-certificados`
 
 Expected: FAIL por páginas e rotas ausentes.
 
-- [ ] **Step 3: Portar rotas e substituir autorização clínica**
+- [x] **Step 3: Portar rotas e substituir autorização clínica**
 
 Trocar `exigirGestao()` e `readSession()` por `requireManager()`. Preservar envelopes HTTP, mensagens, status e contratos consumidos pelos componentes atuais. Manter `CERTIFICADOS_ADMIN_PIN` como segunda proteção do painel durante a primeira extração, mas enviá-lo em header privado ou corpo — nunca em query string ou log. Removê-lo ou redesenhar esse acesso fica fora do escopo.
 
-- [ ] **Step 4: Portar a interface acadêmica sem redesign**
+- [x] **Step 4: Portar a interface acadêmica sem redesign**
 
 Copiar estilos e markup dos componentes atuais. Atualizar somente imports e endpoint de login. Não incorporar o shell clínico nem links para prontuários, agenda ou financeiro.
 
-- [ ] **Step 5: Dividir o editor e a lista de certificados**
+- [x] **Step 5: Dividir o editor e a lista de certificados**
 
 Manter estado/orquestração em `CertificateCreateWorkspace`; mover formulário, arte e preview para componentes focados. Preservar campos, coordenadas, preview, upload, QR, carimbo e textos existentes.
 
-- [ ] **Step 6: Executar testes, lint, tipos e build**
+- [x] **Step 6: Executar testes, lint, tipos e build**
 
 Run: `npm run check --prefix "../Viver Mais Educacional"`
 
 Expected: gestão e painel passam, as duas URLs antigas aparecem no manifesto do build e nenhum componente ultrapassa 250 linhas.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git -C "../Viver Mais Educacional" add src/app/academico src/app/painel-certificados src/app/api/academico/gestao src/app/api/certificados src/components/academic/management src/components/certificates src/server/academic/managementApi.ts

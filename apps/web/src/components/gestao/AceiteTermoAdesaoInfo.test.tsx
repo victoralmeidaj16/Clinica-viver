@@ -37,6 +37,18 @@ describe('prova do aceite na gestão', () => {
     expect(html).toContain('a'.repeat(64));
   });
 
+  it('começa recolhido', () => {
+    const html = renderToStaticMarkup(
+      <AceiteTermoAdesaoInfo
+        psicologo={{
+          ...base,
+          aceiteTermoAdesao: { versao: '2026.2', aceitoEm: '2026-10-15T17:32:10.000Z', hashAlgoritmo: 'SHA-256' },
+        }}
+      />
+    );
+    expect(html).toMatch(/^<details(?![^>]*\bopen\b)/);
+  });
+
   it('avisa quando o cadastro não tem prova registrada pelo servidor', () => {
     const html = renderToStaticMarkup(<AceiteTermoAdesaoInfo psicologo={base} />);
     expect(html).toContain('Sem prova de aceite do Termo de Adesão');

@@ -70,4 +70,13 @@ describe('modelo do painel de turmas', () => {
     expect(modelo.cursosForaCatalogo).toBe(1);
     expect(modelo.grupos[0].turmas[0].administravel).toBe(false);
   });
+  it('lista os aprovados da turma pelo nome de exibição, em ordem alfabética', () => {
+    const modelo = montarModeloPainelTurmas([
+      psicologo({ nomeCompleto: 'Carla Souza', turmaViverMais: '25A', posGraduacaoViverMais: psicodrama }),
+      psicologo({ nomeCompleto: 'Bruno Lima', nomeSocial: 'Ana Lima', turmaViverMais: '25A', posGraduacaoViverMais: psicodrama }),
+      psicologo({ nomeCompleto: 'Diego Reis', turmaViverMais: '25A', posGraduacaoViverMais: psicodrama, status: 'EM_ANALISE' }),
+    ], []);
+
+    expect(modelo.grupos[0].turmas[0].psicologos).toEqual(['Ana Lima', 'Carla Souza']);
+  });
 });

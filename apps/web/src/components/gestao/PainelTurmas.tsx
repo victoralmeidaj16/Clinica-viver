@@ -1,5 +1,5 @@
-import React from 'react';
-import { AlertTriangle, GraduationCap, RotateCcw, UserX } from 'lucide-react';
+import React, { useState } from 'react';
+import { AlertTriangle, ChevronLeft, ChevronRight, GraduationCap, RotateCcw, UserX } from 'lucide-react';
 import {
   chaveTurma,
   formatarDataCurta,
@@ -21,6 +21,8 @@ interface PainelTurmasProps {
 export interface TurmaPainel {
   identidade: IdentidadeTurma;
   quantidade: number;
+  /** Nomes de exibição dos aprovados da turma, em ordem alfabética. */
+  psicologos: string[];
   administravel: boolean;
   encerramento?: TurmaEncerrada;
 }
@@ -56,9 +58,11 @@ export function montarModeloPainelTurmas(
       posGraduacao: psicologo.posGraduacaoViverMais,
     });
     const chave = chaveTurma(identidade);
+    const nome = psicologo.nomeSocial?.trim() || psicologo.nomeCompleto.trim();
     const existente = turmasPorChave.get(chave);
     if (existente) {
       existente.quantidade += 1;
+      existente.psicologos.push(nome);
       continue;
     }
     const administravel = POS_GRADUACOES_VIVER_MAIS.includes(identidade.posGraduacao);
@@ -66,6 +70,7 @@ export function montarModeloPainelTurmas(
     turmasPorChave.set(chave, {
       identidade,
       quantidade: 1,
+      psicologos: [nome],
       administravel,
       encerramento: encerramentoPorChave.get(chave),
     });
@@ -85,9 +90,13 @@ export function montarModeloPainelTurmas(
   );
   for (const grupo of grupos) {
     grupo.turmas.sort((a, b) => a.identidade.turma.localeCompare(b.identidade.turma, 'pt-BR'));
+    for (const turma of grupo.turmas) turma.psicologos.sort((a, b) => a.localeCompare(b, 'pt-BR'));
   }
   return { grupos, cadastrosIncompletos, cursosForaCatalogo };
 }
+
+// Três cards por linha em telas largas; duas linhas por página.
+const GRUPOS_POR_PAGINA = 6;
 
 function quantidadePsicologos(quantidade: number): string {
   return `${quantidade} ${quantidade === 1 ? 'psicólogo' : 'psicólogos'}`;
@@ -96,6 +105,13 @@ function quantidadePsicologos(quantidade: number): string {
 export function PainelTurmas(props: PainelTurmasProps) {
   const { psicologos, encerradas, ocupado, onEncerrar, onReabrir } = props;
   const modelo = montarModeloPainelTurmas(psicologos, encerradas);
+  const [pagina, setPagina] = useState(0);
+  const totalPaginas = Math.max(1, Math.ceil(modelo.grupos.length / GRUPOS_POR_PAGINA));
+  // Encerrar a última turma de um curso pode encolher a lista; a página
+  // corrente não pode ficar apontando para um trecho vazio.
+  const paginaAtual = Math.min(pagina, totalPaginas - 1);
+  const inicio = paginaAtual * GRUPOS_POR_PAGINA;
+  const gruposVisiveis = modelo.grupos.slice(inicio, inicio + GRUPOS_POR_PAGINA);
 
   return (
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
@@ -122,13 +138,13 @@ export function PainelTurmas(props: PainelTurmasProps) {
         </div>
       )}
 
-      <div className="space-y-4 p-5">
+      <div className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
         {modelo.grupos.length === 0 && (
-          <p className="rounded-xl bg-slate-50 px-4 py-6 text-center text-xs font-semibold text-slate-400">
+          <p className="col-span-full rounded-xl bg-slate-50 px-4 py-6 text-center text-xs font-semibold text-slate-400">
             Nenhuma turma possui psicólogos aprovados no momento.
           </p>
         )}
-        {modelo.grupos.map((grupo) => (
+        {gruposVisiveis.map((grupo) => (
           <div key={grupo.posGraduacao} className="overflow-hidden rounded-xl border border-slate-200">
             <div className="flex items-start justify-between gap-4 bg-slate-50/80 px-4 py-3">
               <h3 className="text-xs font-extrabold leading-relaxed text-slate-800">{grupo.posGraduacao}</h3>
@@ -143,12 +159,13 @@ export function PainelTurmas(props: PainelTurmasProps) {
                 const trabalhando = ocupado === `turma:${chaveTurma(identidade)}`;
                 const acao = encerramento ? 'Reabrir' : 'Encerrar turma';
                 return (
-                  <div key={chaveTurma(identidade)} className="flex flex-col gap-3 px-4 py-3 transition-colors hover:bg-slate-50/60 sm:flex-row sm:items-center">
+                  <div key={chaveTurma(identidade)} className="flex flex-col gap-3 px-4 py-3 transition-colors hover:bg-slate-50/60">
                     <span className="w-fit rounded-lg bg-purple-50 px-3 py-1.5 text-sm font-black text-purple-800 ring-1 ring-purple-100">
                       {identidade.turma}
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-bold text-slate-700">{quantos}</p>
+                      <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">{item.psicologos.join(', ')}</p>
                       {encerramento ? (
                         <p className="mt-0.5 flex items-center gap-1 text-[10px] font-semibold text-rose-700">
                           <UserX className="h-3 w-3" /> Encerrada em {formatarDataCurta(encerramento.encerradaEm)}
@@ -166,7 +183,7 @@ export function PainelTurmas(props: PainelTurmasProps) {
                           if (!confirm(`${acao}: ${identidade.posGraduacao} · ${identidade.turma}? ${quantos} ${movimento} da vitrine e do rodízio.`)) return;
                           void (encerramento ? onReabrir(identidade) : onEncerrar(identidade));
                         }}
-                        className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border px-3 text-[10px] font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-50 ${
+                        className={`inline-flex min-h-9 w-fit items-center justify-center gap-1.5 rounded-lg border px-3 text-[10px] font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-50 ${
                           encerramento
                             ? 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
                             : 'border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100'
@@ -186,6 +203,37 @@ export function PainelTurmas(props: PainelTurmasProps) {
           </div>
         ))}
       </div>
+
+      {totalPaginas > 1 && (
+        <footer className="flex items-center justify-between gap-3 border-t border-slate-100 px-5 py-3">
+          <p className="text-[11px] font-semibold text-slate-400">
+            {inicio + 1}–{inicio + gruposVisiveis.length} de {modelo.grupos.length} pós-graduações
+          </p>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              aria-label="Pós-graduações anteriores"
+              disabled={paginaAtual === 0}
+              onClick={() => setPagina(paginaAtual - 1)}
+              className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <span className="min-w-12 text-center text-[11px] font-bold text-slate-600">
+              {paginaAtual + 1} / {totalPaginas}
+            </span>
+            <button
+              type="button"
+              aria-label="Próximas pós-graduações"
+              disabled={paginaAtual >= totalPaginas - 1}
+              onClick={() => setPagina(paginaAtual + 1)}
+              className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        </footer>
+      )}
     </section>
   );
 }

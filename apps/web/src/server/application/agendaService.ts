@@ -212,6 +212,16 @@ export async function cancelAgendaAppointment(
     appointmentId,
     motivo.trim()
   );
+  if (cancelado === 'status_locked') {
+    throw new ApplicationError('INVALID_APPOINTMENT_STATUS', 'O estado deste atendimento não permite cancelamento comum.', 409);
+  }
+  if (cancelado === 'completed_locked') {
+    throw new ApplicationError(
+      'APPOINTMENT_ALREADY_COMPLETED',
+      'Este atendimento já foi realizado ou possui registro de sessão clínica e não pode ser cancelado.',
+      409
+    );
+  }
   if (!cancelado) {
     throw new ApplicationError('NOT_FOUND', 'Agendamento não encontrado ou já cancelado.', 404);
   }

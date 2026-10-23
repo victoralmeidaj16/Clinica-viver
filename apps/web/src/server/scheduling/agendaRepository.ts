@@ -667,28 +667,51 @@ export async function cancelAppointment(
   professionalId: string,
   appointmentId: string,
   motivo: string
-): Promise<boolean> {
-  const [result] = await getMysqlPool().execute(
-    `UPDATE clinica_agendamentos a
-       JOIN clinica_profissionais p ON p.id = a.profissional_id
-       JOIN clinica_organizacoes o ON o.id = p.organizacao_id
-        SET a.status = 'cancelado', a.cancelado_motivo = ?,
-            a.atualizado_em = CURRENT_TIMESTAMP(3)
-      WHERE a.instituicao_id = ? AND o.ref_core = ? AND p.ref_core = ?
-        AND a.id = ? AND a.status <> 'cancelado'`,
-    [motivo, instituicaoId(), organizationId, professionalId, appointmentId]
-  );
-  if ((result as { affectedRows: number }).affectedRows > 0) return true;
-  // Permite retomar o cancelamento financeiro após uma falha do provedor.
-  const [existing] = await getMysqlPool().query<RowDataPacket[]>(
-    `SELECT a.id FROM clinica_agendamentos a
-       JOIN clinica_profissionais p ON p.id = a.profissional_id
-       JOIN clinica_organizacoes o ON o.id = p.organizacao_id
-      WHERE a.instituicao_id = ? AND o.ref_core = ? AND p.ref_core = ?
-        AND a.id = ? AND a.status = 'cancelado' LIMIT 1`,
-    [instituicaoId(), organizationId, professionalId, appointmentId]
-  );
-  return existing.length > 0;
+): Promise<boolean | 'completed_locked' | 'status_locked'> {
+  const connection = await getMysqlPool().getConnection();
+  try {
+    await connection.beginTransaction();
+    // A conclusão trava este mesmo agendamento antes de materializar a sessão.
+    const [rows] = await connection.query<RowDataPacket[]>(
+      `SELECT a.id, a.status, a.sessao_clinica_ref
+         FROM clinica_agendamentos a
+         JOIN clinica_profissionais p ON p.id = a.profissional_id
+         JOIN clinica_organizacoes o ON o.id = p.organizacao_id
+        WHERE a.instituicao_id = ? AND o.ref_core = ? AND p.ref_core = ?
+          AND a.id = ? LIMIT 1 FOR UPDATE`,
+      [instituicaoId(), organizationId, professionalId, appointmentId]
+    );
+    const appointment = rows[0];
+    if (!appointment) {
+      await connection.rollback();
+      return false;
+    }
+    if (appointment.status === 'realizado' || appointment.sessao_clinica_ref) {
+      await connection.rollback();
+      return 'completed_locked';
+    }
+    if (!['agendado', 'confirmado', 'cancelado'].includes(appointment.status)) {
+      await connection.rollback();
+      return 'status_locked';
+    }
+    // Uma nova tentativa deve poder concluir o cancelamento financeiro.
+    if (appointment.status !== 'cancelado') {
+      await connection.execute(
+        `UPDATE clinica_agendamentos
+            SET status = 'cancelado', cancelado_motivo = ?,
+                atualizado_em = CURRENT_TIMESTAMP(3)
+          WHERE instituicao_id = ? AND id = ?`,
+        [motivo, instituicaoId(), appointmentId]
+      );
+    }
+    await connection.commit();
+    return true;
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 }
 
 export async function rescheduleAppointmentProfessional(

@@ -1,7 +1,7 @@
 export type CommunicationChannel = 'whatsapp' | 'push' | 'email';
 export type NotificationCategory =
   | 'appointment_reminder' | 'appointment_changed' | 'task_assigned'
-  | 'task_due' | 'billing_due' | 'payment_confirmed' | 'receipt_available';
+  | 'task_due' | 'billing_due' | 'payment_confirmed' | 'receipt_available' | 'patient_handoff';
 
 export interface CommunicationConsent {
   id: string;
@@ -44,6 +44,7 @@ export interface NotificationMessage {
 }
 
 export type NotificationTemplateInput =
+  | { category: 'patient_handoff'; summary: string; tasks: readonly string[]; professionalName: string; nextSessionLabel?: string }
   | { category: 'appointment_reminder'; professionalName: string; appointmentLabel: string }
   | { category: 'appointment_changed'; professionalName: string; appointmentLabel: string }
   | { category: 'task_assigned'; taskTitle: string }

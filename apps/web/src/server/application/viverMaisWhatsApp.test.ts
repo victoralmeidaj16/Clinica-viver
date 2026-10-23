@@ -162,3 +162,30 @@ it('não autoriza reenvio automático após timeout com entrega incerta', async 
   expect(result.situacao).toBe('falha');
   expect(result.reenvioSeguro).not.toBe(true);
 });
+
+
+it('reserva a mesma chave antes de enviar chamadas concorrentes', async () => {
+  vi.stubEnv('EVOLUTION_API_URL', 'https://evolution.example');
+  vi.stubEnv('EVOLUTION_API_KEY', 'test-key');
+  vi.stubEnv('EVOLUTION_INSTANCE_NAME', 'test');
+  const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ key: { id: 'provider-1' } }) }));
+  vi.stubGlobal('fetch', fetchMock);
+  const results = await Promise.all(Array.from({ length: 20 }, () =>
+    enviarTexto('48999991234', 'Teste concorrente', 'recebimento_paciente', 'concurrent-send')));
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(results.every((result) => result.situacao === 'enviada')).toBe(true);
+});
+
+it('não repete a chamada ao provedor após resultado incerto', async () => {
+  vi.stubEnv('EVOLUTION_API_URL', 'https://evolution.example');
+  vi.stubEnv('EVOLUTION_API_KEY', 'test-key');
+  vi.stubEnv('EVOLUTION_INSTANCE_NAME', 'test');
+  const fetchMock = vi.fn().mockRejectedValue(new Error('timeout'));
+  vi.stubGlobal('fetch', fetchMock);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const result = await enviarTexto('48999991234', 'Teste', 'recebimento_paciente', 'uncertain-retry');
+    expect(result.situacao).toBe('falha');
+    expect(result.reenvioSeguro).not.toBe(true);
+  }
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+});

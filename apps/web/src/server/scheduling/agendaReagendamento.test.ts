@@ -36,17 +36,39 @@ describe('intervalo do reagendamento profissional', () => {
       [new Date('2099-01-01T23:30:00Z'), new Date('2099-01-02T00:20:00Z'), expect.any(String), 'appt']);
   });
 });
-describe('retomada do cancelamento financeiro', () => {
+describe('cancelamento preserva atendimento e escopo', () => {
+  it.each([
+    { status: 'realizado', sessao_clinica_ref: null },
+    { status: 'agendado', sessao_clinica_ref: 'clinical-session' },
+    { status: 'cancelado', sessao_clinica_ref: 'clinical-session' },
+  ])('bloqueia atendimento realizado ou materializado: %j', async (appointment) => {
+    execute.mockResolvedValue([{ affectedRows: 1 }]);
+    connection.query.mockResolvedValue([[{ id: 'appt', ...appointment }]]);
+    expect(await cancelAppointment('org', 'pro', 'appt', 'motivo')).toBe('completed_locked');
+    expect(execute).not.toHaveBeenCalled();
+    expect(connection.execute).not.toHaveBeenCalled();
+    expect(connection.release).toHaveBeenCalled();
+  });
   it('permite retomar uma sessão já cancelada do mesmo profissional', async () => {
-    execute.mockResolvedValue([{ affectedRows: 0 }]);
-    query.mockResolvedValue([[{ id: 'appt' }]]);
+    connection.query.mockResolvedValue([[{ id: 'appt', status: 'cancelado', sessao_clinica_ref: null }]]);
     expect(await cancelAppointment('org', 'pro', 'appt', 'motivo')).toBe(true);
-    expect(query).toHaveBeenCalledWith(expect.stringContaining("a.status = 'cancelado'"), [expect.any(String), 'org', 'pro', 'appt']);
+    expect(connection.execute).not.toHaveBeenCalled();
+    expect(connection.query).toHaveBeenCalledWith(expect.stringContaining('FOR UPDATE'), [expect.any(String), 'org', 'pro', 'appt']);
+    const sql = connection.query.mock.calls[0][0];
+    expect(sql).toContain('a.instituicao_id = ?');
+    expect(sql).toContain('o.ref_core = ?');
+    expect(sql).toContain('p.ref_core = ?');
+  });
+  it.each(['agendado', 'confirmado'])('cancela uma sessão %s sem registro clínico', async (status) => {
+    connection.query.mockResolvedValue([[{ id: 'appt', status, sessao_clinica_ref: null }]]);
+    expect(await cancelAppointment('org', 'pro', 'appt', 'motivo')).toBe(true);
+    expect(connection.execute).toHaveBeenCalledOnce();
+    expect(connection.commit).toHaveBeenCalledOnce();
   });
   it('continua recusando sessão inexistente ou de outro profissional', async () => {
-    execute.mockResolvedValue([{ affectedRows: 0 }]);
-    query.mockResolvedValue([[]]);
+    connection.query.mockResolvedValue([[]]);
     expect(await cancelAppointment('org', 'pro', 'missing', 'motivo')).toBe(false);
+    expect(connection.execute).not.toHaveBeenCalled();
   });
 });
 

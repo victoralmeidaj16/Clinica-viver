@@ -18,7 +18,6 @@ import {
   LogOut,
   X,
   HelpCircle,
-  GraduationCap,
 } from 'lucide-react';
 
 const psicologoItems = [
@@ -30,11 +29,10 @@ const psicologoItems = [
 ];
 
 const gestaoItems = [
-  { label: 'Área de Alunos', href: '/gestao/academico', icon: GraduationCap },
   { label: 'Agenda da Clínica', href: '/gestao/agenda', icon: CalendarDays },
   { label: 'Gestão de Psicólogos', href: '/gestao/psicologos', icon: UserCheck },
   { label: 'Gestão de Pacientes', href: '/gestao/pacientes', icon: Users },
-  { label: 'Cockpit da Clínica (Prazos)', href: '/gestao/cockpit', icon: Shield },
+  { label: 'Painel da clínica', href: '/gestao/cockpit', icon: Shield },
   { label: 'Financeiro & Repasses', href: '/gestao/financeiro', icon: CreditCard },
   { label: 'Indicadores Mensais', href: '/relatorios', icon: BarChart3 },
   { label: 'Convênios PJ', href: '/convenios', icon: Briefcase },
@@ -124,7 +122,7 @@ export default function Sidebar({
               colapsado ? 'lg:hidden' : ''
             }`}
           >
-            <span>{isProfessional ? 'Portal do Psicólogo' : 'Cockpit de Gestão'}</span>
+            <span>{isProfessional ? 'Portal do Psicólogo' : 'Painel da clínica'}</span>
           </div>
           {navItems.map((item) => {
             const isActive = pathname === item.href;

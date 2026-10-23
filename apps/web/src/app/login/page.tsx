@@ -4,6 +4,7 @@ import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
+import { professionalLogin } from '@/lib/professionalLogin';
 import {
   ArrowRight,
   CalendarDays,
@@ -62,19 +63,8 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      const payload = (await response.json()) as { ok: boolean; error?: { message: string } };
-      if (!response.ok || !payload.ok) {
-        throw new Error(payload.error?.message ?? 'Não foi possível entrar.');
-      }
-      const me = (await fetch('/api/auth/me', { cache: 'no-store' }).then((result) =>
-        result.json()
-      )) as { data: { role: 'admin' | 'psicologo' } };
-      router.replace(me.data.role === 'admin' ? '/gestao/cockpit' : '/pacientes');
+      const role = await professionalLogin({ email, password });
+      router.replace(role === 'admin' ? '/gestao/cockpit' : '/pacientes');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Não foi possível entrar.');
     } finally {

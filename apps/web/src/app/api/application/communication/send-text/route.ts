@@ -1,3 +1,4 @@
+import { deliverWhatsApp } from '@/server/communication/whatsappDelivery';
 import { resolveRequestContext } from '@/server/application/context';
 import { ApplicationError, failure, readJson, success } from '@/server/application/http';
 
@@ -10,7 +11,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(request: Request) {
   try {
-    await resolveRequestContext(request, true);
+    const context = await resolveRequestContext(request, true);
     const body = await readJson(request);
     const number = String(body.number ?? '').replace(/\D/g, '');
     const text = String(body.text ?? '').trim();
@@ -28,18 +29,21 @@ export async function POST(request: Request) {
       throw new ApplicationError('EVOLUTION_NOT_CONFIGURED', 'WhatsApp não está configurado no servidor.', 503);
     }
 
-    const response = await fetch(`${evoUrl.replace(/\/$/, '')}/message/sendText/${evoInstance}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', apikey: evoApiKey },
-      body: JSON.stringify({ number, text }),
-      signal: AbortSignal.timeout(15_000),
+    const result = await deliverWhatsApp({
+      scope: `send-text:${context.actor.organizationId}:${context.actor.userId}`,
+      key: context.idempotencyKey!, number, text,
+      config: { url: evoUrl, apiKey: evoApiKey, instancia: evoInstance },
     });
-    if (!response.ok) {
+    if (result.state === 'conflict') {
+      throw new ApplicationError('IDEMPOTENCY_CONFLICT', 'Esta chave já foi utilizada com outro destinatário ou conteúdo.', 409);
+    }
+    if (result.state === 'sending' || result.state === 'unknown') {
+      throw new ApplicationError('DELIVERY_UNCERTAIN', 'Envio em andamento ou sem confirmação. Verifique a entrega antes de tentar novamente.', 409);
+    }
+    if (result.state !== 'sent') {
       throw new ApplicationError('EVOLUTION_DELIVERY_FAILED', 'O WhatsApp recusou o envio.', 502);
     }
-
-    const result = await response.json().catch(() => ({}));
-    return success({ sent: true, messageId: result?.key?.id ?? null });
+    return success({ sent: true, messageId: result.providerMessageId ?? null });
   } catch (error) {
     return failure(error);
   }

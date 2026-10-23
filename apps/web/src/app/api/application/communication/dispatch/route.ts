@@ -22,15 +22,11 @@ export async function POST(request: Request) {
       return success(result);
     }
 
-    const patientId = String(body.patientId || 'patient-1');
-    const recipientReference = body.recipientReference ? String(body.recipientReference) : '5511987654321';
-    const template: NotificationTemplateInput = (body.template && typeof body.template === 'object')
+    const patientId = String(body.patientId || '');
+    const recipientReference = body.recipientReference ? String(body.recipientReference) : undefined;
+    const template: NotificationTemplateInput | undefined = (body.template && typeof body.template === 'object')
       ? (body.template as NotificationTemplateInput)
-      : {
-          category: 'appointment_reminder',
-          professionalName: 'Dra. Camila Vasconcelos',
-          appointmentLabel: 'Amanhã às 14:00',
-        };
+      : undefined;
 
     const result = await sendTestNotification(context, {
       patientId,

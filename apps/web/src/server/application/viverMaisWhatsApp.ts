@@ -1,3 +1,5 @@
+import { resolveAttendancePricing } from '@/lib/attendancePricing';
+import { deliverWhatsApp } from '@/server/communication/whatsappDelivery';
 import { rotuloTurnoPreferencia } from '@/lib/turnos';
 import 'server-only';
 
@@ -40,17 +42,6 @@ export interface ResultadoEnvio {
   reenvioSeguro?: boolean;
 }
 
-/**
- * Chaves já disparadas neste processo.
- *
- * Deduplicação de escopo modesto e honesto: impede o caso real de hoje — a
- * varredura do SLA rodando várias vezes na mesma janela e reavisando o mesmo
- * profissional pelo mesmo lead. Não sobrevive a restart nem é compartilhada
- * entre instâncias; a garantia forte virá quando a fila de
- * `packages/core/src/communication` assumir o envio.
- */
-const jaDisparado = new Set<string>();
-
 function evolutionConfig(): { url: string; apiKey: string; instancia: string } | null {
   const url = process.env.EVOLUTION_API_URL?.trim();
   const apiKey = process.env.EVOLUTION_API_KEY?.trim();
@@ -73,10 +64,6 @@ export async function enviarTexto(
   chaveDedupe: string,
   autorizadoPelaGestao = false
 ): Promise<ResultadoEnvio> {
-  if (jaDisparado.has(chaveDedupe)) {
-    return { finalidade, chaveDedupe, situacao: 'enviada' };
-  }
-
   if (!autorizadoPelaGestao) {
     try {
       assertWhatsAppRecipientAllowed(telefone);
@@ -98,23 +85,15 @@ export async function enviarTexto(
   }
 
   try {
-    const resposta = await fetch(`${config.url}/message/sendText/${config.instancia}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', apikey: config.apiKey },
-      body: JSON.stringify({ number: normalizeBrazilPhone(telefone) ?? telefone.replace(/\D/g, ''), text: texto }),
-      signal: AbortSignal.timeout(10_000),
+    const result = await deliverWhatsApp({
+      scope: 'operacional', key: chaveDedupe,
+      number: normalizeBrazilPhone(telefone) ?? telefone.replace(/\D/g, ''), text: texto, config,
     });
-
-    if (!resposta.ok) {
-      console.warn(`[whatsapp] Provedor recusou "${finalidade}": HTTP ${resposta.status}.`);
-      return { finalidade, chaveDedupe, situacao: 'falha', reenvioSeguro: resposta.status >= 400 && resposta.status < 500 };
-    }
-
-    jaDisparado.add(chaveDedupe);
-    return { finalidade, chaveDedupe, situacao: 'enviada' };
-  } catch (erro) {
-    console.warn(`[whatsapp] Falha ao enviar "${finalidade}":`, erro);
-    return { finalidade, chaveDedupe, situacao: 'falha' };
+    return { finalidade, chaveDedupe, situacao: result.state === 'sent' ? 'enviada' : 'falha',
+      ...(result.state !== 'sent' ? { reenvioSeguro: result.state === 'rejected' } : {}) };
+  } catch {
+    console.warn(`[whatsapp] Não foi possível confirmar o envio "${finalidade}".`);
+    return { finalidade, chaveDedupe, situacao: 'falha', reenvioSeguro: false };
   }
 }
 
@@ -250,19 +229,7 @@ export function resolverPrecoEModalidade(lead: TriagemPacienteRecord): {
   valor: string;
 } {
   const servico = lead.servico?.trim() || 'Psicoterapia Individual';
-  const modalidade = lead.modalidade?.trim().toUpperCase();
-  const isCasal = modalidade?.includes('CASAL') || servico.toLowerCase().includes('casal');
-  const isAvaliacao = servico.toLowerCase().includes('avaliação') || servico.toLowerCase().includes('avaliacao');
-  const isParticular = modalidade === 'PARTICULAR' || modalidade === 'CASAL_PARTICULAR';
-
-  const modalidadeRotulo = isParticular ? 'Particular' : 'Acessível';
-
-  let valor = isParticular ? 'R$ 130,00' : 'R$ 75,00';
-  if (isCasal) {
-    valor = isParticular ? 'R$ 260,00' : 'R$ 150,00';
-  } else if (isAvaliacao) {
-    valor = isParticular ? 'R$ 150,00' : 'R$ 100,00';
-  }
+  const { modalidadeRotulo, valor } = resolveAttendancePricing(servico, lead.modalidade);
 
   return { servico, modalidadeRotulo, valor };
 }

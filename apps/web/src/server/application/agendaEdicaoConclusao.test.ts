@@ -29,6 +29,7 @@ import {
   rescheduleAppointmentProfessional,
   updateAppointmentDetails,
 } from '@/server/scheduling/agendaRepository';
+import { avisarSessaoCancelada } from '@/server/scheduling/agendaAvisos';
 import { cancelarCobrancaDaSessao, garantirCobrancaDaSessao } from '@/server/payments/sessionCharge';
 import type { RequestContext } from './context';
 
@@ -171,6 +172,13 @@ describe('validação e falha financeira na agenda', () => {
   ])('recusa intervalo inválido antes de acessar a persistência', async (start, end) => {
     await expect(rescheduleAgendaAppointment(context, 'apt', start, end)).rejects.toMatchObject({ status: 400 });
     expect(rescheduleAppointmentProfessional).not.toHaveBeenCalled();
+  });
+  it('recusa cancelamento de atendimento concluído sem tocar na cobrança ou enviar aviso', async () => {
+    vi.mocked(cancelAppointment).mockResolvedValue('completed_locked');
+    await expect(cancelAgendaAppointment(context, 'apt', 'Solicitado'))
+      .rejects.toMatchObject({ code: 'APPOINTMENT_ALREADY_COMPLETED', status: 409 });
+    expect(cancelarCobrancaDaSessao).not.toHaveBeenCalled();
+    expect(avisarSessaoCancelada).not.toHaveBeenCalled();
   });
   it('informa falha do cancelamento remoto e permite nova tentativa', async () => {
     vi.mocked(cancelAppointment).mockResolvedValue(true);

@@ -10,6 +10,7 @@ import {
   type CommunicationConsent, type FinancialRepository, type IdentityRepository,
   type CommunicationPreference, type OrganizationMembership,
   type PatientHandoff,
+  type NotificationRepository,
 } from '@thats-life/core';
 import { isMysqlConfigured } from '@/server/oci/runtime';
 import { isDocumentDemo } from '@/server/documents/demoMode';
@@ -21,8 +22,9 @@ import { MysqlClinicalRecordRepository } from '@/server/persistence/mysql/clinic
 import { MysqlClinicalSessionRepository } from '@/server/persistence/mysql/clinicalSessionRepository';
 import { MysqlClinicalTimelineRepository } from '@/server/persistence/mysql/clinicalTimelineRepository';
 import { MysqlFinancialRepository } from '@/server/persistence/mysql/financialRepository';
+import { MysqlNotificationRepository } from '@/server/communication/notificationRepository';
 import { seedSessionAwaitingReview } from './sessionSeed';
-import { readSnapshot, writeSnapshot, type PersistedSnapshot } from './persistence';
+import { readSnapshot, writeSnapshot, emptySnapshot, type PersistedSnapshot } from './persistence';
 
 /**
  * Portas, não implementações.
@@ -40,7 +42,7 @@ interface DemoApplicationState {
   records: ClinicalRecordRepository;
   timeline: ClinicalTimelineRepository;
   timelineAudit: ClinicalTimelineAccessAuditPort;
-  notifications: InMemoryNotificationRepository;
+  notifications: NotificationRepository;
   communicationAudit: InMemoryCommunicationAudit;
   preferences: CommunicationPreference[];
   consents: CommunicationConsent[];
@@ -163,7 +165,9 @@ export async function persistApplicationState(): Promise<void> {
   if (isMysqlConfigured()) {
     const atual = readSnapshot();
     await writeSnapshot({
-      ...(atual ?? (await captureSnapshot())),
+      ...(atual ?? emptySnapshot()),
+      // A fila cifrada no MySQL não pode ser copiada descriptografada para JSON.
+      notifications: [],
       savedAt: new Date().toISOString(),
       ...residuo(getApplicationStore()),
     });
@@ -200,6 +204,7 @@ function createMysqlBackedState(): DemoApplicationState {
     timeline: new MysqlClinicalTimelineRepository(),
     timelineAudit: acessos,
     financial: new MysqlFinancialRepository(),
+    notifications: new MysqlNotificationRepository(),
   };
 }
 

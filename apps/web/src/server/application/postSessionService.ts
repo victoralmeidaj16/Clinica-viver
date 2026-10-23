@@ -1,17 +1,19 @@
 import {
-  approveClinicalRecordRevisionCommand, approvePatientHandoff, assertStaffAuthorized,
+  approveClinicalRecordRevisionCommand, assertStaffAuthorized,
   approveClinicalRecordCommand, completeClinicalSessionCommand,
-  computeSoapContentHash, createFinancialCharge, createPatientHandoffDraft,
+  computeSoapContentHash, createFinancialCharge,
   enqueueNotification, linkDeliveredPatientHandoffCommand, linkSessionChargeCommand,
-  markPatientHandoffDelivered, markSessionAutomationFailedCommand,
+  markSessionAutomationFailedCommand,
   markSessionNotificationSentCommand, markSessionReceiptIssuedCommand,
   projectApprovedClinicalRecord, reviewPatientHandoffContent,
-  type AutomationStepName, type ClinicalSession, type PatientHandoff,
+  type AutomationStepName, type ClinicalSession,
   type SoapClinicalContent,
 } from '@thats-life/core';
 import type { RequestContext } from './context';
 import { ApplicationError } from './http';
 import { getApplicationStore, persistApplicationState } from './store';
+import { deliverPostSessionHandoff } from './postSessionHandoff';
+import { dispatchCommunicationMessage } from './communicationService';
 
 export interface PostSessionInput {
   content: SoapClinicalContent;
@@ -90,9 +92,9 @@ function day(value: string): string {
  * devolve um resultado parcial. A sessão permanece em `ready_to_complete` e o
  * profissional pode repetir apenas o que faltou, sem duplicar o que já ocorreu.
  *
- * Cada etapa recebe um `commandId` derivado da `Idempotency-Key` da requisição,
- * portanto reenviar o mesmo comando reproduz o resultado em vez de gerar uma
- * segunda cobrança ou uma segunda mensagem.
+ * Os comandos da sessão recebem um `commandId` derivado da `Idempotency-Key`.
+ * As mensagens usam chaves estáveis por sessão, inclusive quando uma tentativa
+ * posterior chega com uma nova chave de requisição.
  */
 export async function runPostSessionAutomation(
   context: RequestContext,
@@ -155,7 +157,7 @@ export async function runPostSessionAutomation(
 
   if (input.shareWithPatient) {
     try {
-      const delivered = await deliverHandoff(context, sessionId, input, key);
+      const delivered = await deliverPostSessionHandoff(context, sessionId, input);
       await linkDeliveredPatientHandoffCommand(
         sessionDependencies, context.actor, sessionId, delivered, metadata('handoff')
       );
@@ -205,10 +207,15 @@ export async function runPostSessionAutomation(
           channel: 'whatsapp',
           template: { category: 'billing_due', amountLabel: money(charge.amountCents), dueLabel: day(charge.dueAt) },
           preference, consents: store.consents, scheduledFor: input.occurredAt,
-          idempotencyKey: `${key}:notification`, createdAt: input.occurredAt,
+          idempotencyKey: `session:${sessionId}:billing-notification`, createdAt: input.occurredAt,
         },
         store.notifications, store.communicationAudit
       );
+      await persistApplicationState();
+      const delivery = await dispatchCommunicationMessage(context, notification.message.id);
+      if (delivery.message.status !== 'delivered') {
+        throw new Error('A notificação ainda não foi confirmada pelo provedor.');
+      }
       await markSessionNotificationSentCommand(
         sessionDependencies, context.actor, sessionId, notification.message.id, metadata('notification-sent')
       );
@@ -223,32 +230,4 @@ export async function runPostSessionAutomation(
   );
   await persistApplicationState();
   return { ...result, status: completed.session.status, completed: completed.session.status === 'completed' };
-}
-
-/**
- * Monta a entrega do paciente e registra as tarefas no care plan. O conteúdo
- * segue o contrato separado: apenas resumo e tarefas revisados, nunca SOAP,
- * transcrição ou hipótese diagnóstica.
- */
-async function deliverHandoff(
-  context: RequestContext, sessionId: string, input: PostSessionInput, key: string
-): Promise<PatientHandoff> {
-  const store = getApplicationStore();
-  const session = await store.sessions.getById(context.actor.organizationId, sessionId);
-  if (!session) throw new Error('Sessão clínica não encontrada.');
-  const professional = await store.identities.getProfessional(
-    context.actor.organizationId, session.primaryProfessionalId
-  );
-  if (!professional) throw new Error('Profissional responsável não encontrado.');
-
-  const draft = createPatientHandoffDraft({
-    patientId: session.patientId, sessionId, summary: input.handoff.summary,
-    tasks: input.handoff.tasks, nextSessionLabel: input.handoff.nextSessionLabel,
-    professionalName: professional.displayName,
-  });
-  const delivered = markPatientHandoffDelivered(
-    approvePatientHandoff(draft, context.actor.userId, input.occurredAt), input.occurredAt
-  );
-
-  return delivered;
 }

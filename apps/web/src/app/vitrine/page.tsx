@@ -9,6 +9,7 @@ import { LISTA_NECESSIDADES } from '@/components/forms/necessidades';
 import { validateGender, type GenderValue } from '@/lib/gender';
 import { CAMPO_ARMADILHA } from '@/lib/triagemSubmissao';
 import { maskCpf, validCpf } from '@/lib/cpf';
+import { attendancePriceLabel } from '@/lib/attendancePricing';
 import { maskBrazilPhoneInput, normalizeBrazilPhone } from '@/lib/brazilPhone';
 import { BookingReceipt } from '@/components/vitrine/BookingReceipt';
 import { PublicoAtendimentoField } from '@/components/vitrine/PublicoAtendimentoField';
@@ -295,8 +296,8 @@ export default function ViverMaisLandingPage() {
       duracao: '50min',
       imagem: '/psicoterapia_individual.jpg',
       opcoes: [
-        { tipo: 'SOCIAL', label: 'Agendamento Acessível/Social', preco: 'R$ 75,00' },
-        { tipo: 'PARTICULAR', label: 'Agendamento Particular', preco: 'R$ 130,00' }
+        { tipo: 'SOCIAL', label: 'Agendamento Acessível/Social', preco: attendancePriceLabel('PSICOTERAPIA', 'SOCIAL') },
+        { tipo: 'PARTICULAR', label: 'Agendamento Particular', preco: attendancePriceLabel('PSICOTERAPIA', 'PARTICULAR') }
       ]
     },
     PSICOTERAPIA_CASAL: {
@@ -306,8 +307,8 @@ export default function ViverMaisLandingPage() {
       duracao: '1h30min',
       imagem: '/psicoterapia_casal.jpg',
       opcoes: [
-        { tipo: 'CASAL_SOCIAL', label: 'Agendamento Acessível/Social (Casal)', preco: 'R$ 150,00' },
-        { tipo: 'CASAL_PARTICULAR', label: 'Agendamento Particular (Casal)', preco: 'R$ 260,00' }
+        { tipo: 'CASAL_SOCIAL', label: 'Agendamento Acessível/Social (Casal)', preco: attendancePriceLabel('PSICOTERAPIA_CASAL', 'CASAL_SOCIAL') },
+        { tipo: 'CASAL_PARTICULAR', label: 'Agendamento Particular (Casal)', preco: attendancePriceLabel('PSICOTERAPIA_CASAL', 'CASAL_PARTICULAR') }
       ]
     },
     AVALIACAO: {
@@ -316,8 +317,8 @@ export default function ViverMaisLandingPage() {
       duracao: 'variável conforme testes e manejo do profissional',
       imagem: '/avaliacao_psicologica.jpg',
       opcoes: [
-        { tipo: 'SOCIAL', label: 'Agendamento Acessível/Social', preco: 'R$ 100,00' },
-        { tipo: 'PARTICULAR', label: 'Agendamento Particular', preco: 'R$ 150,00' }
+        { tipo: 'SOCIAL', label: 'Agendamento Acessível/Social', preco: attendancePriceLabel('AVALIACAO', 'SOCIAL') },
+        { tipo: 'PARTICULAR', label: 'Agendamento Particular', preco: attendancePriceLabel('AVALIACAO', 'PARTICULAR') }
       ]
     },
     ORIENTACAO_PROFISSIONAL: {
@@ -326,8 +327,8 @@ export default function ViverMaisLandingPage() {
       duracao: '50min',
       imagem: '/orientacao_profissional.jpg',
       opcoes: [
-        { tipo: 'SOCIAL', label: 'Agendamento Acessível/Social', preco: 'R$ 75,00' },
-        { tipo: 'PARTICULAR', label: 'Agendamento Particular', preco: 'R$ 130,00' }
+        { tipo: 'SOCIAL', label: 'Agendamento Acessível/Social', preco: attendancePriceLabel('ORIENTACAO_PROFISSIONAL', 'SOCIAL') },
+        { tipo: 'PARTICULAR', label: 'Agendamento Particular', preco: attendancePriceLabel('ORIENTACAO_PROFISSIONAL', 'PARTICULAR') }
       ]
     },
     ORIENTACAO_PARENTAL: {
@@ -340,10 +341,10 @@ export default function ViverMaisLandingPage() {
       ],
       imagem: '/orientacao_parental.jpg',
       opcoes: [
-        { tipo: 'SOCIAL', label: 'Agendamento Acessível/Social (Individual)', preco: 'R$ 75,00' },
-        { tipo: 'PARTICULAR', label: 'Agendamento Particular (Individual)', preco: 'R$ 130,00' },
-        { tipo: 'FAMILIA_SOCIAL', label: 'Agendamento Acessível/Social (Em família)', preco: 'R$ 150,00' },
-        { tipo: 'FAMILIA_PARTICULAR', label: 'Agendamento Particular (Em família)', preco: 'R$ 230,00' }
+        { tipo: 'SOCIAL', label: 'Agendamento Acessível/Social (Individual)', preco: attendancePriceLabel('ORIENTACAO_PARENTAL', 'SOCIAL') },
+        { tipo: 'PARTICULAR', label: 'Agendamento Particular (Individual)', preco: attendancePriceLabel('ORIENTACAO_PARENTAL', 'PARTICULAR') },
+        { tipo: 'FAMILIA_SOCIAL', label: 'Agendamento Acessível/Social (Em família)', preco: attendancePriceLabel('ORIENTACAO_PARENTAL', 'FAMILIA_SOCIAL') },
+        { tipo: 'FAMILIA_PARTICULAR', label: 'Agendamento Particular (Em família)', preco: attendancePriceLabel('ORIENTACAO_PARENTAL', 'FAMILIA_PARTICULAR') }
       ]
     }
   };

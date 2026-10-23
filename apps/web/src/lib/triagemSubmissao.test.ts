@@ -54,8 +54,7 @@ describe('validação do formulário público de triagem', () => {
   });
 
   it('preserva o cadastro interno sem público quando a validação estrita não é pedida', () => {
-    const { paraQuemE: _paraQuemE, ...semPublico } = valido;
-    expect(validarSubmissaoTriagem(semPublico).ok).toBe(true);
+    expect(validarSubmissaoTriagem({ ...valido, paraQuemE: undefined }).ok).toBe(true);
   });
 
   it('aceita o envio mínimo e preenche os padrões da fila', () => {

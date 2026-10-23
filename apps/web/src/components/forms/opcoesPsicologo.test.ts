@@ -2,29 +2,69 @@ import { describe, expect, it } from 'vitest';
 import { opcoesAtendimentoDaPos } from './opcoesPsicologo';
 
 describe('opcoesAtendimentoDaPos', () => {
-  it('oferece a lista ampla para Psicologia Perinatal e Parentalidade', () => {
-    expect(opcoesAtendimentoDaPos('Pós-graduação em Psicologia Perinatal e Parentalidade')?.servicos)
-      .toEqual([
-        'Atendimento Psicológico',
-        'Orientação Vocacional e Profissional',
-        'Orientação Parental',
-        'Orientação Vocacional',
-        'Orientação Profissional',
-      ]);
+  const publicoAmplo = [
+    'Criança', 'Adolescente', 'Homens', 'Idoso', 'Casais', 'Família', 'Mulheres', 'Grupo', 'Outro',
+  ];
+  const servicosAmplos = [
+    'Atendimento Psicológico',
+    'Orientação Vocacional e Profissional',
+    'Orientação Parental',
+    'Orientação Vocacional',
+    'Orientação Profissional',
+  ];
+  const cursosAmplos = [
+    'Programa de Estudos e Pós-graduação em Psicanálise',
+    'Formação e Pós-graduação em Psicodrama',
+    'Formação e Pós-graduação em Psicologia Existencialista Clínica',
+    'Formação e Pós-graduação em Psicologia Junguiana Clínica',
+    'Pós-graduação em Psicologia Perinatal e Parentalidade',
+    'Pós-graduação em Psicoterapia da Sexualidade',
+    'Formação e Pós-graduação em Terapia Cognitivo-Comportamental',
+    'Pós-graduação em Terapias Cognitivo-Comportamentais de Terceira Geração',
+    'Formação e Pós-graduação em Terapia Familiar Sistêmica',
+    'Formação e Pós-graduação em Psicodrama Didata e Psicoterapeuta do Aluno - Nível II',
+    'Formação e Pós-graduação em Psicodrama Didata Orientador e Supervisor - Nível III',
+  ];
+
+  it.each(cursosAmplos)('oferece a configuração ampla para %s', (curso) => {
+    expect(opcoesAtendimentoDaPos(curso)).toEqual({
+      tempos: [50, 90],
+      servicos: servicosAmplos,
+      publico: publicoAmplo,
+    });
   });
 
-  it('restringe Casal e Família às modalidades definidas pela coordenação', () => {
-    expect(opcoesAtendimentoDaPos('Pós-graduação em Psicoterapia de Casal e Família')?.servicos)
-      .toEqual([
+  it.each([
+    'Pós-graduação em Psicoterapia de Casal e Família',
+    'Pós-graduação em Psicoterapia Infantil e de Adolescentes',
+  ])('restringe %s às modalidades definidas pela coordenação', (curso) => {
+    expect(opcoesAtendimentoDaPos(curso)).toEqual({
+      tempos: [50, 90],
+      servicos: [
         'Atendimento Psicológico',
         'Orientação Parental',
         'Orientação Vocacional e Profissional',
-      ]);
+      ],
+      publico: publicoAmplo,
+    });
   });
 
   it('mantém a lista ampla quando Perinatal é a segunda pós', () => {
-    expect(opcoesAtendimentoDaPos('Pós-graduação em Psicoterapia de Casal e Família', 'Pós-graduação em Psicologia Perinatal e Parentalidade')?.servicos)
-      .toContain('Orientação Profissional');
+    expect(opcoesAtendimentoDaPos(
+      'Pós-graduação em Psicoterapia de Casal e Família',
+      'Pós-graduação em Psicologia Perinatal e Parentalidade',
+    )).toEqual({ tempos: [50, 90], servicos: servicosAmplos, publico: publicoAmplo });
+  });
+
+  it('aplica as mesmas regras quando o curso está na segunda pós', () => {
+    expect(opcoesAtendimentoDaPos(undefined, 'Pós-graduação em Psicoterapia Infantil e de Adolescentes')?.servicos)
+      .toEqual([
+        'Atendimento Psicológico',
+        'Orientação Parental',
+        'Orientação Vocacional e Profissional',
+      ]);
+    expect(opcoesAtendimentoDaPos(undefined, 'Pós-graduação em Neuropsicologia Clínica')?.publico)
+      .toEqual(['Adolescente', 'Criança', 'Idoso', 'Homens', 'Mulheres']);
   });
 
   it.each([

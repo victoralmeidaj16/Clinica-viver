@@ -3,7 +3,7 @@ import 'server-only';
 import type { CadastroPsicologoRecord, StatusCadastroPsicologo } from './persistence';
 import { normalizeBrazilPhone } from '@/lib/brazilPhone';
 import { isBrazilUf } from '@/lib/brazilLocations';
-import { municipioPertenceAoEstado } from './ibgeLocations';
+import { municipioPertenceAoEstado } from './brazilLocalities';
 import { validateGender } from '@/lib/gender';
 import { limitePacientesValido, mensagemLimitePacientesInvalido } from '@/lib/psychologistCapacity';
 
@@ -173,21 +173,15 @@ export async function validarCorpo(
   }
 
   // Estado e cidade andam juntos: uma UF nova com a cidade antiga produz um par
-  // que não existe, e é justamente o par que o IBGE valida.
+  // que não existe na base nacional de municípios.
   if (corpo.estadoUf !== undefined || corpo.cidade !== undefined) {
     const estadoUf = String(corpo.estadoUf ?? '').trim().toUpperCase();
     const cidade = String(corpo.cidade ?? '').trim();
     if (!isBrazilUf(estadoUf) || !cidade) {
       throw new CorpoInvalidoError('Informe estado e cidade juntos.');
     }
-    try {
-      if (!(await municipioPertenceAoEstado(estadoUf, cidade))) {
-        throw new CorpoInvalidoError('Selecione uma cidade oficial da UF informada.');
-      }
-    } catch (error) {
-      if (error instanceof CorpoInvalidoError) throw error;
-      console.error('Erro ao validar município no IBGE:', error);
-      throw new CorpoInvalidoError('Não foi possível validar a cidade agora. Tente novamente.', 503);
+    if (!municipioPertenceAoEstado(estadoUf, cidade)) {
+      throw new CorpoInvalidoError('Selecione uma cidade oficial da UF informada.');
     }
   }
 

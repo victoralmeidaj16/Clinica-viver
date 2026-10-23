@@ -13,7 +13,7 @@ import { getCaptureRepository } from '@/server/persistence/captureRepository';
 import { exigirGestao, NaoAutorizadoError } from '@/server/viverMaisGestaoAuth';
 import { normalizeBrazilPhone } from '@/lib/brazilPhone';
 import { isBrazilUf } from '@/lib/brazilLocations';
-import { municipioPertenceAoEstado } from '@/server/application/ibgeLocations';
+import { municipioPertenceAoEstado } from '@/server/application/brazilLocalities';
 import { validateGender } from '@/lib/gender';
 import {
   derivarModalidadesAtendidas,
@@ -169,13 +169,8 @@ export async function POST(request: Request) {
     if (body.aceitouTermos !== true) {
       return NextResponse.json({ success: false, error: 'Leia e aceite o Termo de Adesão e Condições de Uso para enviar o cadastro.' }, { status: 400 });
     }
-    try {
-      if (!(await municipioPertenceAoEstado(estadoUf, cidade))) {
-        return NextResponse.json({ success: false, error: 'Selecione uma cidade oficial da UF informada.' }, { status: 400 });
-      }
-    } catch (error) {
-      console.error('Erro ao validar município no IBGE:', error);
-      return NextResponse.json({ success: false, error: 'Não foi possível validar a cidade agora. Tente novamente.' }, { status: 503 });
+    if (!municipioPertenceAoEstado(estadoUf, cidade)) {
+      return NextResponse.json({ success: false, error: 'Selecione uma cidade oficial da UF informada.' }, { status: 400 });
     }
 
     const atendimentoPreferencia = (body.atendimentoPreferencia as 'PARTICULAR' | 'SOCIAL' | 'AMBOS') || 'AMBOS';

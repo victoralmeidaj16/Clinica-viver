@@ -3,7 +3,6 @@ vi.mock('server-only', () => ({}));
 const mocks = vi.hoisted(() => ({ mutate: vi.fn(), email: vi.fn(), comprovante: vi.fn() }));
 vi.mock('@/server/oci/runtime', () => ({ isMysqlConfigured: () => true, getMysqlPool: vi.fn() }));
 vi.mock('@/server/persistence/captureRepository', () => ({ getCaptureRepository: () => ({ mutate: mocks.mutate }) }));
-vi.mock('@/server/application/ibgeLocations', () => ({ municipioPertenceAoEstado: async () => true }));
 vi.mock('@/server/application/psychologistRegistrationEmail', () => ({ avisarCadastroRecebidoPorEmail: mocks.email }));
 vi.mock('@/server/application/termoAdesaoComprovantePdf', () => ({ montarComprovanteTermoAdesao: async () => null }));
 vi.mock('@/server/application/termoAdesaoComprovanteEmail', () => ({ enviarComprovanteTermoAdesao: mocks.comprovante }));
@@ -29,5 +28,16 @@ describe('resposta ao cadastro repetido', () => {
     const response = await POST(request());
     expect(response.status).toBe(200);
     expect(mocks.email).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejeita uma cidade que não pertence à UF antes de gravar o cadastro', async () => {
+    const response = await POST(new Request('https://example.com/api/application/credenciamento-psicologo', {
+      method: 'POST',
+      body: JSON.stringify({ ...body, cidade: 'São Paulo' }),
+    }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ success: false, error: 'Selecione uma cidade oficial da UF informada.' });
+    expect(mocks.mutate).not.toHaveBeenCalled();
   });
 });

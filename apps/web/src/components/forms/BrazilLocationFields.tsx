@@ -35,7 +35,7 @@ export function BrazilLocationFields({ estadoUf, cidade, onEstadoChange, onCidad
 
   useEffect(() => {
     let active = true;
-    fetch('/api/public/localidades', { cache: 'force-cache' })
+    fetch('/api/public/localidades', { cache: 'no-store' })
       .then(async (response) => {
         const body = await response.json() as { success: boolean; data?: Estado[]; error?: string };
         if (!response.ok || !body.success) throw new Error(body.error);
@@ -52,7 +52,7 @@ export function BrazilLocationFields({ estadoUf, cidade, onEstadoChange, onCidad
   useEffect(() => {
     if (!estadoUf) return;
     let active = true;
-    fetch(`/api/public/localidades?uf=${encodeURIComponent(estadoUf)}`, { cache: 'force-cache' })
+    fetch(`/api/public/localidades?uf=${encodeURIComponent(estadoUf)}`, { cache: 'no-store' })
       .then(async (response) => {
         const body = await response.json() as { success: boolean; data?: Municipio[]; error?: string };
         if (!response.ok || !body.success) throw new Error(body.error);

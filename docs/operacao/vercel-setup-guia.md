@@ -66,11 +66,8 @@ configure usuários com hash forte ou ative a conta pelo fluxo de convite.
 AUTH_USERS_JSON=[{"email":"admin@vivermaispsicologia.com.br","userId":"usr-coordenacao","organizationId":"org-viver-mais","passwordHash":"scrypt$8192$8$1$..."}]
 ```
 
-### 🛡️ Trava de Segurança do WhatsApp (Piloto)
-Adicione **somente** os números reais dos membros da equipe que irão testar (formato com DDD):
-```env
-WHATSAPP_ALLOWED_NUMBERS=5548999999999,5548888888888
-```
+### WhatsApp: destinatários
+Não há mais lista de números liberados: o envio vai para qualquer número brasileiro válido do cadastro. `WHATSAPP_ALLOWED_NUMBERS` e `WHATSAPP_ALLOW_ALL_RECIPIENTS` não são mais lidas.
 
 ### 🩺 Diagnóstico e Modo
 ```env
@@ -95,7 +92,7 @@ ORGANIZATION_SLUG=viver-mais-psicologia
 1. [ ] Acessar `https://<seu-link>.vercel.app/api/infra/mode` e confirmar `{"persistence":"mysql"}`.
 2. [ ] Testar navegação na Agenda (`/agenda`).
 3. [ ] Testar Cockpit do Psicólogo (`/cockpit`).
-4. [ ] Efetuar disparo de WhatsApp de teste para um número liberado no `WHATSAPP_ALLOWED_NUMBERS`.
+4. [ ] Efetuar disparo de WhatsApp de teste para um número da equipe.
 
 ---
 

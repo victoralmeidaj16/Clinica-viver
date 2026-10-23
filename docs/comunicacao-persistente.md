@@ -4,7 +4,7 @@
 
 1. Aplicar `065_comunicacao_persistente.sql` com o runner habitual (`npm run db:migrate` e a credencial administrativa do ambiente), antes de publicar o backend atualizado.
 2. Configurar `CLINICAL_DOCUMENTS_KEY` com uma chave hexadecimal de 32 bytes. A fila e os resumos/tarefas usam a mesma infraestrutura AES-256-GCM dos documentos clínicos. Manter essa chave estável e protegida junto aos procedimentos de backup; trocá-la sem migração impede ler os registros existentes.
-3. Conferir `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCE_NAME` e a política `WHATSAPP_ALLOWED_NUMBERS` / `WHATSAPP_ALLOW_ALL_RECIPIENTS`.
+3. Conferir `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCE_NAME` e os telefones do cadastro: não há lista de destinatários, e qualquer número brasileiro válido recebe.
 
 As correções não executam migrations, publicações nem disparos durante os testes.
 Notificações antigas do snapshot demonstrativo não são importadas automaticamente: podem representar envios já realizados e precisam de revisão antes de qualquer reenvio.

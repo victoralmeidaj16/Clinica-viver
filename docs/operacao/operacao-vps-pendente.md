@@ -11,8 +11,7 @@ SLA_SWEEP_INTERVAL_SECONDS=300
 WHATSAPP_COORDINATION_NUMBERS=55DDDNUMERO
 ```
 
-O número de `WHATSAPP_COORDINATION_NUMBERS` também precisa ser acrescentado a
-`WHATSAPP_ALLOWED_NUMBERS`. Ele recebe somente protocolo e nomes dos
+O número de `WHATSAPP_COORDINATION_NUMBERS` recebe somente protocolo e nomes dos
 profissionais envolvidos no transbordo; nunca dados do paciente.
 
 Depois de commitar o código, publicar da raiz do repositório:

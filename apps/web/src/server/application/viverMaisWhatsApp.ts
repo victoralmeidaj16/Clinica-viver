@@ -51,11 +51,8 @@ function evolutionConfig(): { url: string; apiKey: string; instancia: string } |
 }
 
 /**
- * Envia um texto pelo WhatsApp, passando obrigatoriamente pela trava do piloto.
- *
- * A ordem importa: a allowlist é consultada **antes** de qualquer chamada de
- * rede. Enquanto a operação está em piloto, número fora da lista não é assunto
- * do provedor — a mensagem não deve sequer sair daqui.
+ * Envia um texto pelo WhatsApp, validando o telefone **antes** de qualquer
+ * chamada de rede: número vazio ou truncado não é assunto do provedor.
  */
 export async function enviarTexto(
   telefone: string,
@@ -71,7 +68,7 @@ export async function enviarTexto(
       if (erro instanceof RecipientNotAllowedError) {
         // Recusa explícita e sem o número no log — bloqueio registrado não é
         // falha silenciosa, e log não é lugar de contato de paciente.
-        console.warn(`[whatsapp] Envio "${finalidade}" bloqueado: destinatário fora da allowlist.`);
+        console.warn(`[whatsapp] Envio "${finalidade}" bloqueado: telefone inválido.`);
         return { finalidade, chaveDedupe, situacao: 'bloqueada_allowlist' };
       }
       throw erro;
@@ -99,8 +96,8 @@ export async function enviarTexto(
 
 /**
  * Convite de acesso enviado apenas depois da aprovação autenticada da gestão.
- * Esse destinatário não depende da allowlist do piloto: o telefone foi
- * informado pelo próprio profissional e conferido pela administração.
+ * O telefone foi informado pelo próprio profissional e conferido pela
+ * administração.
  */
 export async function avisarBoasVindasPsicologo(
   psicologo: CadastroPsicologoRecord,
@@ -373,7 +370,7 @@ export async function avisarTransbordo(
   ];
 
   // A coordenação vê o evento operacional, não os dados clínicos nem o
-  // telefone do paciente. Cada número ainda passa pela allowlist do piloto.
+  // telefone do paciente.
   const destinatarios = (process.env.WHATSAPP_COORDINATION_NUMBERS ?? '')
     .split(',')
     .map((numero) => numero.trim())

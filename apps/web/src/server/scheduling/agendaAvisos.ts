@@ -24,8 +24,8 @@ import type { ContatosDaSessao } from './agendaRepository';
  *   1. **Nada aqui lança para quem chamou.** A sessão já está gravada quando o
  *      aviso sai; um provedor fora do ar não pode desmarcar consulta de
  *      ninguém. Falha vira log e situação registrada.
- *   2. **A allowlist do piloto vale.** Todo envio passa por `enviarTexto`, que
- *      consulta a trava antes de qualquer chamada de rede.
+ *   2. **O telefone é validado.** Todo envio passa por `enviarTexto`, que
+ *      recusa número inválido antes de qualquer chamada de rede.
  *   3. **A reserva vem antes do envio.** `clinica_agenda_avisos` tem UNIQUE por
  *      (agendamento, tipo, versão): quem insere manda, os outros desistem. É o que
  *      impede a mesma confirmação de sair duas vezes de duas instâncias.

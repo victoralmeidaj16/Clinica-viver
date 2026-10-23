@@ -125,8 +125,7 @@ SLA_SWEEP_INTERVAL_SECONDS=300
 WHATSAPP_COORDINATION_NUMBERS=55DDDNUMERO
 ```
 
-O número da coordenação também deve estar em `WHATSAPP_ALLOWED_NUMBERS` durante
-o piloto. O alerta contém somente protocolo e troca de profissional; telefone,
+O alerta da coordenação contém somente protocolo e troca de profissional; telefone,
 nome e dados clínicos do paciente não são enviados à coordenação. Confira o
 worker com `docker compose -f infra/clinic/docker-compose.yml logs sla-sweeper`.
 

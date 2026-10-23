@@ -10,7 +10,6 @@ beforeEach(() => {
   vi.stubEnv('EVOLUTION_API_URL', 'https://evolution.example');
   vi.stubEnv('EVOLUTION_API_KEY', 'test');
   vi.stubEnv('EVOLUTION_INSTANCE_NAME', 'instance');
-  vi.stubEnv('WHATSAPP_ALLOW_ALL_RECIPIENTS', 'true');
 });
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 it.each([true, false])('interpreta a existência %s sem enviar mensagem', async (exists) => {
@@ -29,13 +28,11 @@ it.each([
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response));
   expect(await verificarWhatsApp('48999991234')).toBe('indisponivel');
 });
-it('trata falha de rede e respeita a allowlist antes da consulta', async () => {
+it('trata falha de rede e recusa telefone inválido antes da consulta', async () => {
   const fetchMock = vi.fn().mockRejectedValue(new Error('timeout'));
   vi.stubGlobal('fetch', fetchMock);
   expect(await verificarWhatsApp('48999991234')).toBe('indisponivel');
-  vi.stubEnv('WHATSAPP_ALLOW_ALL_RECIPIENTS', 'false');
-  vi.stubEnv('WHATSAPP_ALLOWED_NUMBERS', '');
-  expect(await verificarWhatsApp('48999991234')).toBe('indisponivel');
+  expect(await verificarWhatsApp('9000')).toBe('inexistente');
   expect(fetchMock).toHaveBeenCalledTimes(1);
 });
 it('compartilha tentativa concorrente e não repete mensagem enviada', async () => {

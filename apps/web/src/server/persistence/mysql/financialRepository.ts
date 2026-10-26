@@ -79,7 +79,7 @@ const COBRANCA_SELECT = `
    WHERE instituicao_id = ?`;
 
 export class MysqlFinancialRepository implements FinancialRepository {
-  constructor(private readonly pool: Pool = getMysqlPool()) {}
+  constructor(private readonly pool: Pick<Pool, 'query' | 'execute'> = getMysqlPool()) {}
 
   /**
    * Monta o razão do período.
@@ -148,7 +148,7 @@ export class MysqlFinancialRepository implements FinancialRepository {
     );
     const [pagamentoRows] = await this.pool.query<RowDataPacket[]>(
       `SELECT ref_core, cobranca_ref, recebido_em, valor_centavos, forma, status,
-              provedor, provedor_transacao_ref
+              provedor, provedor_transacao_ref, registrado_por, registrado_em
          FROM financeiro_pagamentos
         WHERE instituicao_id = ? AND organizacao_ref = ? AND cobranca_ref IN (?)`,
       [...escopo, chargeRefs]
@@ -171,6 +171,8 @@ export class MysqlFinancialRepository implements FinancialRepository {
         status: row.status as FinancialPayment['status'],
         provider: (row.provedor as FinancialPayment['provider']) ?? undefined,
         providerTransactionId: (row.provedor_transacao_ref as string) ?? undefined,
+        registeredBy: (row.registrado_por as string) ?? undefined,
+        registeredAt: fromSqlTimestamp(row.registrado_em as string | null),
       })
     );
 
@@ -334,8 +336,8 @@ export class MysqlFinancialRepository implements FinancialRepository {
     await this.pool.execute(
       `INSERT INTO financeiro_pagamentos
          (id, instituicao_id, organizacao_ref, ref_core, cobranca_ref, recebido_em,
-          valor_centavos, forma, status, provedor, provedor_transacao_ref)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          valor_centavos, forma, status, provedor, provedor_transacao_ref, registrado_por, registrado_em)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
          recebido_em = VALUES(recebido_em), valor_centavos = VALUES(valor_centavos),
          forma = VALUES(forma), status = VALUES(status), provedor = VALUES(provedor),
@@ -352,6 +354,8 @@ export class MysqlFinancialRepository implements FinancialRepository {
         payment.status,
         payment.provider ?? null,
         payment.providerTransactionId ?? null,
+        payment.registeredBy ?? null,
+        payment.registeredAt ? toSqlTimestamp(payment.registeredAt) : null,
       ]
     );
   }

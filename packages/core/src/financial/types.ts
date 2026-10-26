@@ -48,6 +48,8 @@ export interface FinancialPayment {
   status: PaymentStatus;
   provider?: 'asaas' | 'manual' | 'other';
   providerTransactionId?: string;
+  registeredBy?: string;
+  registeredAt?: string;
 }
 
 export interface FinancialRefund {

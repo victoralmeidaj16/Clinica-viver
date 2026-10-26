@@ -63,6 +63,47 @@ describe('solicitação pública de reagendamento', () => {
 const ANTES = new Date('2026-10-20T12:00:00Z');
 
 describe('decisão do psicólogo', () => {
+  it('libera nova solicitação depois de recusar o pedido de um horário alterado', async () => {
+    let pending = true;
+    const query = state.connection.query.getMockImplementation()!;
+    state.connection.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM clinica_agendamentos WHERE') || (sql.includes('FROM clinica_agendamentos') && sql.includes('paciente_id'))) {
+        return [[{ id: 'appointment-1', status: 'agendado', inicio: '2026-10-24T15:00:00Z', fim: '2026-10-24T15:50:00Z' }], []];
+      }
+      if (sql.includes("status = 'pendente'")) return [pending ? [{ id: 'request-1' }] : [], []];
+      return query(sql);
+    });
+    state.connection.execute.mockImplementation(async (sql: string) => {
+      if (sql.includes("status = 'recusada'")) pending = false;
+      return [{ affectedRows: 1 }, []];
+    });
+    expect(await decidePatientRescheduleRequest('org', 'pro-ref', 'request-1', 'reject', ANTES)).toMatchObject({ ok: true });
+    expect(await requestPatientReschedule(patient, 'appointment-1', '2026-10-22T15:00:00.000Z', ANTES)).toMatchObject({ ok: true });
+  });
+  const changedAppointments = [
+    { status: 'agendado', inicio: '2026-10-24T15:00:00Z', notifyPatient: true },
+    { status: 'cancelado', inicio: '2026-10-23T15:00:00Z', notifyPatient: false },
+    { status: 'realizado', inicio: '2026-10-23T15:00:00Z', notifyPatient: false },
+  ];
+  it.each(changedAppointments)('encerra pedido antigo após sessão $status sem mudar agenda ou cobrança', async (appointment) => {
+    const query = state.connection.query.getMockImplementation()!;
+    state.connection.query.mockImplementation(async (sql: string) => sql.includes('FROM clinica_agendamentos WHERE')
+      ? [[{ id: 'appointment-1', ...appointment }], []] : query(sql));
+    expect(await decidePatientRescheduleRequest('org', 'pro-ref', 'request-1', 'reject', ANTES))
+      .toMatchObject({ ok: true, decision: 'rejected', notifyPatient: appointment.notifyPatient });
+    expect(state.connection.execute).toHaveBeenCalledExactlyOnceWith(expect.stringContaining("status = 'recusada'"), ['inst', 'request-1']);
+    expect(state.resetCharge).not.toHaveBeenCalled();
+    expect(state.connection.commit).toHaveBeenCalledOnce();
+  });
+  it.each(changedAppointments)('continua recusando aceite após sessão $status alterada', async (appointment) => {
+    const query = state.connection.query.getMockImplementation()!;
+    state.connection.query.mockImplementation(async (sql: string) => sql.includes('FROM clinica_agendamentos WHERE')
+      ? [[{ id: 'appointment-1', ...appointment }], []] : query(sql));
+    expect(await decidePatientRescheduleRequest('org', 'pro-ref', 'request-1', 'accept', ANTES))
+      .toEqual({ ok: false, reason: 'APPOINTMENT_CHANGED' });
+    expect(state.connection.execute).not.toHaveBeenCalled();
+    expect(state.resetCharge).not.toHaveBeenCalled();
+  });
   it('não aceita pedido cujo horário já passou', async () => {
     expect(await decidePatientRescheduleRequest('org', 'pro-ref', 'request-1', 'accept', new Date('2026-10-22T15:10:00Z')))
       .toEqual({ ok: false, reason: 'EXPIRED' });

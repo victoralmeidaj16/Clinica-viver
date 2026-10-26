@@ -402,6 +402,19 @@ export async function reserveAppointmentChargeBatch(input: {
   const connection = await getMysqlPool().getConnection();
   try {
     await connection.beginTransaction();
+    // As reservas individuais já liberaram suas transações. A baixa manual e
+    // a troca de custeio podem ter alterado uma cobrança desde então.
+    const [currentCharges] = await connection.query<RowDataPacket[]>(
+      `SELECT ref_core, status, vence_em FROM financeiro_cobrancas
+        WHERE instituicao_id = ? AND organizacao_ref = ? AND ref_core IN (?)
+        ORDER BY ref_core FOR UPDATE`,
+      [instituicaoId(), first.organizationId, reservations.map((item) => item.chargeId)],
+    );
+    if (currentCharges.length !== reservations.length || currentCharges.some((charge) =>
+      !['draft', 'pending'].includes(String(charge.status))
+      || Date.parse(fromSqlTimestamp(String(charge.vence_em)) ?? '') <= Date.now())) {
+      throw new SessionChargeUnavailableError('Uma das cobranças foi alterada. Atualize as sessões antes de gerar o pagamento agrupado.');
+    }
     if (await hasPendingChargeDueReset(connection, reservations.map((item) => item.chargeId))) {
       throw new SessionChargeUnavailableError('Uma das cobranças está sendo atualizada após a remarcação.');
     }

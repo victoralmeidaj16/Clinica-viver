@@ -28,13 +28,16 @@ export async function getFinancialReportsData(
 
   assertStaffAuthorized(context.actor, 'billing.read', { organizationId });
 
-  const ledger = await store.financial.getLedger({ organizationId, ...filter });
+  // O período é aplicado a cada fato pelo relatório. Filtrar a emissão aqui
+  // eliminaria pagamentos e estornos de cobranças emitidas em meses anteriores.
+  const ledger = await store.financial.getLedger({
+    organizationId, patientIds: filter.patientIds, professionalIds: filter.professionalIds,
+  });
   const reportBundle = generateFinancialReports(
     ledger,
     {
+      ...filter,
       organizationId,
-      startDate: filter.startDate,
-      endDate: filter.endDate,
     },
     new Date().toISOString()
   );

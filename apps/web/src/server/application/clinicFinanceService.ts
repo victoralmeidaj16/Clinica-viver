@@ -3,12 +3,15 @@ import {
   avaliarBaseFiscalAtendimento,
   competenciaNfseDoAtendimento,
   dividirSplit7030Centavos,
+  deriveChargeStatus,
   generateFinancialReports,
+  isFinancialEventInPeriod,
+  reconcileSessionReceivables,
   type ChargeStatus,
   type FinancialCharge,
   type FinancialFilter,
+  type FinancialLedger,
   type PaymentMethod,
-  type SessionReceivable,
 } from '@thats-life/core';
 import type { RequestContext } from './context';
 import { getApplicationStore } from './store';
@@ -98,9 +101,19 @@ export interface PanoramaFinanceiroClinica {
   porPsicologo: readonly ConsolidadoPsicologo[];
 }
 
-/** Pagamentos confirmados menos estornos: o dinheiro que de fato ficou. */
-function recebidoLiquido(receivable: SessionReceivable): number {
-  return Math.max(receivable.paidAmountCents - receivable.refundedAmountCents, 0);
+/** Caixa do período, incluindo estornos de pagamentos feitos em meses anteriores. */
+function recebimentosNoPeriodo(ledger: FinancialLedger, filter: FinancialFilter): Map<string, number> {
+  const values = new Map<string, number>();
+  const payments = new Map(ledger.payments.filter((p) => p.status === 'confirmed').map((p) => [p.id, p]));
+  const add = (chargeId: string, amount: number) => values.set(chargeId, (values.get(chargeId) ?? 0) + amount);
+  for (const payment of payments.values()) {
+    if (isFinancialEventInPeriod(payment.receivedAt, filter)) add(payment.chargeId, payment.amountCents);
+  }
+  for (const refund of ledger.refunds) {
+    const payment = payments.get(refund.paymentId);
+    if (payment && isFinancialEventInPeriod(refund.refundedAt, filter)) add(payment.chargeId, -refund.amountCents);
+  }
+  return values;
 }
 
 async function resolverNomes(organizationId: string) {
@@ -164,18 +177,19 @@ export async function getClinicFinanceOverview(
 
   assertStaffAuthorized(context.actor, 'billing.read', { organizationId });
 
-  const ledger = await store.financial.getLedger({
-    organizationId,
-    startDate: filter.startDate,
-    endDate: filter.endDate,
-  });
+  const ledger = await store.financial.getLedger({ organizationId });
   const bundle = generateFinancialReports(
     ledger,
     { organizationId, startDate: filter.startDate, endDate: filter.endDate },
     new Date().toISOString()
   );
 
-  const chargeIds = bundle.receivables.map((item) => item.chargeId);
+  const issuedChargeIds = new Set(bundle.receivables.map((item) => item.chargeId));
+  const receivedByCharge = recebimentosNoPeriodo(ledger, filter);
+  // Exibe também cobranças antigas que movimentaram caixa no mês selecionado.
+  const receivables = reconcileSessionReceivables(ledger)
+    .filter((item) => issuedChargeIds.has(item.chargeId) || receivedByCharge.has(item.chargeId));
+  const chargeIds = receivables.map((item) => item.chargeId);
   const formasPagamento = new Map(ledger.charges.map((charge) => [charge.id, charge.paymentMethod]));
   const [nomes, emissoes, convenios] = await Promise.all([
     resolverNomes(organizationId),
@@ -183,8 +197,8 @@ export async function getClinicFinanceOverview(
     metadadosConvenios(organizationId, chargeIds),
   ]);
 
-  const atendimentos = bundle.receivables.map((receivable): AtendimentoFinanceiroClinica => {
-    const recebidoCents = recebidoLiquido(receivable);
+  const atendimentos = receivables.map((receivable): AtendimentoFinanceiroClinica => {
+    const recebidoCents = receivedByCharge.get(receivable.chargeId) ?? 0;
     const { creditoPsicologoCents, receitaClinicaCents } = dividirSplit7030Centavos(recebidoCents);
 
     return {
@@ -197,7 +211,7 @@ export async function getClinicFinanceOverview(
       psicologoId: receivable.professionalId,
       psicologoNome: nomes.psicologos.get(receivable.professionalId) ?? receivable.professionalId,
       vencimentoEm: receivable.dueAt,
-      status: receivable.chargeStatus,
+      status: deriveChargeStatus(receivable, bundle.summary.generatedAt),
       valorLiquidoCents: receivable.netAmountCents,
       recebidoCents,
       emAbertoCents: receivable.outstandingAmountCents,
@@ -228,10 +242,10 @@ export async function getClinicFinanceOverview(
 
         acumulado.set(item.psicologoId, {
           ...atual,
-          atendimentos: atual.atendimentos + 1,
-          faturadoCents: atual.faturadoCents + item.valorLiquidoCents,
+          atendimentos: atual.atendimentos + (issuedChargeIds.has(item.chargeId) ? 1 : 0),
+          faturadoCents: atual.faturadoCents + (issuedChargeIds.has(item.chargeId) ? item.valorLiquidoCents : 0),
           recebidoCents: atual.recebidoCents + item.recebidoCents,
-          emAbertoCents: atual.emAbertoCents + item.emAbertoCents,
+          emAbertoCents: atual.emAbertoCents + (issuedChargeIds.has(item.chargeId) ? item.emAbertoCents : 0),
           creditoPsicologoCents: atual.creditoPsicologoCents + item.creditoPsicologoCents,
           receitaClinicaCents: atual.receitaClinicaCents + item.receitaClinicaCents,
         });
@@ -263,7 +277,7 @@ export async function getClinicFinanceOverview(
       // extrato em alguns centavos — o suficiente para a conferência não bater.
       creditoPsicologosCents: creditoPsicologoCents,
       receitaClinicaCents,
-      provisionadoConvenioCents: somar((item) => item.custeadoPelaEmpresa ? item.emAbertoCents : 0),
+      provisionadoConvenioCents: somar((item) => item.custeadoPelaEmpresa && issuedChargeIds.has(item.chargeId) ? item.emAbertoCents : 0),
     },
     atendimentos,
     porPsicologo,

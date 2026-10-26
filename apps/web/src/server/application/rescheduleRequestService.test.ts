@@ -15,6 +15,14 @@ beforeEach(() => {
 });
 
 describe('decideRescheduleRequest', () => {
+  it('encerra pedido de sessão inativa sem enviar confirmação de horário', async () => {
+    state.decide.mockResolvedValue({ ok: true, decision: 'rejected', appointmentId: 'appt',
+      startsAt: '2026-10-21T10:00:00Z', requestSequence: 2, notifyPatient: false });
+    state.contacts.mockResolvedValue({ agendamentoId: 'appt' });
+    await expect(decideRescheduleRequest(context, 'request', 'reject')).resolves.toEqual({ appointments: [] });
+    expect(state.rejectNotice).not.toHaveBeenCalled();
+    expect(state.finish).not.toHaveBeenCalled();
+  });
   it('executa os efeitos de remarcação apenas depois do aceite persistido', async () => {
     state.decide.mockResolvedValue({ ok: true, decision: 'accepted', appointmentId: 'appt',
       previousStartsAt: '2026-10-21T10:00:00Z', startsAt: '2026-10-22T10:00:00Z', endsAt: '2026-10-22T10:50:00Z', version: 3 });

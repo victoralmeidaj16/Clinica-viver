@@ -17,6 +17,8 @@ afterEach(() => vi.useRealTimers());
 
 function mockReservations(futureMonth = false) {
   connection.query.mockImplementation(async (sql: string, values: unknown[]) => {
+    if (sql.includes('SELECT ref_core, status, vence_em')) return [
+      (values[2] as string[]).map((ref_core) => ({ ref_core, status: 'pending', vence_em: '2026-09-10T12:00:00Z' })), []];
     if (sql.includes('FROM clinica_agendamentos a')) {
       const token = String(values[1]);
       return [[{ agendamento_ref: token, inicio: futureMonth && token === 'd' ? '2026-10-10T12:00:00Z' : '2026-09-10T12:00:00Z',
@@ -103,6 +105,8 @@ describe('checkout invalidado pelo cancelamento', () => {
 describe('retomada de pagamento agrupado', () => {
   function existingGroup(provider: 'asaas' | 'inter', grouped = true) {
     connection.query.mockImplementation(async (sql: string, values: unknown[]) => {
+      if (sql.includes('SELECT ref_core, status, vence_em')) return [
+        (values[2] as string[]).map((ref_core) => ({ ref_core, status: 'pending', vence_em: '2026-09-10T12:00:00Z' })), []];
       if (sql.includes('FROM clinica_agendamentos a')) return [[{
         agendamento_ref: values[1], inicio: '2026-09-10T12:00:00Z', valor_centavos: 10000,
         organizacao_ref: 'org', paciente_ref: 'patient', profissional_ref: 'pro',
@@ -134,6 +138,21 @@ describe('retomada de pagamento agrupado', () => {
   it('recusa adicionar sessão a um grupo já emitido', async () => {
     existingGroup('inter');
     await expect(reserveAppointmentChargeBatch({ tokens: ['a', 'b', 'c'], cpf: '123' })).rejects.toThrow('grupo original');
+  });
+});
+
+describe('alteração financeira durante a montagem do grupo', () => {
+  it.each(['paid', 'partially_paid', 'cancelled'])('recusa grupo se uma cobrança ficou %s após a reserva individual', async (status) => {
+    mockReservations();
+    const query = connection.query.getMockImplementation()!;
+    connection.query.mockImplementation(async (sql: string, values: unknown[]) => {
+      if (sql.includes('SELECT ref_core, status, vence_em')) return [
+        (values[2] as string[]).map((ref_core, index) => ({ ref_core, status: index === 0 ? status : 'pending', vence_em: '2026-09-10T12:00:00Z' })), []];
+      return query(sql, values);
+    });
+    await expect(reserveAppointmentChargeBatch({ tokens: ['a', 'b'], cpf: '123' })).rejects.toThrow('alterada');
+    expect(connection.execute.mock.calls.some(([sql]) => sql.includes('INSERT INTO financeiro_checkout_cobrancas'))).toBe(false);
+    expect(connection.rollback).toHaveBeenCalled();
   });
 });
 

@@ -5,6 +5,7 @@ import { getMysqlPool, isMysqlConfigured } from '@/server/oci/runtime';
 import { MysqlFinancialRepository } from '@/server/persistence/mysql/financialRepository';
 import { instituicaoId } from '@/server/persistence/mysql/mappers';
 import { custeioDoAgendamentoSql } from '@/server/persistence/mysql/custeioSql';
+import { expireUnstartedChargeCheckouts, hasReservedChargePayment } from '@/server/payments/chargeCheckoutGuard';
 import { getApplicationStore, persistApplicationState } from './store';
 import type { RequestContext } from './context';
 import { ApplicationError } from './http';
@@ -40,6 +41,7 @@ export function validateManualPayment(body: unknown): ManualPaymentInput {
 
 async function applyManualPayment(
   repository: FinancialRepository, context: RequestContext, chargeId: string, input: ManualPaymentInput,
+  beforeSave?: () => Promise<void>,
 ) {
   const { organizationId, userId } = context.actor;
   const ledger = await repository.getLedger({ organizationId });
@@ -63,6 +65,10 @@ async function applyManualPayment(
   if (input.amountCents > receivable.outstandingAmountCents) {
     throw new ApplicationError('INVALID_AMOUNT', 'O valor recebido excede o saldo em aberto.', 400);
   }
+  if (charge.providerReference) {
+    throw new ApplicationError('INVALID_STATE', 'Esta cobrança possui pagamento externo. Conclua o cancelamento ou a conciliação antes de registrar o recebimento manual.', 409);
+  }
+  await beforeSave?.();
   const now = new Date().toISOString();
   await repository.savePayment({
     id: paymentId, chargeId, amountCents: input.amountCents, receivedAt: input.receivedAt,
@@ -121,7 +127,12 @@ export async function registerManualPayment(context: RequestContext, chargeId: s
     if (coverage.some((row) => row.custeado || row.fatura_convenio_ref)) {
       throw new ApplicationError('INVALID_STATE', 'Registre o recebimento pela fatura do convênio.', 409);
     }
-    const result = await applyManualPayment(new MysqlFinancialRepository(connection), context, chargeId, input);
+    const result = await applyManualPayment(new MysqlFinancialRepository(connection), context, chargeId, input, async () => {
+      if (await hasReservedChargePayment(connection, context.actor.organizationId, [chargeId])) {
+        throw new ApplicationError('INVALID_STATE', 'Esta cobrança possui pagamento iniciado, agrupado ou em atualização. Conclua o cancelamento ou a conciliação antes de registrar o recebimento manual.', 409);
+      }
+      await expireUnstartedChargeCheckouts(connection, context.actor.organizationId, [chargeId]);
+    });
     await connection.commit();
     return result;
   } catch (error) {

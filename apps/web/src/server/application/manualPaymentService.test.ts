@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createStaffAccessContext, InMemoryFinancialRepository, generateFinancialReports, type FinancialCharge } from '@thats-life/core';
 vi.mock('server-only', () => ({}));
 const mocks = vi.hoisted(() => ({ mysql: false, connection: {
-  beginTransaction: vi.fn(), query: vi.fn(), commit: vi.fn(), rollback: vi.fn(), release: vi.fn(),
+  beginTransaction: vi.fn(), query: vi.fn(), execute: vi.fn(), commit: vi.fn(), rollback: vi.fn(), release: vi.fn(),
 }, persist: vi.fn(), getStore: vi.fn() }));
 vi.mock('@/server/oci/runtime', () => ({ isMysqlConfigured: () => mocks.mysql,
   getMysqlPool: () => ({ getConnection: async () => mocks.connection }) }));
@@ -25,6 +25,8 @@ const body = { amountCents: 7500, expectedOutstandingCents: 7500, receivedAt: '2
 let repository: InMemoryFinancialRepository;
 beforeEach(() => {
   vi.restoreAllMocks(); vi.clearAllMocks(); mocks.mysql = false;
+  mocks.connection.query.mockReset().mockResolvedValue([[]]);
+  mocks.connection.execute.mockReset().mockResolvedValue([{ affectedRows: 1 }]);
   repository = new InMemoryFinancialRepository({ charges: [charge] });
   mocks.getStore.mockReturnValue({ financial: repository });
 });
@@ -130,5 +132,46 @@ describe('transação MySQL do recebimento', () => {
     expect(mocks.connection.commit).not.toHaveBeenCalled();
     expect(mocks.connection.rollback).toHaveBeenCalledOnce();
     expect(mocks.connection.release).toHaveBeenCalledOnce();
+  });
+  it.each(['asaas', 'inter'])('recusa baixa com checkout %s iniciado, sem registrar pagamento', async (provider) => {
+    const { payment, update } = prepare();
+    mocks.connection.query.mockImplementation(async (sql: string) => [sql.includes('FROM financeiro_checkouts_asaas')
+      ? [{ provedor: provider, provedor_pagamento_ref: 'remote-test', status: 'pending' }] : []]);
+    await expect(registerManualPayment(context, charge.id, body)).rejects.toMatchObject({ status: 409 });
+    expect(payment).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
+    expect(mocks.connection.execute).not.toHaveBeenCalled();
+    expect(mocks.connection.commit).not.toHaveBeenCalled();
+    expect(mocks.connection.rollback).toHaveBeenCalledOnce();
+  });
+  it('recusa membro de grupo mesmo sem provedor na própria cobrança', async () => {
+    const { payment, update } = prepare();
+    mocks.connection.query.mockImplementation(async (sql: string) => [sql.includes('FROM financeiro_checkout_cobrancas')
+      ? [{ referencia_externa: 'VM-group-test' }] : []]);
+    await expect(registerManualPayment(context, charge.id, body)).rejects.toMatchObject({ status: 409 });
+    expect(payment).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
+    expect(mocks.connection.commit).not.toHaveBeenCalled();
+  });
+  it('recusa pagamento em emissão antes de receber a referência externa', async () => {
+    const { payment } = prepare();
+    mocks.connection.query.mockImplementation(async (sql: string) => [sql.includes('FROM financeiro_checkouts_asaas')
+      ? [{ provedor: 'inter', provedor_pagamento_ref: null, status: 'creating' }] : []]);
+    await expect(registerManualPayment(context, charge.id, body)).rejects.toMatchObject({ status: 409 });
+    expect(payment).not.toHaveBeenCalled();
+  });
+  it('invalida checkout não iniciado na mesma transação da baixa', async () => {
+    prepare();
+    await registerManualPayment(context, charge.id, body);
+    expect(mocks.connection.execute).toHaveBeenCalledWith(
+      expect.stringContaining("status = 'expired'"), expect.arrayContaining(['org-test', charge.id]),
+    );
+    expect(mocks.connection.commit).toHaveBeenCalledOnce();
+  });
+  it('recusa referência externa legada mesmo sem checkout', async () => {
+    const { payment } = prepare();
+    await repository.saveCharge({ ...charge, providerReference: 'legacy-test' });
+    await expect(registerManualPayment(context, charge.id, body)).rejects.toMatchObject({ status: 409 });
+    expect(payment).not.toHaveBeenCalled();
   });
 });

@@ -30,7 +30,7 @@ export async function decideRescheduleRequest(
   if (result.decision === 'accepted') {
     await concluirReagendamento({ id: result.appointmentId, inicioAnterior: result.previousStartsAt,
       inicio: result.startsAt, fim: result.endsAt, versao: result.version });
-  } else {
+  } else if (result.notifyPatient !== false) {
     try {
       const contacts = await getContatosDaSessao(result.appointmentId);
       if (contacts) await avisarRecusaReagendamentoPaciente(contacts, result.requestSequence);

@@ -181,4 +181,40 @@ describe('updateAppointmentDetails', () => {
     expect(connection.execute).not.toHaveBeenCalled();
     expect(connection.rollback).toHaveBeenCalled();
   });
+
+  it('recusa transferir membro de pagamento agrupado para a empresa', async () => {
+    comAgendamento({ custeio_disponivel: 1 });
+    const query = connection.query.getMockImplementation()!;
+    connection.query.mockImplementation(async (sql, values) => {
+      if (sql.trimStart().startsWith('SELECT c.ref_core')) return [[{
+        ref_core: 'charge-member', status: 'pending', possui_pagamento: 0,
+        provedor_ref: null, provedor_pagamento_ref: null,
+      }], []];
+      if (sql.includes('FROM financeiro_checkout_cobrancas')) return [[{ referencia_externa: 'VM-group' }], []];
+      return query(sql, values);
+    });
+    expect(await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', { custeadoPelaEmpresa: true }))
+      .toBe('funding_locked');
+    expect(connection.execute).not.toHaveBeenCalled();
+    expect(connection.commit).not.toHaveBeenCalled();
+    expect(connection.rollback).toHaveBeenCalled();
+  });
+
+  it('recusa troca de custeio enquanto o pagamento está em emissão', async () => {
+    comAgendamento({ custeio_disponivel: 1 });
+    const query = connection.query.getMockImplementation()!;
+    connection.query.mockImplementation(async (sql, values) => {
+      if (sql.trimStart().startsWith('SELECT c.ref_core')) return [[{
+        ref_core: 'charge-test', status: 'pending', possui_pagamento: 0,
+      }], []];
+      if (sql.includes('FROM financeiro_checkouts_asaas')) return [[{
+        provedor: 'inter', provedor_pagamento_ref: null, status: 'creating',
+      }], []];
+      return query(sql, values);
+    });
+    expect(await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', { custeadoPelaEmpresa: true }))
+      .toBe('funding_locked');
+    expect(connection.execute).not.toHaveBeenCalled();
+    expect(connection.commit).not.toHaveBeenCalled();
+  });
 });

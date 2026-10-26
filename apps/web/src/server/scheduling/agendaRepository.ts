@@ -2,6 +2,7 @@ import 'server-only';
 import { concluirReagendamento } from './agendaReagendamentoEffects';
 
 import { resetAppointmentChargeDue } from '@/server/payments/sessionChargeDue';
+import { expireUnstartedChargeCheckouts, hasReservedChargePayment } from '@/server/payments/chargeCheckoutGuard';
 
 import { CPF_CADASTRO_SQL } from '@/server/persistence/mysql/patientCpfSql';
 import { randomUUID } from 'node:crypto';
@@ -934,10 +935,12 @@ export async function updateAppointmentDetails(
         || Boolean(charge.provedor_ref)
         || Boolean(charge.provedor_pagamento_ref)
       );
-      if (chargeLocked) {
+      const chargeIds = charges.map((charge) => String(charge.ref_core));
+      if (chargeLocked || await hasReservedChargePayment(connection, organizationId, chargeIds)) {
         await connection.rollback();
         return 'funding_locked';
       }
+      await expireUnstartedChargeCheckouts(connection, organizationId, chargeIds);
       await connection.execute(
         `UPDATE financeiro_cobrancas
             SET status = 'cancelled', atualizado_em = CURRENT_TIMESTAMP(3)

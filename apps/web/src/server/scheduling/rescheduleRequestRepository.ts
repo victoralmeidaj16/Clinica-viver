@@ -25,7 +25,7 @@ export type RequestRescheduleResult =
 
 export type DecideRescheduleResult =
   | { ok: true; decision: 'accepted'; appointmentId: string; previousStartsAt: string; startsAt: string; endsAt: string; version: number }
-  | { ok: true; decision: 'rejected'; appointmentId: string; startsAt: string; requestSequence: number }
+  | { ok: true; decision: 'rejected'; appointmentId: string; startsAt: string; requestSequence: number; notifyPatient: boolean }
   | { ok: false; reason: 'NOT_FOUND' | 'NOT_PENDING' | 'APPOINTMENT_CHANGED' | 'UNAVAILABLE' | 'EXPIRED' };
 
 function summary(row: RowDataPacket): RescheduleRequestSummary {
@@ -151,8 +151,7 @@ export async function decidePatientRescheduleRequest(
       [instituicaoId(), request.agendamento_id]
     );
     const appointment = appointments[0];
-    if (!appointment || !['agendado', 'confirmado'].includes(String(appointment.status))
-        || new Date(appointment.inicio).getTime() !== new Date(request.inicio_atual).getTime()) {
+    if (!appointment) {
       await connection.rollback(); return { ok: false, reason: 'APPOINTMENT_CHANGED' };
     }
     if (decision === 'reject') {
@@ -163,7 +162,15 @@ export async function decidePatientRescheduleRequest(
       );
       await connection.commit();
       return { ok: true, decision: 'rejected', appointmentId: String(appointment.id),
-        startsAt: new Date(appointment.inicio).toISOString(), requestSequence: Number(request.numero) };
+        startsAt: new Date(appointment.inicio).toISOString(), requestSequence: Number(request.numero),
+        notifyPatient: ['agendado', 'confirmado'].includes(String(appointment.status))
+          && new Date(appointment.inicio).getTime() > now.getTime() };
+    }
+    // Só o aceite depende de a sessão continuar no estado e horário originais.
+    // A recusa precisa liberar a pendência mesmo depois de uma edição direta.
+    if (!['agendado', 'confirmado'].includes(String(appointment.status))
+        || new Date(appointment.inicio).getTime() !== new Date(request.inicio_atual).getTime()) {
+      await connection.rollback(); return { ok: false, reason: 'APPOINTMENT_CHANGED' };
     }
     const requestedStart = new Date(request.inicio_solicitado);
     const requestedEnd = new Date(request.fim_solicitado);

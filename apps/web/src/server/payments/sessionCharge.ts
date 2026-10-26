@@ -14,13 +14,13 @@ import {
   rowId,
   toSqlTimestamp,
 } from '@/server/persistence/mysql/mappers';
-import { deleteAsaasPayment, getAsaasPayment } from '@/server/adapters/asaasAdapter';
+import { cancelRemote } from './sessionChargeCancellation';
 import {
   cancelInterPixCharge,
   getInterPixCharge,
 } from '@/server/adapters/interPixAdapter';
 import { reconcileSettledInterPixCharge } from '@/server/payments/paymentLinkRepository';
-import { isAsaasPaymentSettled, isFutureChargeDueAt } from '@/lib/chargeDue';
+import { isFutureChargeDueAt } from '@/lib/chargeDue';
 
 type ChargeOutcome = 'created' | 'existing' | 'skipped' | 'failed';
 
@@ -171,12 +171,9 @@ export async function expirarCobrancasPendentes(limit = 100): Promise<{
           if (await reconcileSettledInterPixCharge(remote)) { result.paid += 1; continue; }
           await cancelInterPixCharge(String(row.provedor_ref));
         } else {
-          try {
-            const remote = await getAsaasPayment(String(row.provedor_ref));
-            if (isAsaasPaymentSettled(remote.status)) { result.paid += 1; continue; }
-            await deleteAsaasPayment(String(row.provedor_ref));
-          } catch {
-            await deleteAsaasPayment(String(row.provedor_ref));
+          if (!await cancelRemote(provider, String(row.provedor_ref))) {
+            result.paid += 1;
+            continue;
           }
         }
       }

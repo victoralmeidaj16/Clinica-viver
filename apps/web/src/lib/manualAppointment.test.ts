@@ -9,6 +9,7 @@ import {
   monthlyRecurrenceDates,
   shiftCivilDate,
   todayAtClinic,
+  validServiceDuration,
 } from './manualAppointment';
 
 describe('agendamento manual no fuso da clínica', () => {
@@ -35,6 +36,17 @@ describe('agendamento manual no fuso da clínica', () => {
     expect(hasVariableDuration('PSICOTERAPIA')).toBe(false);
     expect(hasVariableDuration('PSICOTERAPIA_CASAL')).toBe(false);
     expect(hasVariableDuration('OUTRO_DESCONHECIDO')).toBe(false);
+  });
+
+  it('restringe a duração enviada pela API ao serviço escolhido', () => {
+    expect(validServiceDuration('AVALIACAO', 15)).toBe(true);
+    expect(validServiceDuration('AVALIACAO', 90)).toBe(true);
+    expect(validServiceDuration('AVALIACAO', 240)).toBe(true);
+    expect(validServiceDuration('AVALIACAO', 241)).toBe(false);
+    expect(validServiceDuration('PSICOTERAPIA', 90)).toBe(false);
+    expect(validServiceDuration('PSICOTERAPIA', 50)).toBe(true);
+    expect(validServiceDuration('PSICOTERAPIA_CASAL', 90)).toBe(true);
+    expect(validServiceDuration('OUTRO_DESCONHECIDO', 50)).toBe(false);
   });
 
   it('contém a lista esperada de serviços clínicos', () => {

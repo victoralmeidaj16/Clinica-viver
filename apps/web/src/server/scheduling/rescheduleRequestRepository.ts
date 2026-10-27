@@ -90,6 +90,10 @@ export async function requestPatientReschedule(
     const id = randomUUID();
     const sequence = Number(sequences[0]?.proximo ?? 1);
     const requestedEnd = new Date(slot.fim);
+    if (requestedEnd.getTime() - requestedStart.getTime()
+      !== new Date(appointment.fim).getTime() - currentStart.getTime()) {
+      await connection.rollback(); return { ok: false, reason: 'UNAVAILABLE' };
+    }
     await connection.execute(
       `INSERT INTO clinica_solicitacoes_reagendamento
         (id, instituicao_id, agendamento_id, paciente_id, profissional_id, numero,
@@ -169,7 +173,8 @@ export async function decidePatientRescheduleRequest(
     // Só o aceite depende de a sessão continuar no estado e horário originais.
     // A recusa precisa liberar a pendência mesmo depois de uma edição direta.
     if (!['agendado', 'confirmado'].includes(String(appointment.status))
-        || new Date(appointment.inicio).getTime() !== new Date(request.inicio_atual).getTime()) {
+        || new Date(appointment.inicio).getTime() !== new Date(request.inicio_atual).getTime()
+        || new Date(appointment.fim).getTime() !== new Date(request.fim_atual).getTime()) {
       await connection.rollback(); return { ok: false, reason: 'APPOINTMENT_CHANGED' };
     }
     const requestedStart = new Date(request.inicio_solicitado);

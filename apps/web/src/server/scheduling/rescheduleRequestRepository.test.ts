@@ -12,6 +12,7 @@ vi.mock('./agendaRepository', () => ({
   listAvailableSlots: vi.fn(async () => [{ inicio: '2026-10-22T15:00:00.000Z', fim: '2026-10-22T15:50:00.000Z', modalidade: 'online' }]),
 }));
 import { decidePatientRescheduleRequest, requestPatientReschedule } from './rescheduleRequestRepository';
+import { listAvailableSlots } from './agendaRepository';
 
 const patient = { patientRef: 'p-ref', patientRowId: 'p-row', nome: 'Paciente', organizationId: 'org',
   professionalId: 'pro-ref', professionalRowId: 'pro-row', professionalName: 'Psi', sessionAmountCents: 10000 };
@@ -27,7 +28,7 @@ beforeEach(() => {
     if (sql.includes('MAX(numero)')) return [[{ proximo: 1 }], []];
     if (sql.includes('FROM clinica_solicitacoes_reagendamento sr')) return [[{
       id: 'request-1', agendamento_id: 'appointment-1', profissional_row_id: 'pro-row', numero: 1,
-      status: 'pendente', inicio_atual: '2026-10-23T15:00:00.000Z',
+      status: 'pendente', inicio_atual: '2026-10-23T15:00:00.000Z', fim_atual: '2026-10-23T15:50:00.000Z',
       inicio_solicitado: '2026-10-22T15:00:00.000Z', fim_solicitado: '2026-10-22T15:50:00.000Z',
       modalidade_solicitada: 'online',
     }], []];
@@ -40,6 +41,16 @@ beforeEach(() => {
 });
 
 describe('solicitação pública de reagendamento', () => {
+  it('não permite ao paciente mudar a duração ao pedir outro horário', async () => {
+    vi.mocked(listAvailableSlots).mockResolvedValueOnce([{
+      inicio: '2026-10-22T15:00:00.000Z', fim: '2026-10-22T16:30:00.000Z',
+      dia: '2026-10-22', hora: '12:00', modalidade: 'online',
+    }]);
+    expect(await requestPatientReschedule(patient, 'appointment-1', '2026-10-22T15:00:00.000Z', new Date('2026-10-20T12:00:00Z')))
+      .toEqual({ ok: false, reason: 'UNAVAILABLE' });
+    expect(state.connection.execute).not.toHaveBeenCalled();
+  });
+
   it('grava o pedido sem alterar o agendamento', async () => {
     const result = await requestPatientReschedule(patient, 'appointment-1', '2026-10-22T15:00:00.000Z', new Date('2026-10-20T12:00:00Z'));
     expect(result.ok).toBe(true);

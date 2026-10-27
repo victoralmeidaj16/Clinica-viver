@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { applicationRequest, commandHeaders } from '@/lib/applicationApi';
 import { AppointmentFrequencyField } from './AppointmentFrequencyField';
+import { VariableDurationFields, variableDurationMinutes } from './VariableDurationFields';
 import { ManualAppointmentHeader } from './ManualAppointmentHeader';
 import { ManualAppointmentActions } from './ManualAppointmentActions';
 import {
@@ -84,7 +85,8 @@ export function ManualAppointmentDialog({
       : 'PSICOTERAPIA'
   );
   const [durationPreset, setDurationPreset] = useState<DurationPreset>(50);
-  const [customDuration, setCustomDuration] = useState('');
+  const [customHours, setCustomHours] = useState('');
+  const [customMinutes, setCustomMinutes] = useState('');
   const [date, setDate] = useState(() => todayAtClinic());
   const [time, setTime] = useState('14:00');
   const [frequency, setFrequency] = useState<AppointmentFrequency>('weekly');
@@ -99,7 +101,7 @@ export function ManualAppointmentDialog({
   const variableDuration = hasVariableDuration(serviceKey);
   const manualDuration = variableDuration && durationPreset === 'manual';
   const selectedEvaluationDuration = durationPreset === 'manual'
-    ? Number(customDuration)
+    ? variableDurationMinutes(customHours, customMinutes)
     : durationPreset;
   const durationMinutes = variableDuration
     ? selectedEvaluationDuration
@@ -245,7 +247,8 @@ export function ManualAppointmentDialog({
                 onChange={(event) => {
                   setServiceKey(event.target.value);
                   setDurationPreset(50);
-                  setCustomDuration('');
+                  setCustomHours('');
+                  setCustomMinutes('');
                 }}
                 disabled={saving || message?.kind === 'success'}
                 className="input w-full appearance-none py-3 pl-10 pr-10 text-xs font-bold"
@@ -278,24 +281,9 @@ export function ManualAppointmentDialog({
                   );
                 })}
               </div>
-              {manualDuration && (
-                <label className="mt-3 block text-xs font-bold text-ink">
-                  Duração manual (min) *
-                  <input
-                    type="number"
-                    required
-                    min={15}
-                    max={240}
-                    step={5}
-                    inputMode="numeric"
-                    placeholder="Ex.: 75"
-                    value={customDuration}
-                    onChange={(event) => setCustomDuration(event.target.value)}
-                    className="input mt-1.5 w-full py-3 text-xs font-bold"
-                  />
-                </label>
-              )}
-              <span className="mt-2 block text-[11px] font-medium text-muted">A definição manual é exclusiva do psicólogo ao registrar uma avaliação.</span>
+              {manualDuration && <VariableDurationFields hours={customHours} minutes={customMinutes}
+                onHoursChange={setCustomHours} onMinutesChange={setCustomMinutes} />}
+              <span className="mt-2 block text-[11px] font-medium text-muted">Na avaliação, psicólogo e gestão podem definir a duração de cada sessão.</span>
             </fieldset>
           )}
 

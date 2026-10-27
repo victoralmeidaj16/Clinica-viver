@@ -1,11 +1,13 @@
 'use client';
 
 import { Calendar, Clock, Globe, MapPin, CalendarDays, CheckCircle2 } from 'lucide-react';
+import { EvaluationDurationEditor } from './EvaluationDurationEditor';
 
 interface Props {
   data: string;
   hora: string;
   duracaoMin: number;
+  canEditDuration: boolean;
   modalidade: 'online' | 'presencial';
   status: StatusEdicao;
   /** Estado pendente atual da sessão: o botão da esquerda o preserva em vez de rebaixar uma confirmação. */
@@ -17,11 +19,9 @@ interface Props {
   setStatus: (value: StatusEdicao) => void;
 }
 
-const DURACOES_PADRAO = [30, 50, 60, 90];
-
 export type StatusEdicao = 'agendado' | 'confirmado' | 'realizado';
 
-export function EditSessionFields({ data, hora, duracaoMin, modalidade, status, statusPendente, setData, setHora, setDuracaoMin, setModalidade, setStatus }: Props) {
+export function EditSessionFields({ data, hora, duracaoMin, canEditDuration, modalidade, status, statusPendente, setData, setHora, setDuracaoMin, setModalidade, setStatus }: Props) {
   return <>
           {/* Data e Horário */}
           <div className="grid grid-cols-2 gap-3">
@@ -57,22 +57,10 @@ export function EditSessionFields({ data, hora, duracaoMin, modalidade, status, 
           {/* Duração & Modalidade */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-bold text-ink block mb-1">Duração</label>
-              <select
-                value={duracaoMin}
-                onChange={(e) => setDuracaoMin(Number(e.target.value))}
-                className="input text-xs font-bold w-full bg-white"
-              >
-                {/* Uma duração fora da lista (ex.: 45 min) entra como opção própria;
-                    sem ela o seletor exibiria "30 minutos" e salvaria outro valor. */}
-                {!DURACOES_PADRAO.includes(duracaoMin) && (
-                  <option value={duracaoMin}>{duracaoMin} minutos (atual)</option>
-                )}
-                <option value={30}>30 minutos</option>
-                <option value={50}>50 minutos (Padrão)</option>
-                <option value={60}>60 minutos (1 hora)</option>
-                <option value={90}>90 minutos (1h 30m)</option>
-              </select>
+              {canEditDuration
+                ? <EvaluationDurationEditor value={duracaoMin} onChange={setDuracaoMin} />
+                : <div><span className="mb-1 block text-xs font-bold text-ink">Duração</span>
+                    <p className="input flex items-center text-xs font-bold">{duracaoMin} minutos</p></div>}
             </div>
 
             <div>

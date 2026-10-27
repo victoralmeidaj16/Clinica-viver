@@ -8,6 +8,7 @@ import {
   garantirCobrancaDaSessao,
 } from '@/server/payments/sessionCharge';
 import { isFutureChargeDueAt } from '@/lib/chargeDue';
+import { validServiceDuration } from '@/lib/manualAppointment';
 import { getProfessionalAgendaProfile } from '@/server/scheduling/agendaRepository';
 
 export async function listAppointments(context: RequestContext) {
@@ -43,6 +44,7 @@ export async function createAppointmentFlow(context: RequestContext, input: Sche
   const resolvedInput: ScheduleAppointmentInput = {
     ...input,
     professionalId,
+    serviceKey: serviceKey.trim(),
   };
 
   const isManagement = context.actor.roles.some((role) => role === 'owner' || role === 'admin' || role === 'clinical_director');
@@ -53,6 +55,10 @@ export async function createAppointmentFlow(context: RequestContext, input: Sche
   if (!profile) throw new ApplicationError('NOT_FOUND', 'Perfil profissional ativo não encontrado.', 404);
   if (!isManagement && profile.servicosHabilitados.length > 0 && !profile.servicosHabilitados.includes(serviceKey.trim())) {
     throw new ApplicationError('FORBIDDEN', 'Este serviço não está habilitado para o perfil profissional.', 403);
+  }
+  const durationMinutes = (Date.parse(resolvedInput.endsAt) - Date.parse(resolvedInput.startsAt)) / 60_000;
+  if (!validServiceDuration(serviceKey.trim(), durationMinutes)) {
+    throw new ApplicationError('INVALID_INPUT', 'A duração informada não é permitida para este serviço.', 400);
   }
   const inicio = Date.parse(resolvedInput.startsAt);
   if (!Number.isFinite(inicio) || inicio <= Date.now()) {
@@ -87,6 +93,17 @@ export async function changeAppointment(context: RequestContext, id: string, bod
   const dependencies = { appointments: store.appointments, identities: store.identities };
   if (body.action === 'reschedule' && !(Date.parse(String(body.startsAt ?? '')) > Date.now())) {
     throw new ApplicationError('INVALID_INPUT', 'O novo horário deve estar no futuro.', 400);
+  }
+  if (body.action === 'reschedule') {
+    const appointment = await store.appointments.getById(context.actor.organizationId, id);
+    if (appointment) {
+      const requestedDuration = Date.parse(String(body.endsAt ?? '')) - Date.parse(String(body.startsAt ?? ''));
+      const currentDuration = Date.parse(appointment.endsAt) - Date.parse(appointment.startsAt);
+      if (requestedDuration !== currentDuration && (appointment.serviceKey !== 'AVALIACAO'
+        || !context.actor.roles.some((role) => role === 'professional' || role === 'admin' || role === 'owner'))) {
+        throw new ApplicationError('FORBIDDEN', 'A duração só pode ser alterada pelo psicólogo ou gestão em Avaliação Psicológica.', 403);
+      }
+    }
   }
   const cancelled = body.action === 'cancel'
     ? await store.appointments.getById(context.actor.organizationId, id)

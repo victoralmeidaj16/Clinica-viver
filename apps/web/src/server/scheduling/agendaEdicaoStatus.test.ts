@@ -41,6 +41,7 @@ const AGENDAMENTO = {
   fim: '2099-01-01T12:50:00Z',
   duracao_min: 50,
   modalidade: 'online',
+  servico_key: null,
 };
 
 /** Primeira consulta devolve o agendamento; as seguintes (conflitos, bloqueios) vêm vazias. */
@@ -135,6 +136,32 @@ describe('updateAppointmentDetails', () => {
     expect(agendamentoSql).toContain('UPDATE clinica_agendamentos');
     expect(agendamentoSql).not.toContain('status = ?');
     expect(connection.commit).toHaveBeenCalled();
+  });
+
+  it('impede mudar a duração de psicoterapia e de sessões sem serviço registrado', async () => {
+    expect(await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', {
+      startsAt: '2099-02-01T12:00:00Z', endsAt: '2099-02-01T13:30:00Z',
+    })).toBe('duration_locked');
+    expect(connection.commit).not.toHaveBeenCalled();
+    comAgendamento({ servico_key: 'PSICOTERAPIA' });
+    expect(await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', {
+      startsAt: '2099-02-01T12:00:00Z', endsAt: '2099-02-01T13:30:00Z',
+    })).toBe('duration_locked');
+  });
+
+  it('permite duração variável apenas na avaliação', async () => {
+    comAgendamento({ servico_key: 'AVALIACAO' });
+    expect(await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', {
+      startsAt: '2099-02-01T12:00:00Z', endsAt: '2099-02-01T13:30:00Z',
+    }, { podeAlterarDuracao: true })).toBe('ok');
+    expect(connection.commit).toHaveBeenCalledOnce();
+  });
+
+  it('recusa a duração variável sem papel de psicólogo ou gestão', async () => {
+    comAgendamento({ servico_key: 'AVALIACAO' });
+    expect(await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', {
+      startsAt: '2099-02-01T12:00:00Z', endsAt: '2099-02-01T13:30:00Z',
+    })).toBe('duration_locked');
   });
 
   it('reagenda a cobrança pela coluna que existe no esquema', async () => {

@@ -71,6 +71,11 @@ function identities() {
 }
 
 describe('appointment aggregate', () => {
+  it('preserva o serviço escolhido ao criar a sessão', () => {
+    const appointment = scheduleAppointment(input({ serviceKey: 'AVALIACAO' }), metadata('2026-08-01T10:00:00.000Z')).appointment;
+    expect(appointment.serviceKey).toBe('AVALIACAO');
+  });
+
   it('agenda, confirma, reagenda e cancela preservando o ciclo válido', () => {
     let appointment = scheduleAppointment(input(), metadata('2026-08-01T10:00:00.000Z')).appointment;
     appointment = confirmAppointment(appointment, metadata('2026-08-01T10:01:00.000Z')).appointment;

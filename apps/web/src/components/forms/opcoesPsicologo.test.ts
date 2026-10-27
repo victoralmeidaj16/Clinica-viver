@@ -17,7 +17,6 @@ describe('opcoesAtendimentoDaPos', () => {
     'Formação e Pós-graduação em Psicodrama',
     'Formação e Pós-graduação em Psicologia Existencialista Clínica',
     'Formação e Pós-graduação em Psicologia Junguiana Clínica',
-    'Pós-graduação em Psicologia Perinatal e Parentalidade',
     'Pós-graduação em Psicoterapia da Sexualidade',
     'Formação e Pós-graduação em Terapia Cognitivo-Comportamental',
     'Pós-graduação em Terapias Cognitivo-Comportamentais de Terceira Geração',
@@ -35,6 +34,7 @@ describe('opcoesAtendimentoDaPos', () => {
   });
 
   it.each([
+    'Pós-graduação em Psicologia Perinatal e Parentalidade',
     'Pós-graduação em Psicoterapia de Casal e Família',
     'Pós-graduação em Psicoterapia Infantil e de Adolescentes',
   ])('restringe %s às modalidades definidas pela coordenação', (curso) => {
@@ -49,10 +49,19 @@ describe('opcoesAtendimentoDaPos', () => {
     });
   });
 
-  it('mantém a lista ampla quando Perinatal é a segunda pós', () => {
+  it('aplica o grupo restrito quando Perinatal é a segunda pós', () => {
     expect(opcoesAtendimentoDaPos(
       'Pós-graduação em Psicoterapia de Casal e Família',
       'Pós-graduação em Psicologia Perinatal e Parentalidade',
+    )).toEqual({ tempos: [50, 90], servicos: [
+      'Atendimento Psicológico', 'Orientação Parental', 'Orientação Vocacional e Profissional',
+    ], publico: publicoAmplo });
+  });
+
+  it('preserva o grupo amplo quando outra pós pertence a ele', () => {
+    expect(opcoesAtendimentoDaPos(
+      'Pós-graduação em Psicologia Perinatal e Parentalidade',
+      'Programa de Estudos e Pós-graduação em Psicanálise',
     )).toEqual({ tempos: [50, 90], servicos: servicosAmplos, publico: publicoAmplo });
   });
 

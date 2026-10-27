@@ -23,7 +23,7 @@ import {
 
 const AGENDAMENTO_SELECT = `
   SELECT a.ref_core, o.ref_core AS organizacao_ref, pa.ref_core AS paciente_ref,
-         pr.ref_core AS profissional_ref, a.inicio, a.fim, a.duracao_min, a.timezone, a.modalidade,
+         pr.ref_core AS profissional_ref, a.inicio, a.fim, a.duracao_min, a.timezone, a.modalidade, a.servico_key,
          a.status, a.recorrencia, a.cancelado_codigo, a.sessao_clinica_ref, a.versao,
          a.criado_em, a.atualizado_em
     FROM clinica_agendamentos a
@@ -223,13 +223,13 @@ export class MysqlAppointmentRepository implements AppointmentRepository {
     await connection.execute(
       `INSERT INTO clinica_agendamentos
          (id, instituicao_id, ref_core, organizacao_id, paciente_id, profissional_id, inicio, fim,
-          timezone, duracao_min, modalidade, recorrencia, status, cancelado_codigo, sessao_clinica_ref,
+          timezone, duracao_min, modalidade, servico_key, recorrencia, status, cancelado_codigo, sessao_clinica_ref,
           token_pagamento_sessao, origem_criacao, versao, criado_em, atualizado_em)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                LOWER(REPLACE(UUID(), '-', '')), 'profissional', ?, ?, ?)
        ON DUPLICATE KEY UPDATE
          inicio = VALUES(inicio), fim = VALUES(fim), timezone = VALUES(timezone),
-         duracao_min = VALUES(duracao_min), modalidade = VALUES(modalidade),
+         duracao_min = VALUES(duracao_min), modalidade = VALUES(modalidade), servico_key = VALUES(servico_key),
          recorrencia = VALUES(recorrencia), status = VALUES(status),
          cancelado_codigo = VALUES(cancelado_codigo), sessao_clinica_ref = VALUES(sessao_clinica_ref),
          versao = VALUES(versao), atualizado_em = VALUES(atualizado_em)`,
@@ -245,6 +245,7 @@ export class MysqlAppointmentRepository implements AppointmentRepository {
         appointment.timezone,
         duracaoMin,
         toModalidade(appointment.mode),
+        appointment.serviceKey ?? null,
         appointment.recurrence ? JSON.stringify(appointment.recurrence) : null,
         toAgendamentoStatus(appointment.status),
         appointment.cancellationReasonCode ?? null,

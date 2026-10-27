@@ -2,6 +2,8 @@
 
 **Data:** 23 de outubro de 2026
 
+**Revisão de 27 de outubro de 2026:** Psicologia Perinatal e Parentalidade passou ao grupo restrito. O plano de 23 de outubro registra a regra anterior.
+
 ## Objetivo
 
 Garantir que o credenciamento do psicólogo, a vitrine pública, a triagem, a escolha direta de profissional, o rodízio e o agendamento interno usem as mesmas regras de serviço, público e duração. A vitrine preserva seus rótulos simples para o paciente, mas a compatibilidade deve ser calculada a partir da tabela oficial das pós-graduações.
@@ -16,7 +18,6 @@ Cursos:
 - Formação e Pós-graduação em Psicodrama;
 - Formação e Pós-graduação em Psicologia Existencialista Clínica;
 - Formação e Pós-graduação em Psicologia Junguiana Clínica;
-- Pós-graduação em Psicologia Perinatal e Parentalidade;
 - Pós-graduação em Psicoterapia da Sexualidade;
 - Formação e Pós-graduação em Terapia Cognitivo-Comportamental;
 - Pós-graduação em Terapias Cognitivo-Comportamentais de Terceira Geração;
@@ -30,12 +31,11 @@ Regras:
 - tempos cadastráveis: 50 e 90 minutos;
 - públicos: Criança, Adolescente, Homens, Idoso, Casais, Família, Mulheres, Grupo e Outro.
 
-Psicologia Perinatal e Parentalidade pertence somente ao grupo amplo.
-
 ### Grupo restrito
 
 Cursos:
 
+- Pós-graduação em Psicologia Perinatal e Parentalidade;
 - Pós-graduação em Psicoterapia de Casal e Família;
 - Pós-graduação em Psicoterapia Infantil e de Adolescentes.
 
@@ -138,7 +138,7 @@ Registros antigos com `Individual`, `Infantil`, singular/plural ou acentuação 
 ## Testes e critérios de aceitação
 
 - Cada curso retorna exatamente serviços, tempos e públicos definidos nesta especificação.
-- Perinatal permanece no grupo amplo, inclusive quando aparece como segunda pós.
+- Perinatal recebe as opções do grupo restrito, inclusive quando aparece como segunda pós sem curso do grupo amplo.
 - Avaliação e Neuropsicologia retornam somente Avaliação Psicológica e os cinco públicos autorizados.
 - `Infantil` encontra profissionais com público `Criança`.
 - `Individual` encontra profissionais com `Homens`, `Mulheres` ou `Idoso`, mas não perfis exclusivos de Casais, Família ou Grupo.

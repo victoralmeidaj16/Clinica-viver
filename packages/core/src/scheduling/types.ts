@@ -30,6 +30,7 @@ export interface Appointment {
   endsAt: string;
   timezone: string;
   mode: AppointmentMode;
+  serviceKey?: string;
   status: AppointmentStatus;
   reminders: readonly AppointmentReminder[];
   recurrence?: AppointmentRecurrence;

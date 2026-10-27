@@ -21,6 +21,7 @@ export interface AgendamentoResumo {
   inicio: string;
   fim: string;
   modalidade: 'presencial' | 'online' | 'telefone';
+  serviceKey?: string;
   status: string;
   origem: string;
   criadoEm: string;

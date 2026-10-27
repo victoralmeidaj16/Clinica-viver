@@ -70,6 +70,7 @@ export interface AgendamentoResumo {
   inicio: string;
   fim: string;
   modalidade: 'presencial' | 'online' | 'telefone';
+  serviceKey?: string;
   status: string;
   origem: string;
   criadoEm: string;
@@ -423,7 +424,7 @@ export async function listAppointments(
   const connection = await getMysqlPool().getConnection();
   try {
     const [rows] = await connection.query<RowDataPacket[]>(
-      `SELECT a.id, a.ref_core AS agendamento_ref, pa.ref_core AS paciente_ref, a.inicio, a.fim, a.duracao_min, a.modalidade, a.status,
+      `SELECT a.id, a.ref_core AS agendamento_ref, pa.ref_core AS paciente_ref, a.inicio, a.fim, a.duracao_min, a.modalidade, a.servico_key, a.status,
               a.sessao_clinica_ref,
               a.origem_criacao, a.criado_em, a.realizado_em, a.token_pagamento_sessao,
               COALESCE(pa.nome_social, pa.nome) AS paciente_nome,
@@ -481,6 +482,7 @@ export async function listAppointments(
         inicio: new Date(row.inicio).toISOString(),
         fim: fim.toISOString(),
         modalidade: row.modalidade,
+        serviceKey: row.servico_key ? String(row.servico_key) : undefined,
         status,
         origem: String(row.origem_criacao),
         criadoEm: new Date(row.criado_em).toISOString(),
@@ -721,7 +723,7 @@ export async function rescheduleAppointmentProfessional(
   appointmentId: string,
   startsAtIso: string,
   endsAtIso: string
-): Promise<'ok' | 'not_found' | 'conflict' | 'invalid'> {
+): Promise<'ok' | 'not_found' | 'conflict' | 'invalid' | 'duration_locked'> {
   const novoInicio = new Date(startsAtIso);
   const novoFim = new Date(endsAtIso);
   if (!Number.isFinite(novoInicio.getTime()) || !Number.isFinite(novoFim.getTime())
@@ -731,7 +733,7 @@ export async function rescheduleAppointmentProfessional(
     await connection.beginTransaction();
 
     const [rows] = await connection.query<RowDataPacket[]>(
-      `SELECT a.id, a.ref_core, a.profissional_id, a.inicio, a.versao
+      `SELECT a.id, a.ref_core, a.profissional_id, a.inicio, a.fim, a.duracao_min, a.versao
          FROM clinica_agendamentos a
          JOIN clinica_profissionais p ON p.id = a.profissional_id
          JOIN clinica_organizacoes o ON o.id = p.organizacao_id
@@ -744,6 +746,13 @@ export async function rescheduleAppointmentProfessional(
     if (!agendamento) {
       await connection.rollback();
       return 'not_found';
+    }
+    const duracaoAtual = agendamento.fim
+      ? (new Date(agendamento.fim).getTime() - new Date(agendamento.inicio).getTime()) / 60_000
+      : Number(agendamento.duracao_min);
+    if ((novoFim.getTime() - novoInicio.getTime()) / 60_000 !== duracaoAtual) {
+      await connection.rollback();
+      return 'duration_locked';
     }
 
     const [conflitos] = await connection.query<RowDataPacket[]>(
@@ -827,10 +836,13 @@ export type ResultadoEdicaoAgendamento =
   /** Sessão cancelada não volta por edição: a cobrança dela já foi cancelada. */
   | 'cancelled_locked'
   /** Mover a sessão para um horário que já passou: o paciente seria avisado de uma remarcação impossível. */
-  | 'past_start';
+  | 'past_start'
+  | 'duration_locked'
+  | 'invalid_duration';
 
 export interface UpdateAppointmentOptions {
   somenteAgendadas?: boolean;
+  podeAlterarDuracao?: boolean;
   /**
    * O chamador vai concluir o atendimento logo depois desta edição.
    *
@@ -859,7 +871,7 @@ export async function updateAppointmentDetails(
 
     const [rows] = await connection.query<RowDataPacket[]>(
       `SELECT a.id, a.ref_core, a.profissional_id, a.status, a.inicio, a.fim, a.duracao_min, a.versao,
-              a.modalidade, a.sessao_clinica_ref, a.custeado_pela_empresa,
+              a.modalidade, a.servico_key, a.sessao_clinica_ref, a.custeado_pela_empresa,
               ${custeioEfetivoSql({ paciente: 'pa', convenio: 'conv', agendamento: 'a', referencia: 'a.inicio' })}
                 AS custeio_disponivel
          FROM clinica_agendamentos a
@@ -959,7 +971,19 @@ export async function updateAppointmentDetails(
       novoInicio = new Date(input.startsAt);
       if (input.endsAt) {
         novoFim = new Date(input.endsAt);
-        novoDuracao = Math.round((novoFim.getTime() - novoInicio.getTime()) / 60_000);
+        const duracao = (novoFim.getTime() - novoInicio.getTime()) / 60_000;
+        if (!Number.isInteger(duracao) || duracao < 15 || duracao > 240) {
+          await connection.rollback();
+          return 'invalid_duration';
+        }
+        const duracaoAtual = agendamento.fim
+          ? (new Date(agendamento.fim).getTime() - new Date(agendamento.inicio).getTime()) / 60_000
+          : Number(agendamento.duracao_min);
+        if (duracao !== duracaoAtual && (agendamento.servico_key !== 'AVALIACAO' || !opcoes.podeAlterarDuracao)) {
+          await connection.rollback();
+          return 'duration_locked';
+        }
+        novoDuracao = duracao;
       } else {
         novoFim = new Date(novoInicio.getTime() + novoDuracao * 60_000);
       }

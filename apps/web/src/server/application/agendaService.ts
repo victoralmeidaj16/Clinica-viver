@@ -340,6 +340,7 @@ export async function rescheduleAgendaAppointment(
   );
 
   if (outcome === 'invalid') throw new ApplicationError('INVALID_INPUT', 'O término deve ser posterior ao início.', 400);
+  if (outcome === 'duration_locked') throw new ApplicationError('FORBIDDEN', 'Reagendar mantém a duração atual da sessão.', 403);
   if (outcome === 'not_found') {
     throw new ApplicationError('NOT_FOUND', 'Agendamento não encontrado.', 404);
   }
@@ -382,7 +383,9 @@ export async function editAgendaAppointment(
     professionalId,
     appointmentId,
     querRealizar ? { ...input, status: undefined } : input,
-    { concluirDepois: querRealizar, ...opcoes }
+    { concluirDepois: querRealizar,
+      podeAlterarDuracao: context.actor.roles.some((role) => role === 'professional' || role === 'admin' || role === 'owner'),
+      ...opcoes }
   );
 
   if (outcome === 'not_found') {
@@ -393,6 +396,12 @@ export async function editAgendaAppointment(
   }
   if (outcome === 'past_start') {
     throw new ApplicationError('INVALID_INPUT', 'O novo horário deve estar no futuro.', 400);
+  }
+  if (outcome === 'duration_locked') {
+    throw new ApplicationError('FORBIDDEN', 'A duração só pode ser alterada em Avaliação Psicológica.', 403);
+  }
+  if (outcome === 'invalid_duration') {
+    throw new ApplicationError('INVALID_INPUT', 'A duração deve ficar entre 15 e 240 minutos.', 400);
   }
   if (outcome === 'completed_locked') {
     throw new ApplicationError(

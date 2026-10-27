@@ -34,7 +34,6 @@ const POS_COM_OPCOES_AMPLAS_DE_ATENDIMENTO: readonly string[] = [
   'Formação e Pós-graduação em Psicodrama',
   'Formação e Pós-graduação em Psicologia Existencialista Clínica',
   'Formação e Pós-graduação em Psicologia Junguiana Clínica',
-  'Pós-graduação em Psicologia Perinatal e Parentalidade',
   'Pós-graduação em Psicoterapia da Sexualidade',
   'Formação e Pós-graduação em Terapia Cognitivo-Comportamental',
   'Pós-graduação em Terapias Cognitivo-Comportamentais de Terceira Geração',
@@ -44,6 +43,7 @@ const POS_COM_OPCOES_AMPLAS_DE_ATENDIMENTO: readonly string[] = [
 ];
 
 const POS_COM_OPCOES_RESTRITAS_DE_ATENDIMENTO: readonly string[] = [
+  'Pós-graduação em Psicologia Perinatal e Parentalidade',
   'Pós-graduação em Psicoterapia de Casal e Família',
   'Pós-graduação em Psicoterapia Infantil e de Adolescentes',
 ];
@@ -98,8 +98,8 @@ export const PUBLICO_ALVO: readonly string[] = [
 /**
  * Regras de atendimento supervisionado por pós-graduação.
  *
- * Psicologia Perinatal e Parentalidade integra os dois agrupamentos recebidos
- * da coordenação. A configuração ampla tem precedência, conforme definido.
+ * Psicologia Perinatal e Parentalidade pertence ao grupo restrito. Quando há
+ * uma segunda pós do grupo amplo, a configuração ampla tem precedência.
  */
 export function opcoesAtendimentoDaPos(
   posGraduacao?: string,

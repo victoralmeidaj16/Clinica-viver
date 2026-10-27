@@ -436,9 +436,12 @@ export function CadastroPsicologoForm({
                 <span>{label}</span>
               </label>;
             })}
+            {permiteDuracaoVariavel && <span className="flex items-center gap-2 rounded-xl border border-purple-400 bg-purple-50 p-2.5 font-bold text-purple-950">
+              <span aria-hidden="true">✓</span> Variável
+            </span>}
           </div>
           {permiteDuracaoVariavel && (
-            <p className="text-xs text-slate-600">Duração variável: informe os minutos manualmente ao agendar cada avaliação.</p>
+            <p className="text-xs text-slate-600"><strong>Variável</strong> — disponível para Avaliação Psicológica. Informe horas e minutos ao agendar cada sessão.</p>
           )}
         </div>
 

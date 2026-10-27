@@ -71,7 +71,7 @@ describe('editAgendaAppointment', () => {
     await expect(editAgendaAppointment(authorized, 'apt-1', { custeadoPelaEmpresa: true }))
       .resolves.toEqual({ appointments: [] });
     expect(updateAppointmentDetails).toHaveBeenCalledWith(
-      'org-1', 'pro-1', 'apt-1', { custeadoPelaEmpresa: true }, { concluirDepois: false }
+      'org-1', 'pro-1', 'apt-1', { custeadoPelaEmpresa: true }, { concluirDepois: false, podeAlterarDuracao: true }
     );
   });
 
@@ -88,7 +88,7 @@ describe('editAgendaAppointment', () => {
       { startsAt: '2026-09-01T12:00:00.000Z', status: undefined },
       // A edição avisa que vai concluir, para a validação do término acontecer
       // dentro da mesma transação que grava o horário.
-      { concluirDepois: true }
+      { concluirDepois: true, podeAlterarDuracao: true }
     );
     expect(completeAppointment).toHaveBeenCalledWith('org-1', 'pro-1', 'apt-1');
   });
@@ -135,7 +135,7 @@ describe('editAgendaAppointment', () => {
       'pro-1',
       'apt-1',
       { startsAt: '2026-10-01T12:00:00.000Z', custeadoPelaEmpresa: false },
-      { concluirDepois: false }
+      { concluirDepois: false, podeAlterarDuracao: true }
     );
     expect(garantirCobrancaDaSessao).toHaveBeenCalledWith(
       'apt-1',

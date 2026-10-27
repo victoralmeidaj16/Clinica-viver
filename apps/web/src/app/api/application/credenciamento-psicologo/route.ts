@@ -198,8 +198,13 @@ export async function POST(request: Request) {
     const temposAtendimento = Array.isArray(body.temposAtendimento)
       ? body.temposAtendimento.filter((tempo: unknown): tempo is number => tempo === 50 || tempo === 90)
       : [];
+    const publicoAlvo: unknown[] = Array.isArray(body.publicoAlvo) ? body.publicoAlvo : [];
     if (opcoesAtendimento && (servicosPrestados.length === 0 || temposAtendimento.length === 0)) {
       return NextResponse.json({ success: false, error: 'Selecione uma modalidade e um tempo de atendimento.' }, { status: 400 });
+    }
+    if (opcoesAtendimento && (publicoAlvo.length === 0 || publicoAlvo.some((publico) =>
+      typeof publico !== 'string' || !opcoesAtendimento.publico.includes(publico)))) {
+      return NextResponse.json({ success: false, error: 'Selecione apenas os públicos permitidos para a pós-graduação.' }, { status: 400 });
     }
 
     // A prova do aceite é apurada aqui, não no navegador: data e hora do
@@ -232,7 +237,7 @@ export async function POST(request: Request) {
       turnosDisponiveis,
       servicosPrestados,
       temposAtendimento: temposAtendimento.length > 0 ? temposAtendimento : undefined,
-      publicoAlvo: Array.isArray(body.publicoAlvo) ? body.publicoAlvo : [],
+      publicoAlvo: publicoAlvo as string[],
       publicoAlvoOutro: body.publicoAlvoOutro || undefined,
       especificarNecessidades: Boolean(body.especificarNecessidades),
       necessidadesAtendidas: Array.isArray(body.necessidadesAtendidas) ? body.necessidadesAtendidas : [],

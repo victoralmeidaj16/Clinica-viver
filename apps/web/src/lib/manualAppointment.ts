@@ -72,6 +72,14 @@ export function hasVariableDuration(serviceKey: string): boolean {
   return CLINICAL_SERVICES.some((item) => item.key === serviceKey && item.variableDuration);
 }
 
+export function validServiceDuration(serviceKey: string, durationMinutes: number): boolean {
+  if (!CLINICAL_SERVICES.some((item) => item.key === serviceKey)) return false;
+  if (!Number.isInteger(durationMinutes)) return false;
+  return hasVariableDuration(serviceKey)
+    ? durationMinutes >= 15 && durationMinutes <= 240
+    : durationMinutes === getServiceDuration(serviceKey);
+}
+
 function addCivilDays(date: string, days: number): string {
   if (!LOCAL_DATE.test(date)) throw new Error('Informe uma data válida.');
   const [year, month, day] = date.split('-').map(Number);

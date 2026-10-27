@@ -13,7 +13,7 @@ const JOINS = `FROM clinica_agendamentos a
 
 export async function listarAgendaGestao(organizationId: string, busca: string, pagina: number) {
   const [rows] = await getMysqlPool().query<RowDataPacket[]>(
-    `SELECT a.id, a.inicio, a.fim, a.modalidade, a.status,
+    `SELECT a.id, a.inicio, a.fim, a.modalidade, a.servico_key, a.status,
       COALESCE(pa.nome_social, pa.nome) AS paciente_nome, pr.nome AS profissional_nome,
       conv.nome AS convenio_nome,
       ${custeioDoAgendamentoSql({ agendamento: 'a', paciente: 'pa', convenio: 'conv' })} AS custeado
@@ -34,6 +34,7 @@ export async function listarAgendaGestao(organizationId: string, busca: string, 
       id: String(row.id), pacienteNome: String(row.paciente_nome), profissionalNome: String(row.profissional_nome),
       inicio: new Date(row.inicio).toISOString(), fim: new Date(row.fim).toISOString(),
       modalidade: row.modalidade as 'online' | 'presencial' | 'telefone', status: String(row.status),
+      serviceKey: row.servico_key ? String(row.servico_key) : undefined,
       convenioNome: row.convenio_nome ? String(row.convenio_nome) : undefined,
       custeadoPelaEmpresa: Boolean(row.custeado),
     })),

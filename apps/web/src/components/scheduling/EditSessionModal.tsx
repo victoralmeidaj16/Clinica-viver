@@ -20,6 +20,7 @@ export interface SessionEditableData {
   inicio: string;
   fim?: string;
   modalidade?: 'online' | 'presencial' | 'telefone';
+  serviceKey?: string;
   status?: string;
   custeadoPelaEmpresa?: boolean;
   convenioNome?: string;
@@ -121,6 +122,10 @@ function FormularioEdicao({
       setError('O novo horário deve estar no futuro.');
       return;
     }
+    if (!Number.isInteger(duracaoMin) || duracaoMin < 15 || duracaoMin > 240) {
+      setError('Informe a duração entre 15 e 240 minutos.');
+      return;
+    }
 
     const endsAtDate = new Date(startsAtDate.getTime() + duracaoMin * 60_000);
     const endsAtIso = endsAtDate.toISOString();
@@ -216,7 +221,7 @@ function FormularioEdicao({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <EditSessionFields
-            data={data} hora={hora} duracaoMin={duracaoMin} modalidade={modalidade} status={status} statusPendente={statusPendente}
+            data={data} hora={hora} duracaoMin={duracaoMin} canEditDuration={session.serviceKey === 'AVALIACAO'} modalidade={modalidade} status={status} statusPendente={statusPendente}
             setData={setData} setHora={setHora} setDuracaoMin={setDuracaoMin} setModalidade={setModalidade} setStatus={setStatus}
           />
 

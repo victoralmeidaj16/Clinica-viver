@@ -484,9 +484,12 @@ export default function MeuCadastroPage() {
                     {tempo === 90 ? '1h30min' : '50min'}
                   </label>
                 ))}
+                {opcoesAtendimentoDaPos(cadastro.posGraduacaoViverMais, cadastro.segundaPosGraduacao)?.servicos.includes('Avaliação Psicológica') && (
+                  <span className={chipClasse(true)}><span aria-hidden="true">✓</span> Variável</span>
+                )}
               </div>
               {opcoesAtendimentoDaPos(cadastro.posGraduacaoViverMais, cadastro.segundaPosGraduacao)?.servicos.includes('Avaliação Psicológica') && (
-                <p className="mt-2 text-[11px] text-muted">Duração variável: informe os minutos manualmente ao agendar cada avaliação.</p>
+                <p className="mt-2 text-[11px] text-muted"><strong>Variável</strong> — disponível para Avaliação Psicológica. Informe horas e minutos ao agendar cada sessão.</p>
               )}
             </div>
           )}
@@ -631,7 +634,10 @@ export default function MeuCadastroPage() {
                   )}
                 </div>
                 <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Público que atendo</p><Chips itens={[...(cadastro.publicoAlvo ?? []), ...(cadastro.publicoAlvoOutro ? [cadastro.publicoAlvoOutro] : [])]} /></div>
-                {cadastro.temposAtendimento?.length ? <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Tempo de atendimento</p><Chips itens={cadastro.temposAtendimento.map((tempo) => tempo === 90 ? '1h30min' : '50min')} /></div> : null}
+                {cadastro.temposAtendimento?.length ? <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Tempo de atendimento</p><Chips itens={[
+                  ...cadastro.temposAtendimento.map((tempo) => tempo === 90 ? '1h30min' : '50min'),
+                  ...(opcoesAtendimentoDaPos(cadastro.posGraduacaoViverMais, cadastro.segundaPosGraduacao)?.servicos.includes('Avaliação Psicológica') ? ['Variável'] : []),
+                ]} /></div> : null}
                 {(cadastro.especificarNecessidades || cadastro.necessidadesAtendidas?.length || cadastro.necessidadesOutro) && (
                   <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Demandas específicas</p><Chips itens={[...(cadastro.necessidadesAtendidas ?? []), ...(cadastro.necessidadesOutro ? [cadastro.necessidadesOutro] : [])]} /></div>
                 )}

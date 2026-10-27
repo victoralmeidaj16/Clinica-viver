@@ -25,9 +25,9 @@ describe('custeioEfetivoSql', () => {
 
   it('o ciclo mensal recorta a contagem pela competência de referência', () => {
     expect(sql).toContain("pa.custeio_sessoes_ciclo <> 'mensal'");
-    expect(sql).toContain("DATE_FORMAT(CURRENT_TIMESTAMP(3), '%Y-%m')");
+    expect(sql).toContain("DATE_FORMAT(CONVERT_TZ(CURRENT_TIMESTAMP(3), '+00:00', '-03:00'), '%Y-%m')");
     expect(custeioEfetivoSql({ paciente: 'pa', convenio: 'conv', referencia: 'a.inicio' }))
-      .toContain("DATE_FORMAT(a.inicio, '%Y-%m')");
+      .toContain("DATE_FORMAT(CONVERT_TZ(a.inicio, '+00:00', '-03:00'), '%Y-%m')");
   });
 });
 
@@ -39,7 +39,7 @@ describe('custeioDoAgendamentoSql', () => {
   });
 
   it('e o ciclo mensal passa a ser o da própria sessão', () => {
-    expect(sql).toContain("DATE_FORMAT(a.inicio, '%Y-%m')");
+    expect(sql).toContain("DATE_FORMAT(CONVERT_TZ(a.inicio, '+00:00', '-03:00'), '%Y-%m')");
   });
 
   it('reserva saldo apenas para sessões anteriores elegíveis, com desempate estável', () => {

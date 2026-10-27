@@ -13,18 +13,9 @@ import { clinicDateTimeToIso } from '@/lib/manualAppointment';
 import { applicationRequest } from '@/lib/applicationApi';
 import { EditSessionFields, type StatusEdicao } from './EditSessionFields';
 import { SessionPayerField } from './SessionPayerField';
+import { camposIniciais, type SessionEditableData } from './editSessionModel';
 
-export interface SessionEditableData {
-  id: string;
-  pacienteNome: string;
-  inicio: string;
-  fim?: string;
-  modalidade?: 'online' | 'presencial' | 'telefone';
-  serviceKey?: string;
-  status?: string;
-  custeadoPelaEmpresa?: boolean;
-  convenioNome?: string;
-}
+export type { SessionEditableData } from './editSessionModel';
 
 interface Props {
   admin?: boolean;
@@ -39,37 +30,6 @@ const FORMATTER = new Intl.DateTimeFormat('pt-BR', {
   timeStyle: 'short',
   timeZone: 'America/Sao_Paulo',
 });
-
-function camposIniciais(session: SessionEditableData) {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'America/Sao_Paulo',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hourCycle: 'h23',
-    })
-      .formatToParts(new Date(session.inicio))
-      .map((p) => [p.type, p.value])
-  );
-  const dur = session.fim
-    ? Math.round((new Date(session.fim).getTime() - new Date(session.inicio).getTime()) / 60_000)
-    : 50;
-  return {
-    data: `${parts.year}-${parts.month}-${parts.day}`,
-    hora: `${parts.hour}:${parts.minute}`,
-    duracaoMin: dur > 0 ? dur : 50,
-    modalidade: session.modalidade === 'presencial' ? ('presencial' as const) : ('online' as const),
-    status:
-      session.status === 'realizado' || session.status === 'completed'
-        ? ('realizado' as const)
-        : session.status === 'confirmado'
-          ? ('confirmado' as const)
-          : ('agendado' as const),
-  };
-}
 
 export function EditSessionModal({ session, isOpen, onClose, onSaved, admin = false }: Props) {
   if (!isOpen || !session) return null;
@@ -92,7 +52,7 @@ function FormularioEdicao({
   const [data, setData] = useState(iniciais.data);
   const [hora, setHora] = useState(iniciais.hora);
   const [duracaoMin, setDuracaoMin] = useState(iniciais.duracaoMin);
-  const [modalidade, setModalidade] = useState<'online' | 'presencial'>(iniciais.modalidade);
+  const [modalidade, setModalidade] = useState<'online' | 'presencial' | 'telefone'>(iniciais.modalidade);
   const [status, setStatus] = useState<StatusEdicao>(iniciais.status);
   const [pagadorEmpresa, setPagadorEmpresa] = useState(Boolean(session.custeadoPelaEmpresa));
   const [loading, setLoading] = useState(false);
@@ -139,8 +99,11 @@ function FormularioEdicao({
           method: 'PATCH',
           body: JSON.stringify({
             action: 'edit',
-            startsAt: startsAtIso,
-            endsAt: endsAtIso,
+            startsAt: horarioMudou || duracaoMin !== iniciais.duracaoMin ? startsAtIso : undefined,
+            endsAt: horarioMudou || duracaoMin !== iniciais.duracaoMin ? endsAtIso : undefined,
+            expectedStartsAt: session.inicio,
+            expectedEndsAt: session.fim,
+            expectedVersion: session.versao,
             modalidade: modalidade === iniciais.modalidade ? undefined : modalidade,
             custeadoPelaEmpresa: admin && session.convenioNome && pagadorEmpresa !== Boolean(session.custeadoPelaEmpresa)
               ? pagadorEmpresa : undefined,

@@ -3,6 +3,8 @@ import 'server-only';
 import type { Pool, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { getMysqlPool, isMysqlConfigured } from '@/server/oci/runtime';
 import { instituicaoId, rowId } from '@/server/persistence/mysql/mappers';
+import { ambienteNfse } from './sefinNacional';
+import { parseNfseXml } from './nfseXmlView';
 
 export type StatusEmissaoNfse = 'reserved' | 'processing' | 'issued' | 'failed' | 'cancelled';
 export type StatusEnvioEmailNfse = 'sending' | 'sent' | 'failed';
@@ -152,8 +154,8 @@ export class NfseRepository {
   ): Promise<ReadonlyMap<string, EmissaoNfse>> {
     if (chargeIds.length === 0) return new Map();
     const [rows] = await this.pool.query<EmissaoRow[]>(
-      `${SELECT} WHERE instituicao_id = ? AND organizacao_ref = ? AND cobranca_ref IN (?)`,
-      [instituicaoId(), organizationId, [...chargeIds]]
+      `${SELECT} WHERE instituicao_id = ? AND organizacao_ref = ? AND ambiente = ? AND cobranca_ref IN (?)`,
+      [instituicaoId(), organizationId, ambienteNfse(), [...chargeIds]]
     );
     return new Map(rows.map((row) => {
       const emissao = toEmissao(row);
@@ -162,8 +164,8 @@ export class NfseRepository {
   }
 
   async porCobranca(organizationId: string, chargeId: string): Promise<EmissaoNfse | null> {
-    const [rows] = await this.pool.query<EmissaoRow[]>(`${SELECT} WHERE instituicao_id = ? AND organizacao_ref = ? AND cobranca_ref = ?`, [
-      instituicaoId(), organizationId, chargeId,
+    const [rows] = await this.pool.query<EmissaoRow[]>(`${SELECT} WHERE instituicao_id = ? AND organizacao_ref = ? AND cobranca_ref = ? AND ambiente = ?`, [
+      instituicaoId(), organizationId, chargeId, ambienteNfse(),
     ]);
     return rows[0] ? toEmissao(rows[0]) : null;
   }
@@ -181,8 +183,8 @@ export class NfseRepository {
     const connection = await this.pool.getConnection();
     try {
       await connection.beginTransaction();
-      const [existentes] = await connection.query<EmissaoRow[]>(`${SELECT} WHERE instituicao_id = ? AND organizacao_ref = ? AND cobranca_ref = ? FOR UPDATE`, [
-        instituicaoId(), input.organizationId, input.chargeId,
+      const [existentes] = await connection.query<EmissaoRow[]>(`${SELECT} WHERE instituicao_id = ? AND organizacao_ref = ? AND cobranca_ref = ? AND ambiente = ? FOR UPDATE`, [
+        instituicaoId(), input.organizationId, input.chargeId, input.ambiente,
       ]);
       if (existentes[0]) {
         const existente = toEmissao(existentes[0]);
@@ -204,7 +206,7 @@ export class NfseRepository {
 
       // A identificação completa é montada pelo gerador. Aqui se usa uma
       // reserva determinística temporária, atualizada antes do envio.
-      const refCore = `nfse:${input.chargeId}`;
+      const refCore = `nfse:${input.ambiente}:${input.chargeId}`;
       const id = rowId('fiscal-nfse-emissao', refCore);
       const dpsPendente = `PENDING-${id}`;
       await connection.query(`INSERT INTO fiscal_nfse_emissoes
@@ -249,10 +251,12 @@ export class NfseRepository {
   }
 
   async registrarNota(emissaoId: string, resposta: { status: number; corpo: string; nfseXml?: string; chaveAcesso?: string; numeroNfse?: string }) {
+    if (!resposta.nfseXml || !resposta.chaveAcesso) throw new Error('A NFS-e retornada não contém XML e chave de acesso.');
+    if (parseNfseXml(resposta.nfseXml).chaveAcesso !== resposta.chaveAcesso) throw new Error('O XML da NFS-e não corresponde à chave recebida.');
     await this.pool.query(`UPDATE fiscal_nfse_emissoes SET status = 'issued', processando_em = NULL, nfse_xml = ?, sefin_retorno = ?,
       sefin_http_status = ?, chave_acesso = ?, numero_nfse = ?, erro_codigo = NULL, erro_mensagem = NULL
       WHERE instituicao_id = ? AND id = ?`, [
-      resposta.nfseXml ?? resposta.corpo, resposta.corpo, resposta.status, resposta.chaveAcesso ?? null, resposta.numeroNfse ?? null,
+      resposta.nfseXml, resposta.corpo, resposta.status, resposta.chaveAcesso, resposta.numeroNfse ?? null,
       instituicaoId(), emissaoId,
     ]);
   }

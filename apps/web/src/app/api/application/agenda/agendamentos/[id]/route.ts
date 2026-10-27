@@ -42,6 +42,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         await editAgendaAppointment(context, id, {
           startsAt: body.startsAt ? String(body.startsAt) : undefined,
           endsAt: body.endsAt ? String(body.endsAt) : undefined,
+          expectedStartsAt: body.expectedStartsAt === undefined ? undefined : String(body.expectedStartsAt),
+          expectedEndsAt: body.expectedEndsAt === undefined ? undefined : String(body.expectedEndsAt),
+          expectedVersion: body.expectedVersion === undefined ? undefined : Number(body.expectedVersion),
           modalidade: opcao<UpdateAppointmentInput['modalidade'] & string>(body.modalidade, MODALIDADES),
           status: opcao<UpdateAppointmentInput['status'] & string>(body.status, STATUS),
           custeadoPelaEmpresa: typeof body.custeadoPelaEmpresa === 'boolean'

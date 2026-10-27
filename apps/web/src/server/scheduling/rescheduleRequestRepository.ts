@@ -26,7 +26,7 @@ export type RequestRescheduleResult =
 export type DecideRescheduleResult =
   | { ok: true; decision: 'accepted'; appointmentId: string; previousStartsAt: string; startsAt: string; endsAt: string; version: number }
   | { ok: true; decision: 'rejected'; appointmentId: string; startsAt: string; requestSequence: number; notifyPatient: boolean }
-  | { ok: false; reason: 'NOT_FOUND' | 'NOT_PENDING' | 'APPOINTMENT_CHANGED' | 'UNAVAILABLE' | 'EXPIRED' };
+  | { ok: false; reason: 'NOT_FOUND' | 'NOT_PENDING' | 'APPOINTMENT_CHANGED' | 'UNAVAILABLE' | 'EXPIRED' | 'ORIGINAL_STARTED' };
 
 function summary(row: RowDataPacket): RescheduleRequestSummary {
   return {
@@ -176,6 +176,9 @@ export async function decidePatientRescheduleRequest(
         || new Date(appointment.inicio).getTime() !== new Date(request.inicio_atual).getTime()
         || new Date(appointment.fim).getTime() !== new Date(request.fim_atual).getTime()) {
       await connection.rollback(); return { ok: false, reason: 'APPOINTMENT_CHANGED' };
+    }
+    if (new Date(appointment.inicio).getTime() <= now.getTime()) {
+      await connection.rollback(); return { ok: false, reason: 'ORIGINAL_STARTED' };
     }
     const requestedStart = new Date(request.inicio_solicitado);
     const requestedEnd = new Date(request.fim_solicitado);

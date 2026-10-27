@@ -10,12 +10,13 @@ import { exigirCertificadoNfseApto } from '@/server/fiscal/certificadoNfse';
 import { NfseRepository, exigirPersistenciaFiscal, type EmissaoNfse } from '@/server/fiscal/nfseRepository';
 import { PRESTADOR_NFSE, SERVICO_NFSE } from '@/server/fiscal/prestador';
 import {
-  ambienteNfse, CODIGO_TP_AMB, consultarChavePorDps, dpsJaGerouNfse, enviarDps,
-  registrarEvento, SefinNacionalError, type RespostaSefin,
+  ambienteNfse, CODIGO_TP_AMB, consultarChavePorDps, consultarNfsePorChave, dpsJaGerouNfse, enviarDps,
+  registrarEvento, consultarCancelamentoNfse, SefinNacionalError, type RespostaSefin,
 } from '@/server/fiscal/sefinNacional';
 import { assinarXmlFiscal } from '@/server/fiscal/assinaturaXmlFiscal';
 import { validarDpsAssinada, validarPedidoEventoAssinado } from '@/server/fiscal/validacaoXmlFiscal';
 import { gerarDanfsePdf } from '@/server/fiscal/danfsePdf';
+import { parseNfseXml } from '@/server/fiscal/nfseXmlView';
 import { enviarNfsePorEmail, normalizarEmailPaciente } from '@/server/fiscal/nfseEmail';
 
 export function serieDps(): string {
@@ -46,7 +47,7 @@ function objeto(valor: unknown): Record<string, unknown> {
 
 export function interpretarNota(resposta: RespostaSefin): { chaveAcesso?: string; numeroNfse?: string; nfseXml?: string } {
   const conteudo = objeto(resposta.json);
-  const chave = typeof conteudo.chaveAcesso === 'string'
+  let chave = typeof conteudo.chaveAcesso === 'string'
     ? conteudo.chaveAcesso
     : resposta.corpo.match(/(?<!\d)\d{50}(?!\d)/)?.[0];
   let nfseXml: string | undefined;
@@ -54,11 +55,25 @@ export function interpretarNota(resposta: RespostaSefin): { chaveAcesso?: string
     try { nfseXml = gunzipSync(Buffer.from(conteudo.nfseXmlGZipB64, 'base64')).toString('utf8'); }
     catch { throw new Error('A SEFIN retornou uma NFS-e compactada inválida.'); }
   }
+  if (!chave && nfseXml) chave = parseNfseXml(nfseXml).chaveAcesso;
   return {
     chaveAcesso: chave,
     numeroNfse: nfseXml ? valorDaTag(nfseXml, 'nNFSe') : undefined,
     nfseXml,
   };
+}
+
+export async function recuperarNotaPorDps(identificadorDps: string) {
+  const consulta = await consultarChavePorDps(identificadorDps);
+  const chave = interpretarNota(consulta).chaveAcesso;
+  if (!chave || !/^\d{50}$/.test(chave)) throw new Error('A SEFIN não retornou uma chave de acesso válida.');
+  const resposta = await consultarNfsePorChave(chave);
+  const nota = interpretarNota(resposta);
+  const xml = nota.nfseXml ?? (resposta.corpo.trim().startsWith('<') ? resposta.corpo : undefined);
+  if (!xml) throw new Error('A SEFIN não retornou o XML da NFS-e.');
+  const documento = parseNfseXml(xml);
+  if (documento.chaveAcesso !== chave) throw new Error('A chave da NFS-e não corresponde à DPS consultada.');
+  return { resposta, nota: { nfseXml: xml, chaveAcesso: chave, numeroNfse: documento.numero || undefined } };
 }
 
 export function codigoDaFalha(corpo: string): string | undefined {
@@ -156,6 +171,10 @@ export async function emitirNfse(context: RequestContext, chargeId: string, conf
     idempotencyKey: context.idempotencyKey, usuarioId: context.actor.userId,
   });
 
+  if (emissao.ambiente !== ambiente) {
+    throw new ApplicationError('INVALID_FISCAL_STATE', 'Existe uma emissão desta cobrança em outro ambiente fiscal. A emissão precisa ser revisada antes de prosseguir.', 409);
+  }
+
   if (emissao.status === 'issued') {
     return enviarEmailDaNota(
       repositorio, context.actor.organizationId, chargeId, previa.paciente
@@ -194,9 +213,8 @@ export async function emitirNfse(context: RequestContext, chargeId: string, conf
 
     const identificadorDps = dpsId.replace(/^DPS/, '');
     if (await dpsJaGerouNfse(identificadorDps)) {
-      const consulta = await consultarChavePorDps(identificadorDps);
-      const nota = interpretarNota(consulta);
-      await repositorio.registrarNota(emissao.id, { status: consulta.status, corpo: consulta.corpo, ...nota });
+      const { resposta, nota } = await recuperarNotaPorDps(identificadorDps);
+      await repositorio.registrarNota(emissao.id, { status: resposta.status, corpo: resposta.corpo, ...nota });
       return enviarEmailDaNota(
         repositorio, context.actor.organizationId, chargeId, previa.paciente
       );
@@ -371,11 +389,32 @@ export async function cancelarNfse(
     throw new ApplicationError('INVALID_FISCAL_STATE', `Esta nota foi emitida no ambiente ${emissao.ambiente} e só pode ser cancelada nele.`, 422);
   }
 
+  const anterior = (await repositorio.eventos(emissao.id)).find((item) => item.tipoEvento === TIPO_EVENTO_CANCELAMENTO && item.status === 'processing');
+  if (anterior) {
+    const criadoEm = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(anterior.criadoEm)
+      ? anterior.criadoEm : `${anterior.criadoEm.replace(' ', 'T')}Z`;
+    if (Date.now() - new Date(criadoEm).getTime() < 120_000) {
+      throw new ApplicationError('NFSE_IN_PROGRESS', 'Já existe um cancelamento em andamento. Aguarde antes de consultar novamente.', 409);
+    }
+    if (!anterior.pedidoId) {
+      await repositorio.registrarFalhaEvento(anterior.id, { mensagem: 'A tentativa foi interrompida antes do envio.' });
+    } else {
+      try {
+        const consulta = await consultarCancelamentoNfse(emissao.chaveAcesso);
+        await repositorio.registrarCancelamento({ emissaoId: emissao.id, eventoId: anterior.id, motivo: anterior.motivo ?? motivo, status: consulta.status, corpo: consulta.corpo });
+        return { status: 'cancelled' as const, numeroNfse: emissao.numeroNfse, ambiente };
+      } catch {
+        throw new ApplicationError('NFSE_CANCELLATION_UNKNOWN', 'Não foi possível confirmar o resultado do cancelamento. Consulte a SEFIN antes de tentar novamente.', 409);
+      }
+    }
+  }
+
   const reserva = await repositorio.reservarEvento({
     emissaoId: emissao.id, tipoEvento: TIPO_EVENTO_CANCELAMENTO, chaveAcesso: emissao.chaveAcesso,
     motivoCodigo: codigoMotivo, motivo, usuarioId: context.actor.userId,
   });
 
+  let enviado = false;
   try {
     const pedido = gerarPedidoCancelamentoNfse({
       ambiente: CODIGO_TP_AMB[ambiente],
@@ -396,6 +435,7 @@ export async function cancelarNfse(
     validarPedidoEventoAssinado(xmlAssinado, exigirCertificadoNfseApto());
     await repositorio.salvarPedidoEvento(reserva.id, pedido.id, xmlAssinado);
 
+    enviado = true;
     const resposta = await registrarEvento(emissao.chaveAcesso, xmlAssinado);
     await repositorio.registrarCancelamento({
       emissaoId: emissao.id, eventoId: reserva.id, motivo,
@@ -404,6 +444,15 @@ export async function cancelarNfse(
     return { status: 'cancelled' as const, numeroNfse: emissao.numeroNfse, ambiente };
   } catch (error) {
     const sefin = error instanceof SefinNacionalError ? error : undefined;
+    if (enviado && (!sefin || sefin.status === 0 || sefin.status === 408 || sefin.status >= 500)) {
+      try {
+        const consulta = await consultarCancelamentoNfse(emissao.chaveAcesso);
+        await repositorio.registrarCancelamento({ emissaoId: emissao.id, eventoId: reserva.id, motivo, status: consulta.status, corpo: consulta.corpo });
+        return { status: 'cancelled' as const, numeroNfse: emissao.numeroNfse, ambiente };
+      } catch {
+        throw new ApplicationError('NFSE_CANCELLATION_UNKNOWN', 'O resultado do cancelamento ainda não foi confirmado. Consulte novamente antes de enviar outro pedido.', 502);
+      }
+    }
     await repositorio.registrarFalhaEvento(reserva.id, {
       status: sefin?.status, corpo: sefin?.corpo, codigo: sefin ? codigoDaFalha(sefin.corpo) : undefined,
       mensagem: error instanceof Error ? error.message : 'Falha desconhecida no cancelamento da NFS-e.',

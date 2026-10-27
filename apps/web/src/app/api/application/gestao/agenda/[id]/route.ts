@@ -15,6 +15,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return success(await editGestaoAppointment(context, id, {
       startsAt: body.startsAt === undefined ? undefined : String(body.startsAt),
       endsAt: body.endsAt === undefined ? undefined : String(body.endsAt),
+      expectedStartsAt: body.expectedStartsAt === undefined ? undefined : String(body.expectedStartsAt),
+      expectedEndsAt: body.expectedEndsAt === undefined ? undefined : String(body.expectedEndsAt),
+      expectedVersion: body.expectedVersion === undefined ? undefined : Number(body.expectedVersion),
       modalidade: body.modalidade as UpdateAppointmentInput['modalidade'],
       status: body.status as UpdateAppointmentInput['status'],
       custeadoPelaEmpresa: body.custeadoPelaEmpresa as boolean | undefined,

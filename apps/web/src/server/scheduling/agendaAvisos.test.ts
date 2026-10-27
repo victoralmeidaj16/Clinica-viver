@@ -50,8 +50,8 @@ describe('avisos de remarcação', () => {
     state.enviar.mockResolvedValueOnce({ situacao: 'falha' });
     await expect(avisarSessaoRemarcada(session, previous, 2)).resolves.toBeUndefined();
     expect(state.enviar).toHaveBeenCalledTimes(2);
-    expect(state.execute).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM clinica_agenda_avisos'),
-      ['inst', 'appointment', 'remarcacao_paciente', 2]);
+    expect(state.execute).toHaveBeenCalledWith(expect.stringContaining("situacao = 'aguardando_horario'"),
+      [JSON.stringify({ inicioAnterior: previous, inicioNovo: session.inicio, fimNovo: session.fim, modalidade: session.modalidade }), 'inst', 'appointment', 'remarcacao_paciente', 2]);
   });
 });
 

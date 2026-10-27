@@ -20,6 +20,7 @@ vi.mock('./mappers', () => ({
   instituicaoId: () => 'inst-1',
   fromSqlTimestamp: (value: unknown) => String(value),
   rowId: (prefix: string, ref: string) => `${prefix}:${ref}`,
+  toSqlTimestamp: (value: string) => value,
 }));
 
 import {
@@ -28,7 +29,9 @@ import {
   obterConvenio,
   pacientesDoConvenio,
   reconcileConvenioInvoicePayment,
+  reconcileConvenioInvoiceRefund,
   sessoesDoConvenio,
+  vincularPacienteConvenio,
 } from './convenioRepository';
 
 /** Associa cada `?` do SQL ao valor que o driver vai colocar nele. */
@@ -47,7 +50,7 @@ describe('pacientesDoConvenio', () => {
 
     const [sql, values] = query.mock.calls[0] as unknown as [string, unknown[]];
     // O recorte de período mora no LEFT JOIN, que vem antes do WHERE.
-    expect(sql.indexOf('COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc_base.emitida_em) >= ?'))
+    expect(sql.indexOf('COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc_base.emitida_em) >= DATE_ADD(?, INTERVAL 3 HOUR)'))
       .toBeLessThan(sql.indexOf('WHERE p.instituicao_id = ?'));
     expect(sql).toContain('LEFT JOIN clinica_agendamentos ag');
     expect(values).toEqual(['2026-09-01', '2026-09-07', 'inst-1', 'org-1', 'conv-1']);
@@ -83,7 +86,7 @@ describe('sessoesDoConvenio', () => {
     expect(sql).toContain('COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc.emitida_em) AS realizada_em');
     expect(sql).toContain('LEFT JOIN clinica_agendamentos ag');
     expect(sql).toContain('LEFT JOIN clinica_sessoes s');
-    expect(sql).toContain('COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc.emitida_em) >= ?');
+    expect(sql).toContain('COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc.emitida_em) >= DATE_ADD(?, INTERVAL 3 HOUR)');
     expect(sql).toContain('ORDER BY COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc.emitida_em) DESC');
     expect(values).toEqual(['inst-1', 'org-1', 'conv-1', '2026-09-01', '2026-09-30']);
     expect(resultado[0].realizadaEm).toBe('2026-09-03 14:00:00.000');
@@ -113,7 +116,7 @@ describe('fecharFatura', () => {
     expect(sql).toContain('< p.custeio_sessoes_cota THEN 1');
     expect(sql).toContain('JOIN clinica_convenios c');
     expect(sql).toContain('LEFT JOIN clinica_sessoes s');
-    expect(sql).toContain('COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc.emitida_em) >= ?');
+    expect(sql).toContain('COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc.emitida_em) >= DATE_ADD(?, INTERVAL 3 HOUR)');
     // O filtro de custeio não carrega parâmetro: a ordem original se mantém.
     expect(values).toEqual(['inst-1', 'org-1', 'conv-1', '2026-09-01', '2026-09-30']);
     expect(connection.rollback).toHaveBeenCalled();
@@ -127,6 +130,7 @@ describe('reconcileConvenioInvoicePayment', () => {
     connection.query
       .mockResolvedValueOnce([[{
         ref_core: 'invoice-1', organizacao_ref: 'org-1', convenio_ref: 'conv-1',
+        valor_centavos: 7500,
       }], []] as never)
       .mockResolvedValueOnce([[], []])
       .mockResolvedValueOnce([[{ ref_core: 'charge-1', valor_centavos: 7500 }], []] as never);
@@ -141,6 +145,60 @@ describe('reconcileConvenioInvoicePayment', () => {
     ).map(([sql]) => sql);
     expect(escritas.some((sql) => sql.includes("'boleto', 'confirmed'"))).toBe(true);
     expect(escritas.some((sql) => sql.includes("forma_pagamento = 'boleto'"))).toBe(true);
+    expect(connection.commit).toHaveBeenCalled();
+  });
+
+  it('não quita a fatura quando o valor recebido diverge do valor devido', async () => {
+    connection.query.mockResolvedValueOnce([[{
+      ref_core: 'invoice-1', organizacao_ref: 'org-1', convenio_ref: 'conv-1', valor_centavos: 10000,
+    }], []] as never).mockResolvedValueOnce([[], []]);
+    await expect(reconcileConvenioInvoicePayment({
+      eventId: 'event-2', eventType: 'PAYMENT_RECEIVED', paymentId: 'payment-1',
+      amountCents: 1000, receivedAt: '2026-09-10T15:00:00.000Z',
+    })).resolves.toBe('processed');
+    const writes = connection.execute.mock.calls as unknown as Array<[string, unknown[]]>;
+    expect(writes.some(([sql]) => sql.includes("status = 'revisao_pagamento'"))).toBe(true);
+    expect(writes.some(([sql]) => sql.includes("status = 'paid'"))).toBe(false);
+    expect(connection.commit).toHaveBeenCalled();
+  });
+});
+
+describe('reconcileConvenioInvoiceRefund', () => {
+  beforeEach(() => vi.clearAllMocks());
+  it('registra o estorno e bloqueia a fatura para revisão', async () => {
+    connection.query
+      .mockResolvedValueOnce([[{ ref_core: 'invoice-1', organizacao_ref: 'org-1', convenio_ref: 'conv-1' }], []] as never)
+      .mockResolvedValueOnce([[], []])
+      .mockResolvedValueOnce([[{ ref_core: 'payment-1', cobranca_ref: 'charge-1', valor_centavos: 10000 }], []] as never);
+    await expect(reconcileConvenioInvoiceRefund({ eventId: 'event-refund', eventType: 'PAYMENT_PARTIALLY_REFUNDED', paymentId: 'pay-1', refundCents: 2000, receivedAt: '2026-10-01T10:00:00Z' })).resolves.toBe('processed');
+    const sql = (connection.execute.mock.calls as unknown as Array<[string, unknown[]?]>).map(([statement]) => statement);
+    expect(sql.some((statement) => statement.includes('INSERT INTO financeiro_estornos'))).toBe(true);
+    expect(sql.some((statement) => statement.includes("status = 'revisao_estorno'"))).toBe(true);
+    expect(connection.commit).toHaveBeenCalled();
+  });
+  it('distribui o estorno parcial sem superar o valor de cada pagamento', async () => {
+    connection.query
+      .mockResolvedValueOnce([[{ ref_core: 'invoice-1', organizacao_ref: 'org-1' }], []] as never)
+      .mockResolvedValueOnce([[], []])
+      .mockResolvedValueOnce([[
+        { ref_core: 'p1', cobranca_ref: 'c1', valor_centavos: 100 },
+        { ref_core: 'p2', cobranca_ref: 'c2', valor_centavos: 100 },
+      ], []] as never);
+    await reconcileConvenioInvoiceRefund({ eventId: 'refund-2', eventType: 'PAYMENT_PARTIALLY_REFUNDED', paymentId: 'pay-1', refundCents: 150, receivedAt: '2026-10-01T10:00:00Z' });
+    const writes = connection.execute.mock.calls as unknown as Array<[string, unknown[]]>;
+    expect(writes.filter(([sql]) => sql.includes('INSERT INTO financeiro_estornos')).map(([, values]) => values[5])).toEqual([100, 50]);
+  });
+});
+
+describe('alteração do vínculo de convênio', () => {
+  it('guarda o pagador das cobranças antigas antes de remover o vínculo', async () => {
+    vi.clearAllMocks();
+    connection.query.mockResolvedValueOnce([[{ id: 'patient-1' }], []] as never).mockResolvedValueOnce([[], []]);
+    connection.execute.mockResolvedValue([{ affectedRows: 1 }, []] as never);
+    await vincularPacienteConvenio('org-1', 'patient-1', null, null);
+    const calls = connection.execute.mock.calls as unknown as Array<[string, unknown[]]>;
+    expect(calls[0][0]).toContain('SET c.convenio_ref = p.convenio_ref');
+    expect(calls[1][0]).toContain('SET p.convenio_ref = ?');
     expect(connection.commit).toHaveBeenCalled();
   });
 });

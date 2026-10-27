@@ -74,6 +74,19 @@ describe('solicitação pública de reagendamento', () => {
 const ANTES = new Date('2026-10-20T12:00:00Z');
 
 describe('decisão do psicólogo', () => {
+  it('não aceita pedido após o início da sessão original', async () => {
+    const query = state.connection.query.getMockImplementation()!;
+    state.connection.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM clinica_solicitacoes_reagendamento sr')) {
+        const [rows, fields] = await query(sql);
+        return [[{ ...rows[0], inicio_solicitado: '2026-10-25T15:00:00Z', fim_solicitado: '2026-10-25T15:50:00Z' }], fields];
+      }
+      return query(sql);
+    });
+    expect(await decidePatientRescheduleRequest('org', 'pro-ref', 'request-1', 'accept', new Date('2026-10-23T15:01:00Z')))
+      .toEqual({ ok: false, reason: 'ORIGINAL_STARTED' });
+    expect(state.connection.execute).not.toHaveBeenCalled();
+  });
   it('libera nova solicitação depois de recusar o pedido de um horário alterado', async () => {
     let pending = true;
     const query = state.connection.query.getMockImplementation()!;

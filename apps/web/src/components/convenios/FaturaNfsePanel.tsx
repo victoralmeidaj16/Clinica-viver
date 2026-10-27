@@ -6,10 +6,10 @@ import { applicationRequest, commandHeaders } from '@/lib/applicationApi';
 import type { FaturaConvenioView } from './types';
 
 const money = (cents: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
-const statusLabel = { aberta: 'Aberta', boleto_gerado: 'Boleto gerado', paga: 'Paga por boleto', cancelada: 'Cancelada' } as const;
+const statusLabel = { aberta: 'Aberta', boleto_gerado: 'Boleto gerado', paga: 'Paga por boleto', cancelada: 'Cancelada', revisao_estorno: 'Estorno em revisão', revisao_pagamento: 'Pagamento em revisão' } as const;
 
 interface FiscalData {
-  preview: { camposPendentes: string[]; integracaoConfigurada: boolean; statusFatura: string };
+  preview: { camposPendentes: string[]; integracaoConfigurada: boolean; statusFatura: string; ambiente: 'producao' | 'producao_restrita' };
   emission: { status: string; numeroNfse?: string; danfseDisponivel?: boolean; xmlNfseDisponivel?: boolean };
 }
 
@@ -83,7 +83,9 @@ export function FaturaNfsePanel({ convenioId, fatura, onRefresh }: { convenioId:
       </div>
       {fatura.linhaDigitavel && <div className="mt-3 flex items-center gap-2 rounded-xl bg-slate-50 p-2.5"><code className="min-w-0 flex-1 break-all text-[10px] text-ink">{fatura.linhaDigitavel}</code><button type="button" onClick={() => { void navigator.clipboard.writeText(fatura.linhaDigitavel!); setCopied(true); }} className="rounded-lg p-2 text-muted hover:bg-white hover:text-ink">{copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}</button></div>}
       {fiscal?.preview.camposPendentes.length ? <p className="mt-3 rounded-xl bg-amber-50 p-3 text-xs font-bold text-amber-800">Complete: {fiscal.preview.camposPendentes.join(', ')}.</p> : null}
+      {fiscal && <p className="mt-3 rounded-xl bg-slate-50 p-3 text-xs font-bold text-ink">Ambiente fiscal: {fiscal.preview.ambiente === 'producao' ? 'Produção' : 'Homologação'}</p>}
       {error && <p className="mt-3 rounded-xl bg-rose-50 p-3 text-xs font-bold text-rose-700">{error}</p>}
+      {fatura.status === 'revisao_pagamento' && <p role="alert" className="mt-3 rounded-xl bg-amber-50 p-3 text-xs font-bold text-amber-900">O valor informado pelo provedor{fatura.valorRecebidoDivergenteCents !== undefined ? ` (${money(fatura.valorRecebidoDivergenteCents)})` : ''} diverge da fatura. Confira o pagamento antes de emitir a NFS-e.</p>}
       
       {confirmingCancelFatura && (
         <div className="mt-3 flex flex-col gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3">
@@ -116,10 +118,11 @@ export function FaturaNfsePanel({ convenioId, fatura, onRefresh }: { convenioId:
       <div className="mt-4 flex flex-wrap gap-2">
         {fatura.status === 'aberta' && <button type="button" onClick={() => void boleto()} disabled={Boolean(working)} className="btn-accent px-3 py-2 text-[11px] disabled:opacity-50">{working === 'boleto' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Banknote className="h-3.5 w-3.5" />} Gerar boleto</button>}
         {fatura.boletoUrl && <a href={fatura.boletoUrl} target="_blank" rel="noreferrer" className="btn-outline px-3 py-2 text-[11px]"><ExternalLink className="h-3.5 w-3.5" /> Abrir boleto</a>}
+        {['revisao_estorno', 'revisao_pagamento'].includes(fatura.status) && !fiscal && <button type="button" onClick={() => void loadFiscal()} className="btn-outline px-3 py-2 text-[11px]">Consultar NFS-e</button>}
         {fatura.status === 'paga' && fiscal?.emission.status !== 'issued' && <button type="button" onClick={() => void (fiscal ? nfse() : loadFiscal())} disabled={Boolean(working)} className="btn-accent px-3 py-2 text-[11px] disabled:opacity-50">{working === 'nfse' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileCheck2 className="h-3.5 w-3.5" />} {fiscal ? 'Emitir NFS-e PJ' : 'Preparar NFS-e'}</button>}
         {fiscal?.emission.status === 'issued' && <><a href={`/api/application${base}/nfse/pdf`} target="_blank" className="btn-outline px-3 py-2 text-[11px]">DANFSe</a><a href={`/api/application${base}/nfse/xml`} className="btn-outline px-3 py-2 text-[11px]">XML</a><button type="button" onClick={() => setCancelling(true)} className="rounded-xl border border-rose-200 px-3 py-2 text-[11px] font-black text-rose-700">Cancelar NFS-e</button></>}
         
-        {fatura.status !== 'paga' && !confirmingCancelFatura && (
+        {fatura.status !== 'paga' && fatura.status !== 'revisao_estorno' && fatura.status !== 'revisao_pagamento' && !confirmingCancelFatura && (
           <button
             type="button"
             onClick={() => setConfirmingCancelFatura(true)}

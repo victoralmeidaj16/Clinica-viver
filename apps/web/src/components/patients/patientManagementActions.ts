@@ -54,6 +54,9 @@ export async function updatePatientConvenio(
   if (!response.ok) {
     throw new Error(failureMessage(body, `Falha ao atualizar convênio (HTTP ${response.status}).`));
   }
+  if (Number(body?.data?.cobrancasPendentes ?? 0) > 0) {
+    throw new Error('O vínculo foi salvo, mas algumas cobranças ainda precisam ser transferidas. Salve o vínculo novamente para tentar recuperá-las.');
+  }
 }
 
 /** Atualiza somente a condição comercial futura do paciente. */

@@ -17,6 +17,7 @@ export interface AgendamentoResumo {
   pacienteRef?: string;
   agendamentoRef?: string;
   id: string;
+  versao?: number;
   pacienteNome: string;
   inicio: string;
   fim: string;
@@ -205,12 +206,18 @@ export function UpcomingSessions({ agendamentos, filtroPaciente, onCancelar, onC
                   <span className="text-line">·</span>
                   {item.modalidade === 'presencial'
                     ? <><MapPin className="w-3 h-3" /> Presencial</>
-                    : <><Globe className="w-3 h-3" /> Online</>}
+                    : <><Globe className="w-3 h-3" /> {item.modalidade === 'telefone' ? 'Telefone' : 'Online'}</>}
                   {item.origem === 'portal' && <span className="chip-accent text-[10px] py-0">pelo link</span>}
                 </p>
               </div>
               {cancelado ? (
-                <span className="text-[11px] font-extrabold text-rose-600">CANCELADA</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-extrabold text-rose-600">CANCELADA</span>
+                  <button type="button" onClick={() => setCancelando(item)}
+                    className="rounded-xl border border-line bg-white px-3 py-1.5 text-[11px] font-bold text-ink hover:bg-slate-100">
+                    Conferir cancelamento
+                  </button>
+                </div>
               ) : realizado || aguardandoConfirmacao ? (
                 <div className="flex items-center gap-2">
                   {aguardandoConfirmacao ? (
@@ -227,6 +234,7 @@ export function UpcomingSessions({ agendamentos, filtroPaciente, onCancelar, onC
                     onClick={() =>
                       setEditingSession({
                         id: item.id,
+                        versao: item.versao,
                         pacienteNome: item.pacienteNome,
                         inicio: item.inicio,
                         fim: item.fim,
@@ -249,6 +257,7 @@ export function UpcomingSessions({ agendamentos, filtroPaciente, onCancelar, onC
                     onClick={() =>
                       setEditingSession({
                         id: item.id,
+                        versao: item.versao,
                         pacienteNome: item.pacienteNome,
                         inicio: item.inicio,
                         fim: item.fim,

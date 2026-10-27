@@ -11,6 +11,7 @@ import { cancelarCobrancaDaSessao } from './sessionChargeCancellation';
 export interface ResultadoTransferencia {
   transferidas: number;
   mantidas: number;
+  pendentes: number;
 }
 
 /**
@@ -31,7 +32,7 @@ export async function transferirCobrancasParaEmpresa(
   organizationId: string,
   patientId: string
 ): Promise<ResultadoTransferencia> {
-  const resultado: ResultadoTransferencia = { transferidas: 0, mantidas: 0 };
+  const resultado: ResultadoTransferencia = { transferidas: 0, mantidas: 0, pendentes: 0 };
   const [candidatas] = await getMysqlPool().query<RowDataPacket[]>(
     `SELECT a.id
        FROM clinica_agendamentos a
@@ -40,11 +41,11 @@ export async function transferirCobrancasParaEmpresa(
       WHERE a.instituicao_id = ? AND o.ref_core = ? AND pa.ref_core = ?
         AND a.status IN ('agendado', 'confirmado', 'realizado')
         AND COALESCE(a.custeado_pela_empresa, 0) = 0
-        AND EXISTS (SELECT 1 FROM financeiro_cobrancas c
+        AND (a.transferencia_convenio_ref IS NOT NULL OR EXISTS (SELECT 1 FROM financeiro_cobrancas c
                      WHERE c.instituicao_id = a.instituicao_id AND c.organizacao_ref = o.ref_core
                        AND c.sessao_ref IN (a.ref_core, a.sessao_clinica_ref)
                        AND c.fatura_convenio_ref IS NULL
-                       AND c.status IN ('draft', 'pending', 'overdue'))
+                       AND c.status IN ('draft', 'pending', 'overdue')))
       ORDER BY a.inicio, a.id`,
     [instituicaoId(), organizationId, patientId]
   );
@@ -54,7 +55,7 @@ export async function transferirCobrancasParaEmpresa(
       if (await transferirSessao(String(candidata.id))) resultado.transferidas += 1;
       else resultado.mantidas += 1;
     } catch (error) {
-      resultado.mantidas += 1;
+      resultado.pendentes += 1;
       console.error(`[convenio] Falha ao transferir a sessão ${String(candidata.id)} para a empresa:`,
         error instanceof Error ? error.message : error);
     }
@@ -66,7 +67,28 @@ async function transferirSessao(agendamentoId: string): Promise<boolean> {
   // A conta ignora a decisão gravada de propósito: ela foi tomada por causa da
   // cobrança individual que estamos desfazendo, não pelo acordo.
   if (!await empresaCobre(agendamentoId)) return false;
-  if (await cancelarCobrancaDaSessao(agendamentoId) !== 'cancelled') return false;
+  await getMysqlPool().execute(
+    `UPDATE clinica_agendamentos a JOIN clinica_pacientes p ON p.id = a.paciente_id
+        SET a.transferencia_convenio_ref = COALESCE(a.transferencia_convenio_ref, p.convenio_ref)
+      WHERE a.instituicao_id = ? AND a.id = ? AND p.convenio_ref IS NOT NULL
+        AND (a.transferencia_convenio_ref IS NULL OR a.transferencia_convenio_ref = p.convenio_ref)`,
+    [instituicaoId(), agendamentoId]
+  );
+  const [marcacao] = await getMysqlPool().query<RowDataPacket[]>(
+    `SELECT a.id FROM clinica_agendamentos a JOIN clinica_pacientes p ON p.id = a.paciente_id
+      WHERE a.instituicao_id = ? AND a.id = ? AND a.transferencia_convenio_ref IS NOT NULL
+        AND a.transferencia_convenio_ref = p.convenio_ref`,
+    [instituicaoId(), agendamentoId]
+  );
+  if (!marcacao.length) throw new Error('A transferência exige revisão do vínculo do convênio.');
+  const cancelamento = await cancelarCobrancaDaSessao(agendamentoId);
+  if (cancelamento !== 'cancelled') {
+    if (cancelamento !== 'failed') {
+      await getMysqlPool().execute('UPDATE clinica_agendamentos SET transferencia_convenio_ref = NULL WHERE instituicao_id = ? AND id = ?', [instituicaoId(), agendamentoId]);
+      return false;
+    }
+    throw new Error('O cancelamento da cobrança ainda precisa ser retomado.');
+  }
 
   const connection = await getMysqlPool().getConnection();
   try {
@@ -74,7 +96,7 @@ async function transferirSessao(agendamentoId: string): Promise<boolean> {
     const [rows] = await connection.query<RowDataPacket[]>(
       `SELECT a.status, a.inicio, a.sessao_clinica_ref, a.valor_centavos,
               pr.valor_sessao_centavos, o.ref_core AS organizacao_ref,
-              pa.ref_core AS paciente_ref, pr.ref_core AS profissional_ref
+              pa.ref_core AS paciente_ref, pa.convenio_ref, pr.ref_core AS profissional_ref
          FROM clinica_agendamentos a
          JOIN clinica_organizacoes o ON o.id = a.organizacao_id
          JOIN clinica_pacientes pa ON pa.id = a.paciente_id
@@ -86,6 +108,7 @@ async function transferirSessao(agendamentoId: string): Promise<boolean> {
     // Sessão futura não precisa de mais nada: sem cobrança individual, a
     // realização calcula o custeio e emite a cobrança da empresa.
     if (!agendamento || agendamento.status !== 'realizado' || !agendamento.sessao_clinica_ref) {
+      await connection.execute('UPDATE clinica_agendamentos SET transferencia_convenio_ref = NULL WHERE instituicao_id = ? AND id = ?', [instituicaoId(), agendamentoId]);
       await connection.commit();
       return true;
     }
@@ -98,7 +121,7 @@ async function transferirSessao(agendamentoId: string): Promise<boolean> {
     const sessionRef = String(agendamento.sessao_clinica_ref);
     const chargeRef = `charge-company-session-${randomUUID()}`;
     await connection.execute(
-      `UPDATE clinica_agendamentos SET custeado_pela_empresa = 1, versao = versao + 1, atualizado_em = ?
+      `UPDATE clinica_agendamentos SET custeado_pela_empresa = 1, transferencia_convenio_ref = NULL, versao = versao + 1, atualizado_em = ?
         WHERE instituicao_id = ? AND id = ?`,
       [agora, instituicaoId(), agendamentoId]
     );
@@ -106,12 +129,12 @@ async function transferirSessao(agendamentoId: string): Promise<boolean> {
       `INSERT INTO financeiro_cobrancas
         (id, instituicao_id, organizacao_ref, ref_core, sessao_ref, paciente_ref,
          profissional_ref, emitida_em, vence_em, valor_centavos, status,
-         descricao, fatura_convenio_ref, criado_em, atualizado_em)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, NULL, ?, ?)`,
+         descricao, fatura_convenio_ref, convenio_ref, criado_em, atualizado_em)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, NULL, ?, ?, ?)`,
       [rowId('cobranca', chargeRef), instituicaoId(), agendamento.organizacao_ref,
         chargeRef, sessionRef, agendamento.paciente_ref, agendamento.profissional_ref,
         agora, agora, valorCents, descricaoFiscalDaSessao(new Date(agendamento.inicio).toISOString()),
-        agora, agora]
+        agendamento.convenio_ref ?? null, agora, agora]
     );
     await connection.execute(
       `UPDATE clinica_sessoes SET cobranca_ref = ?, atualizado_em = ?

@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const connection = vi.hoisted(() => ({
+  beginTransaction: vi.fn(async () => {}), query: vi.fn(async () => [[], []]),
+  commit: vi.fn(async () => {}), rollback: vi.fn(async () => {}), release: vi.fn(),
+}));
 vi.mock('server-only', () => ({}));
+vi.mock('@/server/oci/runtime', () => ({ getMysqlPool: () => ({ getConnection: async () => connection }) }));
+vi.mock('@/server/persistence/mysql/mappers', () => ({ instituicaoId: () => 'inst-1' }));
 vi.mock('./clinicFinanceService', () => ({ exigirAdminFiscal: vi.fn() }));
 vi.mock('@/server/reports/convenioReportPdf', () => ({ gerarRelatorioConvenioPdf: vi.fn() }));
 vi.mock('@/server/persistence/mysql/convenioRepository', () => ({
@@ -57,7 +63,7 @@ describe('cancelConvenioInvoice', () => {
       id: 'fat-1',
     });
     expect(deleteAsaasPayment).toHaveBeenCalledWith('pay-1');
-    expect(cancelarFatura).toHaveBeenCalledWith('org-1', 'conv-1', 'fat-1');
+    expect(cancelarFatura).toHaveBeenCalledWith('org-1', 'conv-1', 'fat-1', connection);
   });
 
   it('dispensa o provedor quando a fatura nunca gerou boleto', async () => {
@@ -71,6 +77,6 @@ describe('cancelConvenioInvoice', () => {
       id: 'fat-2',
     });
     expect(deleteAsaasPayment).not.toHaveBeenCalled();
-    expect(cancelarFatura).toHaveBeenCalledWith('org-1', 'conv-1', 'fat-2');
+    expect(cancelarFatura).toHaveBeenCalledWith('org-1', 'conv-1', 'fat-2', connection);
   });
 });

@@ -1,7 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { reconcileAsaasPayment } from '@/server/payments/paymentLinkRepository';
-import { reconcileConvenioInvoicePayment } from '@/server/persistence/mysql/convenioRepository';
+import { reconcileConvenioInvoicePayment, reconcileConvenioInvoiceRefund } from '@/server/persistence/mysql/convenioRepository';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -31,6 +31,26 @@ export async function POST(request: Request) {
     if (!paymentId || !eventType) {
       return NextResponse.json({ error: 'Evento inválido.' }, { status: 400 });
     }
+    if (['PAYMENT_REFUNDED', 'PAYMENT_PARTIALLY_REFUNDED'].includes(eventType)) {
+      const refunds = Array.isArray(payment?.refunds) ? payment.refunds : [];
+      const refundCents = refunds.reduce((sum: number, item: unknown) => {
+        if (!item || typeof item !== 'object') return sum;
+        const refund = item as Record<string, unknown>;
+        return refund.status === 'DONE' ? sum + Math.round(Number(refund.value) * 100) : sum;
+      }, 0);
+      if ((!Number.isSafeInteger(refundCents) || refundCents <= 0) && String(payment?.externalReference ?? '').startsWith('VMPJ-')) {
+        return NextResponse.json({ error: 'Estorno confirmado sem valor para conciliação.' }, { status: 503 });
+      }
+      const result = await reconcileConvenioInvoiceRefund({
+        eventId: String(payload.id || `${eventType}:${paymentId}:${refundCents}`), eventType, paymentId,
+        refundCents: Number.isSafeInteger(refundCents) ? refundCents : 0,
+        receivedAt: new Date().toISOString(),
+      });
+      if (result === 'unknown' && String(payment?.externalReference ?? '').startsWith('VMPJ-')) {
+        return NextResponse.json({ error: 'A fatura ainda não está pronta para conciliação.' }, { status: 503 });
+      }
+      return NextResponse.json({ received: true, duplicate: result === 'duplicate', ignored: result === 'unknown' });
+    }
     if (!['PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED'].includes(eventType)) {
       return NextResponse.json({ received: true, ignored: true });
     }
@@ -54,6 +74,9 @@ export async function POST(request: Request) {
       });
     }
     if (result === 'unknown') {
+      if (String(payment?.externalReference ?? '').startsWith('VMPJ-')) {
+        return NextResponse.json({ error: 'A fatura ainda não está pronta para conciliação.' }, { status: 503 });
+      }
       // 200 evita reentregas infinitas de cobranças que não nasceram nesta aplicação.
       return NextResponse.json({ received: true, ignored: true });
     }

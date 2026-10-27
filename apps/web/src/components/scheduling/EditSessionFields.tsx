@@ -8,14 +8,14 @@ interface Props {
   hora: string;
   duracaoMin: number;
   canEditDuration: boolean;
-  modalidade: 'online' | 'presencial';
+  modalidade: 'online' | 'presencial' | 'telefone';
   status: StatusEdicao;
   /** Estado pendente atual da sessão: o botão da esquerda o preserva em vez de rebaixar uma confirmação. */
   statusPendente: 'agendado' | 'confirmado';
   setData: (value: string) => void;
   setHora: (value: string) => void;
   setDuracaoMin: (value: number) => void;
-  setModalidade: (value: 'online' | 'presencial') => void;
+  setModalidade: (value: 'online' | 'presencial' | 'telefone') => void;
   setStatus: (value: StatusEdicao) => void;
 }
 
@@ -87,6 +87,10 @@ export function EditSessionFields({ data, hora, duracaoMin, canEditDuration, mod
                   }`}
                 >
                   <MapPin className="w-3.5 h-3.5" /> Presencial
+                </button>
+                <button type="button" onClick={() => setModalidade('telefone')}
+                  className={`col-span-2 rounded-xl py-1.5 text-xs font-bold ${modalidade === 'telefone' ? 'bg-white text-psi-deep shadow-sm' : 'text-muted hover:text-ink'}`}>
+                  Telefone
                 </button>
               </div>
             </div>

@@ -67,6 +67,7 @@ export interface AgendamentoResumo {
   pacienteRef?: string;
   agendamentoRef?: string;
   id: string;
+  versao?: number;
   pacienteNome: string;
   inicio: string;
   fim: string;
@@ -440,7 +441,7 @@ export async function listAppointments(
     let pagina: RowDataPacket[];
     do {
     [pagina] = await connection.query<RowDataPacket[]>(
-      `SELECT a.id, a.ref_core AS agendamento_ref, pa.ref_core AS paciente_ref, a.inicio, a.fim, a.duracao_min, a.modalidade, a.servico_key, a.status,
+      `SELECT a.id, a.versao, a.ref_core AS agendamento_ref, pa.ref_core AS paciente_ref, a.inicio, a.fim, a.duracao_min, a.modalidade, a.servico_key, a.status,
               a.sessao_clinica_ref,
               a.origem_criacao, a.criado_em, a.realizado_em, a.token_pagamento_sessao,
               COALESCE(pa.nome_social, pa.nome) AS paciente_nome,
@@ -494,6 +495,7 @@ export async function listAppointments(
 
       return {
         id: String(row.id),
+        versao: Number(row.versao),
         pacienteNome: String(row.paciente_nome ?? 'Paciente'),
         pacienteRef: row.paciente_ref ? String(row.paciente_ref) : undefined,
         agendamentoRef: row.agendamento_ref ? String(row.agendamento_ref) : undefined,
@@ -550,7 +552,7 @@ export async function completeAppointment(
     const [rows] = await connection.query<RowDataPacket[]>(
       `SELECT a.ref_core, a.sessao_clinica_ref, a.status, a.inicio, a.modalidade,
               a.valor_centavos, p.valor_sessao_centavos,
-              o.ref_core AS organizacao_ref, pa.ref_core AS paciente_ref,
+              o.ref_core AS organizacao_ref, pa.ref_core AS paciente_ref, pa.convenio_ref,
               p.ref_core AS profissional_ref,
               conv.nome AS convenio_nome,
               ${custeioDoAgendamentoSql({ agendamento: 'a', paciente: 'pa', convenio: 'conv' })}
@@ -660,12 +662,12 @@ export async function completeAppointment(
         `INSERT INTO financeiro_cobrancas
           (id, instituicao_id, organizacao_ref, ref_core, sessao_ref, paciente_ref,
            profissional_ref, emitida_em, vence_em, valor_centavos, status,
-           descricao, fatura_convenio_ref, criado_em, atualizado_em)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, NULL, ?, ?)`,
+           descricao, fatura_convenio_ref, convenio_ref, criado_em, atualizado_em)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, NULL, ?, ?, ?)`,
         [rowId('cobranca', chargeRef), instituicaoId(), appointment.organizacao_ref,
           chargeRef, sessionRef, appointment.paciente_ref, appointment.profissional_ref,
           agora, agora, amountCents, descricaoFiscalDaSessao(new Date(appointment.inicio).toISOString()),
-          agora, agora]
+          appointment.convenio_ref ?? null, agora, agora]
       );
       await connection.execute(
         `UPDATE clinica_sessoes SET cobranca_ref = ?, atualizado_em = ?
@@ -828,6 +830,9 @@ export async function rescheduleAppointmentProfessional(
 export interface UpdateAppointmentInput {
   startsAt?: string;
   endsAt?: string;
+  expectedStartsAt?: string;
+  expectedEndsAt?: string;
+  expectedVersion?: number;
   modalidade?: 'online' | 'presencial' | 'telefone';
   /** Cancelar não é edição: só o fluxo de cancelamento registra o motivo, cancela a cobrança e avisa o paciente. */
   status?: 'agendado' | 'confirmado' | 'realizado';
@@ -837,6 +842,7 @@ export interface UpdateAppointmentInput {
 
 export type ResultadoEdicaoAgendamento =
   | 'ok'
+  | 'stale'
   | 'not_found'
   | 'conflict'
   /** Marcar como realizado exige o fluxo de conclusão, que cria a sessão clínica. */
@@ -908,6 +914,15 @@ export async function updateAppointmentDetails(
     if (!agendamento) {
       await connection.rollback();
       return 'not_found';
+    }
+
+    const fimAtual = agendamento.fim ? new Date(agendamento.fim).getTime()
+      : new Date(agendamento.inicio).getTime() + Number(agendamento.duracao_min) * 60_000;
+    if ((input.expectedVersion !== undefined && input.expectedVersion !== Number(agendamento.versao))
+      || (input.expectedStartsAt !== undefined && Date.parse(input.expectedStartsAt) !== new Date(agendamento.inicio).getTime())
+      || (input.expectedEndsAt !== undefined && Date.parse(input.expectedEndsAt) !== fimAtual)) {
+      await connection.rollback();
+      return 'stale';
     }
 
     if (opcoes.somenteAgendadas && !['agendado', 'confirmado'].includes(String(agendamento.status))) {
@@ -1411,9 +1426,10 @@ export async function bookAppointments(
     }
 
     const [orgRows] = await connection.query<RowDataPacket[]>(
-      'SELECT id FROM clinica_organizacoes WHERE ref_core = ? LIMIT 1',
-      [paciente.organizationId]
+      'SELECT id FROM clinica_organizacoes WHERE instituicao_id = ? AND ref_core = ? LIMIT 1',
+      [instituicaoId(), paciente.organizationId]
     );
+    if (!orgRows[0]) throw new Error('Organização do agendamento não encontrada.');
     const agendamentos: Array<Extract<ResultadoAgendamento, { ok: true }>> = [];
     for (const slot of selectedSlots) {
       const referencia = `agenda-link-${randomUUID()}`;

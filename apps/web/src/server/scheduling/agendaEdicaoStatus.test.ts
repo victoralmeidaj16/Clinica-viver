@@ -64,6 +64,18 @@ describe('updateAppointmentDetails', () => {
     comAgendamento();
   });
 
+  it('recusa uma edição quando o horário visto no formulário ficou desatualizado', async () => {
+    const input = { modalidade: 'presencial' as const, expectedStartsAt: '2099-01-02T12:00:00Z', expectedEndsAt: '2099-01-02T12:50:00Z' };
+    expect(await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', input)).toBe('stale');
+    expect(connection.execute).not.toHaveBeenCalled();
+  });
+
+  it('recusa uma edição quando outra alteração atualizou a versão', async () => {
+    comAgendamento({ versao: 4 });
+    expect(await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', { modalidade: 'presencial', expectedVersion: 3 })).toBe('stale');
+    expect(connection.execute).not.toHaveBeenCalled();
+  });
+
   it.each(['realizado', 'cancelado'])('bloqueia edição administrativa de sessão %s sob trava', async (status) => {
     comAgendamento({ status });
     expect(await updateAppointmentDetails('org-1', 'pro-1', 'apt-1',

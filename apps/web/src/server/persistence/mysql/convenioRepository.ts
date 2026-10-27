@@ -1,14 +1,14 @@
 import 'server-only';
 
 import { randomUUID } from 'node:crypto';
-import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
+import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { getMysqlPool } from '@/server/oci/runtime';
-import { fromSqlTimestamp, instituicaoId, rowId } from './mappers';
+import { fromSqlTimestamp, instituicaoId, rowId, toSqlTimestamp } from './mappers';
 import { normalizarCicloCusteio, ratearFatura, type CusteioCiclo } from '@/lib/convenioBilling';
 import { custeioDoAgendamentoSql, custeioEfetivoSql } from './custeioSql';
 import { cobrancaVisivelNoConvenioSql } from './convenioChargeSql';
 
-export type StatusFaturaConvenio = 'aberta' | 'boleto_gerado' | 'paga' | 'cancelada';
+export type StatusFaturaConvenio = 'aberta' | 'boleto_gerado' | 'paga' | 'cancelada' | 'revisao_estorno' | 'revisao_pagamento';
 
 export interface Convenio {
   id: string;
@@ -63,6 +63,7 @@ export interface FaturaConvenio {
   periodoFim: string;
   totalSessoes: number;
   valorCents: number;
+  valorRecebidoDivergenteCents?: number;
   status: StatusFaturaConvenio;
   venceEm?: string;
   providerId?: string;
@@ -81,7 +82,7 @@ interface ConvenioRow extends RowDataPacket {
 
 interface FaturaRow extends RowDataPacket {
   ref_core: string; organizacao_ref: string; convenio_ref: string; competencia: string; periodo_inicio: string;
-  periodo_fim: string; total_sessoes: number; valor_centavos: number;
+  periodo_fim: string; total_sessoes: number; valor_centavos: number; valor_recebido_divergente_centavos: number | null;
   status: StatusFaturaConvenio; vence_em: string | null; provedor_ref: string | null;
   boleto_url: string | null; boleto_linha_digitavel: string | null;
   pago_em: string | null; criado_em: string;
@@ -90,9 +91,9 @@ interface FaturaRow extends RowDataPacket {
 const CONVENIO_SELECT = `
   SELECT c.ref_core, c.nome, c.razao_social, c.cnpj, c.email_faturamento,
          c.empresa_paga_sessoes, c.pacote_sessoes, c.dia_vencimento, c.ativo,
-         COUNT(DISTINCT p.id) AS pacientes,
+         COUNT(DISTINCT CASE WHEN p.convenio_ref = c.ref_core THEN p.id END) AS pacientes,
          COUNT(DISTINCT CASE
-           WHEN p.convenio_ref IS NOT NULL
+           WHEN p.convenio_ref = c.ref_core
             AND COALESCE(p.custeado_pela_empresa, c.empresa_paga_sessoes, 1) = 1
            THEN p.id END) AS pacientes_custeados,
          COUNT(DISTINCT CASE WHEN fc.fatura_convenio_ref IS NULL AND fc.status IN ('pending','overdue')
@@ -103,19 +104,24 @@ const CONVENIO_SELECT = `
                            THEN fc.valor_centavos ELSE 0 END), 0) AS valor_provisionado_centavos
     FROM clinica_convenios c
     LEFT JOIN clinica_pacientes p
-      ON p.instituicao_id = c.instituicao_id AND p.convenio_ref = c.ref_core
+      ON p.instituicao_id = c.instituicao_id
      AND p.organizacao_id = (SELECT o.id FROM clinica_organizacoes o
        WHERE o.instituicao_id = c.instituicao_id AND o.ref_core = c.organizacao_ref LIMIT 1)
+     AND (p.convenio_ref = c.ref_core OR EXISTS (
+       SELECT 1 FROM financeiro_cobrancas historica
+        WHERE historica.instituicao_id = c.instituicao_id AND historica.organizacao_ref = c.organizacao_ref
+          AND historica.paciente_ref = p.ref_core AND historica.convenio_ref = c.ref_core))
     LEFT JOIN financeiro_cobrancas fc
       ON fc.instituicao_id = c.instituicao_id AND fc.organizacao_ref = c.organizacao_ref
      AND fc.paciente_ref = p.ref_core
+     AND COALESCE(fc.convenio_ref, p.convenio_ref) = c.ref_core
      AND ${cobrancaVisivelNoConvenioSql('fc')}
     LEFT JOIN clinica_agendamentos ag ON ag.instituicao_id = fc.instituicao_id
       AND ag.organizacao_id = p.organizacao_id
       AND fc.sessao_ref IN (ag.ref_core, ag.sessao_clinica_ref)`;
 
 const FATURA_SELECT = `SELECT ref_core, organizacao_ref, convenio_ref, competencia, periodo_inicio, periodo_fim,
-  total_sessoes, valor_centavos, status, vence_em, provedor_ref, boleto_url,
+  total_sessoes, valor_centavos, valor_recebido_divergente_centavos, status, vence_em, provedor_ref, boleto_url,
   boleto_linha_digitavel, pago_em, criado_em FROM financeiro_faturas_convenio`;
 
 function toConvenio(row: ConvenioRow): Convenio {
@@ -141,6 +147,7 @@ function toFatura(row: FaturaRow): FaturaConvenio {
     id: row.ref_core, convenioId: row.convenio_ref, competencia: row.competencia,
     periodoInicio: String(row.periodo_inicio).slice(0, 10), periodoFim: String(row.periodo_fim).slice(0, 10),
     totalSessoes: Number(row.total_sessoes), valorCents: Number(row.valor_centavos), status: row.status,
+    valorRecebidoDivergenteCents: row.valor_recebido_divergente_centavos == null ? undefined : Number(row.valor_recebido_divergente_centavos),
     venceEm: row.vence_em ? String(row.vence_em).slice(0, 10) : undefined,
     providerId: row.provedor_ref ?? undefined, boletoUrl: row.boleto_url ?? undefined,
     linhaDigitavel: row.boleto_linha_digitavel ?? undefined,
@@ -168,8 +175,8 @@ export async function listarConveniosPublicos(): Promise<Array<{ id: string; nom
   return rows.map((row) => ({ id: String(row.ref_core), nome: String(row.nome) }));
 }
 
-export async function obterConvenio(organizationId: string, id: string): Promise<Convenio | null> {
-  const [rows] = await getMysqlPool().query<ConvenioRow[]>(
+export async function obterConvenio(organizationId: string, id: string, database: Pool | PoolConnection = getMysqlPool()): Promise<Convenio | null> {
+  const [rows] = await database.query<ConvenioRow[]>(
     `${CONVENIO_SELECT} WHERE c.instituicao_id = ? AND c.organizacao_ref = ? AND c.ref_core = ?
       GROUP BY c.id LIMIT 1`,
     [instituicaoId(), organizationId, id]
@@ -210,8 +217,8 @@ export async function atualizarConvenio(organizationId: string, id: string, inpu
 
 export async function pacientesDoConvenio(organizationId: string, convenioId: string, inicio?: string, fim?: string): Promise<PacienteConvenio[]> {
   const periodo = inicio && fim
-    ? `AND COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc_base.emitida_em) >= ?
-         AND COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc_base.emitida_em) < DATE_ADD(?, INTERVAL 1 DAY)`
+    ? `AND COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc_base.emitida_em) >= DATE_ADD(?, INTERVAL 3 HOUR)
+         AND COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc_base.emitida_em) < DATE_ADD(DATE_ADD(?, INTERVAL 1 DAY), INTERVAL 3 HOUR)`
     : '';
   // O recorte vive na subconsulta de cobranças, que aparece antes do WHERE
   // externo: os parâmetros seguem a ordem dos placeholders no SQL.
@@ -267,10 +274,10 @@ export async function sessoesDoConvenio(organizationId: string, convenioId: stri
   // Algumas cobranças apontam para o agendamento, não para a sessão clínica;
   // por isso o agendamento precisa entrar antes de `fc.emitida_em`.
   const dataAtendimento = 'COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc.emitida_em)';
-  const clauses = ['fc.instituicao_id = ?', 'fc.organizacao_ref = ?', 'p.convenio_ref = ?', cobrancaVisivelNoConvenioSql('fc')];
+  const clauses = ['fc.instituicao_id = ?', 'fc.organizacao_ref = ?', 'COALESCE(fc.convenio_ref, p.convenio_ref) = ?', cobrancaVisivelNoConvenioSql('fc')];
   const params: unknown[] = [instituicaoId(), organizationId, convenioId];
-  if (inicio) { clauses.push(`${dataAtendimento} >= ?`); params.push(inicio); }
-  if (fim) { clauses.push(`${dataAtendimento} < DATE_ADD(?, INTERVAL 1 DAY)`); params.push(fim); }
+  if (inicio) { clauses.push(`${dataAtendimento} >= DATE_ADD(?, INTERVAL 3 HOUR)`); params.push(inicio); }
+  if (fim) { clauses.push(`${dataAtendimento} < DATE_ADD(DATE_ADD(?, INTERVAL 1 DAY), INTERVAL 3 HOUR)`); params.push(fim); }
   const [rows] = await getMysqlPool().query<RowDataPacket[]>(
     `SELECT fc.ref_core, fc.sessao_ref, fc.paciente_ref, fc.profissional_ref,
             ${dataAtendimento} AS realizada_em, fc.valor_centavos, fc.status, fc.fatura_convenio_ref,
@@ -279,7 +286,7 @@ export async function sessoesDoConvenio(organizationId: string, convenioId: stri
        FROM financeiro_cobrancas fc
        JOIN clinica_pacientes p ON p.instituicao_id = fc.instituicao_id AND p.ref_core = fc.paciente_ref
        JOIN clinica_convenios c ON c.instituicao_id = p.instituicao_id
-        AND c.organizacao_ref = fc.organizacao_ref AND c.ref_core = p.convenio_ref
+        AND c.organizacao_ref = fc.organizacao_ref AND c.ref_core = COALESCE(fc.convenio_ref, p.convenio_ref)
        LEFT JOIN clinica_agendamentos ag ON ag.instituicao_id = fc.instituicao_id
         AND fc.sessao_ref IN (ag.ref_core, ag.sessao_clinica_ref)
        LEFT JOIN clinica_sessoes s ON s.instituicao_id = fc.instituicao_id
@@ -306,8 +313,8 @@ export async function listarFaturas(organizationId: string, convenioId: string):
   return rows.map(toFatura);
 }
 
-export async function obterFatura(organizationId: string, convenioId: string, faturaId: string): Promise<FaturaConvenio | null> {
-  const [rows] = await getMysqlPool().query<FaturaRow[]>(
+export async function obterFatura(organizationId: string, convenioId: string, faturaId: string, database: Pool | PoolConnection = getMysqlPool()): Promise<FaturaConvenio | null> {
+  const [rows] = await database.query<FaturaRow[]>(
     `${FATURA_SELECT} WHERE instituicao_id = ? AND organizacao_ref = ? AND convenio_ref = ? AND ref_core = ? LIMIT 1`,
     [instituicaoId(), organizationId, convenioId, faturaId]
   );
@@ -331,12 +338,12 @@ export async function fecharFatura(
     const whereClauses = [
       'fc.instituicao_id = ?',
       'fc.organizacao_ref = ?',
-      'p.convenio_ref = ?',
+      'COALESCE(fc.convenio_ref, p.convenio_ref) = ?',
       'fc.fatura_convenio_ref IS NULL',
       cobrancaVisivelNoConvenioSql('fc'),
       "fc.status IN ('pending','overdue')",
-      'COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc.emitida_em) >= ?',
-      'COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc.emitida_em) < DATE_ADD(?, INTERVAL 1 DAY)',
+      'COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc.emitida_em) >= DATE_ADD(?, INTERVAL 3 HOUR)',
+      'COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc.emitida_em) < DATE_ADD(DATE_ADD(?, INTERVAL 1 DAY), INTERVAL 3 HOUR)',
       // A fatura empresarial cobra só o que a empresa custeia. Um paciente do
       // convênio que paga a própria sessão continua com a cobrança individual;
       // incluí-la no boleto cobraria o mesmo atendimento duas vezes.
@@ -365,7 +372,7 @@ export async function fecharFatura(
          FROM financeiro_cobrancas fc
          JOIN clinica_pacientes p ON p.instituicao_id = fc.instituicao_id AND p.ref_core = fc.paciente_ref
          JOIN clinica_convenios c ON c.instituicao_id = p.instituicao_id
-          AND c.organizacao_ref = fc.organizacao_ref AND c.ref_core = p.convenio_ref
+          AND c.organizacao_ref = fc.organizacao_ref AND c.ref_core = COALESCE(fc.convenio_ref, p.convenio_ref)
          LEFT JOIN clinica_agendamentos ag ON ag.instituicao_id = fc.instituicao_id
           AND fc.sessao_ref IN (ag.ref_core, ag.sessao_clinica_ref)
          LEFT JOIN clinica_sessoes s ON s.instituicao_id = fc.instituicao_id
@@ -427,8 +434,8 @@ export async function fecharFatura(
   finally { connection.release(); }
 }
 
-export async function registrarBoleto(organizationId: string, convenioId: string, faturaId: string, input: { providerId: string; venceEm: string; boletoUrl: string; linhaDigitavel?: string }): Promise<FaturaConvenio> {
-  await getMysqlPool().execute(
+export async function registrarBoleto(organizationId: string, convenioId: string, faturaId: string, input: { providerId: string; venceEm: string; boletoUrl: string; linhaDigitavel?: string }, connection: PoolConnection): Promise<void> {
+  const [result] = await connection.execute<ResultSetHeader>(
     `UPDATE financeiro_faturas_convenio SET status = 'boleto_gerado', vence_em = ?,
        provedor_ref = ?, boleto_url = ?, boleto_linha_digitavel = ?
       WHERE instituicao_id = ? AND organizacao_ref = ? AND convenio_ref = ?
@@ -436,7 +443,7 @@ export async function registrarBoleto(organizationId: string, convenioId: string
     [input.venceEm, input.providerId, input.boletoUrl, input.linhaDigitavel ?? null,
       instituicaoId(), organizationId, convenioId, faturaId]
   );
-  return (await obterFatura(organizationId, convenioId, faturaId))!;
+  if (result.affectedRows !== 1) throw new Error('A fatura mudou durante a geração do boleto.');
 }
 
 export async function vincularPacienteConvenio(
@@ -450,10 +457,43 @@ export async function vincularPacienteConvenio(
     const convenio = await obterConvenio(organizationId, convenioId);
     if (!convenio) throw new Error('Convênio não encontrado.');
   }
+  const connection = await getMysqlPool().getConnection();
+  try {
+  await connection.beginTransaction();
+  const [pacientes] = await connection.query<RowDataPacket[]>(
+    `SELECT p.id FROM clinica_pacientes p JOIN clinica_organizacoes o ON o.id = p.organizacao_id
+      WHERE p.instituicao_id = ? AND o.ref_core = ? AND p.ref_core = ? FOR UPDATE`,
+    [instituicaoId(), organizationId, patientId]
+  );
+  if (!pacientes.length) throw new Error('Paciente não encontrado.');
+  const [pendentes] = await connection.query<RowDataPacket[]>(
+    `SELECT a.id FROM clinica_agendamentos a
+      JOIN clinica_pacientes p ON p.id = a.paciente_id
+      JOIN clinica_organizacoes o ON o.id = p.organizacao_id
+     WHERE a.instituicao_id = ? AND o.ref_core = ? AND p.ref_core = ?
+       AND a.transferencia_convenio_ref IS NOT NULL AND NOT (a.transferencia_convenio_ref <=> ?)
+     LIMIT 1`,
+    [instituicaoId(), organizationId, patientId, convenioId]
+  );
+  if (pendentes.length) throw new Error('Conclua a transferência de cobranças pendente antes de alterar o convênio.');
+  // Fixar o vínculo anterior antes de alterá-lo cobre cobranças antigas que
+  // ainda não tinham fatura nem pagador empresarial registrado.
+  await connection.execute(
+    `UPDATE financeiro_cobrancas c
+       JOIN clinica_agendamentos a ON a.instituicao_id = c.instituicao_id
+        AND c.sessao_ref IN (a.ref_core, a.sessao_clinica_ref)
+       JOIN clinica_pacientes p ON p.id = a.paciente_id AND p.instituicao_id = a.instituicao_id
+       JOIN clinica_organizacoes o ON o.id = a.organizacao_id AND o.ref_core = c.organizacao_ref
+       SET c.convenio_ref = p.convenio_ref
+      WHERE c.instituicao_id = ? AND o.ref_core = ? AND p.ref_core = ?
+        AND c.convenio_ref IS NULL AND c.fatura_convenio_ref IS NULL
+        AND a.custeado_pela_empresa = 1 AND p.convenio_ref IS NOT NULL`,
+    [instituicaoId(), organizationId, patientId]
+  );
   // As sessões já realizadas guardam a própria decisão, então mexer na cota
   // daqui vale da próxima em diante. É o que permite à gestão corrigir um
   // acordo sem reabrir cobrança encerrada.
-  const [result] = await getMysqlPool().execute<ResultSetHeader>(
+  const [result] = await connection.execute<ResultSetHeader>(
     `UPDATE clinica_pacientes p JOIN clinica_organizacoes o ON o.id = p.organizacao_id
         SET p.convenio_ref = ?, p.custeado_pela_empresa = ?,
             p.custeio_sessoes_cota = ?, p.custeio_sessoes_ciclo = ?
@@ -463,6 +503,9 @@ export async function vincularPacienteConvenio(
       instituicaoId(), organizationId, patientId]
   );
   if (result.affectedRows === 0) throw new Error('Paciente não encontrado.');
+  await connection.commit();
+  } catch (error) { await connection.rollback(); throw error; }
+  finally { connection.release(); }
 }
 
 export async function reconcileConvenioInvoicePayment(input: { eventId: string; eventType: string; paymentId: string; amountCents: number; receivedAt: string }): Promise<'processed' | 'duplicate' | 'unknown'> {
@@ -475,11 +518,22 @@ export async function reconcileConvenioInvoicePayment(input: { eventId: string; 
     );
     const fatura = faturas[0];
     if (!fatura) { await connection.rollback(); return 'unknown'; }
+    if (fatura.status === 'revisao_estorno') { await connection.rollback(); return 'duplicate'; }
     const [eventos] = await connection.query<RowDataPacket[]>(
       'SELECT id FROM financeiro_webhooks_asaas WHERE instituicao_id = ? AND evento_ref = ? LIMIT 1',
       [instituicaoId(), input.eventId]
     );
     if (eventos[0]) { await connection.rollback(); return 'duplicate'; }
+    if (input.amountCents !== Number(fatura.valor_centavos)) {
+      await connection.execute(`UPDATE financeiro_faturas_convenio SET status = 'revisao_pagamento', valor_recebido_divergente_centavos = ?
+        WHERE instituicao_id = ? AND organizacao_ref = ? AND ref_core = ?`,
+      [input.amountCents, instituicaoId(), fatura.organizacao_ref, fatura.ref_core]);
+      await connection.execute(`INSERT INTO financeiro_webhooks_asaas
+        (id, instituicao_id, evento_ref, evento_tipo, provedor_pagamento_ref) VALUES (?, ?, ?, ?, ?)`,
+      [rowId('asaas_event', input.eventId), instituicaoId(), input.eventId, input.eventType, input.paymentId]);
+      await connection.commit();
+      return 'processed';
+    }
     await connection.execute(
       `INSERT INTO financeiro_webhooks_asaas
        (id, instituicao_id, evento_ref, evento_tipo, provedor_pagamento_ref) VALUES (?, ?, ?, ?, ?)`,
@@ -511,7 +565,7 @@ export async function reconcileConvenioInvoicePayment(input: { eventId: string; 
       [instituicaoId(), fatura.organizacao_ref, fatura.ref_core]
     );
     await connection.execute(
-      `UPDATE financeiro_faturas_convenio SET status = 'paga', pago_em = ?, atualizado_em = CURRENT_TIMESTAMP(3)
+      `UPDATE financeiro_faturas_convenio SET status = 'paga', pago_em = ?, valor_recebido_divergente_centavos = NULL, atualizado_em = CURRENT_TIMESTAMP(3)
         WHERE instituicao_id = ? AND ref_core = ?`,
       [input.receivedAt, instituicaoId(), fatura.ref_core]
     );
@@ -521,18 +575,88 @@ export async function reconcileConvenioInvoicePayment(input: { eventId: string; 
   finally { connection.release(); }
 }
 
-export async function cancelarFatura(organizationId: string, convenioId: string, faturaId: string): Promise<void> {
+export async function reconcileConvenioInvoiceRefund(input: {
+  eventId: string; eventType: string; paymentId: string; refundCents: number; receivedAt: string;
+}): Promise<'processed' | 'duplicate' | 'unknown'> {
   const connection = await getMysqlPool().getConnection();
   try {
     await connection.beginTransaction();
+    const [faturas] = await connection.query<FaturaRow[]>(
+      `${FATURA_SELECT} WHERE instituicao_id = ? AND provedor_ref = ? LIMIT 1 FOR UPDATE`,
+      [instituicaoId(), input.paymentId]
+    );
+    const fatura = faturas[0];
+    if (!fatura) { await connection.rollback(); return 'unknown'; }
+    const [eventos] = await connection.query<RowDataPacket[]>(
+      'SELECT id FROM financeiro_webhooks_asaas WHERE instituicao_id = ? AND evento_ref = ? LIMIT 1',
+      [instituicaoId(), input.eventId]
+    );
+    if (eventos[0]) { await connection.rollback(); return 'duplicate'; }
+    const [pagamentos] = await connection.query<RowDataPacket[]>(
+      `SELECT p.ref_core, p.cobranca_ref, p.valor_centavos FROM financeiro_pagamentos p
+       JOIN financeiro_cobrancas c ON c.instituicao_id = p.instituicao_id
+        AND c.organizacao_ref = p.organizacao_ref AND c.ref_core = p.cobranca_ref
+       WHERE p.instituicao_id = ? AND p.organizacao_ref = ? AND c.fatura_convenio_ref = ?
+        AND p.provedor = 'asaas' AND p.status = 'confirmed'
+        AND p.provedor_transacao_ref = CONCAT(?, ':', p.cobranca_ref)
+       ORDER BY c.emitida_em, c.ref_core FOR UPDATE`,
+      [instituicaoId(), fatura.organizacao_ref, fatura.ref_core, input.paymentId]
+    );
+    const valores = pagamentos.map((row) => Number(row.valor_centavos));
+    if (!pagamentos.length || !Number.isSafeInteger(input.refundCents) || input.refundCents <= 0
+        || valores.some((valor) => !Number.isSafeInteger(valor) || valor <= 0)
+        || input.refundCents > valores.reduce((a, b) => a + b, 0)) {
+      throw new Error('Não foi possível conciliar o estorno da fatura; confira os pagamentos.');
+    }
+    let restante = input.refundCents;
+    const rateio = valores.map((valor) => {
+      const parte = Math.min(restante, valor);
+      restante -= parte;
+      return parte;
+    });
+    for (const [indice, pagamento] of pagamentos.entries()) {
+      if (rateio[indice] === 0) continue;
+      const ref = `asaas-convenio-refund-${input.paymentId}-${indice + 1}`;
+      await connection.execute(
+        `INSERT INTO financeiro_estornos (id, instituicao_id, organizacao_ref, ref_core, pagamento_ref, valor_centavos, estornado_em, motivo, provedor_ref)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'Estorno confirmado pelo Asaas', ?)
+         ON DUPLICATE KEY UPDATE valor_centavos = GREATEST(valor_centavos, VALUES(valor_centavos))`,
+        [rowId('estorno', ref), instituicaoId(), fatura.organizacao_ref, ref,
+          pagamento.ref_core, rateio[indice], toSqlTimestamp(input.receivedAt), input.paymentId]
+      );
+      await connection.execute(
+        `UPDATE financeiro_cobrancas SET status = CASE WHEN
+          (SELECT COALESCE(SUM(e.valor_centavos), 0) FROM financeiro_estornos e
+            WHERE e.instituicao_id = ? AND e.organizacao_ref = ? AND e.pagamento_ref = ?) >= ?
+          THEN 'refunded' ELSE 'partially_paid' END, atualizado_em = CURRENT_TIMESTAMP(3)
+          WHERE instituicao_id = ? AND organizacao_ref = ? AND ref_core = ?`,
+        [instituicaoId(), fatura.organizacao_ref, pagamento.ref_core, valores[indice],
+          instituicaoId(), fatura.organizacao_ref, pagamento.cobranca_ref]
+      );
+    }
+    await connection.execute(
+      `UPDATE financeiro_faturas_convenio SET status = 'revisao_estorno', atualizado_em = CURRENT_TIMESTAMP(3)
+        WHERE instituicao_id = ? AND organizacao_ref = ? AND ref_core = ?`,
+      [instituicaoId(), fatura.organizacao_ref, fatura.ref_core]
+    );
+    await connection.execute(
+      `INSERT INTO financeiro_webhooks_asaas (id, instituicao_id, evento_ref, evento_tipo, provedor_pagamento_ref) VALUES (?, ?, ?, ?, ?)`,
+      [rowId('asaas_event', input.eventId), instituicaoId(), input.eventId, input.eventType, input.paymentId]
+    );
+    await connection.commit();
+    return 'processed';
+  } catch (error) { await connection.rollback(); throw error; }
+  finally { connection.release(); }
+}
 
+export async function cancelarFatura(organizationId: string, convenioId: string, faturaId: string, connection: PoolConnection): Promise<void> {
     const [faturas] = await connection.query<FaturaRow[]>(
       `${FATURA_SELECT} WHERE instituicao_id = ? AND organizacao_ref = ? AND convenio_ref = ? AND ref_core = ? LIMIT 1 FOR UPDATE`,
       [instituicaoId(), organizationId, convenioId, faturaId]
     );
     const fatura = faturas[0];
     if (!fatura) throw new Error('Fatura não encontrada.');
-    if (fatura.status === 'paga') throw new Error('Não é possível cancelar uma fatura que já foi paga.');
+    if (['paga', 'revisao_estorno', 'revisao_pagamento'].includes(fatura.status)) throw new Error('Não é possível cancelar uma fatura paga ou em revisão.');
 
     // Desvincula as cobranças associadas para que voltem a ficar disponíveis para faturamento
     await connection.execute(
@@ -549,11 +673,4 @@ export async function cancelarFatura(organizationId: string, convenioId: string,
       [instituicaoId(), organizationId, convenioId, faturaId]
     );
 
-    await connection.commit();
-  } catch (error) {
-    await connection.rollback();
-    throw error;
-  } finally {
-    connection.release();
-  }
 }

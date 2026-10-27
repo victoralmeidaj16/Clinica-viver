@@ -6,7 +6,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Envia as confirmações de agendamento que esperavam o horário comercial.
+ * Libera avisos adiados e retoma falhas de envio durante o horário comercial.
  *
  * Chamada pelo worker da varredura de SLA, com o mesmo `x-sla-token`: é o
  * mesmo relógio, e um segredo a mais seria mais um worker parado por variável

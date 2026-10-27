@@ -1,6 +1,6 @@
 export interface ConvenioView {
   id: string; nome: string; razaoSocial?: string; cnpj?: string; emailFaturamento?: string;
-  empresaPagaSessoes: boolean; pacoteSessoes?: number; diaVencimento?: number; ativo: boolean;
+  empresaPagaSessoes: boolean; pacoteSessoes?: number | null; diaVencimento?: number | null; ativo: boolean;
   pacientes: number; pacientesCusteados: number; sessoesProvisionadas: number; valorProvisionadoCents: number;
 }
 
@@ -17,7 +17,7 @@ export interface SessaoConvenioView {
 
 export interface FaturaConvenioView {
   id: string; convenioId: string; competencia: string; periodoInicio: string; periodoFim: string;
-  totalSessoes: number; valorCents: number; status: 'aberta' | 'boleto_gerado' | 'paga' | 'cancelada';
+  totalSessoes: number; valorCents: number; valorRecebidoDivergenteCents?: number; status: 'aberta' | 'boleto_gerado' | 'paga' | 'cancelada' | 'revisao_estorno' | 'revisao_pagamento';
   venceEm?: string; providerId?: string; boletoUrl?: string; linhaDigitavel?: string; pagoEm?: string; criadoEm: string;
 }
 
@@ -28,5 +28,5 @@ export interface ConvenioDetailView {
 
 export interface ConvenioPayload {
   nome: string; razaoSocial?: string; cnpj?: string; emailFaturamento?: string;
-  empresaPagaSessoes: boolean; pacoteSessoes?: number; diaVencimento?: number; ativo: boolean;
+  empresaPagaSessoes: boolean; pacoteSessoes?: number | null; diaVencimento?: number | null; ativo: boolean;
 }

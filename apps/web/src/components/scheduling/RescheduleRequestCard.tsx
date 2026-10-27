@@ -28,7 +28,7 @@ export function RescheduleRequestCard({ request, patientName, onDecision }: {
       <p className="mt-1 text-xs font-semibold text-amber-950">{patientName}</p>
       <div className="mt-3 grid gap-2 text-xs text-amber-950 sm:grid-cols-2">
         <p><span className="font-bold">Horário atual:</span><br />{FORMAT.format(new Date(request.currentStartsAt))}</p>
-        <p><span className="font-bold">Horário solicitado:</span><br />{FORMAT.format(new Date(request.requestedStartsAt))}</p>
+        <p><span className="font-bold">Horário solicitado:</span><br />{FORMAT.format(new Date(request.requestedStartsAt))} · {request.requestedModality === 'presencial' ? 'Presencial' : request.requestedModality === 'telefone' ? 'Telefone' : 'Online'}</p>
       </div>
       {error && <p role="alert" className="mt-3 text-xs font-bold text-rose-700">{error}</p>}
       <div className="mt-3 flex gap-2">

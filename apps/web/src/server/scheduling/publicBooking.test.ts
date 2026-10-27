@@ -28,6 +28,10 @@ beforeEach(() => {
   connection.execute.mockResolvedValue([{ affectedRows: 1 }, []]);
 });
 describe('reserva múltipla', () => {
+  it('busca a organização somente na instituição do paciente', async () => {
+    await bookAppointments(patient, [start], now);
+    expect(connection.query).toHaveBeenCalledWith(expect.stringContaining('WHERE instituicao_id = ? AND ref_core = ?'), ['inst', 'org']);
+  });
   it('mantém a disponibilidade vazia depois de configurada', async () => {
     poolQuery.mockImplementation(async (sql: string) => [sql.includes('disponibilidade_configurada')
       ? [{ disponibilidade_configurada: 1 }] : [], []]);

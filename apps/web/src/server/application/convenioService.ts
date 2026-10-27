@@ -15,6 +15,8 @@ import {
 import { gerarRelatorioConvenioPdf } from '@/server/reports/convenioReportPdf';
 import { transferirCobrancasParaEmpresa } from '@/server/payments/convenioChargeTransfer';
 import { normalizarCicloCusteio } from '@/lib/convenioBilling';
+import { getMysqlPool } from '@/server/oci/runtime';
+import { instituicaoId } from '@/server/persistence/mysql/mappers';
 
 function admin(context: RequestContext) {
   exigirAdminFiscal(context);
@@ -154,21 +156,29 @@ function dueDate(day: number | undefined): string {
   const now = new Date();
   const local = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
   const [year, month, today] = local.split('-').map(Number);
-  const selectedDay = day ?? Math.min(today + 7, 28);
+  if (day === undefined) return new Date(Date.UTC(year, month - 1, today + 7, 12)).toISOString().slice(0, 10);
+  const selectedDay = day;
   let due = new Date(Date.UTC(year, month - 1, selectedDay, 12));
-  if (due.getTime() <= now.getTime()) due = new Date(Date.UTC(year, month, selectedDay, 12));
+  if (selectedDay < today) due = new Date(Date.UTC(year, month, selectedDay, 12));
   return due.toISOString().slice(0, 10);
 }
 
 export async function createConvenioBoleto(context: RequestContext, convenioId: string, faturaId: string) {
   const organizationId = admin(context);
+  const connection = await getMysqlPool().getConnection();
+  try {
+  await connection.beginTransaction();
+  await connection.query(
+    `SELECT id FROM financeiro_faturas_convenio WHERE instituicao_id = ? AND organizacao_ref = ? AND convenio_ref = ? AND ref_core = ? FOR UPDATE`,
+    [instituicaoId(), organizationId, convenioId, faturaId]
+  );
   const [convenio, fatura] = await Promise.all([
-    obterConvenio(organizationId, convenioId), obterFatura(organizationId, convenioId, faturaId),
+    obterConvenio(organizationId, convenioId, connection), obterFatura(organizationId, convenioId, faturaId, connection),
   ]);
   if (!convenio || !fatura) throw new ApplicationError('NOT_FOUND', 'Convênio ou fatura não encontrado.', 404);
   if (!convenio.cnpj) throw new ApplicationError('CNPJ_REQUIRED', 'Cadastre o CNPJ real da empresa antes de gerar o boleto.', 422);
-  if (fatura.status === 'paga') throw new ApplicationError('INVALID_INVOICE_STATE', 'Esta fatura já está paga.', 409);
-  if (fatura.providerId) return fatura;
+  if (['paga', 'revisao_estorno', 'revisao_pagamento'].includes(fatura.status)) throw new ApplicationError('INVALID_INVOICE_STATE', 'Esta fatura está paga ou em revisão.', 409);
+  if (fatura.providerId) { await connection.commit(); return fatura; }
 
   const externalReference = `VMPJ-${fatura.id}`;
   let payment = await findAsaasPaymentByExternalReference(externalReference);
@@ -183,11 +193,22 @@ export async function createConvenioBoleto(context: RequestContext, convenioId: 
       billingType: 'BOLETO', externalReference,
     });
   }
+  if (!Number.isFinite(payment.value) || Math.round(payment.value * 100) !== fatura.valorCents) {
+    throw new ApplicationError('PROVIDER_AMOUNT_MISMATCH', 'O boleto existente no provedor tem valor diferente da fatura. Confira antes de continuar.', 409);
+  }
   const linhaDigitavel = await getAsaasBoletoIdentificationField(payment.id);
-  return registrarBoleto(organizationId, convenioId, faturaId, {
+  await registrarBoleto(organizationId, convenioId, faturaId, {
     providerId: payment.id, venceEm: payment.dueDate,
     boletoUrl: payment.bankSlipUrl ?? payment.invoiceUrl, linhaDigitavel,
-  });
+  }, connection);
+  await connection.commit();
+  return (await obterFatura(organizationId, convenioId, faturaId, connection))!;
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 }
 
 export async function updatePatientConvenio(context: RequestContext, patientId: string, body: Record<string, unknown>) {
@@ -207,10 +228,11 @@ export async function updatePatientConvenio(context: RequestContext, patientId: 
   // cobrir deixam a cobrança individual e entram no que ela tem a faturar.
   const cobrancas = convenioId
     ? await transferirCobrancasParaEmpresa(organizationId, patientId)
-    : { transferidas: 0, mantidas: 0 };
+    : { transferidas: 0, mantidas: 0, pendentes: 0 };
   return {
     patientId, convenioId, custeadoPelaEmpresa: custeio, custeioCota: cota, custeioCiclo: ciclo,
     cobrancasTransferidas: cobrancas.transferidas,
+    cobrancasPendentes: cobrancas.pendentes,
   };
 }
 
@@ -237,12 +259,19 @@ export async function convenioReport(context: RequestContext, convenioId: string
 
 export async function cancelConvenioInvoice(context: RequestContext, convenioId: string, faturaId: string) {
   const organizationId = admin(context);
+  const connection = await getMysqlPool().getConnection();
+  try {
+  await connection.beginTransaction();
+  await connection.query(
+    `SELECT id FROM financeiro_faturas_convenio WHERE instituicao_id = ? AND organizacao_ref = ? AND convenio_ref = ? AND ref_core = ? FOR UPDATE`,
+    [instituicaoId(), organizationId, convenioId, faturaId]
+  );
   const [convenio, fatura] = await Promise.all([
-    obterConvenio(organizationId, convenioId),
-    obterFatura(organizationId, convenioId, faturaId),
+    obterConvenio(organizationId, convenioId, connection),
+    obterFatura(organizationId, convenioId, faturaId, connection),
   ]);
   if (!convenio || !fatura) throw new ApplicationError('NOT_FOUND', 'Convênio ou fatura não encontrado.', 404);
-  if (fatura.status === 'paga') throw new ApplicationError('INVALID_INVOICE_STATE', 'Esta fatura já está paga e não pode ser cancelada.', 409);
+  if (['paga', 'revisao_estorno', 'revisao_pagamento'].includes(fatura.status)) throw new ApplicationError('INVALID_INVOICE_STATE', 'Esta fatura está paga ou em revisão e não pode ser cancelada.', 409);
 
   // O cancelamento local só pode acontecer depois que o provedor confirmar a
   // remoção: o adaptador já trata 404 como sucesso, então qualquer erro aqui é
@@ -269,6 +298,9 @@ export async function cancelConvenioInvoice(context: RequestContext, convenioId:
     }
   }
 
-  await cancelarFatura(organizationId, convenioId, faturaId);
+  await cancelarFatura(organizationId, convenioId, faturaId, connection);
+  await connection.commit();
   return { cancelled: true, id: faturaId };
+  } catch (error) { await connection.rollback(); throw error; }
+  finally { connection.release(); }
 }

@@ -17,6 +17,10 @@ describe.skipIf(!sqlite)('projeção da cota por agendamento', () => {
   beforeEach(() => {
     db = new sqlite!.DatabaseSync(':memory:');
     db.function('DATE_FORMAT', { varargs: true }, (date) => String(date).slice(0, 7));
+    db.function('CONVERT_TZ', { varargs: true }, (date) => {
+      const instant = new Date(`${String(date).replace(' ', 'T')}Z`);
+      return new Date(instant.getTime() - 3 * 60 * 60 * 1000).toISOString();
+    });
     db.exec(`
       CREATE TABLE clinica_pacientes (
         id TEXT, instituicao_id TEXT, convenio_ref TEXT,
@@ -77,6 +81,14 @@ describe.skipIf(!sqlite)('projeção da cota por agendamento', () => {
     expect(custeios()).toEqual([1, 1, 0, 0]);
     db.exec("UPDATE clinica_pacientes SET custeio_sessoes_ciclo = 'mensal'");
     expect(custeios()).toEqual([1, 1, 0, 1]);
+  });
+
+  it('considera o mês de São Paulo para sessões noturnas', () => {
+    db.exec(`UPDATE clinica_pacientes SET custeio_sessoes_cota = 1, custeio_sessoes_ciclo = 'mensal';
+      UPDATE clinica_agendamentos SET inicio = '2026-11-01 00:00:00', custeado_pela_empresa = 1, status = 'realizado' WHERE id = '1';
+      UPDATE clinica_agendamentos SET inicio = '2026-11-01 15:00:00' WHERE id = '2';
+      UPDATE clinica_agendamentos SET status = 'cancelado' WHERE id IN ('3', '4');`);
+    expect(custeios()).toEqual([1, 1]);
   });
 
   it('desempata horários iguais pelo id', () => {

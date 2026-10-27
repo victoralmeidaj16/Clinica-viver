@@ -14,7 +14,8 @@ const session: ContatosDaSessao = {
   profissionalNome: 'Profissional fictício', profissionalTelefone: '11988888888',
 };
 const abertura = new Date('2026-09-23T11:05:00Z');
-const situacoes = () => state.execute.mock.calls.map(([, values]) => values[0]);
+const situacoes = () => state.execute.mock.calls.filter(([sql]) => String(sql).startsWith('UPDATE clinica_agenda_avisos SET situacao = ?'))
+  .map(([, values]) => values[0]);
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -36,7 +37,7 @@ describe('liberação dos avisos adiados', () => {
     expect(situacoes()).toEqual(['reservado', 'enviada']);
   });
   it('não envia se outra chamada já tomou a linha', async () => {
-    state.execute.mockResolvedValueOnce([{ affectedRows: 0 }]);
+    state.execute.mockResolvedValueOnce([{ affectedRows: 1 }]).mockResolvedValueOnce([{ affectedRows: 0 }]);
     await liberarAvisosAguardando(abertura);
     expect(state.enviar).not.toHaveBeenCalled();
   });
@@ -50,5 +51,27 @@ describe('liberação dos avisos adiados', () => {
     state.enviar.mockResolvedValue({ situacao: 'falha' });
     await expect(liberarAvisosAguardando(abertura)).resolves.toMatchObject({ adiados: 1 });
     expect(situacoes()).toEqual(['reservado', 'aguardando_horario']);
+  });
+  it('retoma a remarcação com a mesma chave e sem guardar o conteúdo na fila', async () => {
+    state.query.mockResolvedValue([[{ id: 'aviso', agendamento_id: 'appointment', tipo: 'remarcacao_paciente', versao: 2,
+      dados_reenvio: { inicioAnterior: '2026-09-24T15:00:00Z', inicioNovo: session.inicio, fimNovo: session.fim, modalidade: session.modalidade } }]]);
+    state.contatos.mockResolvedValue(session);
+    await expect(liberarAvisosAguardando(abertura)).resolves.toMatchObject({ enviados: 1 });
+    expect(state.enviar).toHaveBeenCalledWith(session.pacienteTelefone, expect.stringContaining('Horário anterior:'),
+      'agenda_remarcacao_paciente', 'agenda:remarcacao_paciente:appointment:2');
+  });
+  it('descarta remarcação superada por outra alteração', async () => {
+    state.query.mockResolvedValue([[{ id: 'aviso', agendamento_id: 'appointment', tipo: 'remarcacao_paciente', versao: 2,
+      dados_reenvio: { inicioAnterior: '2026-09-24T15:00:00Z', inicioNovo: '2026-09-26T18:00:00Z', fimNovo: session.fim, modalidade: session.modalidade } }]]);
+    state.contatos.mockResolvedValue(session);
+    await expect(liberarAvisosAguardando(abertura)).resolves.toMatchObject({ descartados: 1 });
+    expect(state.enviar).not.toHaveBeenCalled();
+  });
+  it('descarta aviso de pedido já respondido', async () => {
+    state.query.mockResolvedValueOnce([[{ id: 'aviso', agendamento_id: 'appointment', tipo: 'solicitacao_reagendamento_psicologo', versao: 1,
+      dados_reenvio: { inicioSolicitado: '2026-09-27T16:00:00Z' } }]])
+      .mockResolvedValueOnce([[{ status: 'aceita' }]]);
+    await expect(liberarAvisosAguardando(abertura)).resolves.toMatchObject({ descartados: 1 });
+    expect(state.enviar).not.toHaveBeenCalled();
   });
 });

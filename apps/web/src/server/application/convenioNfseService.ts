@@ -4,14 +4,14 @@ import { gerarDpsPsicologia } from '@thats-life/core';
 import type { RequestContext } from './context';
 import { ApplicationError } from './http';
 import { exigirAdminFiscal } from './clinicFinanceService';
-import { codigoDaFalha, dataHoraDps, interpretarNota, serieDps } from './nfseEmissionService';
+import { codigoDaFalha, dataHoraDps, interpretarNota, recuperarNotaPorDps, serieDps } from './nfseEmissionService';
 import { obterConvenio, obterFatura } from '@/server/persistence/mysql/convenioRepository';
 import { statusCertificadoNfse } from '@/server/fiscal/certificadoNfse';
 import { exigirCertificadoNfseApto } from '@/server/fiscal/certificadoNfse';
 import { NfseRepository, exigirPersistenciaFiscal } from '@/server/fiscal/nfseRepository';
 import { PRESTADOR_NFSE, SERVICO_NFSE } from '@/server/fiscal/prestador';
 import {
-  ambienteNfse, CODIGO_TP_AMB, consultarChavePorDps, dpsJaGerouNfse,
+  ambienteNfse, CODIGO_TP_AMB, dpsJaGerouNfse,
   enviarDps, SefinNacionalError,
 } from '@/server/fiscal/sefinNacional';
 import { assinarXmlFiscal } from '@/server/fiscal/assinaturaXmlFiscal';
@@ -61,6 +61,7 @@ export async function emitirNfseFatura(context: RequestContext, convenioId: stri
     competencia: `${fatura.competencia}-01`, idempotencyKey: context.idempotencyKey,
     usuarioId: context.actor.userId,
   });
+  if (emission.ambiente !== ambiente) throw new ApplicationError('INVALID_FISCAL_STATE', 'Existe uma emissão desta fatura em outro ambiente fiscal. A emissão precisa ser revisada antes de prosseguir.', 409);
   if (emission.status === 'issued') return { status: 'issued' as const, numeroNfse: emission.numeroNfse, ambiente: emission.ambiente };
   if (emission.status === 'cancelled') throw new ApplicationError('INVALID_FISCAL_STATE', 'Esta DPS foi cancelada e não pode ser reenviada.', 409);
   if (!(await repository.iniciarProcessamento(emission.id))) throw new ApplicationError('NFSE_IN_PROGRESS', 'Já existe uma emissão em andamento.', 409);
@@ -89,10 +90,9 @@ export async function emitirNfseFatura(context: RequestContext, convenioId: stri
       await repository.salvarDps(emission.id, dps.id, xmlAssinado);
     }
     const identificador = dpsId.replace(/^DPS/, '');
-    const response = await dpsJaGerouNfse(identificador)
-      ? await consultarChavePorDps(identificador)
-      : await enviarDps(xmlAssinado);
-    const nota = interpretarNota(response);
+    const recuperada = await dpsJaGerouNfse(identificador) ? await recuperarNotaPorDps(identificador) : undefined;
+    const response = recuperada?.resposta ?? await enviarDps(xmlAssinado);
+    const nota = recuperada?.nota ?? interpretarNota(response);
     await repository.registrarNota(emission.id, { status: response.status, corpo: response.corpo, ...nota });
     return { status: 'issued' as const, numeroNfse: nota.numeroNfse, ambiente };
   } catch (error) {

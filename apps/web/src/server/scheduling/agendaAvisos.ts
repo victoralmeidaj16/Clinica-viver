@@ -10,6 +10,7 @@ import { appBaseUrl } from '@/server/application/appUrl';
 import { comFoco, focoSessao } from '@/lib/focoNotificacao';
 import { proximaAberturaComercial } from './horarioComercial';
 import type { ContatosDaSessao } from './agendaRepository';
+import type { DadosAvisoReenvio } from './agendaAvisosReenvio';
 
 /**
  * Avisos de WhatsApp da agenda.
@@ -40,11 +41,12 @@ export type TipoAviso = 'confirmacao_paciente' | 'confirmacao_psicologo' | 'canc
  * deixaria a janela entre as duas aberta, que é exatamente onde duas instâncias
  * decidiriam ambas que ninguém tinha enviado ainda.
  */
-async function reservar(agendamentoId: string, tipo: TipoAviso, versao: number): Promise<boolean> {
+async function reservar(agendamentoId: string, tipo: TipoAviso, versao: number,
+  dadosReenvio?: DadosAvisoReenvio): Promise<boolean> {
   const [resultado] = await getMysqlPool().execute<ResultSetHeader>(
-    `INSERT IGNORE INTO clinica_agenda_avisos (id, instituicao_id, agendamento_id, tipo, versao, situacao)
-     VALUES (?, ?, ?, ?, ?, 'reservado')`,
-    [randomUUID(), instituicaoId(), agendamentoId, tipo, versao]
+    `INSERT IGNORE INTO clinica_agenda_avisos (id, instituicao_id, agendamento_id, tipo, versao, situacao, dados_reenvio)
+     VALUES (?, ?, ?, ?, ?, 'reservado', ?)`,
+    [randomUUID(), instituicaoId(), agendamentoId, tipo, versao, JSON.stringify(dadosReenvio ?? {})]
   );
   return resultado.affectedRows > 0;
 }
@@ -52,23 +54,23 @@ async function reservar(agendamentoId: string, tipo: TipoAviso, versao: number):
 /**
  * Fecha a reserva com o que aconteceu.
  *
- * Falha de rede **apaga** a reserva: o lembrete que não saiu por instabilidade
- * precisa da próxima varredura, e uma linha permanente diria à varredura que
- * ele já foi. Bloqueio de allowlist e provedor ausente ficam gravados porque
- * tentar de novo daria no mesmo — e a linha vira o registro de que a mensagem
- * não saiu, em vez de silêncio.
+ * Falhas ficam pendentes para a varredura. O adaptador conserva a chave de
+ * entrega e evita repetir mensagens cujo resultado ainda seja desconhecido.
  */
 async function encerrar(
   agendamentoId: string,
   tipo: TipoAviso,
   situacao: ResultadoEnvio['situacao'],
-  versao: number
+  versao: number,
+  dadosReenvio?: DadosAvisoReenvio
 ): Promise<void> {
   const pool = getMysqlPool();
   if (situacao === 'falha') {
     await pool.execute(
-      'DELETE FROM clinica_agenda_avisos WHERE instituicao_id = ? AND agendamento_id = ? AND tipo = ? AND versao = ?',
-      [instituicaoId(), agendamentoId, tipo, versao]
+      `UPDATE clinica_agenda_avisos SET situacao = 'aguardando_horario',
+        enviar_em = CURRENT_TIMESTAMP(3), dados_reenvio = ?
+        WHERE instituicao_id = ? AND agendamento_id = ? AND tipo = ? AND versao = ?`,
+      [JSON.stringify(dadosReenvio ?? {}), instituicaoId(), agendamentoId, tipo, versao]
     );
     return;
   }
@@ -95,10 +97,11 @@ async function despachar(
   telefone: string | null,
   finalidade: Parameters<typeof enviarTexto>[2],
   texto: string,
-  versao = 0
+  versao = 0,
+  dadosReenvio?: DadosAvisoReenvio
 ): Promise<SituacaoAviso> {
   try {
-    return await tentarDespachar(agendamentoId, tipo, telefone, finalidade, texto, versao);
+    return await tentarDespachar(agendamentoId, tipo, telefone, finalidade, texto, versao, dadosReenvio);
   } catch (erro) {
     console.error(`[agenda] Falha ao processar aviso "${tipo}":`, erro);
     return 'erro';
@@ -111,16 +114,17 @@ async function tentarDespachar(
   telefone: string | null,
   finalidade: Parameters<typeof enviarTexto>[2],
   texto: string,
-  versao = 0
+  versao = 0,
+  dadosReenvio?: DadosAvisoReenvio
 ): Promise<SituacaoAviso> {
   if (!telefone?.trim()) {
     console.warn(`[agenda] Aviso "${tipo}" não enviado: contato sem telefone cadastrado.`);
     return 'sem_telefone';
   }
-  if (!(await reservar(agendamentoId, tipo, versao))) return 'ja_enviado';
+  if (!(await reservar(agendamentoId, tipo, versao, dadosReenvio))) return 'ja_enviado';
 
   const resultado = await enviarTexto(telefone, texto, finalidade, `agenda:${tipo}:${agendamentoId}:${versao}`);
-  await encerrar(agendamentoId, tipo, resultado.situacao, versao);
+  await encerrar(agendamentoId, tipo, resultado.situacao, versao, dadosReenvio);
   return resultado.situacao;
 }
 
@@ -280,19 +284,24 @@ export async function avisarSessaoCancelada(sessao: ContatosDaSessao): Promise<v
 
 /** Cada versão da sessão pode avisar os dois destinatários uma vez. */
 export async function avisarSessaoRemarcada(sessao: ContatosDaSessao, inicioAnterior: string, versao: number): Promise<void> {
+  const textos = textosRemarcacao(sessao, inicioAnterior);
+  const dados = { inicioAnterior, inicioNovo: sessao.inicio, fimNovo: sessao.fim, modalidade: sessao.modalidade };
+  await despachar(sessao.agendamentoId, 'remarcacao_paciente', sessao.pacienteTelefone,
+    'agenda_remarcacao_paciente', textos.paciente, versao, dados);
+  await despachar(sessao.agendamentoId, 'remarcacao_psicologo', sessao.profissionalTelefone,
+    'agenda_remarcacao_psicologo', textos.profissional, versao, dados);
+}
+
+export function textosRemarcacao(sessao: ContatosDaSessao, inicioAnterior: string) {
   const detalhes = [
     `Horário anterior: ${quandoPorExtenso(inicioAnterior)}`,
     `Novo horário: ${quandoPorExtenso(sessao.inicio)}`,
     rotuloModalidade(sessao.modalidade),
   ].join('\n');
-  await despachar(sessao.agendamentoId, 'remarcacao_paciente', sessao.pacienteTelefone,
-    'agenda_remarcacao_paciente',
-    `Olá, ${sessao.pacienteNome}! Sua sessão com ${sessao.profissionalNome} foi remarcada.\n\n${detalhes}`,
-    versao);
-  await despachar(sessao.agendamentoId, 'remarcacao_psicologo', sessao.profissionalTelefone,
-    'agenda_remarcacao_psicologo',
-    `Olá, ${sessao.profissionalNome}! A sessão de ${sessao.pacienteNome} foi remarcada.\n\n${detalhes}`,
-    versao);
+  return {
+    paciente: `Olá, ${sessao.pacienteNome}! Sua sessão com ${sessao.profissionalNome} foi remarcada.\n\n${detalhes}`,
+    profissional: `Olá, ${sessao.profissionalNome}! A sessão de ${sessao.pacienteNome} foi remarcada.\n\n${detalhes}`,
+  };
 }
 
 export function textoSolicitacaoReagendamentoPsicologo(
@@ -321,7 +330,8 @@ export async function avisarSolicitacaoReagendamentoPsicologo(
     sessao.profissionalTelefone,
     'agenda_solicitacao_reagendamento_psicologo',
     textoSolicitacaoReagendamentoPsicologo(sessao, inicioSolicitado),
-    sequencia
+    sequencia,
+    { inicioSolicitado }
   );
 }
 
@@ -334,7 +344,11 @@ export async function avisarRecusaReagendamentoPaciente(
     'recusa_reagendamento_paciente',
     sessao.pacienteTelefone,
     'agenda_recusa_reagendamento_paciente',
-    `Olá, ${sessao.pacienteNome}. A solicitação de mudança não foi aceita. Sua sessão continua confirmada para ${quandoPorExtenso(sessao.inicio)}.`,
+    textoRecusaReagendamentoPaciente(sessao),
     sequencia
   );
+}
+
+export function textoRecusaReagendamentoPaciente(sessao: ContatosDaSessao): string {
+  return `Olá, ${sessao.pacienteNome}. A solicitação de mudança não foi aceita. Sua sessão continua confirmada para ${quandoPorExtenso(sessao.inicio)}.`;
 }

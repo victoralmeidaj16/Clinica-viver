@@ -369,7 +369,7 @@ export default function AgendarPage({ params }: Props) {
                           timeZone: 'America/Sao_Paulo',
                         })}
                         {' · '}
-                        {agenda.agendamentoAtual.modalidade === 'online' ? 'Atendimento Online' : 'Atendimento Presencial'}
+                        {agenda.agendamentoAtual.modalidade === 'online' ? 'Atendimento Online' : agenda.agendamentoAtual.modalidade === 'telefone' ? 'Atendimento por Telefone' : 'Atendimento Presencial'}
                       </p>
                     </div>
 
@@ -399,7 +399,7 @@ export default function AgendarPage({ params }: Props) {
                       <p className="mt-1">Seu horário atual continua válido enquanto você aguarda a resposta.</p>
                       <div className="mt-3 grid gap-2 sm:grid-cols-2">
                         <p><span className="font-bold">Horário confirmado:</span><br />{new Date(agenda.agendamentoAtual.inicio).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</p>
-                        <p><span className="font-bold">Horário solicitado:</span><br />{new Date(agenda.agendamentoAtual.solicitacaoReagendamento.requestedStartsAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}<br /><span className="font-bold">Aguardando resposta do psicólogo</span></p>
+                        <p><span className="font-bold">Horário solicitado:</span><br />{new Date(agenda.agendamentoAtual.solicitacaoReagendamento.requestedStartsAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })} · {agenda.agendamentoAtual.solicitacaoReagendamento.requestedModality === 'presencial' ? 'Presencial' : 'Online'}<br /><span className="font-bold">Aguardando resposta do psicólogo</span></p>
                       </div>
                     </div>
                   )}
@@ -489,7 +489,7 @@ export default function AgendarPage({ params }: Props) {
                     className="rounded-2xl border border-psi-vibrant/30 bg-surface py-3 text-xs font-black text-psi-deep hover:bg-psi-vibrant hover:text-white hover:border-psi-vibrant transition-all disabled:opacity-40"
                   >
                     {salvando === horario.inicios[0] ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : (
-                      modoReagendar ? `Mudar para ${horario.hora}` : horario.hora
+                      `${modoReagendar ? 'Mudar para ' : ''}${horario.hora} · ${horario.modalidade === 'presencial' ? 'Presencial' : 'Online'}`
                     )}
                   </button>
                 ))}

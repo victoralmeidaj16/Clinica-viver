@@ -56,7 +56,7 @@ export function custeioEfetivoSql(alias: {
              AND cota_ag.paciente_id = ${p}.id
              AND (cota_ag.custeado_pela_empresa = 1 ${reservaAnterior})
              AND (${p}.custeio_sessoes_ciclo <> 'mensal'
-                  OR DATE_FORMAT(cota_ag.inicio, '%Y-%m') = DATE_FORMAT(${referencia}, '%Y-%m')))
+                  OR DATE_FORMAT(CONVERT_TZ(cota_ag.inicio, '+00:00', '-03:00'), '%Y-%m') = DATE_FORMAT(CONVERT_TZ(${referencia}, '+00:00', '-03:00'), '%Y-%m')))
          < ${p}.custeio_sessoes_cota THEN 1
     ELSE 0 END`;
 }

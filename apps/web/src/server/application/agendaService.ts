@@ -391,6 +391,9 @@ export async function editAgendaAppointment(
   if (outcome === 'not_found') {
     throw new ApplicationError('NOT_FOUND', 'Agendamento não encontrado.', 404);
   }
+  if (outcome === 'stale') {
+    throw new ApplicationError('APPOINTMENT_CHANGED', 'A sessão foi alterada enquanto você editava. Atualize a agenda e revise os dados.', 409);
+  }
   if (outcome === 'conflict') {
     throw new ApplicationError('SLOT_CONFLICT', 'Este horário já possui outro agendamento ou bloqueio.', 409);
   }

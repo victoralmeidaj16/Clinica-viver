@@ -228,3 +228,7 @@ export function registrarEvento(chaveAcesso: string, xmlAssinado: string) {
 export function consultarEventos(chaveAcesso: string) {
   return requisitar('GET', `/nfse/${chaveAcesso}/eventos`);
 }
+
+export function consultarCancelamentoNfse(chaveAcesso: string) {
+  return requisitar('GET', `/nfse/${chaveAcesso}/eventos/101101/1`);
+}

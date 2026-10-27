@@ -79,6 +79,8 @@ export default function EditPatientModal({ patientId, patientName, onClose, onSa
     try {
       const updated = await applicationRequest<PatientRegistrationRecord>(`/patients/${encodeURIComponent(patientId)}`, {
         method: 'PATCH', headers: commandHeaders(), body: JSON.stringify({
+          expectedUpdatedAt: record.lastRegistrationUpdate?.updatedAt ?? null,
+          expectedCpf: record.cpf,
           legalName: form.legalName, socialName: form.socialName, phone: form.phone,
           email: form.email, cpf: form.cpf,
           address: { cep: form.cep, logradouro: form.logradouro, numero: form.numero,

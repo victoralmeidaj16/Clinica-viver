@@ -135,7 +135,9 @@ export class StudentPortalService {
     const next = {
       ...current, fullName, phone: input.phone?.trim() || undefined, updatedAt: this.now().toISOString(),
     };
-    await this.repository.updateStudent(next);
+    if (!await this.repository.updateStudentProfile(studentId, next.fullName, next.phone, next.updatedAt)) {
+      throw new ApplicationError('FORBIDDEN', 'A conta do aluno não está ativa.', 403);
+    }
     return next;
   }
 

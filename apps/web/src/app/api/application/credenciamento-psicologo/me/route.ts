@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { assertCadastroUnico, CadastroDuplicadoError } from '@/server/application/psychologistUniqueness';
-import { assertEmailsDeCadastroDisponiveis } from '@/server/application/psychologistIdentityGuard';
-import { getMysqlPool, isMysqlConfigured } from '@/server/oci/runtime';
+import { isMysqlConfigured } from '@/server/oci/runtime';
 import { readSession } from '@/server/auth';
 import { getCaptureRepository } from '@/server/persistence/captureRepository';
 import { cadastroDaSessao, SemAcessoError } from '@/server/application/psychologistSelf';
@@ -116,13 +115,14 @@ export async function PATCH(request: Request) {
     const corpo = (await request.json()) as Record<string, unknown>;
     await validarCorpo(corpo, CAMPOS_DO_PROPRIO_PSICOLOGO);
 
-    const atualizado = aplicarMudancas(cadastro, corpo, CAMPOS_DO_PROPRIO_PSICOLOGO);
-
-    const existentes = await getCaptureRepository().read();
-    assertCadastroUnico(atualizado, existentes.cadastrosPsicologos);
-    if (isMysqlConfigured()) {
-      await assertEmailsDeCadastroDisponiveis(getMysqlPool(), [cadastro], [atualizado]);
-    }
+    const { antes, atualizado } = await getCaptureRepository().mutate((state) => {
+      const antes = state.cadastrosPsicologos.find((psi) => psi.id === cadastro.id && psi.usuarioRef === session.userId);
+      if (!antes) throw new SemAcessoError('Cadastro não está mais vinculado a esta conta.', 409);
+      const atualizado = aplicarMudancas(antes, corpo, CAMPOS_DO_PROPRIO_PSICOLOGO);
+      assertCadastroUnico(atualizado, state.cadastrosPsicologos);
+      return { next: { ...state, cadastrosPsicologos: state.cadastrosPsicologos.map((psi) =>
+        psi.id === atualizado.id ? atualizado : psi) }, result: { antes, atualizado } };
+    });
 
     // O credenciamento alimenta a vitrine; identidade e perfil profissional
     // alimentam login, agenda e prontuário. Os três precisam refletir a mesma
@@ -153,17 +153,7 @@ export async function PATCH(request: Request) {
       }
     }
 
-    await getCaptureRepository().mutate((state) => ({
-      next: {
-        ...state,
-        cadastrosPsicologos: state.cadastrosPsicologos.map((psi) =>
-          psi.id === atualizado.id ? atualizado : psi
-        ),
-      },
-      result: null,
-    }));
-
-    await avisarGestao(cadastro, atualizado, session.userId);
+    await avisarGestao(antes, atualizado, session.userId);
 
     return NextResponse.json({ success: true, data: atualizado });
   } catch (error) {

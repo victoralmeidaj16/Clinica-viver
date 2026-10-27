@@ -327,6 +327,11 @@ export class MysqlCaptureRepository {
    * outro.
    */
   async mutate<T>(mutator: (state: CaptureState) => CaptureResult<T>): Promise<T> {
+    return this.mutateAtomic((state) => mutator(state));
+  }
+
+  async mutateAtomic<T>(mutator: (state: CaptureState, connection: PoolConnection) => Promise<CaptureResult<T>> | CaptureResult<T>, organizationId?: string): Promise<T> {
+    if (organizationId && organizationId !== organizacaoRef()) throw new Error('Acesso negado: organização não corresponde à captação.');
     const connection = await this.pool.getConnection();
     try {
       await connection.beginTransaction();
@@ -337,7 +342,7 @@ export class MysqlCaptureRepository {
       );
       const current = await this.readState(connection, true);
       const migrated = await this.importLegacyIfNeeded(connection, current);
-      const change = mutator(migrated);
+      const change = await mutator(migrated, connection);
       assertMudancasDeCadastroUnicas(migrated.cadastrosPsicologos, change.next.cadastrosPsicologos);
       await assertEmailsDeCadastroDisponiveis(connection, migrated.cadastrosPsicologos, change.next.cadastrosPsicologos);
       await syncIdentidadeDoCadastro(connection, migrated.cadastrosPsicologos, change.next.cadastrosPsicologos);

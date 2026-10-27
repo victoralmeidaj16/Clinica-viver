@@ -5,6 +5,11 @@ import { getApplicationStore } from './store';
 import { getCaptureRepository } from '@/server/persistence/captureRepository';
 import type { PatientDocumentCapable } from '@/server/persistence/mysql/identityRepository';
 import { validCpf } from '@/server/http/publicRequest';
+import { isMysqlConfigured } from '@/server/oci/runtime';
+import { MysqlCaptureRepository } from '@/server/persistence/mysql/captureRepository';
+import { assertPatientCpfAvailable } from '@/server/persistence/mysql/patientCpfUniqueness';
+import { instituicaoId } from '@/server/persistence/mysql/mappers';
+import type { ResultSetHeader } from 'mysql2';
 
 /**
  * CPF do paciente — o campo que decide se a NFS-e sai.
@@ -59,6 +64,31 @@ export async function definirCpfDoPaciente(
   const referenciaLead = referencia.startsWith('lead:') ? referencia.slice(5) : undefined;
   const patientId = referenciaLead ? undefined : referencia;
   const gravadoEm: ('cadastro' | 'triagem')[] = [];
+
+  if (isMysqlConfigured()) {
+    const capture = getCaptureRepository() as MysqlCaptureRepository;
+    return capture.mutateAtomic(async (state, connection) => {
+      const alvo = state.triagensPacientes.find((lead) =>
+        referenciaLead ? lead.id === referenciaLead : lead.pacienteRef === patientId);
+      const paciente = patientId ?? alvo?.pacienteRef;
+      await assertPatientCpfAvailable(connection, organizationId, paciente ?? '', cpf);
+      const destinos: ('cadastro' | 'triagem')[] = [];
+      if (paciente) {
+        const [result] = await connection.execute<ResultSetHeader>(
+          `UPDATE clinica_pacientes pa JOIN clinica_organizacoes o ON o.id = pa.organizacao_id
+            SET pa.documento = ?, pa.atualizado_em = CURRENT_TIMESTAMP(3)
+            WHERE pa.instituicao_id = ? AND o.ref_core = ? AND pa.ref_core = ?`,
+          [cpf, instituicaoId(), organizationId, paciente]
+        );
+        if (result.affectedRows) destinos.push('cadastro');
+      }
+      if (alvo) destinos.push('triagem');
+      if (!destinos.length) throw new ApplicationError('NOT_FOUND', 'Paciente não encontrado para gravar o CPF.', 404);
+      return { next: { ...state, triagensPacientes: state.triagensPacientes.map((lead) =>
+        lead.id === alvo?.id || (paciente && lead.pacienteRef === paciente) ? { ...lead, cpf } : lead) },
+      result: { patientId: paciente, leadId: alvo?.id, cpf, gravadoEm: destinos } };
+    }, organizationId);
+  }
 
   const atualizacaoTriagem = await getCaptureRepository().mutate((state) => {
     const alvo = state.triagensPacientes.find((lead) =>

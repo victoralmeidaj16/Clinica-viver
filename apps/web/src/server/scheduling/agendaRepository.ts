@@ -7,6 +7,7 @@ import { expireUnstartedChargeCheckouts, hasReservedChargePayment } from '@/serv
 import { CPF_CADASTRO_SQL } from '@/server/persistence/mysql/patientCpfSql';
 import { randomUUID } from 'node:crypto';
 import type { RowDataPacket } from 'mysql2';
+import type { Pool, PoolConnection } from 'mysql2/promise';
 import { getMysqlPool, isMysqlConfigured } from '@/server/oci/runtime';
 import { instituicaoId, rowId } from '@/server/persistence/mysql/mappers';
 import { custeioDoAgendamentoSql, custeioEfetivoSql } from '@/server/persistence/mysql/custeioSql';
@@ -233,6 +234,13 @@ export async function listAvailability(
     [instituicaoId(), organizationId, professionalId]
   );
   if (rows.length === 0) {
+    const [profiles] = await getMysqlPool().query<RowDataPacket[]>(
+      `SELECT p.disponibilidade_configurada FROM clinica_profissionais p
+       JOIN clinica_organizacoes o ON o.id = p.organizacao_id
+       WHERE p.instituicao_id = ? AND o.ref_core = ? AND p.ref_core = ? LIMIT 1`,
+      [instituicaoId(), organizationId, professionalId]
+    );
+    if (Number(profiles[0]?.disponibilidade_configurada) === 1) return [];
     return disponibilidadePadrao(professionalId);
   }
   return rows.map((row) => ({
@@ -265,7 +273,7 @@ export async function replaceAvailability(
     const [profRows] = await connection.query<RowDataPacket[]>(
       `SELECT p.id FROM clinica_profissionais p
          JOIN clinica_organizacoes o ON o.id = p.organizacao_id
-        WHERE p.instituicao_id = ? AND o.ref_core = ? AND p.ref_core = ? LIMIT 1`,
+        WHERE p.instituicao_id = ? AND o.ref_core = ? AND p.ref_core = ? LIMIT 1 FOR UPDATE`,
       [instituicaoId(), organizationId, professionalId]
     );
     const profissionalRowId = profRows[0]?.id as string | undefined;
@@ -273,6 +281,10 @@ export async function replaceAvailability(
 
     await connection.execute(
       'DELETE FROM clinica_disponibilidades WHERE instituicao_id = ? AND profissional_id = ?',
+      [instituicaoId(), profissionalRowId]
+    );
+    await connection.execute(
+      'UPDATE clinica_profissionais SET disponibilidade_configurada = 1 WHERE instituicao_id = ? AND id = ?',
       [instituicaoId(), profissionalRowId]
     );
     for (const janela of janelas) {
@@ -423,7 +435,11 @@ export async function listAppointments(
   // atendimento parecendo concluído sem nada disso ter acontecido.
   const connection = await getMysqlPool().getConnection();
   try {
-    const [rows] = await connection.query<RowDataPacket[]>(
+    const rows: RowDataPacket[] = [];
+    const tamanhoPagina = 200;
+    let pagina: RowDataPacket[];
+    do {
+    [pagina] = await connection.query<RowDataPacket[]>(
       `SELECT a.id, a.ref_core AS agendamento_ref, pa.ref_core AS paciente_ref, a.inicio, a.fim, a.duracao_min, a.modalidade, a.servico_key, a.status,
               a.sessao_clinica_ref,
               a.origem_criacao, a.criado_em, a.realizado_em, a.token_pagamento_sessao,
@@ -460,10 +476,12 @@ export async function listAppointments(
            ON sr.instituicao_id = a.instituicao_id AND sr.agendamento_id = a.id AND sr.status = 'pendente'
         WHERE a.instituicao_id = ? AND o.ref_core = ? AND p.ref_core = ?
           AND (a.inicio >= ? OR a.status IN ('agendado', 'confirmado'))
-        ORDER BY a.inicio
-        LIMIT 200`,
-      [instituicaoId(), organizationId, professionalId, desde]
+        ORDER BY a.inicio, a.id
+        LIMIT ? OFFSET ?`,
+      [instituicaoId(), organizationId, professionalId, desde, tamanhoPagina, rows.length]
     );
+    rows.push(...pagina);
+    } while (pagina.length === tamanhoPagina);
 
     return rows.map((row) => {
       const fim = new Date(
@@ -901,6 +919,11 @@ export async function updateAppointmentDetails(
       return 'cancelled_locked';
     }
 
+    if (String(agendamento.status) === 'realizado' && (agendamento.sessao_clinica_ref || !opcoes.concluirDepois)) {
+      await connection.rollback();
+      return 'completed_locked';
+    }
+
     // A conclusão de um atendimento não é uma troca de status: ela cria a
     // sessão clínica que alimenta indicadores e faturamento, e só vale depois
     // do fim previsto. Essa transição pertence a `completeAppointment`.
@@ -1177,8 +1200,7 @@ export async function identifyPatient(
           SELECT 1 FROM clinica_pacientes_profissionais pp
            WHERE pp.paciente_id = pa.id AND pp.profissional_id = p.id
         ))
-      ORDER BY t.atualizado_em DESC
-      LIMIT 1`,
+      ORDER BY t.atualizado_em DESC`,
     [instituicaoId(), token, cleanCpf || cpf]
   );
   // Segundo caminho, para o paciente que já é do psicólogo mas cujo CPF está
@@ -1186,35 +1208,37 @@ export async function identifyPatient(
   // cadastrado direto pela recepção. Continua exigindo que o CPF bata **e**
   // que o vínculo com o dono do link exista: é a mesma autorização por outra
   // porta, não uma porta sem autorização.
-  let row = rows[0];
-  if (!row) {
-    const [porCadastro] = await pool.query<RowDataPacket[]>(
-      `SELECT o.ref_core AS organizacao_ref, p.ref_core AS profissional_ref,
-              p.id AS profissional_id, p.nome AS profissional_nome,
-              p.valor_social_centavos, p.valor_sessao_centavos,
-              pa.ref_core AS paciente_ref, pa.id AS paciente_id,
-              pa.categoria_valor_sessao, pa.valor_sessao_personalizado_centavos,
-              COALESCE(NULLIF(TRIM(pa.nome_social), ''), pa.nome) AS nome_paciente,
-              (SELECT t.modalidade FROM clinica_triagens_pacientes t
-                WHERE t.instituicao_id = p.instituicao_id
-                  AND t.organizacao_ref = o.ref_core AND t.paciente_ref = pa.ref_core
-                ORDER BY t.atualizado_em DESC LIMIT 1) AS modalidade_triagem
-         FROM clinica_profissionais p
-         JOIN clinica_organizacoes o ON o.id = p.organizacao_id
-         JOIN clinica_pacientes pa ON pa.instituicao_id = p.instituicao_id
-        WHERE p.instituicao_id = ? AND p.token_link_agenda = ? AND p.ativo = 1
-          AND REPLACE(REPLACE(REPLACE(pa.documento, '.', ''), '-', ''), ' ', '') = ?
-          AND (pa.profissional_id = p.id OR EXISTS (
-            SELECT 1 FROM clinica_pacientes_profissionais pp
-             WHERE pp.paciente_id = pa.id AND pp.profissional_id = p.id
-          ))
-        LIMIT 1`,
-      [instituicaoId(), token, cleanCpf || cpf]
-    );
-    row = porCadastro[0];
+  const [porCadastro] = await pool.query<RowDataPacket[]>(
+    `SELECT o.ref_core AS organizacao_ref, p.ref_core AS profissional_ref,
+            p.id AS profissional_id, p.nome AS profissional_nome,
+            p.valor_social_centavos, p.valor_sessao_centavos,
+            pa.ref_core AS paciente_ref, pa.id AS paciente_id,
+            pa.categoria_valor_sessao, pa.valor_sessao_personalizado_centavos,
+            COALESCE(NULLIF(TRIM(pa.nome_social), ''), pa.nome) AS nome_paciente,
+            (SELECT t.modalidade FROM clinica_triagens_pacientes t
+              WHERE t.instituicao_id = p.instituicao_id
+                AND t.organizacao_ref = o.ref_core AND t.paciente_ref = pa.ref_core
+              ORDER BY t.atualizado_em DESC LIMIT 1) AS modalidade_triagem
+       FROM clinica_profissionais p
+       JOIN clinica_organizacoes o ON o.id = p.organizacao_id
+       JOIN clinica_pacientes pa ON pa.instituicao_id = p.instituicao_id
+      WHERE p.instituicao_id = ? AND p.token_link_agenda = ? AND p.ativo = 1
+        AND REPLACE(REPLACE(REPLACE(pa.documento, '.', ''), '-', ''), ' ', '') = ?
+        AND (pa.profissional_id = p.id OR EXISTS (
+          SELECT 1 FROM clinica_pacientes_profissionais pp
+           WHERE pp.paciente_id = pa.id AND pp.profissional_id = p.id
+        ))
+      `,
+    [instituicaoId(), token, cleanCpf || cpf]
+  );
+  const matches = new Map<string, RowDataPacket>();
+  for (const candidate of [...rows, ...porCadastro]) {
+    const id = String(candidate.paciente_id);
+    if (!matches.has(id)) matches.set(id, candidate);
   }
+  if (matches.size !== 1) return null;
+  const row = [...matches.values()][0];
 
-  if (!row) return null;
   return {
     patientRef: String(row.paciente_ref),
     patientRowId: String(row.paciente_id),
@@ -1264,9 +1288,10 @@ async function ocupacao(
 
 async function janelas(
   profissionalRowId: string,
-  professionalId: string
+  professionalId: string,
+  connection: Pool | PoolConnection = getMysqlPool()
 ): Promise<JanelaDisponibilidade[]> {
-  const [rows] = await getMysqlPool().query<RowDataPacket[]>(
+  const [rows] = await connection.query<RowDataPacket[]>(
     `SELECT dia_semana, hora_inicio, hora_fim, duracao_min, intervalo_min, modalidade,
             vigencia_inicio, vigencia_fim
        FROM clinica_disponibilidades
@@ -1274,6 +1299,11 @@ async function janelas(
     [instituicaoId(), profissionalRowId]
   );
   if (rows.length === 0) {
+    const [profiles] = await connection.query<RowDataPacket[]>(
+      'SELECT disponibilidade_configurada FROM clinica_profissionais WHERE instituicao_id = ? AND id = ? LIMIT 1',
+      [instituicaoId(), profissionalRowId]
+    );
+    if (Number(profiles[0]?.disponibilidade_configurada) === 1) return [];
     return disponibilidadePadrao(professionalId);
   }
   return rows.map((row) => ({
@@ -1353,6 +1383,13 @@ export async function bookAppointments(
       'SELECT id FROM clinica_profissionais WHERE instituicao_id = ? AND id = ? FOR UPDATE',
       [instituicaoId(), paciente.professionalRowId]
     );
+
+    const currentSlots = gerarSlots(await janelas(paciente.professionalRowId, paciente.professionalId, connection), [], inicio, janelaFim, agora);
+    if (selectedSlots.some((slot) => !currentSlots.some((current) => current.inicio === slot.inicio
+      && current.fim === slot.fim && current.modalidade === slot.modalidade))) {
+      await connection.rollback();
+      return { ok: false, motivo: 'INDISPONIVEL' };
+    }
 
     for (const slot of selectedSlots) {
       const params = [instituicaoId(), paciente.professionalRowId, new Date(slot.fim), new Date(slot.inicio)];

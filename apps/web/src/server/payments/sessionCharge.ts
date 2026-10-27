@@ -150,11 +150,16 @@ export async function expirarCobrancasPendentes(limit = 100): Promise<{
 }> {
   const [rows] = await getMysqlPool().query<RowDataPacket[]>(
     `SELECT c.ref_core AS cobranca_ref,
-            COALESCE(x.provedor_pagamento_ref, c.provedor_ref) AS provedor_ref,
-            x.provedor AS checkout_provedor
+            COALESCE(group_checkout.provedor_pagamento_ref, direct_checkout.provedor_pagamento_ref, c.provedor_ref) AS provedor_ref,
+            COALESCE(group_checkout.provedor, direct_checkout.provedor) AS checkout_provedor
        FROM financeiro_cobrancas c
-       LEFT JOIN financeiro_checkouts_asaas x
-         ON x.instituicao_id = c.instituicao_id AND x.cobranca_ref = c.ref_core
+       LEFT JOIN financeiro_checkouts_asaas direct_checkout
+         ON direct_checkout.instituicao_id = c.instituicao_id AND direct_checkout.cobranca_ref = c.ref_core
+       LEFT JOIN financeiro_checkout_cobrancas group_member
+         ON group_member.instituicao_id = c.instituicao_id AND group_member.cobranca_ref = c.ref_core
+       LEFT JOIN financeiro_checkouts_asaas group_checkout
+         ON group_checkout.instituicao_id = c.instituicao_id
+        AND group_checkout.referencia_externa = group_member.referencia_externa
       WHERE c.instituicao_id = ? AND c.status IN ('draft','pending')
         AND c.vence_em <= CURRENT_TIMESTAMP(3)
       ORDER BY c.vence_em LIMIT ?`,

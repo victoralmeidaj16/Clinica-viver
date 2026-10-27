@@ -58,7 +58,6 @@ export const CAMPOS_DO_PROPRIO_PSICOLOGO = new Set([
   'modalidadeAtendimento', 'atendimentoPreferencia', 'turnosDisponiveis',
   'temposAtendimento', 'publicoAlvo', 'publicoAlvoOutro',
   'especificarNecessidades', 'necessidadesAtendidas', 'necessidadesOutro',
-  'turmaViverMais', 'posGraduacaoViverMais', 'segundaPosGraduacao',
   'solicitacaoAlteracaoGestao',
 ]);
 

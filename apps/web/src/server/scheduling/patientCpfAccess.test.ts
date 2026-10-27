@@ -51,6 +51,10 @@ describe.skipIf(!sqlite)('CPF atual prevalece sobre a triagem nos links público
     db.exec('DELETE FROM clinica_triagens_pacientes');
     expect(await identifyPatient('token', '11144477735')).toMatchObject({ patientRef: 'patient' });
   });
+  it('não identifica uma pessoa quando dois pacientes do profissional têm o mesmo CPF', async () => {
+    db.exec("INSERT INTO clinica_pacientes SELECT 'other-row','other',instituicao_id,'Outro paciente',NULL,profissional_id,documento,NULL,NULL,NULL,NULL,NULL FROM clinica_pacientes WHERE id = 'patient-row'");
+    expect(await identifyPatient('token', '11144477735')).toBeNull();
+  });
   it('prioriza o valor personalizado do paciente à modalidade da triagem', async () => {
     db.exec("UPDATE clinica_pacientes SET categoria_valor_sessao = 'personalizado', valor_sessao_personalizado_centavos = 6800");
     await expect(identifyPatient('token', '11144477735')).resolves.toMatchObject({ sessionAmountCents: 6800 });

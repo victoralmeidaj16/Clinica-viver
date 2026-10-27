@@ -609,10 +609,8 @@ export default function GestaoPsicologosPage() {
       {editando && (
         <ModalEdicao
           psicologo={editando}
-          onSalvar={(mudancas) => {
-            const alvo = editando;
-            setEditando(null);
-            void atualizar(alvo.id, mudancas);
+          onSalvar={async (mudancas) => {
+            if (await atualizar(editando.id, mudancas)) setEditando(null);
           }}
           onCancelar={() => setEditando(null)}
         />

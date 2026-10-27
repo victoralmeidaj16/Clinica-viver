@@ -9,14 +9,27 @@ const details: PatientRegistrationDetails = { legalName: 'Paciente fictício', p
 const connection = { beginTransaction: vi.fn(), commit: vi.fn(), rollback: vi.fn(), release: vi.fn(), query: vi.fn(), execute: vi.fn() };
 const pool = { getConnection: async () => connection, query: connection.query } as unknown as Pool;
 const repository = new MysqlIdentityRepository(pool);
-const input = { organizationId: 'org', patientId: 'patient', details, actorUserId: 'user', changedAt: '2026-09-22T12:00:00.000Z' };
+const input = { organizationId: 'org', patientId: 'patient', details, actorUserId: 'user', changedAt: '2026-09-22T12:00:00.000Z', expectedUpdatedAt: null, expectedCpf: '52998224725' };
 
 beforeEach(() => {
   vi.resetAllMocks();
-  connection.query.mockResolvedValue([[{ ref_core: 'patient', nome: details.legalName, documento: '52998224725' }], []]);
+  connection.query.mockImplementation(async (sql: string) => [sql.includes('pa.ref_core <>')
+    ? [] : [{ ref_core: 'patient', nome: details.legalName, documento: '52998224725' }], []]);
   connection.execute.mockResolvedValue([{ affectedRows: 1 }, []]);
 });
 describe('sincronização transacional do CPF', () => {
+  it('recusa edição baseada em versão antiga', async () => {
+    await expect(repository.updatePatientRegistration({ ...input, expectedUpdatedAt: '2026-09-20T12:00:00.000Z' }))
+      .rejects.toMatchObject({ status: 409 });
+    expect(connection.execute).not.toHaveBeenCalled();
+  });
+  it('recusa CPF já cadastrado em outro paciente', async () => {
+    const query = connection.query.getMockImplementation()!;
+    connection.query.mockImplementation(async (sql: string) => sql.includes('pa.ref_core <>')
+      ? [[{ id: 'other' }], []] : query(sql));
+    await expect(repository.updatePatientRegistration(input)).rejects.toMatchObject({ status: 409 });
+    expect(connection.execute).not.toHaveBeenCalled();
+  });
   it('atualiza cadastro e triagens vinculadas antes do commit', async () => {
     await repository.updatePatientRegistration(input);
     expect(connection.execute).toHaveBeenCalledWith(expect.stringContaining('UPDATE clinica_pacientes pa'), expect.any(Array));

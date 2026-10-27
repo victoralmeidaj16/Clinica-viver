@@ -27,6 +27,14 @@ describe('MysqlAcademicRepository', () => {
     }
   });
 
+  it('edição do perfil não sobrescreve e-mail nem reativa conta desativada', async () => {
+    await repository.updateStudentProfile('student-1', 'Aluno', '11999999999', '2026-10-13T12:00:00.000Z');
+    const [sql] = execute.mock.calls[0] as unknown as [string, unknown[]];
+    expect(sql).not.toContain('email_normalizado =');
+    expect(sql).not.toContain('status = ?');
+    expect(sql).toContain("status = 'active'");
+  });
+
   it('mapeia a árvore curso > módulos > aulas na ordem persistida', async () => {
     query
       .mockResolvedValueOnce([[{

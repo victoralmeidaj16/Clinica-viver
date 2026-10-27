@@ -2,6 +2,8 @@ import 'server-only';
 
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import type { Pool, PoolConnection } from 'mysql2/promise';
+import { ApplicationError } from '@/server/application/http';
+import { assertPatientCpfAvailable } from './patientCpfUniqueness';
 import type {
   PatientRegistrationDetails,
   PatientRegistrationRecord,
@@ -146,6 +148,8 @@ export interface PatientRegistrationCapable {
     details: PatientRegistrationDetails;
     actorUserId: string;
     changedAt: string;
+    expectedUpdatedAt: string | null;
+    expectedCpf: string;
   }): Promise<PatientRegistrationRecord | null>;
 }
 
@@ -374,9 +378,9 @@ export class MysqlIdentityRepository implements IdentityRepository, PatientConta
     return rows.map(toPatientProfile);
   }
 
-  async savePatient(patient: PatientProfile): Promise<void> {
+  async savePatient(patient: PatientProfile, existingConnection?: PoolConnection): Promise<void> {
     const id = rowId('paciente', patient.id);
-    await this.transaction(async (connection) => {
+    const save = async (connection: PoolConnection) => {
       await connection.execute(
         `INSERT INTO clinica_pacientes
            (id, instituicao_id, ref_core, organizacao_id, usuario_ref, referencia_externa, nome,
@@ -415,7 +419,9 @@ export class MysqlIdentityRepository implements IdentityRepository, PatientConta
           ]
         );
       }
-    });
+    };
+    if (existingConnection) await save(existingConnection);
+    else await this.transaction(save);
   }
 
   async reassignPatient(input: {
@@ -565,10 +571,10 @@ export class MysqlIdentityRepository implements IdentityRepository, PatientConta
     );
   }
 
-  async savePatientContact(patientId: string, contact: PatientContact): Promise<void> {
+  async savePatientContact(patientId: string, contact: PatientContact, connection: Pool | PoolConnection = this.pool): Promise<void> {
     // Campos ausentes preservam nome e documento já existentes. Telefone e
     // e-mail mantêm a semântica anterior de substituição completa.
-    await this.pool.execute(
+    await connection.execute(
       `UPDATE clinica_pacientes
           SET telefone = ?, email = ?,
               nome = COALESCE(?, nome), nome_social = ?,
@@ -656,11 +662,15 @@ export class MysqlIdentityRepository implements IdentityRepository, PatientConta
 
   async updatePatientRegistration(input: {
     organizationId: string; patientId: string; details: PatientRegistrationDetails;
-    actorUserId: string; changedAt: string;
+    actorUserId: string; changedAt: string; expectedUpdatedAt: string | null; expectedCpf: string;
   }): Promise<PatientRegistrationRecord | null> {
     const connection = await this.pool.getConnection();
     try {
       await connection.beginTransaction();
+      await connection.query(
+        'SELECT id FROM clinica_organizacoes WHERE instituicao_id = ? AND ref_core = ? FOR UPDATE',
+        [instituicaoId(), input.organizationId]
+      );
       await connection.query(
         `SELECT pa.id FROM clinica_pacientes pa
           JOIN clinica_organizacoes o ON o.id = pa.organizacao_id
@@ -669,6 +679,11 @@ export class MysqlIdentityRepository implements IdentityRepository, PatientConta
       );
       const current = await this.registrationFromConnection(connection, input.organizationId, input.patientId);
       if (!current) { await connection.rollback(); return null; }
+      if ((current.lastRegistrationUpdate?.updatedAt ?? null) !== input.expectedUpdatedAt
+          || current.cpf.replace(/\D/g, '') !== input.expectedCpf.replace(/\D/g, '')) {
+        throw new ApplicationError('CONFLICT', 'O cadastro foi alterado. Reabra o formulário para revisar os dados atuais.', 409);
+      }
+      await assertPatientCpfAvailable(connection, input.organizationId, input.patientId, input.details.cpf);
       const next = input.details;
       const pairs: Array<[string, unknown, unknown]> = [
         ['legalName', current.legalName, next.legalName], ['socialName', current.socialName, next.socialName],

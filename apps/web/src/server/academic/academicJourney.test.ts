@@ -28,6 +28,12 @@ class JourneyRepository implements AcademicRepository {
   async listStudents() { return [...this.students.values()]; }
   async insertStudent(student: AcademicStudent, passwordHash: string) { this.students.set(student.id, student); this.credentials.set(student.id, passwordHash); }
   async updateStudent(student: AcademicStudent) { this.students.set(student.id, student); }
+  async updateStudentProfile(id: string, fullName: string, phone: string | undefined, updatedAt: string) {
+    const student = this.students.get(id);
+    if (!student || student.status !== 'active') return false;
+    this.students.set(id, { ...student, fullName, phone, updatedAt });
+    return true;
+  }
   async updateStudentPassword(id: string, passwordHash: string, mustChangePassword: boolean, changedAt: string) {
     const student = this.students.get(id)!;
     this.credentials.set(id, passwordHash);

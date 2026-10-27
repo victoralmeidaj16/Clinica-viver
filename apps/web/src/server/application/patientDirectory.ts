@@ -17,6 +17,10 @@ import {
 import { isMysqlConfigured, getMysqlPool } from '@/server/oci/runtime';
 import { instituicaoId } from '@/server/persistence/mysql/mappers';
 import type { RowDataPacket } from 'mysql2/promise';
+import { createHash } from 'node:crypto';
+import { MysqlIdentityRepository } from '@/server/persistence/mysql/identityRepository';
+import { MysqlCaptureRepository, type CaptureState } from '@/server/persistence/mysql/captureRepository';
+import { assertPatientCpfAvailable } from '@/server/persistence/mysql/patientCpfUniqueness';
 import { normalizarCicloCusteio } from '@/lib/convenioBilling';
 
 /**
@@ -338,7 +342,11 @@ export async function createPatient(
   }
 
   const store = getApplicationStore();
-  const id = String(body.id ?? '').trim() || `patient-${crypto.randomUUID()}`;
+  const id = context.idempotencyKey
+    ? `patient-${createHash('sha256').update(JSON.stringify([
+      context.actor.organizationId, context.actor.userId, context.idempotencyKey,
+    ])).digest('hex').slice(0, 32)}`
+    : String(body.id ?? '').trim() || `patient-${crypto.randomUUID()}`;
 
   // Cadastro repetido com o mesmo id devolve o que já existe em vez de
   // sobrescrever: a rota exige Idempotency-Key e precisa se comportar como tal.
@@ -357,97 +365,114 @@ export async function createPatient(
     createdAt: String(body.createdAt ?? new Date().toISOString()),
   });
 
-  await store.identities.savePatient(patient);
-
-  const contacts = contactSource(store.identities);
-  if (contacts) {
-    await contacts.savePatientContact(patient.id, {
-      phone: body.phone ? String(body.phone) : body.whatsapp ? String(body.whatsapp) : undefined,
-      email: body.email ? String(body.email) : undefined,
-      legalName: body.legalName ? String(body.legalName) : body.nome ? String(body.nome) : undefined,
-      socialName: body.socialName ? String(body.socialName) : body.nomeSocial ? String(body.nomeSocial) : undefined,
-      documento: body.cpf ? String(body.cpf).replace(/\D/g, '') : undefined,
-      cep: registration.data.address.cep,
-      logradouro: registration.data.address.logradouro,
-      numero: registration.data.address.numero,
-      complemento: registration.data.address.complemento,
-      bairro: registration.data.address.bairro,
-      cidade: registration.data.address.cidade,
-      uf: registration.data.address.uf,
-      emergencyContactName: registration.data.emergencyContactName,
-      emergencyContactPhone: registration.data.emergencyContactPhone,
-      registrationNotes: registration.data.registrationNotes,
-    });
-  }
+  const contact: PatientContact = {
+    phone: body.phone ? String(body.phone) : body.whatsapp ? String(body.whatsapp) : undefined,
+    email: body.email ? String(body.email) : undefined,
+    legalName: body.legalName ? String(body.legalName) : body.nome ? String(body.nome) : undefined,
+    socialName: body.socialName ? String(body.socialName) : body.nomeSocial ? String(body.nomeSocial) : undefined,
+    documento: body.cpf ? String(body.cpf).replace(/\D/g, '') : undefined,
+    cep: registration.data.address.cep,
+    logradouro: registration.data.address.logradouro,
+    numero: registration.data.address.numero,
+    complemento: registration.data.address.complemento,
+    bairro: registration.data.address.bairro,
+    cidade: registration.data.address.cidade,
+    uf: registration.data.address.uf,
+    emergencyContactName: registration.data.emergencyContactName,
+    emergencyContactPhone: registration.data.emergencyContactPhone,
+    registrationNotes: registration.data.registrationNotes,
+  };
 
   // O cadastro interno usa a mesma fonte complementar da vitrine. Ele já nasce
   // confirmado e ligado ao psicólogo da sessão, portanto não entra no rodízio
   // nem dispara aviso de "novo lead" para outro profissional.
-  if (fullRegistration?.ok) {
+  const professional = fullRegistration?.ok
+    ? await store.identities.getProfessional(context.actor.organizationId, professionalId) : null;
+  const now = new Date().toISOString();
+  const leadId = `triagem-manual-${patient.id}`;
+  const addTriage = (state: CaptureState) => {
+    if (!fullRegistration?.ok) return { next: state, result: null };
     const data = fullRegistration.dados;
-    const professional = await store.identities.getProfessional(context.actor.organizationId, professionalId);
-    const now = new Date().toISOString();
-    const leadId = `triagem-manual-${patient.id}`;
-    await getCaptureRepository().mutate((state) => {
-      if (state.triagensPacientes.some((lead) => lead.id === leadId || lead.pacienteRef === patient.id)) {
-        return { next: state, result: null };
-      }
-      const cadastro = state.cadastrosPsicologos.find((item) => item.profissionalRef === professionalId);
-      const next = recalcularPacientesAtivos({
-        ...captureStateAsSnapshot(state),
-        triagensPacientes: [...state.triagensPacientes, {
-          id: leadId,
-          protocolo: `VM-MANUAL-${patient.id.slice(-8).toUpperCase()}`,
-          nomePaciente: String(body.legalName ?? body.nome ?? displayName),
-          nomeSocial: data.nomeSocial,
-          idade: data.idade,
-          telefone: data.telefone,
-          dataNascimento: data.dataNascimento,
-          email: data.email,
-          cpf: data.cpf,
-          cep: data.cep,
-          logradouro: data.logradouro,
-          numeroResidencia: data.numeroResidencia,
-          complemento: data.complemento,
-          bairro: data.bairro,
-          cidade: data.cidade,
-          estadoUf: data.estadoUf,
-          possuiConvenio: data.possuiConvenio,
-          convenioSelecionado: data.convenioSelecionado,
-          origem: data.origem,
-          turno: data.turno,
-          servico: data.servico,
-          servicoKey: data.servicoKey,
-          modalidade: data.modalidade,
-          paraQuemE: data.paraQuemE,
-          opcaoAvaliacaoPsicologica: data.opcaoAvaliacaoPsicologica,
-          genero: data.genero,
-          generoOutro: data.generoOutro,
-          especificarNecessidades: data.especificarNecessidades,
-          necessidadesPaciente: data.necessidadesPaciente,
-          necessidadesOutro: data.necessidadesOutro,
-          status: 'CONTATO_CONFIRMADO' as const,
-          // O rodízio referencia o cadastro público, não o perfil clínico.
-          psicologoAlocadoId: cadastro?.id,
-          psicologoNome: professional?.displayName,
-          pacienteRef: patient.id,
-          alocadoEm: now,
-          confirmadoEm: now,
-          slaExpirado: false,
-          transbordos: 0,
-          psicologosJaTentados: cadastro ? [cadastro.id] : [],
-          criadoEm: now,
-        }],
-      });
-      return {
-        next: {
-          ...state,
-          triagensPacientes: next.triagensPacientes ?? [],
-          cadastrosPsicologos: next.cadastrosPsicologos ?? [],
-        },
-        result: null,
-      };
+    if (state.triagensPacientes.some((lead) => lead.id === leadId || lead.pacienteRef === patient.id)) {
+      return { next: state, result: null };
+    }
+    const cadastro = state.cadastrosPsicologos.find((item) => item.profissionalRef === professionalId);
+    const next = recalcularPacientesAtivos({
+      ...captureStateAsSnapshot(state),
+      triagensPacientes: [...state.triagensPacientes, {
+        id: leadId,
+        protocolo: `VM-MANUAL-${patient.id.slice(-8).toUpperCase()}`,
+        nomePaciente: String(body.legalName ?? body.nome ?? displayName),
+        nomeSocial: data.nomeSocial,
+        idade: data.idade,
+        telefone: data.telefone,
+        dataNascimento: data.dataNascimento,
+        email: data.email,
+        cpf: data.cpf,
+        cep: data.cep,
+        logradouro: data.logradouro,
+        numeroResidencia: data.numeroResidencia,
+        complemento: data.complemento,
+        bairro: data.bairro,
+        cidade: data.cidade,
+        estadoUf: data.estadoUf,
+        possuiConvenio: data.possuiConvenio,
+        convenioSelecionado: data.convenioSelecionado,
+        origem: data.origem,
+        turno: data.turno,
+        servico: data.servico,
+        servicoKey: data.servicoKey,
+        modalidade: data.modalidade,
+        paraQuemE: data.paraQuemE,
+        opcaoAvaliacaoPsicologica: data.opcaoAvaliacaoPsicologica,
+        genero: data.genero,
+        generoOutro: data.generoOutro,
+        especificarNecessidades: data.especificarNecessidades,
+        necessidadesPaciente: data.necessidadesPaciente,
+        necessidadesOutro: data.necessidadesOutro,
+        status: 'CONTATO_CONFIRMADO' as const,
+        // O rodízio referencia o cadastro público, não o perfil clínico.
+        psicologoAlocadoId: cadastro?.id,
+        psicologoNome: professional?.displayName,
+        pacienteRef: patient.id,
+        alocadoEm: now,
+        confirmadoEm: now,
+        slaExpirado: false,
+        transbordos: 0,
+        psicologosJaTentados: cadastro ? [cadastro.id] : [],
+        criadoEm: now,
+      }],
     });
+    return {
+      next: {
+        ...state,
+        triagensPacientes: next.triagensPacientes ?? [],
+        cadastrosPsicologos: next.cadastrosPsicologos ?? [],
+      },
+      result: null,
+    };
+  };
+
+  if (isMysqlConfigured()) {
+    const identities = store.identities as MysqlIdentityRepository;
+    const capture = getCaptureRepository() as MysqlCaptureRepository;
+    await capture.mutateAtomic(async (state, connection) => {
+      const [existingRows] = await connection.query<RowDataPacket[]>(
+        `SELECT pa.id FROM clinica_pacientes pa JOIN clinica_organizacoes o ON o.id = pa.organizacao_id
+          WHERE pa.instituicao_id = ? AND o.ref_core = ? AND pa.ref_core = ? FOR UPDATE`,
+        [instituicaoId(), context.actor.organizationId, patient.id]
+      );
+      if (existingRows.length) return { next: state, result: null };
+      await assertPatientCpfAvailable(connection, context.actor.organizationId, patient.id, registration.data.cpf);
+      await identities.savePatient(patient, connection);
+      await identities.savePatientContact(patient.id, contact, connection);
+      return addTriage(state);
+    }, context.actor.organizationId);
+  } else {
+    await store.identities.savePatient(patient);
+    const contacts = contactSource(store.identities);
+    if (contacts) await contacts.savePatientContact(patient.id, contact);
+    if (fullRegistration?.ok) await getCaptureRepository().mutate(addTriage);
   }
 
   await persistApplicationState();
@@ -491,6 +516,9 @@ export async function updatePatientRegistration(
   });
   const parsed = validatePatientRegistrationDetails(body);
   if (!parsed.ok) throw new ApplicationError('INVALID_INPUT', parsed.error, 400);
+  if ((body.expectedUpdatedAt !== null && typeof body.expectedUpdatedAt !== 'string') || typeof body.expectedCpf !== 'string') {
+    throw new ApplicationError('INVALID_INPUT', 'Reabra o cadastro antes de salvar.', 400);
+  }
   const source = registrationSource(store.identities);
   if (!source) throw new ApplicationError('UNAVAILABLE', 'O cadastro completo exige a persistência MySQL.', 503);
   const updated = await source.updatePatientRegistration({
@@ -499,6 +527,8 @@ export async function updatePatientRegistration(
     details: parsed.data,
     actorUserId: context.actor.userId,
     changedAt: new Date().toISOString(),
+    expectedUpdatedAt: body.expectedUpdatedAt as string | null,
+    expectedCpf: body.expectedCpf as string,
   });
   if (!updated) throw new ApplicationError('NOT_FOUND', 'Paciente não encontrado.', 404);
   return updated;

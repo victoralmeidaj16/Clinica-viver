@@ -208,6 +208,12 @@ export class MysqlAppointmentRepository implements AppointmentRepository {
     if (rows.length > 0) {
       throw new Error('Há conflito com outro agendamento do profissional.');
     }
+    const [blocks] = await connection.query<RowDataPacket[]>(
+      `SELECT id FROM clinica_agenda_bloqueios WHERE instituicao_id = ? AND profissional_id = ?
+        AND inicio < ? AND fim > ? FOR UPDATE`,
+      [instituicaoId(), rowId('profissional', appointment.professionalId), toSqlTimestamp(appointment.endsAt), toSqlTimestamp(appointment.startsAt)]
+    );
+    if (blocks.length > 0) throw new Error('Há conflito com um bloqueio da agenda.');
   }
 
   private async upsertAppointment(

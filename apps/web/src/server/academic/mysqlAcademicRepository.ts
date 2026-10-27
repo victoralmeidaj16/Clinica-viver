@@ -107,6 +107,15 @@ export class MysqlAcademicRepository implements AcademicRepository {
     );
   }
 
+  async updateStudentProfile(studentId: string, fullName: string, phone: string | undefined, updatedAt: string): Promise<boolean> {
+    const [result] = await this.pool.execute<import('mysql2').ResultSetHeader>(
+      `UPDATE clinica_alunos SET nome_completo = ?, telefone = ?, atualizado_em = ?
+        WHERE instituicao_id = ? AND id = ? AND status = 'active'`,
+      [fullName, phone ?? null, toSqlTimestamp(updatedAt), this.institutionId, studentId],
+    );
+    return result.affectedRows > 0;
+  }
+
   async updateStudentPassword(
     studentId: string, passwordHash: string, mustChangePassword: boolean, changedAt: string, actorUserId?: string,
   ): Promise<void> {

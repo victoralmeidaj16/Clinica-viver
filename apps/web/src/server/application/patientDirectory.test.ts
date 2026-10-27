@@ -101,9 +101,16 @@ describe('desistência registrada pelo psicólogo', () => {
 });
 
 describe('cadastro manual de paciente', () => {
+  it('reenvia o mesmo comando sem criar outro paciente ou triagem', async () => {
+    const first = await createPatient(context, body);
+    const second = await createPatient(context, { ...body, id: 'outro-id' });
+    expect(second.id).toBe(first.id);
+    expect(state.patients.size).toBe(1);
+    expect(state.capture.triagensPacientes).toHaveLength(1);
+  });
   it('usa o cadastro público no rodízio e contabiliza cada paciente confirmado', async () => {
     const first = await createPatient(context, body);
-    await createPatient(context, { ...body, nome: 'Segundo Paciente' });
+    await createPatient({ ...context, idempotencyKey: 'command-test-2' }, { ...body, nome: 'Segundo Paciente' });
 
     expect(first.primaryProfessionalId).toBe('professional-roster-1');
     expect(state.capture.triagensPacientes[0]).toMatchObject({
@@ -173,7 +180,7 @@ describe('edição cadastral pela gestão', () => {
   });
   it('admin sem perfil clínico abre e salva o cadastro com autoria da sessão', async () => {
     await expect(getPatientRegistration(admin, 'patient-1')).resolves.toMatchObject({ legalName: 'Nome atual' });
-    await expect(updatePatientRegistration(admin, 'patient-1', { ...body, actorUserId: 'forjado' }))
+    await expect(updatePatientRegistration(admin, 'patient-1', { ...body, expectedUpdatedAt: null, expectedCpf: body.cpf, actorUserId: 'forjado' }))
       .resolves.toMatchObject({ legalName: 'Nome corrigido' });
     expect(state.updateRegistration).toHaveBeenCalledWith(expect.objectContaining({
       organizationId: 'org-test', patientId: 'patient-1', actorUserId: 'user-test', changedAt: expect.any(String),

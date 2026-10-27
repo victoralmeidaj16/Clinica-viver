@@ -19,3 +19,17 @@ it('verifica duplicidade sob o lock, sem gravar cadastro nem commit em conflito'
   expect(db.rollback).toHaveBeenCalled();
   expect(db.release).toHaveBeenCalled();
 });
+
+it('desfaz as escritas do cadastro quando a operação compartilhada falha', async () => {
+  const db = { query: vi.fn(), execute: vi.fn(), beginTransaction: vi.fn(), commit: vi.fn(), rollback: vi.fn(), release: vi.fn() };
+  const repo = new MysqlCaptureRepository({ getConnection: async () => db } as never);
+  const internal = repo as unknown as { readState: () => Promise<CaptureState>; importLegacyIfNeeded: (_db: unknown, state: CaptureState) => Promise<CaptureState> };
+  vi.spyOn(internal, 'readState').mockResolvedValue({ triagensPacientes: [], cadastrosPsicologos: [] });
+  vi.spyOn(internal, 'importLegacyIfNeeded').mockImplementation(async (_db, state) => state);
+  await expect(repo.mutateAtomic(async (_state, connection) => {
+    await connection.execute('INSERT fictício');
+    throw new Error('falha no contato');
+  })).rejects.toThrow('falha no contato');
+  expect(db.rollback).toHaveBeenCalledOnce();
+  expect(db.commit).not.toHaveBeenCalled();
+});

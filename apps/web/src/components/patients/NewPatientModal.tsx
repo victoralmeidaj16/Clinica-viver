@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Save, UserPlus, X } from 'lucide-react';
 import { applicationRequest, commandHeaders } from '@/lib/applicationApi';
 import { validateGender } from '@/lib/gender';
@@ -21,6 +21,7 @@ export default function NewPatientModal({ isOpen, onClose, onPatientCreated }: P
   const [conveniosIndisponiveis, setConveniosIndisponiveis] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const command = useRef<ReturnType<typeof commandHeaders> | null>(null);
 
   // A lista de empresas parceiras é a mesma da vitrine. Os três estados —
   // carregando, disponível, indisponível — são o que separa "ainda não chegou"
@@ -48,7 +49,7 @@ export default function NewPatientModal({ isOpen, onClose, onPatientCreated }: P
 
   if (!isOpen) return null;
 
-  const close = () => { if (!saving) onClose(); };
+  const close = () => { if (!saving) { command.current = null; onClose(); } };
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (saving) return;
@@ -60,8 +61,9 @@ export default function NewPatientModal({ isOpen, onClose, onPatientCreated }: P
     setSaving(true);
     setError(null);
     try {
+      command.current ??= commandHeaders();
       await applicationRequest('/patients', {
-        method: 'POST', headers: commandHeaders(),
+        method: 'POST', headers: command.current,
         body: JSON.stringify({
           ...form,
           nomeSocial: temNomeSocial ? form.nomeSocial : undefined,
@@ -83,6 +85,7 @@ export default function NewPatientModal({ isOpen, onClose, onPatientCreated }: P
       await onPatientCreated();
       setForm(EMPTY_PATIENT_REGISTRATION);
       setTemNomeSocial(false);
+      command.current = null;
       onClose();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Não foi possível cadastrar o paciente.');

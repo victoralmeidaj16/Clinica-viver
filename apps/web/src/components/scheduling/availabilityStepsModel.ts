@@ -46,7 +46,7 @@ export function configDaGrade(janelas: readonly JanelaEditavel[]): {
 } {
   const ordenadas = ordenar(janelas);
   const dias = ORDEM_SEMANA.filter((dia) => ordenadas.some((janela) => janela.diaSemana === dia));
-  if (dias.length === 0) return { config: { ...CONFIG_INICIAL, dias: [...CONFIG_INICIAL.dias] }, uniforme: true };
+  if (dias.length === 0) return { config: { ...CONFIG_INICIAL, dias: [] }, uniforme: true };
 
   const doDia = (dia: number) => ordenadas.filter((janela) => janela.diaSemana === dia);
   const base = doDia(dias[0]);

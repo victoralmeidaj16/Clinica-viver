@@ -17,6 +17,7 @@ import {
 import { PublicBookingCalendar } from '@/components/scheduling/PublicBookingCalendar';
 import { PublicBookingFrequencyField } from '@/components/scheduling/PublicBookingFrequencyField';
 import { BookedSessionsPayment } from '@/components/scheduling/BookedSessionsPayment';
+import { rotuloDataAgendamento } from '@/lib/bookingDate';
 import { maskCpf, validCpf } from '@/lib/cpf';
 import {
   bookingStartsPayload,
@@ -64,6 +65,7 @@ interface Confirmado {
   fim: string;
   modalidade: string;
   linkPagamento: string;
+  pagamentoIndisponivel?: boolean;
   sessoes?: Array<{ inicio: string; fim: string; modalidade: string; linkPagamento: string }>;
 }
 
@@ -254,7 +256,7 @@ export default function AgendarPage({ params }: Props) {
             <CalendarCheck className="w-4 h-4" /> Sessão Agendada com Sucesso
           </div>
           <p className="text-2xl text-ink font-black capitalize">
-            {confirmado.sessoes && confirmado.sessoes.length > 1 ? `${confirmado.sessoes.length} sessões reservadas` : rotuloDia(confirmado.inicio.slice(0, 10))}
+            {confirmado.sessoes && confirmado.sessoes.length > 1 ? `${confirmado.sessoes.length} sessões reservadas` : rotuloDataAgendamento(confirmado.inicio)}
           </p>
           <p className="text-lg text-psi-deep font-bold">
             {new Date(confirmado.inicio).toLocaleTimeString('pt-BR', {
@@ -268,7 +270,7 @@ export default function AgendarPage({ params }: Props) {
           <p className="text-xs text-muted">
             {professionalName} já recebeu a confirmação do seu horário.
           </p>
-          <BookedSessionsPayment sessions={confirmado.sessoes ?? [confirmado]} cpf={cpf.replace(/\D/g, '')} />
+          {confirmado.pagamentoIndisponivel ? <p role="alert" className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">Seu agendamento está confirmado, mas os dados de pagamento estão indisponíveis. Entre em contato com a clínica para orientações.</p> : <BookedSessionsPayment sessions={confirmado.sessoes ?? [confirmado]} cpf={cpf.replace(/\D/g, '')} />}
         </section>
       ) : !agenda ? (
         <form
@@ -357,7 +359,7 @@ export default function AgendarPage({ params }: Props) {
                         Sua Próxima Sessão Agendada
                       </span>
                       <p className="text-base font-extrabold text-ink capitalize">
-                        {rotuloDia(agenda.agendamentoAtual.inicio.slice(0, 10))}
+                        {rotuloDataAgendamento(agenda.agendamentoAtual.inicio)}
                       </p>
                       <p className="text-xs font-semibold text-purple-900 flex items-center gap-1.5">
                         <Clock className="w-3.5 h-3.5 text-purple-600" />

@@ -123,6 +123,14 @@ describe('updateAppointmentDetails', () => {
     expect(connection.rollback).toHaveBeenCalled();
   });
 
+  it('recusa mover ou alterar modalidade de atendimento concluído', async () => {
+    comAgendamento({ status: 'realizado', sessao_clinica_ref: 'session-1' });
+    expect(await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', {
+      startsAt: '2099-02-01T12:00:00Z', endsAt: '2099-02-01T12:50:00Z', modalidade: 'presencial',
+    })).toBe('completed_locked');
+    expect(connection.execute).not.toHaveBeenCalled();
+  });
+
   it('segue editando horário e modalidade normalmente', async () => {
     expect(
       await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', {

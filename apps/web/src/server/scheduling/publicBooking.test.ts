@@ -11,7 +11,7 @@ vi.mock('@/server/oci/runtime', () => ({
 vi.mock('@/server/persistence/mysql/mappers', () => ({
   instituicaoId: () => 'inst', rowId: (prefix: string, ref: string) => `${prefix}:${ref}`,
 }));
-import { bookAppointments } from './agendaRepository';
+import { bookAppointments, listAvailability, listAvailableSlots } from './agendaRepository';
 const patient = { patientRef: 'p', patientRowId: 'p', nome: 'Teste', organizationId: 'org',
   professionalId: 'pro', professionalRowId: 'pro', professionalName: 'Teste', sessionAmountCents: 10000 };
 const now = new Date('2026-09-14T10:00:00Z');
@@ -22,11 +22,24 @@ beforeEach(() => {
   poolQuery.mockImplementation(async (sql: string) => [sql.includes('FROM clinica_disponibilidades') ? [window] : [], []]);
   connection.query.mockImplementation(async (sql: string) => {
     if (sql.includes('FROM clinica_organizacoes')) return [[{ id: 'org' }], []];
+    if (sql.includes('FROM clinica_disponibilidades')) return [[window], []];
     return [[], []];
   });
   connection.execute.mockResolvedValue([{ affectedRows: 1 }, []]);
 });
 describe('reserva múltipla', () => {
+  it('mantém a disponibilidade vazia depois de configurada', async () => {
+    poolQuery.mockImplementation(async (sql: string) => [sql.includes('disponibilidade_configurada')
+      ? [{ disponibilidade_configurada: 1 }] : [], []]);
+    expect(await listAvailability('org', 'pro')).toEqual([]);
+    expect(await listAvailableSlots(patient, now, new Date('2026-09-20T00:00:00Z'), now)).toEqual([]);
+  });
+  it('recusa horário quando a grade mudou antes da reserva', async () => {
+    connection.query.mockImplementation(async (sql: string) => [sql.includes('disponibilidade_configurada')
+      ? [{ disponibilidade_configurada: 1 }] : [], []]);
+    expect(await bookAppointments(patient, [start], now)).toEqual({ ok: false, motivo: 'INDISPONIVEL' });
+    expect(connection.execute).not.toHaveBeenCalled();
+  });
   it('normaliza datas equivalentes sem duplicar a reserva', async () => {
     const result = await bookAppointments(patient, [start, '2026-09-15T09:00:00-03:00'], now);
     expect(result.ok && result.agendamentos).toHaveLength(1);

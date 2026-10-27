@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { GraduationCap, Link2 } from 'lucide-react';
 import type { AcademicCourse, AcademicEnrollment, AcademicStudent } from '@thats-life/core';
 import { ConfirmButton } from './ConfirmButton';
@@ -13,31 +13,31 @@ export function EnrollmentsPanel() {
   const [studentId, setStudentId] = useState('');
   const [courseId, setCourseId] = useState('');
   const [message, setMessage] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  async function load() {
+  const load = useCallback(async () => {
+    try {
     const [studentsResponse, coursesResponse, enrollmentsResponse] = await Promise.all([
       fetch('/api/academico/gestao/alunos', { cache: 'no-store' }),
       fetch('/api/academico/gestao/cursos', { cache: 'no-store' }),
       fetch('/api/academico/gestao/matriculas', { cache: 'no-store' }),
     ]);
-    const [studentPayload, coursePayload, enrollmentPayload] = await Promise.all([studentsResponse.json(), coursesResponse.json(), enrollmentsResponse.json()]);
-    setStudents(studentPayload.data ?? []); setCourses(coursePayload.data ?? []); setEnrollments(enrollmentPayload.data ?? []);
-  }
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all([
-      fetch('/api/academico/gestao/alunos', { cache: 'no-store' }),
-      fetch('/api/academico/gestao/cursos', { cache: 'no-store' }),
-      fetch('/api/academico/gestao/matriculas', { cache: 'no-store' }),
-    ]).then(async (responses) => Promise.all(responses.map((response) => response.json())))
-      .then(([studentPayload, coursePayload, enrollmentPayload]) => {
-        if (cancelled) return;
-        setStudents(studentPayload.data ?? []);
-        setCourses(coursePayload.data ?? []);
-        setEnrollments(enrollmentPayload.data ?? []);
-      });
-    return () => { cancelled = true; };
+    const responses = [studentsResponse, coursesResponse, enrollmentsResponse];
+    if (responses.some((response) => !response.ok)) throw new Error('Não foi possível carregar as matrículas. Tente novamente.');
+    const [studentPayload, coursePayload, enrollmentPayload] = await Promise.all(responses.map((response) => response.json()));
+    if (![studentPayload.data, coursePayload.data, enrollmentPayload.data].every(Array.isArray)) throw new Error('Não foi possível carregar as matrículas. Tente novamente.');
+    setStudents(studentPayload.data); setCourses(coursePayload.data); setEnrollments(enrollmentPayload.data);
+    setLoadError('');
+    } catch {
+      setLoadError('Não foi possível carregar as matrículas. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
   }, []);
+  useEffect(() => {
+    void Promise.resolve().then(load);
+  }, [load]);
 
   async function enroll() {
     try {
@@ -53,6 +53,9 @@ export function EnrollmentsPanel() {
   }
   const studentName = (id: string) => students.find((student) => student.id === id)?.fullName ?? 'Aluno';
   const courseName = (id: string) => courses.find((course) => course.id === id)?.title ?? 'Curso';
+
+  if (loading) return <p role="status">Carregando matrículas…</p>;
+  if (loadError) return <div role="alert" className="rounded-2xl bg-rose-50 p-4 text-sm text-rose-800"><p>{loadError}</p><button type="button" onClick={() => { setLoading(true); void load(); }} className="mt-2 font-bold underline">Tentar novamente</button></div>;
 
   return <div className="space-y-6"><section className="rounded-3xl border border-psi-soft bg-white p-5 shadow-soft sm:p-6"><div className="flex items-center gap-3"><span className="grid h-11 w-11 place-items-center rounded-2xl bg-emerald-100 text-emerald-800"><Link2 className="h-5 w-5" /></span><div><h2 className="text-lg font-black text-psi-darkest">Nova matrícula</h2><p className="text-xs text-muted">Vincule o aluno ao conteúdo liberado.</p></div></div><div className="mt-5 grid gap-3 md:grid-cols-[1fr_1fr_auto]"><Select value={studentId} onChange={setStudentId} label="Aluno" options={students.map((item) => ({ value: item.id, label: item.fullName }))} /><Select value={courseId} onChange={setCourseId} label="Curso" options={courses.map((item) => ({ value: item.id, label: item.title }))} /><button disabled={!studentId || !courseId} onClick={() => void enroll()} className="self-end rounded-xl bg-psi-deep px-5 py-3 text-xs font-black text-white disabled:opacity-40">Matricular</button></div>{message && <p className="mt-3 text-xs font-bold text-psi-deep">{message}</p>}</section>
     <section className="rounded-3xl border border-psi-soft bg-white p-5 shadow-soft sm:p-6"><h2 className="text-lg font-black text-psi-darkest">Matrículas atuais</h2>{message && <p role="status" className="mt-2 text-xs font-bold text-psi-deep">{message}</p>}<div className="mt-4 grid gap-3 lg:grid-cols-2">{enrollments.map((enrollment) => <article key={enrollment.id} className="flex items-center gap-3 rounded-2xl border border-psi-soft bg-psi-light p-4"><GraduationCap className="h-5 w-5 shrink-0 text-psi-deep" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-black text-psi-darkest">{studentName(enrollment.studentId)}</p><p className="truncate text-xs text-muted">{courseName(enrollment.courseId)}</p></div>{enrollment.status === 'active'

@@ -154,25 +154,25 @@ export function ModalEdicao({
       await onSalvar({
         // Dados Pessoais & Contato
         nomeCompleto: nomeCompleto.trim(),
-        nomeSocial: nomeSocial.trim() || undefined,
+        nomeSocial: nomeSocial.trim(),
         crp: crp.trim(),
         whatsapp: whatsappLimpo,
         email: email.trim().toLowerCase(),
-        fotoUrl: fotoUrl.trim() || undefined,
+        fotoUrl: fotoUrl.trim(),
         genero: genero || undefined,
-        generoOutro: genero === 'OUTRO' ? generoOutro.trim() : undefined,
+        generoOutro: genero === 'OUTRO' ? generoOutro.trim() : '',
 
         // Endereço
-        estadoUf: estadoUf.trim().toUpperCase() || undefined,
-        cidade: cidade.trim() || undefined,
-        logradouro: logradouro.trim() || undefined,
-        bairro: bairro.trim() || undefined,
+        estadoUf: estadoUf.trim().toUpperCase(),
+        cidade: cidade.trim(),
+        logradouro: logradouro.trim(),
+        bairro: bairro.trim(),
 
         // Formação & Atuação
-        turmaViverMais: turmaViverMais.trim() || undefined,
-        posGraduacaoViverMais: posGraduacaoViverMais.trim() || undefined,
-        segundaPosGraduacao: segundaPosGraduacao.trim() || undefined,
-        especialidade: especialidade.trim() || undefined,
+        turmaViverMais: turmaViverMais.trim(),
+        posGraduacaoViverMais: posGraduacaoViverMais.trim(),
+        segundaPosGraduacao: segundaPosGraduacao.trim(),
+        especialidade: especialidade.trim(),
         modalidadeAtendimento: modalidadeAtendimento.trim() || undefined,
         limitePacientesAtivos: limiteNum,
 
@@ -180,7 +180,7 @@ export function ModalEdicao({
         turnosDisponiveis: turnos,
         servicosPrestados: servicos,
         publicoAlvo: publicos,
-        publicoAlvoOutro: publicoOutro.trim() || undefined,
+        publicoAlvoOutro: publicoOutro.trim(),
         especificarNecessidades: especificarNecessidades && necessidades.length > 0,
         necessidadesAtendidas: especificarNecessidades ? necessidades : [],
         necessidadesOutro: undefined,

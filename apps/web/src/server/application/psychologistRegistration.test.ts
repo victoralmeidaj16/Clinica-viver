@@ -83,3 +83,9 @@ it('permite cancelar a solicitação do psicólogo', () => {
   expect(aplicarMudancas(existente, { solicitacaoAlteracaoGestao: null }, CAMPOS_DO_PROPRIO_PSICOLOGO)
     .solicitacaoAlteracaoGestao).toBeUndefined();
 });
+
+it('não permite ao psicólogo alterar diretamente turma ou formação homologada', () => {
+  const anterior = cadastro({ turmaViverMais: '24A', posGraduacaoViverMais: 'Curso original' });
+  const resultado = aplicarMudancas(anterior, { turmaViverMais: '25A', posGraduacaoViverMais: 'Outro curso' }, CAMPOS_DO_PROPRIO_PSICOLOGO);
+  expect(resultado).toMatchObject({ turmaViverMais: '24A', posGraduacaoViverMais: 'Curso original' });
+});

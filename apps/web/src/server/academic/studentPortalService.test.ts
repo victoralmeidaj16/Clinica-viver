@@ -32,7 +32,7 @@ const tree = {
 describe('StudentPortalService', () => {
   const repository = {
     getStudent: vi.fn(), listStudentCourses: vi.fn(), getCourseTree: vi.fn(), listCompletions: vi.fn(),
-    getStudentLesson: vi.fn(), completeLesson: vi.fn(), updateStudent: vi.fn(), updateStudentPassword: vi.fn(),
+    getStudentLesson: vi.fn(), completeLesson: vi.fn(), updateStudent: vi.fn(), updateStudentProfile: vi.fn(async () => true), updateStudentPassword: vi.fn(),
     findStudentCredentialByEmail: vi.fn(), listEnrollments: vi.fn(),
   } as unknown as AcademicRepository;
   const service = new StudentPortalService(
@@ -166,7 +166,7 @@ describe('StudentPortalService', () => {
   it('atualiza somente nome e telefone do próprio perfil', async () => {
     const result = await service.updateProfile('student-1', { fullName: 'Ana Atualizada', phone: '(11) 99999-9999' });
     expect(result).toMatchObject({ fullName: 'Ana Atualizada', email: 'ana@example.com' });
-    expect(repository.updateStudent).toHaveBeenCalledWith(expect.objectContaining({ id: 'student-1', email: 'ana@example.com' }));
+    expect(repository.updateStudentProfile).toHaveBeenCalledWith('student-1', 'Ana Atualizada', '(11) 99999-9999', expect.any(String));
   });
 
   it('troca a senha temporária sem pedir a atual e registra o instante da troca', async () => {

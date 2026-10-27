@@ -81,6 +81,15 @@ describe('listAppointments', () => {
     expect(escritas).toEqual([]);
   });
 
+  it('busca páginas seguintes quando há mais de 200 atendimentos', async () => {
+    connection.query.mockResolvedValueOnce([Array.from({ length: 200 }, (_, i) => ({ ...SESSAO_PASSADA, id: `antigo-${i}` })), []]);
+    connection.query.mockResolvedValueOnce([[{ ...SESSAO_PASSADA, id: 'futuro', inicio: '2026-12-01T12:00:00Z', fim: '2026-12-01T12:50:00Z' }], []]);
+    const items = await listAppointments('org-1', 'pro-1', new Date('2026-06-01T00:00:00Z'), AGORA);
+    expect(items).toHaveLength(201);
+    expect(items[200].id).toBe('futuro');
+    expect(connection.query.mock.calls[1][1]?.slice(-2)).toEqual([200, 200]);
+  });
+
   it('oferece a confirmação de uma sessão aberta que já terminou', async () => {
     const [item] = await listAppointments(
       'org-1',

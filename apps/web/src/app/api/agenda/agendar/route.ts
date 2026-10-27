@@ -65,8 +65,14 @@ export async function POST(request: Request) {
     // A cobrança é consequência do agendamento já confirmado. A função contém
     // qualquer falha e nunca transforma indisponibilidade financeira em erro
     // para o paciente que acabou de reservar o horário.
+    let pagamentoIndisponivel = false;
     for (const agendamento of resultado.agendamentos) {
-      await garantirCobrancaDaSessao(agendamento.agendamentoId);
+      try {
+        await garantirCobrancaDaSessao(agendamento.agendamentoId);
+      } catch {
+        // A reserva já foi gravada; uma falha financeira não pode desfazê-la.
+        pagamentoIndisponivel = true;
+      }
       try {
         const contatos = await getContatosDaSessao(agendamento.agendamentoId);
         if (contatos) await avisarSessaoMarcada(contatos);
@@ -80,7 +86,13 @@ export async function POST(request: Request) {
     // lote inteiro, mesmo quando a cota cobria somente as duas primeiras.
     const sessoes = await Promise.all(resultado.agendamentos.map(async (agendamento) => {
       const paymentToken = agendamento.linkPagamento.split('/').filter(Boolean).at(-1) ?? '';
-      const profile = await getSessionPaymentProfile(paymentToken);
+      let profile;
+      try {
+        profile = await getSessionPaymentProfile(paymentToken);
+        if (!profile) pagamentoIndisponivel = true;
+      } catch {
+        pagamentoIndisponivel = true;
+      }
       return {
         ...agendamento,
         custeadoPelaEmpresa: profile?.fundedByCompany ?? false,
@@ -93,6 +105,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         success: true,
+        pagamentoIndisponivel,
         inicio: first.inicio,
         fim: first.fim,
         modalidade: first.modalidade,

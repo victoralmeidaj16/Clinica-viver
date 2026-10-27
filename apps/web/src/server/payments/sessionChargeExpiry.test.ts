@@ -56,4 +56,16 @@ describe('expiração confirma cancelamento externo', () => {
     expect(mocks.remove).not.toHaveBeenCalled();
     expect(mocks.pool.execute).not.toHaveBeenCalled();
   });
+
+  it('expira pelo pagamento remoto do checkout agrupado, mesmo sem provedor na cobrança membro', async () => {
+    mocks.pool.query.mockImplementation(async (sql: string) => [
+      sql.includes('financeiro_checkout_cobrancas')
+        ? [{ cobranca_ref: 'charge-member', provedor_ref: 'payment-group', checkout_provedor: 'asaas' }]
+        : [],
+    ]);
+
+    expect(await expirarCobrancasPendentes()).toEqual({ expired: 1, paid: 0, failed: 0 });
+    expect(mocks.get).toHaveBeenCalledExactlyOnceWith('payment-group');
+    expect(mocks.remove).toHaveBeenCalledExactlyOnceWith('payment-group');
+  });
 });

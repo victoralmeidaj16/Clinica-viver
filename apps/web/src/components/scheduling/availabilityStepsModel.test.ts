@@ -26,9 +26,9 @@ describe('availabilityStepsModel', () => {
     expect(config.duracaoMin).toBe(60);
   });
 
-  it('começa de segunda a sexta e com intervalo de 10 min quando ainda não há grade', () => {
+  it('preserva uma grade sem dias', () => {
     const config = configDaGrade([]).config;
-    expect(config.dias).toEqual([1, 2, 3, 4, 5]);
+    expect(config.dias).toEqual([]);
     expect(config.intervaloMin).toBe(10);
     expect(padraoDaGrade([]).intervaloMin).toBe(10);
   });

@@ -31,6 +31,7 @@ export interface AcademicRepository {
   listStudents(): Promise<AcademicStudent[]>;
   insertStudent(student: AcademicStudent, passwordHash: string, actorUserId: string): Promise<void>;
   updateStudent(student: AcademicStudent): Promise<void>;
+  updateStudentProfile(studentId: string, fullName: string, phone: string | undefined, updatedAt: string): Promise<boolean>;
   /** `changedAt` revoga as sessões emitidas antes dele (ver requireActiveStudent). */
   updateStudentPassword(studentId: string, passwordHash: string, mustChangePassword: boolean, changedAt: string, actorUserId?: string): Promise<void>;
   listCoursesForManagement(): Promise<AcademicCourse[]>;

@@ -222,7 +222,7 @@ export function UpcomingSessions({ agendamentos, filtroPaciente, onCancelar, onC
                       <CheckCircle2 className="h-4 w-4" /> REALIZADA
                     </span>
                   )}
-                  <button
+                  {(item.status !== 'realizado' || item.podeConfirmarRealizacao) && <button
                     type="button"
                     onClick={() =>
                       setEditingSession({
@@ -231,6 +231,7 @@ export function UpcomingSessions({ agendamentos, filtroPaciente, onCancelar, onC
                         inicio: item.inicio,
                         fim: item.fim,
                         modalidade: item.modalidade,
+                        serviceKey: item.serviceKey,
                         status: item.status,
                         custeadoPelaEmpresa: item.custeadoPelaEmpresa,
                         convenioNome: item.convenioNome,
@@ -239,7 +240,7 @@ export function UpcomingSessions({ agendamentos, filtroPaciente, onCancelar, onC
                     className="rounded-xl border border-line bg-white px-3 py-1.5 text-[11px] font-bold text-ink hover:bg-slate-100 flex items-center gap-1.5 transition shadow-sm"
                   >
                     <Pencil className="w-3.5 h-3.5 text-psi-vibrant" /> Editar
-                  </button>
+                  </button>}
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
@@ -252,6 +253,7 @@ export function UpcomingSessions({ agendamentos, filtroPaciente, onCancelar, onC
                         inicio: item.inicio,
                         fim: item.fim,
                         modalidade: item.modalidade,
+                        serviceKey: item.serviceKey,
                         status: item.status,
                         custeadoPelaEmpresa: item.custeadoPelaEmpresa,
                         convenioNome: item.convenioNome,

@@ -20,7 +20,7 @@ export async function recuperarCobrancasPosSessaoPendentes(limit = 100): Promise
   created: number; existing: number; failed: number;
 }> {
   const [rows] = await getMysqlPool().query<RowDataPacket[]>(
-    `SELECT a.id, a.realizado_em, a.cobranca_vence_em
+    `SELECT a.id, a.inicio, a.realizado_em, a.cobranca_vence_em
        FROM clinica_agendamentos a
        JOIN clinica_organizacoes o ON o.id = a.organizacao_id
        JOIN clinica_pacientes pa ON pa.id = a.paciente_id
@@ -29,7 +29,7 @@ export async function recuperarCobrancasPosSessaoPendentes(limit = 100): Promise
         AND conv.ref_core = pa.convenio_ref
       WHERE a.instituicao_id = ?
         AND ((a.status = 'realizado' AND a.realizado_em IS NOT NULL)
-          OR (a.status IN ('agendado', 'confirmado') AND a.cobranca_vence_em > UTC_TIMESTAMP(3)))
+          OR a.status IN ('agendado', 'confirmado'))
         AND ${custeioDoAgendamentoSql({ agendamento: 'a', paciente: 'pa', convenio: 'conv' })} = 0
         AND NOT EXISTS (
           SELECT 1 FROM financeiro_cobrancas c
@@ -44,10 +44,12 @@ export async function recuperarCobrancasPosSessaoPendentes(limit = 100): Promise
 
   const result = { created: 0, existing: 0, failed: 0 };
   for (const row of rows) {
-    const realizedAt = new Date(row.realizado_em).getTime();
+    const realizedAt = fromSqlTimestamp(row.realizado_em ?? null);
     const requestedDueAt = fromSqlTimestamp(row.cobranca_vence_em ?? null);
-    const dueAt = requestedDueAt && Date.parse(requestedDueAt) > Date.now() ? requestedDueAt
-      : new Date(Math.max(realizedAt + PRAZO_POS_SESSAO_MS, Date.now() + FOLGA_MINIMA_MS)).toISOString();
+    const dueAt = requestedDueAt ?? (realizedAt
+      ? new Date(Math.max(Date.parse(realizedAt) + PRAZO_POS_SESSAO_MS, Date.now() + FOLGA_MINIMA_MS)).toISOString()
+      : fromSqlTimestamp(row.inicio));
+    if (!dueAt) { result.failed += 1; continue; }
     const outcome = await garantirCobrancaDaSessao(String(row.id), dueAt);
     if (outcome === 'created') result.created += 1;
     else if (outcome === 'existing') result.existing += 1;

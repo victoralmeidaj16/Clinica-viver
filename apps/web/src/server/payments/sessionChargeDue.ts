@@ -5,7 +5,7 @@ import type { PoolConnection } from 'mysql2/promise';
 import { getMysqlPool } from '@/server/oci/runtime';
 import { instituicaoId, toSqlTimestamp } from '@/server/persistence/mysql/mappers';
 import { isFutureChargeDueAt } from '@/lib/chargeDue';
-import { readDueResetPlan } from './sessionChargeDuePlan';
+import { readDueResetPlan, type DueResetPlan } from './sessionChargeDuePlan';
 import { hasPendingChargeDueReset } from './sessionChargeDueQueue';
 import { processAppointmentChargeDue } from './sessionChargeDueWorker';
 
@@ -24,6 +24,17 @@ export async function resetAppointmentChargeDue(
     return result.affectedRows ? 'updated' : 'not_found';
   }
   if (plan.paid) return 'paid';
+  await enqueueChargeDuePlan(connection, appointmentId, dueAt, plan);
+  await connection.execute(
+    'UPDATE clinica_agendamentos SET cobranca_vence_em = ? WHERE instituicao_id = ? AND id = ?',
+    [toSqlTimestamp(dueAt), instituicaoId(), appointmentId]
+  );
+  return 'queued';
+}
+
+export async function enqueueChargeDuePlan(
+  connection: PoolConnection, appointmentId: string, dueAt: string, plan: DueResetPlan
+): Promise<void> {
   const refs = plan.charges.map((c) => String(c.ref_core));
   const checkoutRefs = plan.checkouts.map((c) => String(c.referencia_externa));
   const [members] = checkoutRefs.length ? await connection.query<RowDataPacket[]>(
@@ -43,11 +54,6 @@ export async function resetAppointmentChargeDue(
       (id, instituicao_id, agendamento_id, vence_em, plano) VALUES (?, ?, ?, ?, ?)`,
     [randomUUID(), instituicaoId(), appointmentId, toSqlTimestamp(dueAt), JSON.stringify({ ...plan, affectedChargeIds })]
   );
-  await connection.execute(
-    'UPDATE clinica_agendamentos SET cobranca_vence_em = ? WHERE instituicao_id = ? AND id = ?',
-    [toSqlTimestamp(dueAt), instituicaoId(), appointmentId]
-  );
-  return 'queued';
 }
 
 export async function atualizarVencimentoCobrancaSessao(input: {

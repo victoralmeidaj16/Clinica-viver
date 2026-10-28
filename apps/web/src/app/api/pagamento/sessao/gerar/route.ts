@@ -1,11 +1,5 @@
 import { NextResponse } from 'next/server';
 import {
-  createAsaasPayment,
-  findAsaasPaymentByExternalReference,
-  getAsaasPayment,
-  getOrCreateAsaasCustomer,
-} from '@/server/adapters/asaasAdapter';
-import {
   createInterPixCharge,
   getInterPixCharge,
 } from '@/server/adapters/interPixAdapter';
@@ -19,7 +13,7 @@ import {
   reserveAppointmentCharge,
   reconcileSettledInterPixCharge,
 } from '@/server/payments/paymentLinkRepository';
-import { asaasDueDate } from '@/lib/chargeDue';
+import { getOrCreateCheckoutCardPayment } from '@/server/payments/checkoutCardPayment';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -106,29 +100,8 @@ export async function POST(request: Request) {
       }, { headers: { 'Cache-Control': 'private, no-store' } });
     }
 
-    let payment = checkout.providerPaymentId
-      ? await getAsaasPayment(checkout.providerPaymentId)
-      : await findAsaasPaymentByExternalReference(checkout.externalReference);
-
-    if (!payment) {
-      const customerId = await getOrCreateAsaasCustomer({
-        name: checkout.patientName,
-        cpfCnpj: checkout.patientCpf,
-        mobilePhone: checkout.patientPhone,
-        email: checkout.patientEmail,
-      });
-      const dueDate = asaasDueDate(checkout.dueAt);
-      payment = await createAsaasPayment({
-        customerId,
-        value: checkout.amountCents / 100,
-        dueDate,
-        description: checkout.description ?? `Sessão de Psicoterapia - ${checkout.professionalName}`,
-        billingType: 'CREDIT_CARD',
-        externalReference: checkout.externalReference,
-      });
-    }
-
-    await bindProviderPayment(checkout, payment.id, 'card', 'asaas');
+    const payment = await getOrCreateCheckoutCardPayment(checkout,
+      (id) => bindProviderPayment(checkout, id, 'card', 'asaas'));
     return NextResponse.json({
       success: true,
       provider: 'asaas',

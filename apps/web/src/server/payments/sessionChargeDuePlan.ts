@@ -4,6 +4,7 @@ import type { PoolConnection } from 'mysql2/promise';
 import { instituicaoId } from '@/server/persistence/mysql/mappers';
 
 export interface DueResetPlan {
+  operation?: 'expire';
   paid?: boolean;
   charges: RowDataPacket[];
   checkouts: RowDataPacket[];
@@ -25,6 +26,10 @@ export async function readDueResetPlan(connection: PoolConnection, appointmentId
       FOR UPDATE`,
     [instituicaoId(), appointmentId, appointmentId]
   );
+  return readChargeResetPlan(connection, charges);
+}
+
+export async function readChargeResetPlan(connection: PoolConnection, charges: RowDataPacket[]): Promise<DueResetPlan | null> {
   if (!charges.length) return null;
   if (charges.some((c) => Boolean(c.possui_pagamento) || ['paid', 'partially_paid', 'refunded'].includes(String(c.status)))) return { paid: true as const, charges, checkouts: [], remotes: [] };
   const refs = charges.map((c) => String(c.ref_core));

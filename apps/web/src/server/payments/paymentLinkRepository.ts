@@ -16,7 +16,7 @@ import {
 } from '@/server/persistence/mysql/mappers';
 import { descricaoFiscalDaSessao } from '@/lib/sessionReference';
 import type { InterPixCharge } from '@/server/adapters/interPixAdapter';
-import { allocatePaymentAcrossCharges } from '@/lib/paymentAllocation';
+import { allocateSettlement } from './paymentSettlement';
 import { priceSessionBatch } from '@/lib/sessionBatchPayment';
 
 export class SessionChargeUnavailableError extends Error {}
@@ -126,7 +126,7 @@ export async function getSessionPaymentProfile(
   return {
     token: String(row.token_pagamento_sessao),
     professionalName: String(row.profissional_nome),
-    sessionStart: new Date(row.inicio).toISOString(),
+    sessionStart: fromSqlTimestamp(row.inicio)!,
     amountCents: Number(row.valor_centavos ?? fallback),
     modality,
     fundedByCompany: Boolean(row.custeado_pela_empresa),
@@ -169,7 +169,7 @@ export async function listPayablePatientSessions(input: {
       ORDER BY future.inicio LIMIT 10`,
     [instituicaoId(), input.token, input.cpf, input.cpf]
   );
-  return rows.map((row) => ({ inicio: new Date(row.inicio).toISOString(),
+  return rows.map((row) => ({ inicio: fromSqlTimestamp(row.inicio)!,
     linkPagamento: `/pagar/sessao/${String(row.token_pagamento_sessao)}`,
     amountCents: Number(row.valor_centavos) }));
 }
@@ -485,7 +485,7 @@ export async function bindBatchProviderPayment(
 ): Promise<void> {
   await getMysqlPool().execute(
     `UPDATE financeiro_checkouts_asaas
-        SET provedor_pagamento_ref = ?, provedor = ?, status = 'pending', erro_codigo = NULL
+        SET provedor_pagamento_ref = ?, provedor = ?, status = IF(status IN ('paid', 'refunded'), status, 'pending'), erro_codigo = NULL
       WHERE instituicao_id = ? AND referencia_externa = ?`,
     [providerPaymentId, provider, instituicaoId(), checkout.externalReference]
   );
@@ -531,7 +531,7 @@ export async function listRecentConfirmedPayments(
     ref: String(row.ref_core),
     patientName: String(row.paciente_nome ?? 'Paciente'),
     amountCents: Number(row.valor_centavos),
-    receivedAt: new Date(row.recebido_em).toISOString(),
+    receivedAt: fromSqlTimestamp(row.recebido_em)!,
     method: String(row.forma ?? 'other'),
   }));
 }
@@ -547,7 +547,7 @@ export async function bindProviderPayment(
     await connection.beginTransaction();
     await connection.execute(
       `UPDATE financeiro_checkouts_asaas
-          SET provedor_pagamento_ref = ?, provedor = ?, status = 'pending', erro_codigo = NULL
+          SET provedor_pagamento_ref = ?, provedor = ?, status = IF(status IN ('paid', 'refunded'), status, 'pending'), erro_codigo = NULL
         WHERE instituicao_id = ? AND referencia_externa = ?`,
       [providerPaymentId, provider, instituicaoId(), checkout.externalReference]
     );
@@ -662,9 +662,8 @@ export async function reconcileInterPix(input: {
       [rowId('inter_event', input.eventId), instituicaoId(), input.eventId,
         input.txid, input.endToEndId]
     );
-    const allocations = allocatePaymentAcrossCharges(input.amountCents, chargeRows.map((charge) => ({
-      reference: String(charge.ref_core), amountCents: Number(charge.valor_centavos),
-    })));
+    const { allocations, fullyPaid } = await allocateSettlement(connection, chargeRows,
+      input.amountCents, 'inter', input.endToEndId);
     for (const allocation of allocations) {
       const charge = chargeRows.find((row) => String(row.ref_core) === allocation.reference)!;
       await recordBatchDiscount(connection, charge, input.receivedAt);
@@ -688,7 +687,7 @@ export async function reconcileInterPix(input: {
     await connection.execute(
       `UPDATE financeiro_checkouts_asaas SET status = ?
         WHERE instituicao_id = ? AND provedor = 'inter' AND provedor_pagamento_ref = ?`,
-      [input.amountCents >= chargeRows.reduce((sum, row) => sum + Number(row.valor_centavos), 0) ? 'paid' : 'pending', instituicaoId(), input.txid]
+      [fullyPaid ? 'paid' : 'pending', instituicaoId(), input.txid]
     );
     await connection.commit();
     return 'processed';
@@ -758,9 +757,8 @@ export async function reconcileAsaasPayment(input: {
       : input.billingType === 'CREDIT_CARD'
         ? 'card'
         : input.billingType === 'BOLETO' ? 'boleto' : 'other';
-    const allocations = allocatePaymentAcrossCharges(input.amountCents, chargeRows.map((charge) => ({
-      reference: String(charge.ref_core), amountCents: Number(charge.valor_centavos),
-    })));
+    const { allocations, fullyPaid } = await allocateSettlement(connection, chargeRows,
+      input.amountCents, 'asaas', input.paymentId);
     for (const allocation of allocations) {
       const charge = chargeRows.find((row) => String(row.ref_core) === allocation.reference)!;
       await recordBatchDiscount(connection, charge, input.receivedAt);
@@ -784,7 +782,7 @@ export async function reconcileAsaasPayment(input: {
     await connection.execute(
       `UPDATE financeiro_checkouts_asaas SET status = ?
         WHERE instituicao_id = ? AND provedor_pagamento_ref = ?`,
-      [input.amountCents >= chargeRows.reduce((sum, row) => sum + Number(row.valor_centavos), 0) ? 'paid' : 'pending', instituicaoId(), input.paymentId]
+      [fullyPaid ? 'paid' : 'pending', instituicaoId(), input.paymentId]
     );
     await connection.commit();
     return 'processed';

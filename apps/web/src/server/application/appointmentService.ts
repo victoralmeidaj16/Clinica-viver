@@ -3,13 +3,15 @@ import type { RequestContext } from './context';
 import { ApplicationError } from './http';
 import { getApplicationStore, persistApplicationState } from './store';
 import {
-  atualizarVencimentoCobrancaSessao,
   cancelarCobrancaDaSessao,
   garantirCobrancaDaSessao,
 } from '@/server/payments/sessionCharge';
 import { isFutureChargeDueAt } from '@/lib/chargeDue';
 import { validServiceDuration } from '@/lib/manualAppointment';
 import { getProfessionalAgendaProfile } from '@/server/scheduling/agendaRepository';
+import { isMysqlConfigured } from '@/server/oci/runtime';
+import { rowId } from '@/server/persistence/mysql/mappers';
+import { processAppointmentChargeDue } from '@/server/payments/sessionChargeDueWorker';
 
 export async function listAppointments(context: RequestContext) {
   assertStaffAuthorized(context.actor, 'schedule.read', { organizationId: context.actor.organizationId });
@@ -133,17 +135,8 @@ export async function changeAppointment(context: RequestContext, id: string, bod
   if (body.action === 'cancel' && await cancelarCobrancaDaSessao(id) === 'failed') {
     throw new ApplicationError('CHARGE_CANCELLATION_FAILED', 'A sessão foi cancelada, mas a cobrança ainda não. Tente cancelar novamente para concluir.', 502);
   }
-  if (body.action === 'reschedule' && result?.appointment) {
-    const professionalId = result.appointment.professionalId;
-    const dueAt = result.appointment.startsAt;
-    if (isFutureChargeDueAt(dueAt)) {
-      await atualizarVencimentoCobrancaSessao({
-        organizationId: context.actor.organizationId,
-        professionalId,
-        appointmentId: id,
-        dueAt,
-      }).catch((err) => console.error('[agenda] Falha ao atualizar cobrança no reagendamento:', err));
-    }
+  if (body.action === 'reschedule' && isMysqlConfigured()) {
+    await processAppointmentChargeDue(rowId('agendamento', result.appointment.id));
   }
   return result;
 }

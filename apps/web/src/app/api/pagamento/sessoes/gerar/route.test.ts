@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
+const database = vi.hoisted(() => ({ execute: vi.fn() }));
+vi.mock('@/server/oci/runtime', () => ({ getMysqlPool: () => database }));
 vi.mock('@/server/http/publicRequest', () => ({ rateLimited: () => false, validCpf: () => true }));
 vi.mock('@/server/payments/paymentLinkRepository', () => ({
+  SessionChargeUnavailableError: class extends Error {},
   reserveAppointmentChargeBatch: vi.fn(), claimCheckoutProvider: vi.fn(),
   bindBatchProviderPayment: vi.fn(), reconcileSettledInterPixCharge: vi.fn(),
 }));
@@ -28,6 +31,24 @@ beforeEach(() => {
   vi.mocked(repository.reserveAppointmentChargeBatch).mockResolvedValue(checkout);
 });
 describe('retomar pagamento agrupado sem nova emissão', () => {
+  it('duas solicitações do grupo emitem somente um cartão', async () => {
+    let reserved = false;
+    database.execute.mockImplementation(async () => {
+      const acquired = !reserved;
+      reserved = true;
+      return [{ affectedRows: acquired ? 1 : 0 }, []];
+    });
+    vi.mocked(repository.reserveAppointmentChargeBatch).mockResolvedValue({ ...checkout, providerPaymentId: undefined });
+    vi.mocked(repository.claimCheckoutProvider).mockResolvedValue('asaas');
+    vi.mocked(asaas.findAsaasPaymentByExternalReference).mockResolvedValue(null);
+    vi.mocked(asaas.getOrCreateAsaasCustomer).mockResolvedValue('customer-test');
+    vi.mocked(asaas.createAsaasPayment).mockResolvedValue({ id: 'remote-test', customer: 'customer-test', value: 200,
+      status: 'PENDING', billingType: 'CREDIT_CARD', dueDate: '2099-01-01', invoiceUrl: 'https://example.test/invoice' });
+    const results = await Promise.all([POST(request('CREDIT_CARD')), POST(request('CREDIT_CARD'))]);
+    expect(results.map((r) => r.status).sort()).toEqual([200, 409]);
+    expect(asaas.createAsaasPayment).toHaveBeenCalledTimes(1);
+    expect(repository.bindBatchProviderPayment).toHaveBeenCalledTimes(1);
+  });
   it('recupera o QR Code existente', async () => {
     vi.mocked(repository.claimCheckoutProvider).mockResolvedValue('inter');
     vi.mocked(inter.getInterPixCharge).mockResolvedValue({ id: 'remote', value: 200, status: 'ATIVA', pixCopiaECola: 'existing-code', pixQrCode: '', settlements: [] });

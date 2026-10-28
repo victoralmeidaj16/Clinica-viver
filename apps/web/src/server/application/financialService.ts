@@ -11,7 +11,7 @@ import type { RowDataPacket } from 'mysql2';
 import type { RequestContext } from './context';
 import { getApplicationStore } from './store';
 import { getMysqlPool, isMysqlConfigured } from '@/server/oci/runtime';
-import { instituicaoId } from '@/server/persistence/mysql/mappers';
+import { fromSqlTimestamp, instituicaoId } from '@/server/persistence/mysql/mappers';
 import { custeioDoAgendamentoSql, custeioEfetivoSql } from '@/server/persistence/mysql/custeioSql';
 import { readSnapshot } from './persistence';
 import {
@@ -195,8 +195,8 @@ export async function getMyFinancialData(
         const rawStatus = String(row.status);
         const dur = Number(row.duracao_min) || 50;
         const fimDate = row.fim
-          ? new Date(row.fim)
-          : new Date(new Date(row.inicio).getTime() + dur * 60_000);
+          ? fromSqlTimestamp(row.fim)!
+          : new Date(Date.parse(fromSqlTimestamp(row.inicio)!) + dur * 60_000).toISOString();
 
         const isConveniado = Boolean(row.conveniado || row.convenio_nome);
         const entry = {
@@ -204,8 +204,8 @@ export async function getMyFinancialData(
           serviceKey: row.servico_key ? String(row.servico_key) : undefined,
           versao: row.versao === undefined ? undefined : Number(row.versao),
           attendanceStatus: financialAttendanceStatus(rawStatus),
-          startsAt: new Date(row.inicio).toISOString(),
-          endsAt: fimDate.toISOString(),
+          startsAt: fromSqlTimestamp(row.inicio)!,
+          endsAt: fimDate,
           modalidade: (row.modalidade === 'presencial' ? 'presencial' : row.modalidade === 'telefone' ? 'telefone' : 'online') as 'online' | 'presencial' | 'telefone',
           conveniado: isConveniado,
           convenioNome: row.convenio_nome ? String(row.convenio_nome) : undefined,

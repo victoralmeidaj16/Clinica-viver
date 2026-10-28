@@ -1,8 +1,7 @@
 import 'server-only';
-import { hasPendingChargeDueReset } from './sessionChargeDueQueue';
 
 import { randomUUID } from 'node:crypto';
-import type { ResultSetHeader, RowDataPacket } from 'mysql2';
+import type { RowDataPacket } from 'mysql2';
 import type { PoolConnection } from 'mysql2/promise';
 import { decideSessionCharge } from '@/lib/sessionChargeRules';
 import { descricaoFiscalDaSessao } from '@/lib/sessionReference';
@@ -14,12 +13,6 @@ import {
   rowId,
   toSqlTimestamp,
 } from '@/server/persistence/mysql/mappers';
-import { cancelRemote } from './sessionChargeCancellation';
-import {
-  cancelInterPixCharge,
-  getInterPixCharge,
-} from '@/server/adapters/interPixAdapter';
-import { reconcileSettledInterPixCharge } from '@/server/payments/paymentLinkRepository';
 import { isFutureChargeDueAt } from '@/lib/chargeDue';
 
 type ChargeOutcome = 'created' | 'existing' | 'skipped' | 'failed';
@@ -103,17 +96,16 @@ export async function garantirCobrancaDaSessao(
     const sessionStart = fromSqlTimestamp(String(appointment.inicio));
     if (!sessionStart) throw new Error('Início da sessão inválido.');
     const issuedAt = new Date().toISOString();
-    const chargeDueAt = dueAt ?? (appointment.cobranca_vence_em ? fromSqlTimestamp(appointment.cobranca_vence_em) : undefined) ?? sessionStart;
-    if (!isFutureChargeDueAt(chargeDueAt)) {
-      throw new Error('O vencimento da cobrança deve estar no futuro.');
-    }
+    const chargeDueAt = (appointment.cobranca_vence_em ? fromSqlTimestamp(appointment.cobranca_vence_em) : undefined) ?? dueAt ?? sessionStart;
+    if (!Number.isFinite(Date.parse(chargeDueAt))) throw new Error('Vencimento da cobrança inválido.');
+    const status = isFutureChargeDueAt(chargeDueAt) ? 'pending' : 'overdue';
     const chargeRef = `charge-session-${randomUUID()}`;
     await connection.execute(
       `INSERT INTO financeiro_cobrancas
          (id, instituicao_id, organizacao_ref, ref_core, sessao_ref, paciente_ref,
           profissional_ref, emitida_em, vence_em, valor_centavos, status,
           descricao, criado_em, atualizado_em)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '${status}', ?,
                CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3))`,
       [
         rowId('cobranca', chargeRef),
@@ -145,66 +137,6 @@ export async function garantirCobrancaDaSessao(
 
 export { atualizarVencimentoCobrancaSessao, type UpdateChargeDueOutcome } from './sessionChargeDue';
 
-export async function expirarCobrancasPendentes(limit = 100): Promise<{
-  expired: number; paid: number; failed: number;
-}> {
-  const [rows] = await getMysqlPool().query<RowDataPacket[]>(
-    `SELECT c.ref_core AS cobranca_ref,
-            COALESCE(group_checkout.provedor_pagamento_ref, direct_checkout.provedor_pagamento_ref, c.provedor_ref) AS provedor_ref,
-            COALESCE(group_checkout.provedor, direct_checkout.provedor) AS checkout_provedor
-       FROM financeiro_cobrancas c
-       LEFT JOIN financeiro_checkouts_asaas direct_checkout
-         ON direct_checkout.instituicao_id = c.instituicao_id AND direct_checkout.cobranca_ref = c.ref_core
-       LEFT JOIN financeiro_checkout_cobrancas group_member
-         ON group_member.instituicao_id = c.instituicao_id AND group_member.cobranca_ref = c.ref_core
-       LEFT JOIN financeiro_checkouts_asaas group_checkout
-         ON group_checkout.instituicao_id = c.instituicao_id
-        AND group_checkout.referencia_externa = group_member.referencia_externa
-      WHERE c.instituicao_id = ? AND c.status IN ('draft','pending')
-        AND c.vence_em <= CURRENT_TIMESTAMP(3)
-      ORDER BY c.vence_em LIMIT ?`,
-    [instituicaoId(), Math.max(1, Math.min(limit, 500))]
-  );
-  const result = { expired: 0, paid: 0, failed: 0 };
-  for (const row of rows) {
-    try {
-      if (await hasPendingChargeDueReset(getMysqlPool(), [String(row.cobranca_ref)])) continue;
-      if (row.provedor_ref) {
-        const provider = String(row.checkout_provedor ?? 'asaas');
-        if (provider === 'inter') {
-          const remote = await getInterPixCharge(String(row.provedor_ref));
-          if (await reconcileSettledInterPixCharge(remote)) { result.paid += 1; continue; }
-          await cancelInterPixCharge(String(row.provedor_ref));
-        } else {
-          if (!await cancelRemote(provider, String(row.provedor_ref))) {
-            result.paid += 1;
-            continue;
-          }
-        }
-      }
-      const [update] = await getMysqlPool().execute<ResultSetHeader>(
-        `UPDATE financeiro_cobrancas c
-            SET c.status = 'overdue', c.atualizado_em = CURRENT_TIMESTAMP(3)
-          WHERE c.instituicao_id = ? AND c.ref_core = ?
-            AND c.status IN ('draft','pending','overdue')
-            AND NOT EXISTS (SELECT 1 FROM financeiro_pagamentos p
-              WHERE p.instituicao_id = c.instituicao_id AND p.cobranca_ref = c.ref_core
-                AND p.status = 'confirmed')`,
-        [instituicaoId(), row.cobranca_ref]
-      );
-      await getMysqlPool().execute(
-        `UPDATE financeiro_checkouts_asaas SET status = 'expired', erro_codigo = 'DEADLINE_EXPIRED',
-            expirado_em = CURRENT_TIMESTAMP(3), atualizado_em = CURRENT_TIMESTAMP(3)
-          WHERE instituicao_id = ? AND cobranca_ref = ? AND status <> 'paid'`,
-        [instituicaoId(), row.cobranca_ref]
-      );
-      result.expired += update.affectedRows > 0 ? 1 : 0;
-    } catch (error) {
-      result.failed += 1;
-      console.error(`[financeiro] Falha ao expirar cobrança ${String(row.cobranca_ref)}:`, error);
-    }
-  }
-  return result;
-}
+export { expirarCobrancasPendentes } from './sessionChargeExpiry';
 
 export { cancelarCobrancaDaSessao } from './sessionChargeCancellation';

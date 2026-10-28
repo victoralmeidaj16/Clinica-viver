@@ -1,6 +1,17 @@
 # Índice da documentação
 
+Estrutura e caminhos conferidos em **28/10/2026**. Este índice pertence à Clínica Viver Mais. Os identificadores internos `thats-life` e `@thats-life/*` continuam nos arquivos de configuração do monorepo; não identificam documentação de outro projeto.
+
 Comece pelo assunto da tarefa. Documentos de produto, reuniões e planos registram intenções e decisões; confira o código e os testes antes de assumir que uma funcionalidade está implementada. A situação publicada deve ser verificada no ambiente correspondente.
+
+## Papel dos arquivos de entrada
+
+| Arquivo | Escopo |
+| --- | --- |
+| [README da raiz](../README.md) | Apresentação, estrutura e execução do projeto |
+| [AGENTS da raiz](../AGENTS.md) | Instruções para todo o repositório |
+| [README de docs](README.md) | Índice da documentação |
+| [AGENTS de docs](AGENTS.md) | Instruções complementares para documentos nesta pasta |
 
 ## Leitura recomendada
 
@@ -26,9 +37,11 @@ Comece pelo assunto da tarefa. Documentos de produto, reuniões e planos registr
 - [Arquitetura técnica](arquitetura/ARCHITECTURE.md).
 - [Documentos psicológicos](arquitetura/documentos-psicologicos.md).
 - [Reagendamento, avisos e cobranças](arquitetura/reagendamento-avisos-e-cobrancas.md).
-- [Comunicação persistente](comunicacao-persistente.md): documento em trabalho já existente, mantido no caminho original nesta organização.
+- [Comunicação persistente](comunicacao-persistente.md): ativação, estados de entrega e retomada; mantido diretamente em `docs/`.
 
 Para localizar arquivos de implementação, use a tabela do [AGENTS.md](../AGENTS.md). A antiga API demonstrativa foi movida para o histórico: seus cabeçalhos de identidade não representam a autenticação atual.
+
+O fluxo integrado de **1 clique: SOAP + tarefas + cobrança** foi retirado do escopo da Clínica Viver Mais, conforme esclarecimento do responsável em 28/10/2026. Menções antigas não são uma prioridade vigente nem autorizam sua reintrodução. Isso não significa que os módulos individuais de prontuário, comunicação ou cobrança tenham sido removidos.
 
 ## Operação — `operacao/`
 
@@ -59,7 +72,7 @@ Fontes de contexto e requisitos. Propostas e benchmarks não são inventários c
 
 ## Especificações e planos históricos
 
-As pastas [specs/](superpowers/specs/) e [planos/](historico/planos/) são registros históricos; para cada assunto, o documento vigente é sempre o mais recente pela data no nome.
+As pastas [specs/](superpowers/specs/) e [planos/](historico/planos/) contêm, respectivamente, sete especificações e oito planos nesta conferência. Comece pelo documento mais recente de cada assunto, conforme o guia da raiz, e confirme se suas decisões continuam válidas. A data, por si só, não comprova implementação, publicação ou escopo vigente. A antiga pasta `docs/superpowers/plans/` não existe mais.
 
 | Assunto | Especificação | Plano |
 | --- | --- | --- |
@@ -83,6 +96,8 @@ Estes materiais mantêm seus caminhos existentes para preservar as fontes de ger
 - [Manual prático em PDF](manual-pratico-psicologo.pdf) e [fontes do manual](manual-psicologo-fonte/).
 - [Apresentação de funcionalidades](apresentacao-funcionalidades.html).
 
+O mapa registra um levantamento de 02/10/2026; valide rotas e ações antes de usá-lo como descrição atual. A ajuda da aplicação é implementada em [apps/web/src/app/ajuda/page.tsx](../apps/web/src/app/ajuda/page.tsx), com conteúdo em [src/lib/ajuda/](../apps/web/src/lib/ajuda/) e componentes em [src/components/ajuda/](../apps/web/src/components/ajuda/). O PDF oferecido nessa página fica em [apps/web/public/ajuda/manual-pratico-psicologo.pdf](../apps/web/public/ajuda/manual-pratico-psicologo.pdf). Alterar apenas a cópia em `docs/` não atualiza o arquivo servido.
+
 Projetos de vídeo ficam em `videos/`; exportações gerais, em `output/`. Consulte as instruções locais antes de trabalhar nesses materiais.
 
 ## Histórico — `historico/`
@@ -99,4 +114,4 @@ Não use estes documentos como roteiro vigente de infraestrutura ou autenticaç�
 
 ## Manutenção do acervo
 
-Siga [docs/AGENTS.md](AGENTS.md) ao criar documentos. O [registro de organização](organizacao-arquivos.md) registra a organização inicial de 30 arquivos e a transferência dos oito planos históricos.
+Siga [docs/AGENTS.md](AGENTS.md) ao criar documentos. O [registro de organização](organizacao-arquivos.md) reúne o mapa atual das pastas e o histórico de movimentação de 30 arquivos e oito planos. A conferência de caminhos não equivale à revisão integral do conteúdo dos documentos.

@@ -10,6 +10,8 @@ import type {
   CommitAppointmentInput,
 } from '@thats-life/core';
 import { getMysqlPool } from '@/server/oci/runtime';
+import { resetAppointmentChargeDue } from '@/server/payments/sessionChargeDue';
+import { freezeAppointmentSessionAmount } from './patientSessionPricing';
 import {
   instituicaoId,
   rowId,
@@ -151,6 +153,9 @@ export class MysqlAppointmentRepository implements AppointmentRepository {
       await this.assertVersion(connection, id, input.expectedVersion);
       await this.assertNoConflict(connection, id, appointment);
       await this.upsertAppointment(connection, id, appointment);
+      if (input.events.some((event) => event.type === 'appointment.rescheduled')) {
+        await resetAppointmentChargeDue(connection, id, appointment.startsAt);
+      }
       await this.replaceReminders(connection, id, appointment);
       await this.appendOutbox(connection, id, input.events);
 
@@ -262,23 +267,7 @@ export class MysqlAppointmentRepository implements AppointmentRepository {
         appointment.chargeDueAt ? toSqlTimestamp(appointment.chargeDueAt) : null,
       ]
     );
-
-    // O valor fica congelado no nascimento da sessão. Reajustar o perfil
-    // depois não pode alterar uma cobrança já combinada com o paciente.
-    await connection.execute(
-      `UPDATE clinica_agendamentos a
-       JOIN clinica_profissionais p ON p.id = a.profissional_id
-          SET a.valor_centavos = CASE
-            WHEN EXISTS (
-              SELECT 1 FROM clinica_triagens_pacientes t
-               WHERE t.instituicao_id = a.instituicao_id
-                 AND t.paciente_ref = ? AND UPPER(COALESCE(t.modalidade, '')) LIKE '%SOCIAL%'
-            ) THEN p.valor_social_centavos
-            ELSE p.valor_sessao_centavos
-          END
-        WHERE a.instituicao_id = ? AND a.id = ? AND a.valor_centavos IS NULL`,
-      [appointment.patientId, instituicaoId(), id]
-    );
+    await freezeAppointmentSessionAmount(connection, id);
   }
 
   private async replaceReminders(

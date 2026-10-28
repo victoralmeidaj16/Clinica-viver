@@ -14,6 +14,7 @@ import { ApplicationError } from './http';
 import { getApplicationStore, persistApplicationState } from './store';
 import { deliverPostSessionHandoff } from './postSessionHandoff';
 import { dispatchCommunicationMessage } from './communicationService';
+import { garantirCobrancaPosSessao } from '@/server/payments/postSessionCharge';
 
 export interface PostSessionInput {
   content: SoapClinicalContent;
@@ -169,13 +170,12 @@ export async function runPostSessionAutomation(
 
   let charge;
   try {
-    charge = createFinancialCharge({
+    charge = await garantirCobrancaPosSessao(createFinancialCharge({
       id: `charge-${sessionId}`, organizationId: context.actor.organizationId, sessionId,
       patientId: approved.record.patientId, professionalId: approved.record.responsibleProfessionalId,
       issuedAt: input.occurredAt, dueAt: input.charge.dueAt, amountCents: input.charge.amountCents,
       description: 'Sessão de psicoterapia', createdAt: input.occurredAt,
-    });
-    await store.financial.saveCharge(charge);
+    }), store);
     await linkSessionChargeCommand(
       sessionDependencies, context.actor, sessionId, charge, metadata('billing')
     );

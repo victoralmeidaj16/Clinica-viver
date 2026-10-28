@@ -1,6 +1,6 @@
 import 'server-only';
 
-import type { ResultSetHeader } from 'mysql2/promise';
+import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { ApplicationError } from '@/server/application/http';
 import { getMysqlPool } from '@/server/oci/runtime';
 import { instituicaoId } from './mappers';
@@ -65,6 +65,39 @@ export function patientSessionPricingFromRow(row: { categoria_valor_sessao?: unk
     ? { category: selected, customAmountCents: amount }
     : selected ? { category: selected, customAmountCents: null }
       : { category: null, customAmountCents: null };
+}
+
+export async function freezeAppointmentSessionAmount(connection: PoolConnection, appointmentId: string): Promise<void> {
+  const [rows] = await connection.query<RowDataPacket[]>(
+    `SELECT pa.categoria_valor_sessao, pa.valor_sessao_personalizado_centavos,
+            p.valor_social_centavos, p.valor_sessao_centavos,
+            (SELECT t.modalidade FROM clinica_triagens_pacientes t
+              WHERE t.instituicao_id = a.instituicao_id AND t.organizacao_ref = o.ref_core
+                AND t.paciente_ref = pa.ref_core ORDER BY t.atualizado_em DESC LIMIT 1) AS modalidade_triagem
+       FROM clinica_agendamentos a
+       JOIN clinica_organizacoes o ON o.id = a.organizacao_id
+       JOIN clinica_pacientes pa ON pa.id = a.paciente_id
+       JOIN clinica_profissionais p ON p.id = a.profissional_id
+      WHERE a.instituicao_id = ? AND a.id = ? AND a.valor_centavos IS NULL FOR UPDATE`,
+    [instituicaoId(), appointmentId]
+  );
+  const row = rows[0];
+  if (!row) return;
+  let amount: number;
+  try {
+    amount = resolvePatientSessionAmountCents({
+      pricing: patientSessionPricingFromRow({ categoria_valor_sessao: row.categoria_valor_sessao,
+        valor_sessao_personalizado_centavos: row.valor_sessao_personalizado_centavos }), triageMode: row.modalidade_triagem,
+      socialAmountCents: row.valor_social_centavos, standardAmountCents: row.valor_sessao_centavos,
+    });
+  } catch {
+    // Sem preço configurado, a agenda continua válida e a cobrança sinaliza a pendência.
+    return;
+  }
+  await connection.execute(
+    'UPDATE clinica_agendamentos SET valor_centavos = ? WHERE instituicao_id = ? AND id = ? AND valor_centavos IS NULL',
+    [amount, instituicaoId(), appointmentId]
+  );
 }
 
 export async function updatePatientSessionPricing(

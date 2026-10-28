@@ -2,9 +2,14 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { toPatientProfile, toSqlTimestamp, type PacienteRow } from './mappers';
+import { fromSqlTimestamp, toPatientProfile, toSqlTimestamp, type PacienteRow } from './mappers';
 
 describe('mapeamento de timestamps MySQL', () => {
+  it('normaliza texto UTC, instantes ISO e objetos Date para o mesmo instante', () => {
+    for (const value of ['2026-10-27 12:00:00.000', '2026-10-27T12:00:00Z', '2026-10-27T09:00:00-03:00', new Date('2026-10-27T12:00:00Z')]) {
+      expect(fromSqlTimestamp(value)).toBe('2026-10-27T12:00:00.000Z');
+    }
+  });
   it('converte o horário ISO recebido por webhooks para o formato aceito pelo MySQL', () => {
     expect(toSqlTimestamp('2026-09-02T13:17:47.912Z'))
       .toBe('2026-09-02 13:17:47.912');

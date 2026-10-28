@@ -29,3 +29,20 @@ it('preserva os metadados mais recentes do MySQL usados para editar a avaliaçã
   }] : [], []]);
   expect((await getMyFinancialData(context)).receivables).toMatchObject([{ appointmentId: 'appointment-db', serviceKey: 'AVALIACAO', versao: 4 }]);
 });
+it('interpreta o texto UTC do MySQL sem deslocar o horário no fuso da clínica', async () => {
+  const previous = process.env.TZ;
+  process.env.TZ = 'America/Sao_Paulo';
+  try {
+    mocks.mysql = true;
+    mocks.query.mockImplementation(async (sql: string) => [sql.includes('FROM clinica_agendamentos a') ? [{
+      id: 'appointment-db', ref_core: 'appointment-test', status: 'agendado', inicio: '2026-10-27 12:00:00.000',
+      fim: '2026-10-27 13:30:00.000', modalidade: 'online', servico_key: 'AVALIACAO', versao: 4,
+    }] : [], []]);
+    expect((await getMyFinancialData(context)).receivables[0]).toMatchObject({
+      startsAt: '2026-10-27T12:00:00.000Z', endsAt: '2026-10-27T13:30:00.000Z',
+    });
+  } finally {
+    if (previous === undefined) delete process.env.TZ;
+    else process.env.TZ = previous;
+  }
+});

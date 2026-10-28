@@ -3,7 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 const state = vi.hoisted(() => ({ query: vi.fn(), beginTransaction: vi.fn(), rollback: vi.fn(), commit: vi.fn(), release: vi.fn() }));
 vi.mock('@/server/oci/runtime', () => ({ getMysqlPool: () => ({ ...state, getConnection: async () => state }), isMysqlConfigured: () => true }));
-vi.mock('@/server/persistence/mysql/mappers', () => ({ instituicaoId: () => 'inst', rowId: (value: string) => value }));
+vi.mock('@/server/persistence/mysql/mappers', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/server/persistence/mysql/mappers')>(),
+  instituicaoId: () => 'inst', rowId: (value: string) => value,
+}));
 vi.mock('@/server/persistence/mysql/custeioSql', () => ({
   custeioDoAgendamentoSql: (aliases: { agendamento: string }) => `${aliases.agendamento}.custeado`, custeioEfetivoSql: () => '0',
 }));

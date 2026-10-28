@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { createAsaasPayment, getOrCreateAsaasCustomer, getAsaasPayment, findAsaasPaymentByExternalReference } from '@/server/adapters/asaasAdapter';
 import { createInterPixCharge, getInterPixCharge } from '@/server/adapters/interPixAdapter';
 import { rateLimited, validCpf } from '@/server/http/publicRequest';
 import {
@@ -7,8 +6,9 @@ import {
   claimCheckoutProvider,
   reconcileSettledInterPixCharge,
   reserveAppointmentChargeBatch,
+  SessionChargeUnavailableError,
 } from '@/server/payments/paymentLinkRepository';
-import { asaasDueDate } from '@/lib/chargeDue';
+import { getOrCreateCheckoutCardPayment } from '@/server/payments/checkoutCardPayment';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -53,21 +53,13 @@ export async function POST(request: Request) {
         pixQrCode: pix.pixQrCode, pixCopiaECola: pix.pixCopiaECola });
     }
 
-    let payment = checkout.providerPaymentId
-      ? await getAsaasPayment(checkout.providerPaymentId)
-      : await findAsaasPaymentByExternalReference(checkout.externalReference);
-    if (!payment) {
-      const customerId = await getOrCreateAsaasCustomer({ name: checkout.patientName,
-        cpfCnpj: checkout.patientCpf, mobilePhone: checkout.patientPhone, email: checkout.patientEmail });
-      payment = await createAsaasPayment({ customerId, value: checkout.amountCents / 100,
-        dueDate: asaasDueDate(checkout.dueAt), description: checkout.description!,
-        billingType: 'CREDIT_CARD', externalReference: checkout.externalReference });
-    }
-    await bindBatchProviderPayment(checkout, payment.id, 'asaas');
+    const payment = await getOrCreateCheckoutCardPayment(checkout,
+      (id) => bindBatchProviderPayment(checkout, id, 'asaas'));
     return NextResponse.json({ success: true, provider: 'asaas', paymentMethod: 'CREDIT_CARD',
       pacienteNome: checkout.patientName, quantidade: tokens.length, descontoCentavos: checkout.discountCents, subtotalCentavos: checkout.subtotalCents, valor: payment.value,
       invoiceUrl: payment.invoiceUrl });
   } catch (error) {
+    if (error instanceof SessionChargeUnavailableError) return NextResponse.json({ error: error.message }, { status: 409 });
     console.error('[pagamento-sessoes] Falha ao gerar cobrança agrupada:', error);
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Não foi possível gerar o pagamento.' }, { status: 400 });
   }

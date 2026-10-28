@@ -42,7 +42,6 @@ O código, as configurações e os testes mostram o comportamento implementado. 
 ## Regras de implementação
 
 - Mantenha componentes modulares com **menos de 250 linhas**. Ao ampliar um componente, extraia responsabilidades quando necessário.
-- Priorize o fluxo pós-sessão de **1 clique: SOAP + tarefas + cobrança**, mantendo revisão humana do conteúdo clínico.
 - Preserve isolamento por organização e permissões de gestão/psicólogo/aluno. Não aceite identidade enviada pelo cliente como substituta da sessão validada.
 - Preserve os requisitos de privacidade de CFP/LGPD: criptografia em repouso dos registros clínicos e anonimização no fluxo de supervisão. Não declare conformidade ou garantia sem verificar o controle correspondente.
 - Não exponha conteúdo clínico, documentos, telefones ou segredos em logs, fixtures, commits ou mensagens. Use dados fictícios nas verificações.

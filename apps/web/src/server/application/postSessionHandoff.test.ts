@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('server-only', () => ({}));
 vi.mock('./store', () => ({ getApplicationStore: () => mocks.store, persistApplicationState: mocks.persist }));
 vi.mock('./communicationService', () => ({ dispatchCommunicationMessage: mocks.dispatch }));
+vi.mock('@/server/payments/postSessionCharge', () => ({ garantirCobrancaPosSessao: async (charge: unknown) => charge }));
 vi.mock('@/server/communication/handoffRepository', () => ({ getHandoff: mocks.get, saveHandoff: mocks.save }));
 vi.mock('@thats-life/core', async (importOriginal) => ({
   ...await importOriginal<typeof import('@thats-life/core')>(),

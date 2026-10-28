@@ -45,6 +45,7 @@ export function rowId(entidade: string, refCore: string): string {
 export function fromSqlTimestamp(value: string | Date | null): string | undefined {
   if (value === null || value === undefined) return undefined;
   if (value instanceof Date) return value.toISOString();
+  if (/(Z|[+-]\d{2}:\d{2})$/i.test(value)) return new Date(value).toISOString();
   const normalized = value.includes('.') ? value : `${value}.000`;
   return `${normalized.replace(' ', 'T')}Z`;
 }

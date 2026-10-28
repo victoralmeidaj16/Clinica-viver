@@ -1,6 +1,37 @@
 # Registro da organização de arquivos
 
-Organização realizada em 23/10/2026. Os nomes originais foram preservados; os links internos e as referências aos caminhos foram ajustados. Nenhum arquivo foi excluído.
+## Conferência da estrutura — 28/10/2026
+
+Foram conferidos os caminhos locais, os arquivos de entrada e as referências à ajuda da aplicação. Os 38 destinos registrados nas tabelas abaixo existem nesta cópia do repositório. Esta revisão não moveu nem excluiu arquivos e não validou publicação ou todo o conteúdo do acervo.
+
+Os caminhos nesta página partem da raiz do repositório. Consulte o [índice](README.md) para navegar e o [guia de documentação](AGENTS.md) antes de criar ou mover documentos.
+
+| Caminho | Conteúdo conferido |
+| --- | --- |
+| `README.md` e `AGENTS.md` | Entrada do projeto e instruções gerais |
+| `docs/README.md` e `docs/AGENTS.md` | Índice e instruções específicas de documentação |
+| `docs/produto/` | Seis documentos de produto e jornadas |
+| `docs/arquitetura/` | Três documentos de arquitetura e fluxos técnicos |
+| `docs/operacao/` | Quatro guias de infraestrutura e integrações |
+| `docs/levantamentos/` | Seis documentos de reuniões, propostas e pesquisa |
+| `docs/design/` e `docs/design/assets/` | Guia visual e duas imagens originais de marca |
+| `docs/referencias/` | Apostila PDF local, ignorada pelo Git |
+| `docs/historico/` | Sete documentos diretamente na pasta, além de `planos/` |
+| `docs/historico/planos/` | Oito planos históricos |
+| `docs/superpowers/specs/` | Sete especificações; a antiga pasta irmã `plans/` está ausente |
+| `docs/manual-psicologo-fonte/` | Scripts de geração e captura, CSS, ícones e imagens do manual |
+| `infra/clinic/README.md` e `infra/evolution/README.md` | Documentação mantida junto à infraestrutura |
+| `videos/` e `output/` | Projetos de vídeo e exportações gerais |
+
+Permanecem diretamente em `docs/`: `comunicacao-persistente.md`, `mapa-plataforma-psicologo.md`, `guia-visual-psicologo.html`, `guia-visual-psicologo.pdf`, `guia-visual-psicologo-celular.pdf`, `manual-pratico-psicologo.pdf`, `apresentacao-funcionalidades.html` e este registro, além de `README.md` e `AGENTS.md`.
+
+A ajuda em [apps/web/src/app/ajuda/page.tsx](../apps/web/src/app/ajuda/page.tsx) usa conteúdo e componentes próprios e oferece o PDF em [apps/web/public/ajuda/](../apps/web/public/ajuda/). Os materiais em `docs/` e o arquivo servido são caminhos distintos; sua existência não comprova que estejam sincronizados.
+
+Os identificadores `thats-life` e `@thats-life/*` ainda aparecem nos manifests deste monorepo. Sua presença não indica, por si só, arquivos de outro projeto. A prioridade antiga de “1 clique: SOAP + tarefas + cobrança” foi removida do `AGENTS.md` da raiz após o esclarecimento do responsável sobre a retirada desse fluxo do escopo.
+
+## Histórico da organização — 23/10/2026
+
+O registro original informa a preservação dos nomes, o ajuste dos links internos e das referências e a ausência de exclusões na organização. As tabelas abaixo preservam as origens e os destinos registrados naquela ocasião.
 
 Os caminhos abaixo são relativos à raiz. Para desfazer um movimento, devolva o destino à origem e ajuste as referências. O PDF em `docs/referencias/` é material local ignorado pelo Git.
 

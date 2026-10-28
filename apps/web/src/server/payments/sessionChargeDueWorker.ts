@@ -6,9 +6,17 @@ import { getMysqlPool } from '@/server/oci/runtime';
 import { instituicaoId } from '@/server/persistence/mysql/mappers';
 import { remoteCancellationState, cancelRemote } from './sessionChargeCancellation';
 import type { DueResetPlan } from './sessionChargeDuePlan';
+import { getInterPixCharge } from '@/server/adapters/interPixAdapter';
+import { reconcileSettledInterPixCharge } from './paymentLinkRepository';
 
 type Plan = DueResetPlan & { affectedChargeIds: string[] };
 type Outcome = 'updated' | 'queued' | 'paid' | 'not_found';
+
+async function reconcilePaidExpiry(plan: Plan, remote: { provider: string; id: string }) {
+  if (plan.operation === 'expire' && remote.provider === 'inter') {
+    await reconcileSettledInterPixCharge(await getInterPixCharge(remote.id));
+  }
+}
 
 async function resetCheckout(connection: PoolConnection, checkout: RowDataPacket) {
   await connection.execute(
@@ -66,11 +74,15 @@ async function processJob(connection: PoolConnection, job: RowDataPacket): Promi
   for (const remote of [...plan.remotes]) {
     const status = await remoteCancellationState(remote.provider, remote.id);
     if (status === 'cancelled') plan = await checkpointCancellation(connection, job, plan, remote);
-    if (status === 'paid') paid = true;
+    if (status === 'paid') {
+      await reconcilePaidExpiry(plan, remote);
+      paid = true;
+    }
   }
   if (paid) { await setOutcome(connection, String(job.id), 'paid'); return 'paid'; }
   for (const remote of [...plan.remotes]) {
     if (!await cancelRemote(remote.provider, remote.id)) {
+      await reconcilePaidExpiry(plan, remote);
       await setOutcome(connection, String(job.id), 'paid');
       return 'paid';
     }
@@ -80,7 +92,16 @@ async function processJob(connection: PoolConnection, job: RowDataPacket): Promi
   try {
     for (const checkout of plan.checkouts) await resetCheckout(connection, checkout);
     const refs = plan.charges.map((c) => String(c.ref_core));
-    await connection.execute(
+    if (plan.operation === 'expire') {
+      await connection.execute(
+        `UPDATE financeiro_cobrancas c SET status = 'overdue', atualizado_em = CURRENT_TIMESTAMP(3)
+          WHERE c.instituicao_id = ? AND c.organizacao_ref = ? AND c.ref_core IN (${refs.map(() => '?').join(', ')})
+            AND c.status IN ('draft', 'pending') AND c.vence_em <= CURRENT_TIMESTAMP(3)
+            AND NOT EXISTS (SELECT 1 FROM financeiro_pagamentos p WHERE p.instituicao_id = c.instituicao_id
+              AND p.organizacao_ref = c.organizacao_ref AND p.cobranca_ref = c.ref_core AND p.status = 'confirmed')`,
+        [instituicaoId(), plan.charges[0].organizacao_ref, ...refs]
+      );
+    } else await connection.execute(
       `UPDATE financeiro_cobrancas c SET vence_em = ?, status = 'pending', provedor_ref = NULL,
           forma_pagamento = NULL, atualizado_em = CURRENT_TIMESTAMP(3)
         WHERE c.instituicao_id = ? AND c.organizacao_ref = ? AND c.ref_core IN (${refs.map(() => '?').join(', ')})

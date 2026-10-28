@@ -139,3 +139,16 @@ describe('ajuste financeiro após liberar a agenda', () => {
     expect(cancelRemote).not.toHaveBeenCalled();
   });
 });
+
+it('expira só a dívida vencida e libera todas as sessões do pagamento agrupado', async () => {
+  state.job = { id: 'expiry-job', vence_em: '2020-01-01T12:00:00Z', situacao: 'pending', plano: JSON.stringify({
+    operation: 'expire', charges: state.charges, checkouts: state.checkouts,
+    remotes: [{ provider: 'asaas', id: 'pay-1' }], affectedChargeIds: ['charge', 'other-charge', 'group-member'],
+  }) };
+  expect(await processAppointmentChargeDue('appt')).toBe('updated');
+  expect(state.connection.execute).toHaveBeenCalledWith(expect.stringContaining("SET status = 'overdue'"), ['inst', 'org', 'charge']);
+  expect(state.connection.execute).not.toHaveBeenCalledWith(expect.stringContaining('SET vence_em = ?'), expect.anything());
+  expect(state.connection.execute).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM financeiro_checkout_cobrancas'), ['inst', 'VM-old']);
+  expect(state.connection.execute).toHaveBeenCalledWith(expect.stringContaining('provedor_pagamento_ref = NULL'),
+    [expect.stringMatching(/^VM-/), 'inst', 'checkout', 'VM-old']);
+});

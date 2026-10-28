@@ -11,3 +11,9 @@ A retomada usa a rotina existente `POST /api/application/financial/charges/expir
 Os trabalhos ficam em `financeiro_ajustes_vencimento`, com `situacao` e o plano restante para diagnóstico. Os avisos ficam em `clinica_agenda_avisos`, identificados também por `versao`. Falhas de envio e reservas abandonadas são retomadas pela varredura de avisos durante o horário comercial. A fila guarda apenas horários e modalidade necessários para reconstrução; avisos desatualizados são descartados. A reserva durável de entrega impede reenvio quando o resultado do provedor é desconhecido; nesses casos, é necessária conferência operacional.
 
 Se a sessão for cancelada e o cancelamento da cobrança falhar, a agenda mantém a opção “Conferir cancelamento” para nova tentativa, inclusive após recarregar a página. A retomada financeira nesse fluxo depende de ação do profissional.
+
+O pós-sessão reutiliza a cobrança vinculada ao agendamento ou à sessão clínica, preservando valor, vencimento e pagamentos. Se já houver mais de uma cobrança para o mesmo atendimento, o fluxo pede conferência da gestão; não remove nem escolhe uma dívida automaticamente.
+
+A emissão de cartão, individual ou agrupada, reserva o checkout antes da chamada ao Asaas. Os códigos `CARD_ISSUING` e `CARD_UNKNOWN` em `financeiro_checkouts_asaas.erro_codigo` impedem outra emissão quando o resultado é incerto. Uma nova tentativa consulta o pagamento pela referência externa e conclui o vínculo quando o encontra. Se o provedor continuar sem retornar o pagamento, é necessária conferência operacional antes de liberar outra emissão; essas reservas não expiram automaticamente.
+
+A conciliação distribui cada recebimento sobre o saldo restante das sessões. Liquidações Pix diferentes acumulam valores; eventos do mesmo pagamento Asaas atualizam seu total sem somá-lo novamente ou reduzi-lo por uma entrega antiga.

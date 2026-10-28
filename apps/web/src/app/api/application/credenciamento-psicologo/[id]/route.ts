@@ -6,6 +6,7 @@ import { MysqlCaptureRepository } from '@/server/persistence/mysql/captureReposi
 import { exigirGestao, NaoAutorizadoError } from '@/server/viverMaisGestaoAuth';
 import {
   aplicarMudancas,
+  assertDecisaoDoPedidoAtual,
   CAMPOS_DA_GESTAO,
   CorpoInvalidoError,
   validarCorpo,
@@ -45,6 +46,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       const atualizado = await new MysqlCaptureRepository().mutate((state) => {
         const existente = state.cadastrosPsicologos.find((psi) => psi.id === id);
         if (!existente) return { next: state, result: null };
+        assertDecisaoDoPedidoAtual(existente, corpo);
         const next = aplicarMudancas(existente, corpo, CAMPOS_DA_GESTAO);
         if (next.status === 'APROVADO') validateApprovalAccess(next);
         return {

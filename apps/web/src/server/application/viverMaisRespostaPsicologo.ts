@@ -15,6 +15,7 @@ import { avisarCoordenacao, avisarTransbordo, responderPsicologo, avisarConfirma
 import { avisarAlocacaoPsicologoPorEmail } from './triagemEmail';
 import { reconciliarPacientes } from './patientPromotion';
 import { normalizeBrazilPhone } from '@/lib/brazilPhone';
+import { bindIncomingWhatsAppEvent } from '@/server/communication/incomingWhatsAppEvent';
 
 export type SituacaoResposta =
   | 'contato_confirmado'
@@ -90,18 +91,28 @@ function textoAjuda(psicologo: CadastroPsicologoRecord, lead: TriagemPacienteRec
  */
 export async function processarRespostaDoPsicologo(
   telefoneRemetente: string,
-  texto: string
+  texto: string,
+  eventoId?: string,
 ): Promise<ResultadoResposta> {
   const comando = interpretarComando(texto);
   const repositorio = getCaptureRepository();
   const estado = await repositorio.read();
 
-  const psicologo = estado.cadastrosPsicologos.find(
-    (psi) => psi.status === 'APROVADO' && mesmoTelefone(psi.whatsapp, telefoneRemetente)
-  );
+  const selecionar = () => {
+    const profissional = estado.cadastrosPsicologos.find(
+      (psi) => psi.status === 'APROVADO' && mesmoTelefone(psi.whatsapp, telefoneRemetente)
+    );
+    return { psychologistId: profissional?.id,
+      leadId: profissional ? leadPendenteDe(estado.triagensPacientes, profissional.id)?.id : undefined };
+  };
+  const alvo = eventoId
+    ? await bindIncomingWhatsAppEvent({ id: eventoId, phone: telefoneRemetente, text: texto }, selecionar)
+    : selecionar();
+  const psicologo = estado.cadastrosPsicologos.find((psi) => psi.id === alvo.psychologistId
+    && psi.status === 'APROVADO' && mesmoTelefone(psi.whatsapp, telefoneRemetente));
   if (!psicologo) return { situacao: 'remetente_desconhecido' };
 
-  const lead = leadPendenteDe(estado.triagensPacientes, psicologo.id);
+  const lead = estado.triagensPacientes.find((item) => item.id === alvo.leadId);
   if (!lead) return { situacao: 'sem_lead_pendente', psicologoId: psicologo.id };
 
   if (!comando) {

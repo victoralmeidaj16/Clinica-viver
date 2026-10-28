@@ -742,8 +742,9 @@ export async function rescheduleAppointmentProfessional(
   professionalId: string,
   appointmentId: string,
   startsAtIso: string,
-  endsAtIso: string
-): Promise<'ok' | 'not_found' | 'conflict' | 'invalid' | 'duration_locked'> {
+  endsAtIso: string,
+  opcoes: { expectedVersion?: number } = {}
+): Promise<'ok' | 'not_found' | 'conflict' | 'invalid' | 'duration_locked' | 'stale'> {
   const novoInicio = new Date(startsAtIso);
   const novoFim = new Date(endsAtIso);
   if (!Number.isFinite(novoInicio.getTime()) || !Number.isFinite(novoFim.getTime())
@@ -766,6 +767,12 @@ export async function rescheduleAppointmentProfessional(
     if (!agendamento) {
       await connection.rollback();
       return 'not_found';
+    }
+    // Duas abas remarcando a mesma sessão leem a mesma versão. Sem a conferência,
+    // a segunda moveria de novo a sessão que a primeira acabou de remarcar.
+    if (opcoes.expectedVersion !== undefined && opcoes.expectedVersion !== Number(agendamento.versao)) {
+      await connection.rollback();
+      return 'stale';
     }
     const duracaoAtual = agendamento.fim
       ? (new Date(agendamento.fim).getTime() - new Date(agendamento.inicio).getTime()) / 60_000

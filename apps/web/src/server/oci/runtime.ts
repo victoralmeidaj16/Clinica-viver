@@ -106,6 +106,9 @@ export function getMysqlPool(): Pool {
     // TIMESTAMP para `Date` faria cada mapper desfazer a conversão de volta,
     // no fuso do processo — que não é necessariamente o da organização.
     dateStrings: true,
+    // Parâmetros `Date` seguem o mesmo UTC da sessão abaixo. Sem isso o driver
+    // os escreve no fuso do processo, e um ambiente em -03 grava 3h a menos.
+    timezone: 'Z',
   });
 
   // Com `dateStrings`, o TIMESTAMP chega como o servidor o renderiza. Fixar a

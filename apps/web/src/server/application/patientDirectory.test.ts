@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createPatientProfile, type PatientProfile } from '@thats-life/core';
+import { createPatientProfile, InMemoryAppointmentRepository, type Appointment, type PatientProfile } from '@thats-life/core';
 import type { CaptureResult, CaptureState } from '@/server/persistence/captureRepository';
 import type { RequestContext } from './context';
 
@@ -7,12 +7,15 @@ vi.mock('server-only', () => ({}));
 const state = vi.hoisted(() => ({
   patients: new Map<string, PatientProfile>(),
   listPatients: vi.fn(),
+  listAppointments: vi.fn(),
   getRegistration: vi.fn(),
   updateRegistration: vi.fn(),
+  welcome: vi.fn(),
   capture: { triagensPacientes: [], cadastrosPsicologos: [] } as CaptureState,
 }));
+vi.mock('./viverMaisWhatsApp', () => ({ avisarConfirmacaoPaciente: state.welcome }));
 vi.mock('./store', () => ({
-  getApplicationStore: () => ({ appointments: { list: async () => [] }, identities: {
+  getApplicationStore: () => ({ appointments: { list: state.listAppointments }, identities: {
     listPatients: state.listPatients,
     getPatientRegistration: state.getRegistration,
     updatePatientRegistration: state.updateRegistration,
@@ -60,9 +63,11 @@ const body = {
 };
 
 beforeEach(() => {
+  state.welcome.mockReset().mockResolvedValue({ situacao: 'enviada' });
   vi.mocked(writeSnapshot).mockClear();
   state.patients.clear();
   state.listPatients.mockClear();
+  state.listAppointments.mockReset().mockResolvedValue([]);
   state.listPatients.mockImplementation(async () => [...state.patients.values()]);
   state.capture = {
     triagensPacientes: [],
@@ -101,6 +106,27 @@ describe('desistência registrada pelo psicólogo', () => {
 });
 
 describe('cadastro manual de paciente', () => {
+  it('envia as boas-vindas somente após persistir o paciente e sua triagem confirmada', async () => {
+    state.welcome.mockImplementation(async (lead) => {
+      expect(state.patients.has(lead.pacienteRef)).toBe(true);
+      expect(state.capture.triagensPacientes).toContainEqual(lead);
+      return { situacao: 'enviada' };
+    });
+    const patient = await createPatient(context, body);
+    await createPatient(context, body);
+    expect(state.welcome).toHaveBeenCalledOnce();
+    expect(state.welcome).toHaveBeenCalledWith(expect.objectContaining({
+      pacienteRef: patient.id, status: 'CONTATO_CONFIRMADO', telefone: expect.any(String),
+    }));
+  });
+
+  it('preserva o cadastro se o envio de boas-vindas falhar', async () => {
+    state.welcome.mockRejectedValue(new Error('Provedor indisponível'));
+    const patient = await createPatient(context, body);
+    expect(state.welcome).toHaveBeenCalledOnce();
+    expect(state.patients.get(patient.id)).toEqual(patient);
+  });
+
   it('reenvia o mesmo comando sem criar outro paciente ou triagem', async () => {
     const first = await createPatient(context, body);
     const second = await createPatient(context, { ...body, id: 'outro-id' });
@@ -165,6 +191,51 @@ describe('escopo do diretório de pacientes', () => {
   });
   it('preserva o acesso administrativo sem perfil clínico', async () => {
     expect(await listPatientDirectory({ ...context, actor: { ...context.actor, roles: ['admin'], professionalProfileId: undefined } })).toHaveLength(2);
+  });
+
+  function agendamentosDoPacienteEncaminhado(incluirNovoProfissional: boolean) {
+    const base: Appointment = {
+      schemaVersion: 1, id: 'antigo-futuro', organizationId: 'org-test',
+      patientId: 'professional-roster-1', professionalId: 'other',
+      startsAt: '2099-01-10T14:00:00Z', endsAt: '2099-01-10T14:50:00Z',
+      timezone: 'America/Sao_Paulo', mode: 'video', status: 'scheduled', reminders: [],
+      version: 1, createdAt: '2026-01-01T12:00:00Z', updatedAt: '2026-01-01T12:00:00Z',
+    };
+    const appointments = new InMemoryAppointmentRepository([
+      base,
+      { ...base, id: 'antigo-concluido', status: 'completed',
+        startsAt: '2026-01-10T14:00:00Z', endsAt: '2026-01-10T14:50:00Z' },
+      ...(incluirNovoProfissional ? [
+        { ...base, id: 'novo-futuro', professionalId: 'professional-roster-1',
+          startsAt: '2099-02-10T14:00:00Z', endsAt: '2099-02-10T14:50:00Z' },
+        { ...base, id: 'novo-concluido', professionalId: 'professional-roster-1', status: 'completed' as const,
+          startsAt: '2026-02-10T14:00:00Z', endsAt: '2026-02-10T14:50:00Z' },
+      ] : []),
+    ]);
+    state.listAppointments.mockImplementation((filter) => appointments.list(filter));
+    return appointments;
+  }
+
+  it('paciente encaminhado chega sem sessões do psicólogo anterior na nova carteira', async () => {
+    const appointments = agendamentosDoPacienteEncaminhado(false);
+    const directory = await listPatientDirectory(context);
+    expect(directory[0]).toMatchObject({ id: 'professional-roster-1', completedSessions: 0 });
+    expect(directory[0].nextAppointmentAt).toBeUndefined();
+    expect(await appointments.list({ organizationId: 'org-test', professionalId: 'other' })).toHaveLength(2);
+  });
+
+  it('calcula próxima sessão e total apenas com os atendimentos do novo psicólogo', async () => {
+    agendamentosDoPacienteEncaminhado(true);
+    const directory = await listPatientDirectory(context);
+    expect(directory[0]).toMatchObject({ completedSessions: 1, nextAppointmentAt: '2099-02-10T14:00:00Z' });
+    expect(state.listAppointments).toHaveBeenCalledWith({ organizationId: 'org-test', professionalId: 'professional-roster-1' });
+  });
+
+  it('mantém todo o histórico de agendamentos visível para a gestão', async () => {
+    agendamentosDoPacienteEncaminhado(true);
+    const directory = await listPatientDirectory({ ...context, actor: { ...context.actor, roles: ['admin'] } });
+    expect(directory[0]).toMatchObject({ completedSessions: 2, nextAppointmentAt: '2099-01-10T14:00:00Z' });
+    expect(state.listAppointments).toHaveBeenCalledWith({ organizationId: 'org-test' });
   });
 });
 

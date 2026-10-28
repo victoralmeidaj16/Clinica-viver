@@ -3,7 +3,7 @@ import { useManualAppointmentSubmission } from './useManualAppointmentSubmission
 const hooks = vi.hoisted(() => ({ values: [] as unknown[], cursor: 0 }));
 vi.mock('react', () => ({ useState(initial: unknown) {
   const index = hooks.cursor++;
-  if (!(index in hooks.values)) hooks.values[index] = initial;
+  if (!(index in hooks.values)) hooks.values[index] = typeof initial === 'function' ? initial() : initial;
   return [hooks.values[index], (value: unknown) => { hooks.values[index] = value; }];
 } }));
 const request = vi.hoisted(() => vi.fn());
@@ -33,4 +33,23 @@ it('mantém a confirmação normal quando as cobranças foram criadas', async ()
   request.mockResolvedValue({ charge: { status: 'created' } });
   await renderSubmission().submit({ preventDefault() {} } as React.FormEvent);
   expect(renderSubmission()).toMatchObject({ message: { kind: 'success' }, completed: true });
+});
+it('após falha no meio da série, a nova tentativa envia só o restante com a mesma chave', async () => {
+  const series = { ...input, recurrenceDates: ['2099-01-10', '2099-01-17', '2099-01-24'] };
+  function SeriesHarness() { return useManualAppointmentSubmission(series); }
+  const harness = () => { hooks.cursor = 0; return SeriesHarness(); };
+  request.mockResolvedValueOnce({ charge: { status: 'created' } })
+    .mockResolvedValueOnce({ charge: { status: 'created' } })
+    .mockRejectedValueOnce(new Error('Falha de rede fictícia.'));
+  await harness().submit({ preventDefault() {} } as React.FormEvent);
+  expect(harness().message).toMatchObject({ kind: 'error' });
+  expect(harness().message?.text).toContain('2 de 3 atendimento(s) foram criados');
+  request.mockResolvedValue({ charge: { status: 'created' } });
+  await harness().submit({ preventDefault() {} } as React.FormEvent);
+  expect(harness().message).toMatchObject({ kind: 'success' });
+  expect(harness().message?.text).toContain('3 atendimentos');
+  expect(request).toHaveBeenCalledTimes(4);
+  const calls = request.mock.calls.map(([, init]) => ({ id: JSON.parse(init.body).id, key: init.headers['Idempotency-Key'] }));
+  expect(new Set(calls.map((call) => call.id)).size).toBe(3);
+  expect(calls[3]).toEqual(calls[2]);
 });

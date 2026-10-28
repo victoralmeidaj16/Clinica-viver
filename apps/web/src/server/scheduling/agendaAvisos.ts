@@ -243,14 +243,8 @@ export function textoCancelamentoPaciente(sessao: ContatosDaSessao): string {
 // Disparos
 // ---------------------------------------------------------------------------
 
-/**
- * Disparo duplo da marcação: confirma ao paciente e avisa o profissional.
- *
- * A confirmação ao paciente respeita o horário comercial — fora dele, fica na
- * fila que `liberarAvisosAguardando` esvazia. O aviso ao profissional sai na
- * hora: é a agenda dele que mudou.
- */
-export async function avisarSessaoMarcada(sessao: ContatosDaSessao, agora = new Date()): Promise<void> {
+/** Confirma ao paciente no horário comercial; fora dele, a fila aguarda a abertura. */
+export async function avisarPacienteSessaoMarcada(sessao: ContatosDaSessao, agora = new Date()): Promise<void> {
   const abertura = proximaAberturaComercial(agora);
   if (abertura) {
     await adiar(sessao.agendamentoId, 'confirmacao_paciente', sessao.pacienteTelefone, abertura);
@@ -263,6 +257,11 @@ export async function avisarSessaoMarcada(sessao: ContatosDaSessao, agora = new 
       textoConfirmacaoPaciente(sessao)
     );
   }
+}
+
+/** Marcação pelo link público também avisa imediatamente o profissional. */
+export async function avisarSessaoMarcada(sessao: ContatosDaSessao, agora = new Date()): Promise<void> {
+  await avisarPacienteSessaoMarcada(sessao, agora);
   await despachar(
     sessao.agendamentoId,
     'confirmacao_psicologo',

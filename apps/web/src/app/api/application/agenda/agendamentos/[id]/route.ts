@@ -35,7 +35,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return success(await updateAgendaAppointmentChargeDue(context, id, String(body.dueAt ?? '')));
     }
     if (body.action === 'reschedule') {
-      return success(await rescheduleAgendaAppointment(context, id, String(body.startsAt ?? ''), String(body.endsAt ?? '')));
+      return success(await rescheduleAgendaAppointment(context, id, String(body.startsAt ?? ''), String(body.endsAt ?? ''),
+        body.expectedVersion === undefined ? undefined : Number(body.expectedVersion)));
     }
     if (body.action === 'edit') {
       return success(

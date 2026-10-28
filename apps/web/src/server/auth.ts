@@ -4,7 +4,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { cookies } from 'next/headers';
 import type { RowDataPacket } from 'mysql2';
 import { getMysqlPool, isMysqlConfigured } from '@/server/oci/runtime';
-import { instituicaoId } from '@/server/persistence/mysql/mappers';
+import { fromSqlTimestamp, instituicaoId } from '@/server/persistence/mysql/mappers';
 import { verifyPasswordHash } from '@/server/security/passwordHash';
 import { psychologistAccountIsAmbiguous } from '@/server/application/psychologistAccountIntegrity';
 import { ApplicationError } from '@/server/application/http';
@@ -149,11 +149,44 @@ export async function authenticate(email: string, password: string): Promise<Log
   return user && verifyPassword(password, user) ? user : null;
 }
 
+interface SessionStateRow extends RowDataPacket {
+  membro_status: string;
+  papeis: string | null;
+  usuario_status: string | null;
+  senha_definida_em: string | null;
+}
+
+/**
+ * O cookie assinado prova quem entrou, não que ainda pode entrar. Vínculo
+ * desativado, papel de gestão retirado ou senha redefinida depois do login
+ * encerram a sessão já na próxima requisição, sem esperar as 8 horas do cookie.
+ */
+async function sessionStillValid(session: AuthSession): Promise<boolean> {
+  if (!isMysqlConfigured()) return true;
+  const [rows] = await getMysqlPool().query<SessionStateRow[]>(
+    `SELECT m.status AS membro_status, m.papeis, u.status AS usuario_status, u.senha_definida_em
+       FROM clinica_membros m
+       JOIN clinica_organizacoes o ON o.id = m.organizacao_id
+       LEFT JOIN clinica_usuarios u ON u.instituicao_id = m.instituicao_id AND u.ref_core = m.usuario_ref
+      WHERE m.instituicao_id = ? AND m.usuario_ref = ? AND o.ref_core = ?
+      ORDER BY (m.status = 'active') DESC
+      LIMIT 1`,
+    [instituicaoId(), session.userId, session.organizationId]
+  );
+  const row = rows[0];
+  if (!row || row.membro_status !== 'active' || row.usuario_status === 'disabled') return false;
+  const admin = String(row.papeis ?? '').split(',').some((role) => role === 'owner' || role === 'admin');
+  if (admin !== (session.role === 'admin')) return false;
+  const passwordSetAt = fromSqlTimestamp(row.senha_definida_em);
+  return !passwordSetAt || session.issuedAt >= Date.parse(passwordSetAt);
+}
+
 export async function readSession(): Promise<AuthSession | null> {
   const value = (await cookies()).get(SESSION_COOKIE)?.value;
   const session = value ? deserialize(value) : null;
-  if (session?.role === 'psicologo' && await psychologistAccountIsAmbiguous(session.userId)) return null;
-  return session;
+  if (!session) return null;
+  if (session.role === 'psicologo' && await psychologistAccountIsAmbiguous(session.userId)) return null;
+  return await sessionStillValid(session) ? session : null;
 }
 
 export function readSessionValue(value: string | undefined): AuthSession | null {

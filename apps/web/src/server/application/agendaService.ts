@@ -316,7 +316,8 @@ export async function rescheduleAgendaAppointment(
   context: RequestContext,
   appointmentId: string,
   startsAt: string,
-  endsAt: string
+  endsAt: string,
+  expectedVersion?: number
 ) {
   const { organizationId, professionalId } = perfilDaSessao(context);
   if (!startsAt || !endsAt) {
@@ -336,9 +337,13 @@ export async function rescheduleAgendaAppointment(
     professionalId,
     appointmentId,
     startsAt,
-    endsAt
+    endsAt,
+    { expectedVersion }
   );
 
+  if (outcome === 'stale') {
+    throw new ApplicationError('APPOINTMENT_CHANGED', 'A sessão foi alterada enquanto você remarcava. Atualize a agenda e escolha o horário de novo.', 409);
+  }
   if (outcome === 'invalid') throw new ApplicationError('INVALID_INPUT', 'O término deve ser posterior ao início.', 400);
   if (outcome === 'duration_locked') throw new ApplicationError('FORBIDDEN', 'Reagendar mantém a duração atual da sessão.', 403);
   if (outcome === 'not_found') {

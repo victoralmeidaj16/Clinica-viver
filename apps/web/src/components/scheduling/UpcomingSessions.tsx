@@ -43,7 +43,7 @@ interface Props {
   onCancelar: (id: string, motivo: string) => Promise<void>;
   onConfirmarRealizacao: (id: string) => Promise<void>;
   onAtualizarVencimento: (id: string, dueAt: string) => Promise<void>;
-  onReagendar?: (id: string, startsAt: string, endsAt: string) => Promise<void>;
+  onReagendar?: (id: string, startsAt: string, endsAt: string, expectedVersion?: number) => Promise<void>;
   onRecarregar?: () => Promise<void>;
   onDecidirReagendamento?: (requestId: string, decision: 'accept' | 'reject') => Promise<void>;
 }
@@ -346,7 +346,7 @@ export function UpcomingSessions({ agendamentos, filtroPaciente, onCancelar, onC
           onClose={() => setReagendando(undefined)}
           onConfirm={async (id, startsAt, endsAt) => {
             if (onReagendar) {
-              await onReagendar(id, startsAt, endsAt);
+              await onReagendar(id, startsAt, endsAt, reagendando.versao);
             }
           }}
         />

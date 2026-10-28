@@ -8,7 +8,8 @@ import {
 } from '@/server/payments/sessionCharge';
 import { isFutureChargeDueAt } from '@/lib/chargeDue';
 import { validServiceDuration } from '@/lib/manualAppointment';
-import { getProfessionalAgendaProfile } from '@/server/scheduling/agendaRepository';
+import { getContatosDaSessao, getProfessionalAgendaProfile } from '@/server/scheduling/agendaRepository';
+import { avisarPacienteSessaoMarcada } from '@/server/scheduling/agendaAvisos';
 import { isMysqlConfigured } from '@/server/oci/runtime';
 import { rowId } from '@/server/persistence/mysql/mappers';
 import { processAppointmentChargeDue } from '@/server/payments/sessionChargeDueWorker';
@@ -90,6 +91,14 @@ export async function createAppointmentFlow(context: RequestContext, input: Sche
   await persistApplicationState();
   const dueAt = result.appointment.chargeDueAt ?? effectiveDueAt;
   const chargeStatus = await garantirCobrancaDaSessao(result.appointment.id, dueAt);
+  if (isMysqlConfigured()) {
+    try {
+      const contacts = await getContatosDaSessao(rowId('agendamento', result.appointment.id));
+      if (contacts) await avisarPacienteSessaoMarcada(contacts);
+    } catch {
+      console.error('[agenda] Agendamento salvo, mas não foi possível processar a confirmação ao paciente.');
+    }
+  }
   return { appointment: result.appointment, reminder, idempotentReplay: result.idempotentReplay,
     charge: { status: chargeStatus, dueAt } };
 }

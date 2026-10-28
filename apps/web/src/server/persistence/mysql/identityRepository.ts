@@ -441,7 +441,17 @@ export class MysqlIdentityRepository implements IdentityRepository, PatientConta
     const auditLine = `[${input.changedAt}] Reatribuído por ${input.actorUserId}: ` +
       `${patient.primaryProfessionalId ?? 'sem responsável'} -> ${input.professionalId}. Motivo: ${input.reason}`;
 
-    await this.transaction(async (connection) => {
+    const changed = await this.transaction(async (connection) => {
+      // A leitura acima é só o atalho. Dois encaminhamentos simultâneos
+      // passariam por ela e gravariam duas transferências para o mesmo destino.
+      const [current] = await connection.query<RowDataPacket[]>(
+        `SELECT profissional_id FROM clinica_pacientes
+          WHERE instituicao_id = ? AND organizacao_id = ? AND ref_core = ? FOR UPDATE`,
+        [instituicaoId(), rowId('organizacao', input.organizationId), input.patientId]
+      );
+      if (!current[0] || current[0].profissional_id === professionalId) return 'unchanged';
+      const expected = patient.primaryProfessionalId ? rowId('profissional', patient.primaryProfessionalId) : null;
+      if ((current[0].profissional_id ?? null) !== expected) return 'stale';
       await connection.execute(
         `UPDATE clinica_pacientes
             SET profissional_id = ?,
@@ -491,8 +501,11 @@ export class MysqlIdentityRepository implements IdentityRepository, PatientConta
           toSqlTimestamp(input.changedAt),
         ]
       );
+      return 'changed';
     });
 
+    if (changed === 'stale') return this.reassignPatient(input);
+    if (changed === 'unchanged') return this.getPatient(input.organizationId, input.patientId);
     return {
       ...patient,
       primaryProfessionalId: input.professionalId,

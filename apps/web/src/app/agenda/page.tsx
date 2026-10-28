@@ -131,10 +131,10 @@ export default function AgendaPage() {
     setDados((atual) => (atual ? { ...atual, appointments: resposta.appointments } : atual));
   };
 
-  const reagendarSessao = async (id: string, startsAt: string, endsAt: string) => {
+  const reagendarSessao = async (id: string, startsAt: string, endsAt: string, expectedVersion?: number) => {
     const resposta = await applicationRequest<{ appointments: AgendamentoResumo[] }>(
       `/agenda/agendamentos/${encodeURIComponent(id)}`,
-      { method: 'PATCH', body: JSON.stringify({ action: 'reschedule', startsAt, endsAt }) }
+      { method: 'PATCH', body: JSON.stringify({ action: 'reschedule', startsAt, endsAt, expectedVersion }) }
     );
     setDados((atual) => (atual ? { ...atual, appointments: resposta.appointments } : atual));
   };

@@ -475,7 +475,8 @@ export class MysqlCaptureRepository {
               especificar_necessidades, necessidades_atendidas, necessidades_outro,
               limite_pacientes_ativos, pacientes_ativos_count, exibir_na_vitrine,
               pausado_no_rodizio, motivo_pausa_rodizio, motivo_desativacao, ultimo_lead_recebido_em, turma_viver_mais,
-              pos_graduacao_viver_mais, segunda_pos_graduacao_viver_mais,${temAceiteTermo ? ' aceite_termo_adesao,' : ''} criado_em
+              pos_graduacao_viver_mais, segunda_pos_graduacao_viver_mais,
+              solicitacao_alteracao_gestao,${temAceiteTermo ? ' aceite_termo_adesao,' : ''} criado_em
          FROM clinica_cadastros_psicologos
         WHERE instituicao_id = ? AND organizacao_ref = ?
         ORDER BY criado_em${lock}`,

@@ -18,9 +18,6 @@ export const dynamic = 'force-dynamic';
  * será processada.
  */
 
-/** Mensagens já processadas neste processo, contra a reentrega da Evolution. */
-const jaProcessadas = new Set<string>();
-
 function autorizado(request: Request): boolean {
   const esperado = process.env.EVOLUTION_WEBHOOK_TOKEN?.trim();
   // Falha fechada: sem token configurado a rota não existe na prática. O
@@ -64,7 +61,7 @@ function lerMensagem(payload: unknown): MensagemRecebida | null {
       }
     | undefined;
 
-  if (!item?.key || item.key.fromMe) return null;
+  if (!item?.key || item.key.fromMe || typeof item.key.id !== 'string' || !item.key.id.trim()) return null;
 
   const remoteJid = String(item.key.remoteJid ?? '');
   // Grupo e status não são conversa com profissional; não há a quem responder.
@@ -75,7 +72,7 @@ function lerMensagem(payload: unknown): MensagemRecebida | null {
   if (!texto.trim()) return null;
 
   return {
-    id: String(item.key.id ?? `${remoteJid}:${texto}`),
+    id: item.key.id,
     telefone: remoteJid.split('@')[0]!.split(':')[0]!,
     texto,
   };
@@ -96,20 +93,13 @@ export async function POST(request: Request) {
   const mensagem = lerMensagem(payload);
   if (!mensagem) return NextResponse.json({ success: true, ignorado: 'evento_sem_uso' });
 
-  if (jaProcessadas.has(mensagem.id)) {
-    return NextResponse.json({ success: true, ignorado: 'reentrega' });
-  }
-  jaProcessadas.add(mensagem.id);
-
   try {
-    const resultado = await processarRespostaDoPsicologo(mensagem.telefone, mensagem.texto);
+    const resultado = await processarRespostaDoPsicologo(mensagem.telefone, mensagem.texto, mensagem.id);
     // O texto recebido nunca vai para o log: pode conter dado de paciente.
     console.info(`[whatsapp] Resposta de psicólogo processada: ${resultado.situacao}.`);
     return NextResponse.json({ success: true, situacao: resultado.situacao });
-  } catch (erro) {
-    // Solta a chave para a reentrega da Evolution ter uma segunda chance.
-    jaProcessadas.delete(mensagem.id);
-    console.error('Erro ao processar resposta de WhatsApp:', erro);
+  } catch {
+    console.error('[whatsapp] Falha ao processar resposta; o provedor pode repetir o mesmo evento.');
     return NextResponse.json({ success: false, error: 'Falha ao processar a resposta.' }, { status: 500 });
   }
 }

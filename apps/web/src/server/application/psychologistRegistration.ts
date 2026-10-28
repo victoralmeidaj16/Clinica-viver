@@ -110,6 +110,22 @@ export class CorpoInvalidoError extends Error {
 }
 
 /**
+ * A decisão da gestão vale para o pedido que ela leu. Se o psicólogo enviou
+ * outro pedido nesse intervalo, aplicar a decisão antiga apagaria o novo.
+ */
+export function assertDecisaoDoPedidoAtual(
+  existente: CadastroPsicologoRecord,
+  corpo: Record<string, unknown>
+): void {
+  const decisao = corpo.solicitacaoAlteracaoGestao as { status?: string; solicitadoEm?: string } | null | undefined;
+  const atual = existente.solicitacaoAlteracaoGestao;
+  if (!decisao || !atual || decisao.status === 'PENDENTE') return;
+  if (decisao.solicitadoEm !== atual.solicitadoEm) {
+    throw new CorpoInvalidoError('O psicólogo enviou um novo pedido. Reabra a solicitação antes de decidir.', 409);
+  }
+}
+
+/**
  * Valida e normaliza o que veio do cliente, antes de qualquer merge.
  *
  * Só olha os campos presentes: o PATCH é parcial de verdade, para que desligar

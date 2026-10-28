@@ -25,6 +25,10 @@ export function useManualAppointmentSubmission({ patientId, professionalId, admi
   durationMinutes, validDuration, chargeDueDate, chargeDueTime, mode, serviceKey, onScheduled }: Input) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ kind: 'error' | 'success' | 'warning'; text: string }>();
+  // Cada ocorrência mantém id e chave enquanto o formulário estiver aberto. Uma
+  // nova tentativa após falha pula as já gravadas e reenvia a que falhou com a
+  // mesma chave, para o servidor reconhecer o replay se ela chegou a ser salva.
+  const [series] = useState(() => new Map<string, { id: string; headers: Record<string, string>; created?: boolean }>());
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setMessage(undefined);
@@ -57,13 +61,23 @@ export function useManualAppointmentSubmission({ patientId, professionalId, admi
     try {
       for (const occurrenceDate of recurrenceDates) {
         const { startsAt, endsAt } = manualAppointmentTimes({ date: occurrenceDate, time, durationMinutes });
+        const occurrenceKey = [patientId, professionalId ?? '', serviceKey, mode, startsAt, endsAt].join('|');
+        let occurrence = series.get(occurrenceKey);
+        if (!occurrence) {
+          occurrence = { id: `appointment-manual-${crypto.randomUUID()}`, headers: commandHeaders() };
+          series.set(occurrenceKey, occurrence);
+        }
+        if (occurrence.created) {
+          createdCount += 1;
+          continue;
+        }
         const dayOffset = civilDaysBetween(date, occurrenceDate);
         const occurrenceDueDate = shiftCivilDate(chargeDueDate, dayOffset);
         const result = await applicationRequest<{ charge: { status: string } }>('/appointments', {
           method: 'POST',
-          headers: commandHeaders(),
+          headers: occurrence.headers,
           body: JSON.stringify({
-            id: `appointment-manual-${crypto.randomUUID()}`,
+            id: occurrence.id,
             patientId,
             ...(professionalId
               ? { professionalId }
@@ -77,6 +91,7 @@ export function useManualAppointmentSubmission({ patientId, professionalId, admi
             chargeDueAt: clinicDateTimeToIso(occurrenceDueDate, chargeDueTime),
           }),
         });
+        occurrence.created = true;
         createdCount += 1;
         if (result.charge?.status === 'failed') failedCharges += 1;
       }
@@ -91,7 +106,7 @@ export function useManualAppointmentSubmission({ patientId, professionalId, admi
       if (createdCount > 0) await onScheduled?.();
       setMessage({
         kind: 'error',
-        text: `${createdCount > 0 ? `${createdCount} atendimento(s) foram criados. ` : ''}${error instanceof Error ? error.message : 'Não foi possível criar o agendamento.'}`,
+        text: `${createdCount > 0 ? `${createdCount} de ${recurrenceDates.length} atendimento(s) foram criados; tentar de novo envia só os restantes. ` : ''}${error instanceof Error ? error.message : 'Não foi possível criar o agendamento.'}`,
       });
     } finally {
       setSaving(false);

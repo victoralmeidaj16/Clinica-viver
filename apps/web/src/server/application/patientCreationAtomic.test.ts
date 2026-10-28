@@ -1,7 +1,8 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { RequestContext } from './context';
 vi.mock('server-only', () => ({}));
-const state = vi.hoisted(() => ({ save: vi.fn(), contact: vi.fn(), mutate: vi.fn(), query: vi.fn(), checkCpf: vi.fn() }));
+const state = vi.hoisted(() => ({ save: vi.fn(), contact: vi.fn(), mutate: vi.fn(), query: vi.fn(), checkCpf: vi.fn(), welcome: vi.fn() }));
+vi.mock('./viverMaisWhatsApp', () => ({ avisarConfirmacaoPaciente: state.welcome }));
 vi.mock('@/server/oci/runtime', () => ({ isMysqlConfigured: () => true }));
 vi.mock('@/server/persistence/mysql/patientCpfUniqueness', () => ({ assertPatientCpfAvailable: state.checkCpf }));
 vi.mock('./store', () => ({ getApplicationStore: () => ({ identities: {
@@ -35,6 +36,9 @@ it('grava perfil, contato e triagem pela mesma transação de captação', async
   expect(state.contact.mock.calls[0][2]).toBe(connection);
   expect(state.checkCpf).toHaveBeenCalledWith(connection, 'org', expect.any(String), body.cpf);
   expect(state.mutate).toHaveBeenCalledWith(expect.any(Function), 'org');
+  expect(state.welcome).toHaveBeenCalledWith(expect.objectContaining({
+    pacienteRef: state.save.mock.calls[0][0].id, status: 'CONTATO_CONFIRMADO',
+  }));
 });
 
 it('não grava o perfil se o CPF já estiver em outro cadastro', async () => {
@@ -42,4 +46,41 @@ it('não grava o perfil se o CPF já estiver em outro cadastro', async () => {
   await expect(createPatient(context, body)).rejects.toThrow('CPF duplicado');
   expect(state.save).not.toHaveBeenCalled();
   expect(state.contact).not.toHaveBeenCalled();
+  expect(state.welcome).not.toHaveBeenCalled();
+});
+
+it('desfaz a transação inteira e não envia WhatsApp quando o contato não é salvo', async () => {
+  state.contact.mockRejectedValue(new Error('falha ao salvar contato'));
+  await expect(createPatient(context, body)).rejects.toThrow('falha ao salvar contato');
+  // Perfil e triagem compartilham a conexão da transação que falhou.
+  expect(state.save.mock.calls[0][1]).toBe(state.contact.mock.calls[0][2]);
+  expect(state.welcome).not.toHaveBeenCalled();
+});
+
+it('rejeita telefone inválido antes de gravar qualquer coisa ou enviar WhatsApp', async () => {
+  await expect(createPatient(context, { ...body, whatsapp: '123' })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+  expect(state.mutate).not.toHaveBeenCalled();
+  expect(state.save).not.toHaveBeenCalled();
+  expect(state.welcome).not.toHaveBeenCalled();
+});
+
+it('só envia a mensagem depois que a gravação foi confirmada', async () => {
+  const ordem: string[] = [];
+  state.mutate.mockImplementation(async (callback) => {
+    const { result } = await callback({ triagensPacientes: [], cadastrosPsicologos: [] }, { query: state.query });
+    ordem.push('commit');
+    return result;
+  });
+  state.welcome.mockImplementation(async () => { ordem.push('whatsapp'); return { situacao: 'enviada' }; });
+  await createPatient(context, body);
+  expect(ordem).toEqual(['commit', 'whatsapp']);
+});
+
+it('não envia nada quando o commit da transação falha', async () => {
+  state.mutate.mockImplementation(async (callback) => {
+    await callback({ triagensPacientes: [], cadastrosPsicologos: [] }, { query: state.query });
+    throw new Error('commit falhou');
+  });
+  await expect(createPatient(context, body)).rejects.toThrow('commit falhou');
+  expect(state.welcome).not.toHaveBeenCalled();
 });

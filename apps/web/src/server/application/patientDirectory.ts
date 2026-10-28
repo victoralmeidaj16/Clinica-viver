@@ -6,6 +6,7 @@ import { ApplicationError } from './http';
 import { getApplicationStore, persistApplicationState } from './store';
 import { captureStateAsSnapshot, getCaptureRepository } from '@/server/persistence/captureRepository';
 import { recalcularPacientesAtivos } from './viverMaisRodizio';
+import { avisarConfirmacaoPaciente } from './viverMaisWhatsApp';
 import { motivoValido } from '@/lib/desistencias';
 import { validarSubmissaoTriagem } from '@/lib/triagemSubmissao';
 import {
@@ -13,6 +14,7 @@ import {
   readSnapshot,
   writeSnapshot,
   type AuditoriaDesistenciaRecord,
+  type TriagemPacienteRecord,
 } from './persistence';
 import { isMysqlConfigured, getMysqlPool } from '@/server/oci/runtime';
 import { instituicaoId } from '@/server/persistence/mysql/mappers';
@@ -86,7 +88,7 @@ export async function listPatientDirectory(context: RequestContext): Promise<rea
 
   const [patients, appointments, contactMap, capture, mysqlAgreementRows] = await Promise.all([
     store.identities.listPatients(organizationId),
-    store.appointments.list({ organizationId }),
+    store.appointments.list({ organizationId, ...(clinicalOnly && professionalId ? { professionalId } : {}) }),
     contacts ? contacts.listPatientContacts(organizationId) : Promise.resolve<Record<string, PatientContact>>({}),
     getCaptureRepository().read(),
     isMysqlConfigured()
@@ -449,14 +451,15 @@ export async function createPatient(
         triagensPacientes: next.triagensPacientes ?? [],
         cadastrosPsicologos: next.cadastrosPsicologos ?? [],
       },
-      result: null,
+      result: next.triagensPacientes?.find((lead) => lead.id === leadId) ?? null,
     };
   };
 
+  let leadConfirmado: TriagemPacienteRecord | null = null;
   if (isMysqlConfigured()) {
     const identities = store.identities as MysqlIdentityRepository;
     const capture = getCaptureRepository() as MysqlCaptureRepository;
-    await capture.mutateAtomic(async (state, connection) => {
+    leadConfirmado = await capture.mutateAtomic(async (state, connection) => {
       const [existingRows] = await connection.query<RowDataPacket[]>(
         `SELECT pa.id FROM clinica_pacientes pa JOIN clinica_organizacoes o ON o.id = pa.organizacao_id
           WHERE pa.instituicao_id = ? AND o.ref_core = ? AND pa.ref_core = ? FOR UPDATE`,
@@ -472,10 +475,17 @@ export async function createPatient(
     await store.identities.savePatient(patient);
     const contacts = contactSource(store.identities);
     if (contacts) await contacts.savePatientContact(patient.id, contact);
-    if (fullRegistration?.ok) await getCaptureRepository().mutate(addTriage);
+    if (fullRegistration?.ok) leadConfirmado = await getCaptureRepository().mutate(addTriage);
   }
 
   await persistApplicationState();
+  if (leadConfirmado) {
+    try {
+      await avisarConfirmacaoPaciente(leadConfirmado);
+    } catch {
+      console.error('[cadastro] Paciente salvo, mas não foi possível confirmar o aviso de boas-vindas.');
+    }
+  }
   return patient;
 }
 

@@ -44,7 +44,7 @@ export async function garantirCobrancaDaSessao(
     connection = await getMysqlPool().getConnection();
     await connection.beginTransaction();
     const [rows] = await connection.query<RowDataPacket[]>(
-      `SELECT a.ref_core AS agendamento_ref, a.sessao_clinica_ref, a.inicio,
+      `SELECT a.ref_core AS agendamento_ref, a.sessao_clinica_ref, a.inicio, a.cobranca_vence_em,
               a.valor_centavos, o.ref_core AS organizacao_ref,
               pa.ref_core AS paciente_ref, pr.ref_core AS profissional_ref,
               ${custeioDoAgendamentoSql({ agendamento: 'a', paciente: 'pa', convenio: 'conv' })}
@@ -103,7 +103,7 @@ export async function garantirCobrancaDaSessao(
     const sessionStart = fromSqlTimestamp(String(appointment.inicio));
     if (!sessionStart) throw new Error('Início da sessão inválido.');
     const issuedAt = new Date().toISOString();
-    const chargeDueAt = dueAt ?? sessionStart;
+    const chargeDueAt = dueAt ?? (appointment.cobranca_vence_em ? fromSqlTimestamp(appointment.cobranca_vence_em) : undefined) ?? sessionStart;
     if (!isFutureChargeDueAt(chargeDueAt)) {
       throw new Error('O vencimento da cobrança deve estar no futuro.');
     }

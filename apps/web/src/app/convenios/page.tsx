@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Building2, CircleDollarSign, Loader2, Plus, ShieldCheck, UsersRound } from 'lucide-react';
 import { applicationRequest, commandHeaders } from '@/lib/applicationApi';
 import { ConvenioList } from '@/components/convenios/ConvenioList';
@@ -27,6 +27,8 @@ export default function ConveniosPage() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [error, setError] = useState('');
   const [detailError, setDetailError] = useState('');
+  const detailRequest = useRef(0);
+  const selectedConvenio = useRef<string | undefined>(undefined);
   // O período de faturamento vive aqui porque o painel que o edita é desmontado
   // a cada recarga do detalhe. Ele também é o filtro enviado à API, então o que
   // está na tela e o que foi carregado são sempre o mesmo intervalo.
@@ -38,22 +40,26 @@ export default function ConveniosPage() {
   }, []);
 
   const loadDetail = useCallback(async (id: string, period?: PeriodoFaturamento) => {
+    if (id !== selectedConvenio.current) return;
+    const requestId = ++detailRequest.current;
     setLoadingDetail(true);
     setDetailError('');
     try {
       const query = period ? `?inicio=${period.inicio}&fim=${period.fim}` : '';
-      setDetail(await applicationRequest<ConvenioDetailView>(`/convenios/${encodeURIComponent(id)}${query}`));
+      const result = await applicationRequest<ConvenioDetailView>(`/convenios/${encodeURIComponent(id)}${query}`);
+      if (requestId !== detailRequest.current) return;
+      setDetail(result);
       await load();
     } catch (cause) {
-      setDetailError(cause instanceof Error ? cause.message : 'Não foi possível carregar o convênio.');
+      if (requestId === detailRequest.current) setDetailError(cause instanceof Error ? cause.message : 'Não foi possível carregar o convênio.');
     } finally {
-      setLoadingDetail(false);
+      if (requestId === detailRequest.current) setLoadingDetail(false);
     }
   }, [load]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => { void load(); }, 0);
-    return () => window.clearTimeout(timer);
+    return () => { window.clearTimeout(timer); detailRequest.current += 1; };
   }, [load]);
 
   const visible = useMemo(() => {
@@ -65,11 +71,12 @@ export default function ConveniosPage() {
   }, [fundedOnly, overview?.convenios, search]);
 
   const select = (id: string) => {
+    selectedConvenio.current = id;
     const inicial = periodoPadrao();
     setSelectedId(id); setDetail(undefined); setDetailError(''); setPeriodo(inicial);
     void loadDetail(id, inicial);
   };
-  const close = () => { setSelectedId(undefined); setDetail(undefined); setDetailError(''); };
+  const close = () => { selectedConvenio.current = undefined; detailRequest.current += 1; setSelectedId(undefined); setDetail(undefined); setDetailError(''); setLoadingDetail(false); };
   const save = async (payload: ConvenioPayload) => {
     const path = editing ? `/convenios/${encodeURIComponent(editing.id)}` : '/convenios';
     await applicationRequest(path, { method: editing ? 'PATCH' : 'POST', headers: commandHeaders(), body: JSON.stringify(payload) });

@@ -86,6 +86,8 @@ export async function getMyFinancialData(
   // Mapeamento dos agendamentos para obter o status confirmado pelo psicólogo.
   const appointmentsMap = new Map<string, {
     appointmentId: string;
+    serviceKey?: string;
+    versao?: number;
     attendanceStatus: FinancialAttendanceStatus;
     startsAt: string;
     endsAt: string;
@@ -124,6 +126,8 @@ export async function getMyFinancialData(
     for (const apt of appointments) {
       const entry = {
         appointmentId: apt.id,
+        serviceKey: apt.serviceKey,
+        versao: apt.version,
         attendanceStatus: financialAttendanceStatus(apt.status),
         startsAt: apt.startsAt,
         endsAt: apt.endsAt,
@@ -171,7 +175,7 @@ export async function getMyFinancialData(
       // Agendamentos detalhados com vínculo de convênio
       const [rows] = await pool.query<RowDataPacket[]>(
         `SELECT a.id, a.ref_core, a.sessao_clinica_ref, a.status, a.inicio, a.fim, a.duracao_min, a.modalidade,
-                a.token_pagamento_sessao,
+                a.token_pagamento_sessao, a.servico_key, a.versao,
                 pa.ref_core AS paciente_ref,
                 conv.nome AS convenio_nome,
                 CASE WHEN pa.convenio_ref IS NOT NULL OR conv.nome IS NOT NULL THEN 1 ELSE 0 END AS conveniado,
@@ -197,6 +201,8 @@ export async function getMyFinancialData(
         const isConveniado = Boolean(row.conveniado || row.convenio_nome);
         const entry = {
           appointmentId: String(row.id),
+          serviceKey: row.servico_key ? String(row.servico_key) : undefined,
+          versao: row.versao === undefined ? undefined : Number(row.versao),
           attendanceStatus: financialAttendanceStatus(rawStatus),
           startsAt: new Date(row.inicio).toISOString(),
           endsAt: fimDate.toISOString(),
@@ -236,6 +242,8 @@ export async function getMyFinancialData(
         chargeId: receivable.chargeId,
         sessionId: receivable.sessionId,
         appointmentId: apt?.appointmentId ?? receivable.sessionId,
+        serviceKey: apt?.serviceKey,
+        versao: apt?.versao,
         patientName: names.get(receivable.patientId) ?? 'Paciente',
         dueAt: receivable.dueAt,
         startsAt: apt?.startsAt ?? receivable.dueAt,

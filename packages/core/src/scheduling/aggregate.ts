@@ -12,6 +12,7 @@ export interface ScheduleAppointmentInput {
   timezone: string;
   mode: Appointment['mode'];
   serviceKey?: string;
+  chargeDueAt?: string;
   reminders: readonly AppointmentReminder[];
   createdAt: string;
 }
@@ -51,6 +52,7 @@ export function scheduleAppointment(
     timezone: requireSchedulingText(input.timezone, 'timezone'),
     mode: input.mode,
     serviceKey: input.serviceKey,
+    chargeDueAt: input.chargeDueAt ? requireSchedulingIsoDate(input.chargeDueAt, 'chargeDueAt') : undefined,
     status: 'scheduled',
     reminders: validateReminders(input.reminders),
     version: 1,

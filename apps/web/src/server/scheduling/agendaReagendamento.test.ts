@@ -15,6 +15,7 @@ import { cancelAppointment, rescheduleAppointmentProfessional } from './agendaRe
 beforeEach(() => {
   vi.resetAllMocks();
   getConnection.mockResolvedValue(connection);
+  connection.execute.mockResolvedValue([{ affectedRows: 1 }, []]);
   connection.query.mockImplementation(async (sql: string) => [sql.includes('SELECT a.id, a.ref_core, a.profissional_id')
     ? [{ id: 'appt', ref_core: 'appt-ref', profissional_id: 'pro', inicio: '2098-12-01T12:00:00Z', fim: '2098-12-01T12:50:00Z', versao: 3 }] : [], []]);
 });

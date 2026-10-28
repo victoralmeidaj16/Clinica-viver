@@ -68,7 +68,9 @@ export async function createAppointmentFlow(context: RequestContext, input: Sche
   if (!isFutureChargeDueAt(effectiveDueAt)) {
     throw new ApplicationError('INVALID_INPUT', 'O vencimento da cobrança deve estar no futuro.', 400);
   }
-  const result = await scheduleAppointmentCommand({ appointments: store.appointments, identities: store.identities }, context.actor, resolvedInput, { actorUserId: context.actor.userId, occurredAt: resolvedInput.createdAt, correlationId: context.correlationId, commandId: context.idempotencyKey! });
+  const result = await scheduleAppointmentCommand({ appointments: store.appointments, identities: store.identities }, context.actor,
+    { ...resolvedInput, chargeDueAt: effectiveDueAt },
+    { actorUserId: context.actor.userId, occurredAt: resolvedInput.createdAt, correlationId: context.correlationId, commandId: context.idempotencyKey! });
   const preference = store.preferences.find((item) => item.organizationId === resolvedInput.organizationId && item.patientId === resolvedInput.patientId);
   let reminder: { id?: string; status: string } = { status: 'skipped' };
   // O lembrete externo é complementar. Ausência de preferência ou consentimento
@@ -84,8 +86,10 @@ export async function createAppointmentFlow(context: RequestContext, input: Sche
     }
   }
   await persistApplicationState();
-  await garantirCobrancaDaSessao(result.appointment.id, effectiveDueAt);
-  return { appointment: result.appointment, reminder, idempotentReplay: result.idempotentReplay };
+  const dueAt = result.appointment.chargeDueAt ?? effectiveDueAt;
+  const chargeStatus = await garantirCobrancaDaSessao(result.appointment.id, dueAt);
+  return { appointment: result.appointment, reminder, idempotentReplay: result.idempotentReplay,
+    charge: { status: chargeStatus, dueAt } };
 }
 
 export async function changeAppointment(context: RequestContext, id: string, body: Record<string, unknown>) {

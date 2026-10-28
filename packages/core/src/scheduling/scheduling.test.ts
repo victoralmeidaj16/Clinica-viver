@@ -71,6 +71,12 @@ function identities() {
 }
 
 describe('appointment aggregate', () => {
+  it('preserva o vencimento da cobrança e rejeita uma data inválida', () => {
+    const dueAt = '2026-08-02T15:00:00.000Z';
+    expect(scheduleAppointment(input({ chargeDueAt: dueAt }), metadata('2026-08-01T10:00:00.000Z')).appointment.chargeDueAt).toBe(dueAt);
+    expect(() => scheduleAppointment(input({ chargeDueAt: 'inválido' }), metadata('2026-08-01T10:00:00.000Z'))).toThrow('chargeDueAt');
+  });
+
   it('preserva o serviço escolhido ao criar a sessão', () => {
     const appointment = scheduleAppointment(input({ serviceKey: 'AVALIACAO' }), metadata('2026-08-01T10:00:00.000Z')).appointment;
     expect(appointment.serviceKey).toBe('AVALIACAO');

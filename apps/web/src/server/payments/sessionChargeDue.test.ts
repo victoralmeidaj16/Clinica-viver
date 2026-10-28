@@ -124,6 +124,15 @@ describe('ajuste financeiro após liberar a agenda', () => {
     await expect(atualizarVencimentoCobrancaSessao(input)).rejects.toThrow('em emissão');
     expect(state.connection.execute).not.toHaveBeenCalled();
   });
+  it('preserva o novo vencimento mesmo enquanto a criação da cobrança está pendente', async () => {
+    state.charges = []; state.checkouts = [];
+    expect(await atualizarVencimentoCobrancaSessao(input)).toBe('updated');
+    expect(state.connection.execute).toHaveBeenCalledWith(
+      'UPDATE clinica_agendamentos SET cobranca_vence_em = ? WHERE instituicao_id = ? AND id = ?',
+      [input.dueAt, 'inst', 'appt']
+    );
+    expect(cancelRemote).not.toHaveBeenCalled();
+  });
   it('recusa agendamento fora do escopo autorizado', async () => {
     state.connection.query.mockResolvedValue([[], []]);
     expect(await atualizarVencimentoCobrancaSessao(input)).toBe('not_found');

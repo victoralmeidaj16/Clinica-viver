@@ -1,6 +1,6 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
-import type { RowDataPacket } from 'mysql2';
+import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import type { PoolConnection } from 'mysql2/promise';
 import { getMysqlPool } from '@/server/oci/runtime';
 import { instituicaoId, toSqlTimestamp } from '@/server/persistence/mysql/mappers';
@@ -16,7 +16,13 @@ export async function resetAppointmentChargeDue(
   connection: PoolConnection, appointmentId: string, dueAt: string
 ): Promise<UpdateChargeDueOutcome> {
   const plan = await readDueResetPlan(connection, appointmentId);
-  if (!plan) return 'not_found';
+  if (!plan) {
+    const [result] = await connection.execute<ResultSetHeader>(
+      'UPDATE clinica_agendamentos SET cobranca_vence_em = ? WHERE instituicao_id = ? AND id = ?',
+      [toSqlTimestamp(dueAt), instituicaoId(), appointmentId]
+    );
+    return result.affectedRows ? 'updated' : 'not_found';
+  }
   if (plan.paid) return 'paid';
   const refs = plan.charges.map((c) => String(c.ref_core));
   const checkoutRefs = plan.checkouts.map((c) => String(c.referencia_externa));
@@ -36,6 +42,10 @@ export async function resetAppointmentChargeDue(
     `INSERT INTO financeiro_ajustes_vencimento
       (id, instituicao_id, agendamento_id, vence_em, plano) VALUES (?, ?, ?, ?, ?)`,
     [randomUUID(), instituicaoId(), appointmentId, toSqlTimestamp(dueAt), JSON.stringify({ ...plan, affectedChargeIds })]
+  );
+  await connection.execute(
+    'UPDATE clinica_agendamentos SET cobranca_vence_em = ? WHERE instituicao_id = ? AND id = ?',
+    [toSqlTimestamp(dueAt), instituicaoId(), appointmentId]
   );
   return 'queued';
 }

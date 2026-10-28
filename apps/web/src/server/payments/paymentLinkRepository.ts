@@ -102,7 +102,7 @@ export async function getSessionPaymentProfile(
             COALESCE((SELECT c.vence_em FROM financeiro_cobrancas c
               WHERE c.instituicao_id = a.instituicao_id AND c.organizacao_ref = o.ref_core
                 AND c.sessao_ref IN (a.ref_core, COALESCE(a.sessao_clinica_ref, a.ref_core))
-              ORDER BY c.criado_em DESC LIMIT 1), a.inicio) AS vence_em,
+              ORDER BY c.criado_em DESC LIMIT 1), a.cobranca_vence_em, a.inicio) AS vence_em,
             (SELECT t.modalidade FROM clinica_triagens_pacientes t
               WHERE t.instituicao_id = a.instituicao_id
                 AND t.organizacao_ref = o.ref_core AND t.paciente_ref = pa.ref_core
@@ -188,7 +188,7 @@ export async function reserveAppointmentCharge(input: {
   try {
     await connection.beginTransaction();
     const [rows] = await connection.query<RowDataPacket[]>(
-      `SELECT a.ref_core AS agendamento_ref, a.sessao_clinica_ref, a.inicio, a.valor_centavos,
+      `SELECT a.ref_core AS agendamento_ref, a.sessao_clinica_ref, a.inicio, a.valor_centavos, a.cobranca_vence_em,
               o.ref_core AS organizacao_ref, p.ref_core AS profissional_ref,
               p.nome AS profissional_nome, p.valor_social_centavos, p.valor_sessao_centavos,
               pa.ref_core AS paciente_ref, COALESCE(pa.nome_social, pa.nome) AS paciente_nome,
@@ -289,7 +289,7 @@ export async function reserveAppointmentCharge(input: {
       : undefined;
     const chargeDueAt = chargeRows[0]?.vence_em
       ? fromSqlTimestamp(String(chargeRows[0].vence_em))!
-      : sessionStart;
+      : (appointment.cobranca_vence_em ? fromSqlTimestamp(appointment.cobranca_vence_em) : undefined) ?? sessionStart;
     if (Date.parse(chargeDueAt) <= Date.now() || chargeRows[0]?.cobranca_status === 'overdue') {
       await connection.rollback();
       return { expired: true, dueAt: chargeDueAt };
@@ -307,7 +307,7 @@ export async function reserveAppointmentCharge(input: {
         [rowId('cobranca', chargeRef), instituicaoId(), appointment.organizacao_ref,
           chargeRef, billingSessionRef, appointment.paciente_ref,
           appointment.profissional_ref, toSqlTimestamp(new Date().toISOString()),
-          toSqlTimestamp(sessionStart), amountCents, description]
+          toSqlTimestamp(chargeDueAt), amountCents, description]
       );
     }
 

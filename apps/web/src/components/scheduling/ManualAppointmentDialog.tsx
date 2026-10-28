@@ -5,28 +5,23 @@ import {
   CheckCircle2,
   ChevronDown,
   Clock3,
-  Layers,
   UserRound,
 } from 'lucide-react';
-import { applicationRequest, commandHeaders } from '@/lib/applicationApi';
+import { useManualAppointmentSubmission } from './useManualAppointmentSubmission';
 import { AppointmentFrequencyField } from './AppointmentFrequencyField';
-import { VariableDurationFields, variableDurationMinutes } from './VariableDurationFields';
+import { variableDurationMinutes } from './VariableDurationFields';
+import { ManualAppointmentServiceFields } from './ManualAppointmentServiceFields';
 import { ManualAppointmentHeader } from './ManualAppointmentHeader';
 import { ManualAppointmentActions } from './ManualAppointmentActions';
 import {
   CLINICAL_SERVICES,
-  civilDaysBetween,
   getServiceDuration,
   hasVariableDuration,
-  clinicDateTimeToIso,
-  manualAppointmentTimes,
   monthlyRecurrenceDates,
-  shiftCivilDate,
   todayAtClinic,
   type AppointmentFrequency,
   type ManualAppointmentMode,
 } from '@/lib/manualAppointment';
-import { FUSO_CLINICA } from '@/lib/sessionReference';
 
 export interface ManualAppointmentPatient {
   id: string;
@@ -95,8 +90,6 @@ export function ManualAppointmentDialog({
   const [chargeDueDate, setChargeDueDate] = useState(() => todayAtClinic());
   const [chargeDueTime, setChargeDueTime] = useState('14:00');
   const [customDue, setCustomDue] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<{ kind: 'error' | 'success'; text: string }>();
 
   const variableDuration = hasVariableDuration(serviceKey);
   const manualDuration = variableDuration && durationPreset === 'manual';
@@ -110,74 +103,10 @@ export function ManualAppointmentDialog({
   const selectedService = CLINICAL_SERVICES.find((s) => s.key === serviceKey) ?? CLINICAL_SERVICES[0];
   const recurrenceDates = useMemo(() => frequency === 'custom' ? customDates : monthlyRecurrenceDates(date, frequency), [date, frequency, customDates]);
 
-  const submit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setMessage(undefined);
-    if (!recurrenceDates.length) {
-      setMessage({ kind: 'error', text: 'Selecione pelo menos um dia no calendário.' });
-      return;
-    }
-    if (!patientId) {
-      setMessage({ kind: 'error', text: 'Selecione um paciente para continuar.' });
-      return;
-    }
-    if (adminMode && !selectedPatient?.primaryProfessionalId) {
-      setMessage({
-        kind: 'error',
-        text: 'O paciente selecionado precisa ter um psicólogo atribuído para agendar o atendimento.',
-      });
-      return;
-    }
-    if (!validDuration) {
-      setMessage({ kind: 'error', text: 'Informe a duração da sessão, entre 15 e 240 minutos.' });
-      return;
-    }
-    if (recurrenceDates.some((d) => Date.parse(manualAppointmentTimes({ date: d, time, durationMinutes }).startsAt) <= Date.now())) {
-      setMessage({ kind: 'error', text: 'O horário da sessão deve estar no futuro.' });
-      return;
-    }
-    setSaving(true);
-    let createdCount = 0;
-    try {
-      for (const occurrenceDate of recurrenceDates) {
-        const { startsAt, endsAt } = manualAppointmentTimes({ date: occurrenceDate, time, durationMinutes });
-        const dayOffset = civilDaysBetween(date, occurrenceDate);
-        const occurrenceDueDate = shiftCivilDate(chargeDueDate, dayOffset);
-        await applicationRequest('/appointments', {
-          method: 'POST',
-          headers: commandHeaders(),
-          body: JSON.stringify({
-            id: `appointment-manual-${crypto.randomUUID()}`,
-            patientId,
-            ...(selectedPatient?.primaryProfessionalId
-              ? { professionalId: selectedPatient.primaryProfessionalId }
-              : {}),
-            startsAt,
-            endsAt,
-            timezone: FUSO_CLINICA,
-            mode,
-            createdAt: new Date().toISOString(),
-            serviceKey,
-            chargeDueAt: clinicDateTimeToIso(occurrenceDueDate, chargeDueTime),
-          }),
-        });
-        createdCount += 1;
-      }
-      setMessage({
-        kind: 'success',
-        text: `${createdCount} ${createdCount === 1 ? 'atendimento adicionado' : 'atendimentos adicionados'} à agenda com sucesso.`,
-      });
-      await onScheduled?.();
-    } catch (error) {
-      if (createdCount > 0) await onScheduled?.();
-      setMessage({
-        kind: 'error',
-        text: `${createdCount > 0 ? `${createdCount} atendimento(s) foram criados. ` : ''}${error instanceof Error ? error.message : 'Não foi possível criar o agendamento.'}`,
-      });
-    } finally {
-      setSaving(false);
-    }
-  };
+  const { submit, saving, message, completed } = useManualAppointmentSubmission({
+    patientId, professionalId: selectedPatient?.primaryProfessionalId, adminMode, recurrenceDates, date, time,
+    durationMinutes, validDuration, chargeDueDate, chargeDueTime, mode, serviceKey, onScheduled,
+  });
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/70 p-0 backdrop-blur-sm sm:items-center sm:p-4">
@@ -187,7 +116,7 @@ export function ManualAppointmentDialog({
         <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 sm:px-6">
           {message && (
-            <div role="status" className={`flex items-center gap-2 rounded-2xl border px-4 py-3 text-xs font-bold ${message.kind === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-rose-200 bg-rose-50 text-rose-800'}`}>
+            <div role="status" className={`flex items-center gap-2 rounded-2xl border px-4 py-3 text-xs font-bold ${message.kind === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : message.kind === 'warning' ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-rose-200 bg-rose-50 text-rose-800'}`}>
               {message.kind === 'success' ? <CheckCircle2 className="h-4 w-4" /> : <Clock3 className="h-4 w-4" />}
               {message.text}
             </div>
@@ -201,7 +130,7 @@ export function ManualAppointmentDialog({
                 required
                 value={patientId}
                 onChange={(event) => setPatientId(event.target.value)}
-                disabled={Boolean(initialPatientId) || saving || message?.kind === 'success'}
+                disabled={Boolean(initialPatientId) || saving || completed}
                 className="input w-full appearance-none py-3 pl-10 pr-10 text-xs font-bold"
               >
                 <option value="">Selecione um paciente</option>
@@ -237,64 +166,20 @@ export function ManualAppointmentDialog({
             </div>
           )}
 
-          <label className="block text-xs font-bold text-ink">
-            Serviço *
-            <span className="relative mt-1.5 block">
-              <Layers className="pointer-events-none absolute left-3.5 top-3.5 h-4 w-4 text-muted" />
-              <select
-                required
-                value={serviceKey}
-                onChange={(event) => {
-                  setServiceKey(event.target.value);
-                  setDurationPreset(50);
-                  setCustomHours('');
-                  setCustomMinutes('');
-                }}
-                disabled={saving || message?.kind === 'success'}
-                className="input w-full appearance-none py-3 pl-10 pr-10 text-xs font-bold"
-              >
-                {servicosDisponiveis.map((servico) => (
-                  <option key={servico.key} value={servico.key}>
-                    {servico.label} ({servico.variableDuration ? 'duração variável' : `${servico.durationMinutes} min`})
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3.5 top-3.5 h-4 w-4 text-muted" />
-            </span>
-          </label>
-
-          {variableDuration && (
-            <fieldset disabled={saving || message?.kind === 'success'}>
-              <legend className="text-xs font-bold text-ink">Duração da sessão *</legend>
-              <div className="mt-1.5 grid grid-cols-3 gap-2">
-                {([50, 90, 'manual'] as const).map((option) => {
-                  const label = option === 50 ? '50min' : option === 90 ? '1h30min' : 'Definir outro tempo';
-                  return (
-                    <button
-                      key={option}
-                      type="button"
-                      onClick={() => setDurationPreset(option)}
-                      className={`rounded-xl border px-2 py-3 text-[11px] font-extrabold transition ${durationPreset === option ? 'border-psi-vibrant bg-psi-vibrant text-white shadow-md shadow-psi-vibrant/15' : 'border-line bg-slate-50 text-muted hover:border-psi-vibrant/40 hover:text-ink'}`}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
-              {manualDuration && <VariableDurationFields hours={customHours} minutes={customMinutes}
-                onHoursChange={setCustomHours} onMinutesChange={setCustomMinutes} />}
-              <span className="mt-2 block text-[11px] font-medium text-muted">Na avaliação, psicólogo e gestão podem definir a duração de cada sessão.</span>
-            </fieldset>
-          )}
+          <ManualAppointmentServiceFields services={servicosDisponiveis} serviceKey={serviceKey}
+            onServiceChange={(value) => { setServiceKey(value); setDurationPreset(50); setCustomHours(''); setCustomMinutes(''); }}
+            variableDuration={variableDuration} manualDuration={manualDuration} durationPreset={durationPreset}
+            setDurationPreset={setDurationPreset} customHours={customHours} customMinutes={customMinutes}
+            setCustomHours={setCustomHours} setCustomMinutes={setCustomMinutes} disabled={saving || completed} />
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="text-xs font-bold text-ink">
               Data *
-              <input type="date" required min={todayAtClinic()} value={date} onChange={(event) => { const value = event.target.value; setDate(value); if (!customDue) setChargeDueDate(value); }} disabled={saving || message?.kind === 'success'} className="input mt-1.5 py-3 text-xs font-bold" />
+              <input type="date" required min={todayAtClinic()} value={date} onChange={(event) => { const value = event.target.value; setDate(value); if (!customDue) setChargeDueDate(value); }} disabled={saving || completed} className="input mt-1.5 py-3 text-xs font-bold" />
             </label>
             <label className="text-xs font-bold text-ink">
               Horário de início *
-              <input type="time" required value={time} onChange={(event) => { const value = event.target.value; setTime(value); if (!customDue) setChargeDueTime(value); }} disabled={saving || message?.kind === 'success'} className="input mt-1.5 py-3 text-xs font-bold" />
+              <input type="time" required value={time} onChange={(event) => { const value = event.target.value; setTime(value); if (!customDue) setChargeDueTime(value); }} disabled={saving || completed} className="input mt-1.5 py-3 text-xs font-bold" />
             </label>
           </div>
 
@@ -303,12 +188,12 @@ export function ManualAppointmentDialog({
             initialDate={date}
             dates={recurrenceDates}
             time={time}
-            disabled={saving || message?.kind === 'success'}
+            disabled={saving || completed}
             onChange={(value) => { setFrequency(value); if (value === 'custom' && !customDates.length && date) setCustomDates([date]); }}
             onDatesChange={setCustomDates}
           />
 
-          <fieldset disabled={saving || message?.kind === 'success'} className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+          <fieldset disabled={saving || completed} className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
             <legend className="px-2 text-xs font-black text-amber-950">Vencimento da cobrança</legend>
             <p className="mb-3 text-[11px] text-amber-800">O link e o Pix serão encerrados neste horário exato.</p>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -317,7 +202,7 @@ export function ManualAppointmentDialog({
             </div>
           </fieldset>
 
-          <fieldset disabled={saving || message?.kind === 'success'}>
+          <fieldset disabled={saving || completed}>
             <legend className="text-xs font-bold text-ink">Modalidade</legend>
             <div className="mt-1.5 grid grid-cols-2 gap-2">
               {MODES.map((item) => (
@@ -339,7 +224,7 @@ export function ManualAppointmentDialog({
           </div>
 
           <ManualAppointmentActions
-            success={message?.kind === 'success'}
+            success={completed}
             saving={saving}
             disabled={
               saving ||

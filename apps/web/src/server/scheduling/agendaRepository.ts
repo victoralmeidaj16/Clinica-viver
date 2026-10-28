@@ -458,11 +458,11 @@ export async function listAppointments(
                   AND c.organizacao_ref = o.ref_core
                   AND c.sessao_ref IN (a.ref_core, a.sessao_clinica_ref)
                 ORDER BY c.criado_em DESC LIMIT 1) AS forma_pagamento
-              ,(SELECT c.vence_em FROM financeiro_cobrancas c
+              ,COALESCE((SELECT c.vence_em FROM financeiro_cobrancas c
                 WHERE c.instituicao_id = a.instituicao_id
                   AND c.organizacao_ref = o.ref_core
                   AND c.sessao_ref IN (a.ref_core, a.sessao_clinica_ref)
-                ORDER BY c.criado_em DESC LIMIT 1) AS vencimento_cobranca_em,
+                ORDER BY c.criado_em DESC LIMIT 1), a.cobranca_vence_em) AS vencimento_cobranca_em,
               sr.id AS solicitacao_id, sr.numero AS solicitacao_numero,
               sr.inicio_atual AS solicitacao_inicio_atual, sr.fim_atual AS solicitacao_fim_atual,
               sr.inicio_solicitado, sr.fim_solicitado, sr.modalidade_solicitada, sr.solicitado_em

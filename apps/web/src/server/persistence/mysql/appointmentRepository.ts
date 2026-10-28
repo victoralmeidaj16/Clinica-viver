@@ -24,7 +24,7 @@ import {
 const AGENDAMENTO_SELECT = `
   SELECT a.ref_core, o.ref_core AS organizacao_ref, pa.ref_core AS paciente_ref,
          pr.ref_core AS profissional_ref, a.inicio, a.fim, a.duracao_min, a.timezone, a.modalidade, a.servico_key,
-         a.status, a.recorrencia, a.cancelado_codigo, a.sessao_clinica_ref, a.versao,
+         a.status, a.recorrencia, a.cancelado_codigo, a.sessao_clinica_ref, a.versao, a.cobranca_vence_em,
          a.criado_em, a.atualizado_em
     FROM clinica_agendamentos a
     JOIN clinica_organizacoes o ON o.id = a.organizacao_id
@@ -230,9 +230,9 @@ export class MysqlAppointmentRepository implements AppointmentRepository {
       `INSERT INTO clinica_agendamentos
          (id, instituicao_id, ref_core, organizacao_id, paciente_id, profissional_id, inicio, fim,
           timezone, duracao_min, modalidade, servico_key, recorrencia, status, cancelado_codigo, sessao_clinica_ref,
-          token_pagamento_sessao, origem_criacao, versao, criado_em, atualizado_em)
+          token_pagamento_sessao, origem_criacao, versao, criado_em, atualizado_em, cobranca_vence_em)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-               LOWER(REPLACE(UUID(), '-', '')), 'profissional', ?, ?, ?)
+               LOWER(REPLACE(UUID(), '-', '')), 'profissional', ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
          inicio = VALUES(inicio), fim = VALUES(fim), timezone = VALUES(timezone),
          duracao_min = VALUES(duracao_min), modalidade = VALUES(modalidade), servico_key = VALUES(servico_key),
@@ -259,6 +259,7 @@ export class MysqlAppointmentRepository implements AppointmentRepository {
         appointment.version,
         toSqlTimestamp(appointment.createdAt),
         toSqlTimestamp(appointment.updatedAt),
+        appointment.chargeDueAt ? toSqlTimestamp(appointment.chargeDueAt) : null,
       ]
     );
 

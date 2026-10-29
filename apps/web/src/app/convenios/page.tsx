@@ -33,6 +33,7 @@ export default function ConveniosPage() {
   // a cada recarga do detalhe. Ele também é o filtro enviado à API, então o que
   // está na tela e o que foi carregado são sempre o mesmo intervalo.
   const [periodo, setPeriodo] = useState<PeriodoFaturamento>(periodoPadrao);
+  const [periodoAplicado, setPeriodoAplicado] = useState<PeriodoFaturamento>();
 
   const load = useCallback(async () => {
     try { setOverview(await applicationRequest<Overview>('/convenios')); setError(''); }
@@ -49,6 +50,7 @@ export default function ConveniosPage() {
       const result = await applicationRequest<ConvenioDetailView>(`/convenios/${encodeURIComponent(id)}${query}`);
       if (requestId !== detailRequest.current) return;
       setDetail(result);
+      setPeriodoAplicado(period);
       await load();
     } catch (cause) {
       if (requestId === detailRequest.current) setDetailError(cause instanceof Error ? cause.message : 'Não foi possível carregar o convênio.');
@@ -73,7 +75,7 @@ export default function ConveniosPage() {
   const select = (id: string) => {
     selectedConvenio.current = id;
     const inicial = periodoPadrao();
-    setSelectedId(id); setDetail(undefined); setDetailError(''); setPeriodo(inicial);
+    setSelectedId(id); setDetail(undefined); setDetailError(''); setPeriodo(inicial); setPeriodoAplicado(undefined);
     void loadDetail(id, inicial);
   };
   const close = () => { selectedConvenio.current = undefined; detailRequest.current += 1; setSelectedId(undefined); setDetail(undefined); setDetailError(''); setLoadingDetail(false); };
@@ -109,7 +111,7 @@ export default function ConveniosPage() {
         </div>
       </>}
 
-      {selectedId && <ConvenioDetailDrawer detail={detail} loading={loadingDetail} error={detailError} periodo={periodo} onPeriodoChange={setPeriodo} onClose={close} onEdit={() => { if (detail) { setEditing(detail.convenio); setFormOpen(true); } }} onRefresh={(period) => loadDetail(selectedId, period ?? periodo)} />}
+      {selectedId && <ConvenioDetailDrawer detail={detail} loading={loadingDetail} error={detailError} periodo={periodo} periodoAplicado={periodoAplicado} onPeriodoChange={setPeriodo} onClose={close} onEdit={() => { if (detail) { setEditing(detail.convenio); setFormOpen(true); } }} onRefresh={(period) => loadDetail(selectedId, period ?? periodo)} />}
       {formOpen && <ConvenioFormModal convenio={editing} onClose={() => setFormOpen(false)} onSave={save} />}
     </div>
   );

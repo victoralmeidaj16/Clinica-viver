@@ -67,6 +67,9 @@ export interface FaturaConvenio {
   status: StatusFaturaConvenio;
   venceEm?: string;
   providerId?: string;
+  tomadorCnpj?: string;
+  tomadorNome?: string;
+  tomadorEmail?: string;
   boletoUrl?: string;
   linhaDigitavel?: string;
   pagoEm?: string;
@@ -85,6 +88,7 @@ interface FaturaRow extends RowDataPacket {
   periodo_fim: string; total_sessoes: number; valor_centavos: number; valor_recebido_divergente_centavos: number | null;
   status: StatusFaturaConvenio; vence_em: string | null; provedor_ref: string | null;
   boleto_url: string | null; boleto_linha_digitavel: string | null;
+  tomador_cnpj: string | null; tomador_nome: string | null; tomador_email: string | null;
   pago_em: string | null; criado_em: string;
 }
 
@@ -122,7 +126,7 @@ const CONVENIO_SELECT = `
 
 const FATURA_SELECT = `SELECT ref_core, organizacao_ref, convenio_ref, competencia, periodo_inicio, periodo_fim,
   total_sessoes, valor_centavos, valor_recebido_divergente_centavos, status, vence_em, provedor_ref, boleto_url,
-  boleto_linha_digitavel, pago_em, criado_em FROM financeiro_faturas_convenio`;
+  boleto_linha_digitavel, tomador_cnpj, tomador_nome, tomador_email, pago_em, criado_em FROM financeiro_faturas_convenio`;
 
 function toConvenio(row: ConvenioRow): Convenio {
   return {
@@ -150,6 +154,8 @@ function toFatura(row: FaturaRow): FaturaConvenio {
     valorRecebidoDivergenteCents: row.valor_recebido_divergente_centavos == null ? undefined : Number(row.valor_recebido_divergente_centavos),
     venceEm: row.vence_em ? String(row.vence_em).slice(0, 10) : undefined,
     providerId: row.provedor_ref ?? undefined, boletoUrl: row.boleto_url ?? undefined,
+    tomadorCnpj: row.tomador_cnpj ?? undefined, tomadorNome: row.tomador_nome ?? undefined,
+    tomadorEmail: row.tomador_email ?? undefined,
     linhaDigitavel: row.boleto_linha_digitavel ?? undefined,
     pagoEm: fromSqlTimestamp(row.pago_em) ?? undefined,
     criadoEm: fromSqlTimestamp(row.criado_em) ?? new Date(0).toISOString(),
@@ -386,6 +392,11 @@ export async function fecharFatura(
       throw new Error('Nenhum atendimento selecionado ou disponível nesse período para fechar a fatura.');
     }
 
+    if (input.cobrancaRefs && (new Set(input.cobrancaRefs).size !== charges.length
+        || charges.some((charge) => !input.cobrancaRefs!.includes(String(charge.ref_core))))) {
+      throw new Error('A seleção de atendimentos mudou. Atualize a lista e confira novamente.');
+    }
+
     const valorCents = charges.reduce((total, row) => total + Number(row.valor_centavos), 0);
 
     const [existentes] = await connection.query<FaturaRow[]>(
@@ -434,13 +445,14 @@ export async function fecharFatura(
   finally { connection.release(); }
 }
 
-export async function registrarBoleto(organizationId: string, convenioId: string, faturaId: string, input: { providerId: string; venceEm: string; boletoUrl: string; linhaDigitavel?: string }, connection: PoolConnection): Promise<void> {
+export async function registrarBoleto(organizationId: string, convenioId: string, faturaId: string, input: { providerId: string; venceEm: string; boletoUrl: string; linhaDigitavel?: string; tomador?: { cnpj: string; nome: string; email?: string } }, connection: PoolConnection): Promise<void> {
   const [result] = await connection.execute<ResultSetHeader>(
     `UPDATE financeiro_faturas_convenio SET status = 'boleto_gerado', vence_em = ?,
-       provedor_ref = ?, boleto_url = ?, boleto_linha_digitavel = ?
+       provedor_ref = ?, boleto_url = ?, boleto_linha_digitavel = ?, tomador_cnpj = ?, tomador_nome = ?, tomador_email = ?
       WHERE instituicao_id = ? AND organizacao_ref = ? AND convenio_ref = ?
         AND ref_core = ? AND status = 'aberta'`,
     [input.venceEm, input.providerId, input.boletoUrl, input.linhaDigitavel ?? null,
+      input.tomador?.cnpj ?? null, input.tomador?.nome ?? null, input.tomador?.email ?? null,
       instituicaoId(), organizationId, convenioId, faturaId]
   );
   if (result.affectedRows !== 1) throw new Error('A fatura mudou durante a geração do boleto.');

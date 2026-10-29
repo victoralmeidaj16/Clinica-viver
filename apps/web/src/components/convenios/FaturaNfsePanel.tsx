@@ -9,7 +9,7 @@ const money = (cents: number) => new Intl.NumberFormat('pt-BR', { style: 'curren
 const statusLabel = { aberta: 'Aberta', boleto_gerado: 'Boleto gerado', paga: 'Paga por boleto', cancelada: 'Cancelada', revisao_estorno: 'Estorno em revisão', revisao_pagamento: 'Pagamento em revisão' } as const;
 
 interface FiscalData {
-  preview: { camposPendentes: string[]; integracaoConfigurada: boolean; statusFatura: string; ambiente: 'producao' | 'producao_restrita' };
+  preview: { camposPendentes: string[]; integracaoConfigurada: boolean; statusFatura: string; ambiente: 'producao' | 'producao_restrita'; tomadorExigeConferencia: boolean; convenio: { nome: string; cnpj?: string } };
   emission: { status: string; numeroNfse?: string; danfseDisponivel?: boolean; xmlNfseDisponivel?: boolean };
 }
 
@@ -21,6 +21,7 @@ export function FaturaNfsePanel({ convenioId, fatura, onRefresh }: { convenioId:
   const [cancelling, setCancelling] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [confirmingCancelFatura, setConfirmingCancelFatura] = useState(false);
+  const [tomadorConferido, setTomadorConferido] = useState(false);
   const base = `/convenios/${encodeURIComponent(convenioId)}/faturas/${encodeURIComponent(fatura.id)}`;
 
   const boleto = async () => {
@@ -32,7 +33,7 @@ export function FaturaNfsePanel({ convenioId, fatura, onRefresh }: { convenioId:
 
   const loadFiscal = async () => {
     setError('');
-    try { const data = await applicationRequest<FiscalData>(`${base}/nfse`); setFiscal(data); return data; }
+    try { const data = await applicationRequest<FiscalData>(`${base}/nfse`); setTomadorConferido(false); setFiscal(data); return data; }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Não foi possível consultar a NFS-e.'); }
   };
 
@@ -41,7 +42,8 @@ export function FaturaNfsePanel({ convenioId, fatura, onRefresh }: { convenioId:
     try {
       const data = fiscal ?? await loadFiscal();
       if (!data || data.preview.camposPendentes.length) return;
-      await applicationRequest(`${base}/nfse`, { method: 'POST', headers: commandHeaders(), body: JSON.stringify({ confirmar: true }) });
+      if (data.preview.tomadorExigeConferencia && !tomadorConferido) return;
+      await applicationRequest(`${base}/nfse`, { method: 'POST', headers: commandHeaders(), body: JSON.stringify({ confirmar: true, cnpjConferido: data.preview.tomadorExigeConferencia ? data.preview.convenio.cnpj : undefined }) });
       await loadFiscal(); await onRefresh();
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Não foi possível emitir a NFS-e.'); }
     finally { setWorking(undefined); }
@@ -84,6 +86,8 @@ export function FaturaNfsePanel({ convenioId, fatura, onRefresh }: { convenioId:
       {fatura.linhaDigitavel && <div className="mt-3 flex items-center gap-2 rounded-xl bg-slate-50 p-2.5"><code className="min-w-0 flex-1 break-all text-[10px] text-ink">{fatura.linhaDigitavel}</code><button type="button" onClick={() => { void navigator.clipboard.writeText(fatura.linhaDigitavel!); setCopied(true); }} className="rounded-lg p-2 text-muted hover:bg-white hover:text-ink">{copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}</button></div>}
       {fiscal?.preview.camposPendentes.length ? <p className="mt-3 rounded-xl bg-amber-50 p-3 text-xs font-bold text-amber-800">Complete: {fiscal.preview.camposPendentes.join(', ')}.</p> : null}
       {fiscal && <p className="mt-3 rounded-xl bg-slate-50 p-3 text-xs font-bold text-ink">Ambiente fiscal: {fiscal.preview.ambiente === 'producao' ? 'Produção' : 'Homologação'}</p>}
+      {fiscal && <p className="mt-2 text-xs text-muted">Tomador da nota: {fiscal.preview.convenio.nome} · CNPJ {fiscal.preview.convenio.cnpj ?? 'pendente'}</p>}
+      {fiscal?.preview.tomadorExigeConferencia && fatura.status === 'paga' && <label className="mt-3 flex gap-2 rounded-xl bg-amber-50 p-3 text-xs font-bold text-amber-900"><input type="checkbox" checked={tomadorConferido} onChange={(event) => setTomadorConferido(event.target.checked)} /> <span>Conferi no boleto que o tomador é {fiscal.preview.convenio.nome}, CNPJ {fiscal.preview.convenio.cnpj ?? 'não informado'}.</span></label>}
       {error && <p className="mt-3 rounded-xl bg-rose-50 p-3 text-xs font-bold text-rose-700">{error}</p>}
       {fatura.status === 'revisao_pagamento' && <p role="alert" className="mt-3 rounded-xl bg-amber-50 p-3 text-xs font-bold text-amber-900">O valor informado pelo provedor{fatura.valorRecebidoDivergenteCents !== undefined ? ` (${money(fatura.valorRecebidoDivergenteCents)})` : ''} diverge da fatura. Confira o pagamento antes de emitir a NFS-e.</p>}
       
@@ -119,7 +123,7 @@ export function FaturaNfsePanel({ convenioId, fatura, onRefresh }: { convenioId:
         {fatura.status === 'aberta' && <button type="button" onClick={() => void boleto()} disabled={Boolean(working)} className="btn-accent px-3 py-2 text-[11px] disabled:opacity-50">{working === 'boleto' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Banknote className="h-3.5 w-3.5" />} Gerar boleto</button>}
         {fatura.boletoUrl && <a href={fatura.boletoUrl} target="_blank" rel="noreferrer" className="btn-outline px-3 py-2 text-[11px]"><ExternalLink className="h-3.5 w-3.5" /> Abrir boleto</a>}
         {['revisao_estorno', 'revisao_pagamento'].includes(fatura.status) && !fiscal && <button type="button" onClick={() => void loadFiscal()} className="btn-outline px-3 py-2 text-[11px]">Consultar NFS-e</button>}
-        {fatura.status === 'paga' && fiscal?.emission.status !== 'issued' && <button type="button" onClick={() => void (fiscal ? nfse() : loadFiscal())} disabled={Boolean(working)} className="btn-accent px-3 py-2 text-[11px] disabled:opacity-50">{working === 'nfse' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileCheck2 className="h-3.5 w-3.5" />} {fiscal ? 'Emitir NFS-e PJ' : 'Preparar NFS-e'}</button>}
+        {fatura.status === 'paga' && fiscal?.emission.status !== 'issued' && <button type="button" onClick={() => void (fiscal ? nfse() : loadFiscal())} disabled={Boolean(working) || Boolean(fiscal?.preview.tomadorExigeConferencia && !tomadorConferido)} className="btn-accent px-3 py-2 text-[11px] disabled:opacity-50">{working === 'nfse' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileCheck2 className="h-3.5 w-3.5" />} {fiscal ? 'Emitir NFS-e PJ' : 'Preparar NFS-e'}</button>}
         {fiscal?.emission.status === 'issued' && <><a href={`/api/application${base}/nfse/pdf`} target="_blank" className="btn-outline px-3 py-2 text-[11px]">DANFSe</a><a href={`/api/application${base}/nfse/xml`} className="btn-outline px-3 py-2 text-[11px]">XML</a><button type="button" onClick={() => setCancelling(true)} className="rounded-xl border border-rose-200 px-3 py-2 text-[11px] font-black text-rose-700">Cancelar NFS-e</button></>}
         
         {fatura.status !== 'paga' && fatura.status !== 'revisao_estorno' && fatura.status !== 'revisao_pagamento' && !confirmingCancelFatura && (

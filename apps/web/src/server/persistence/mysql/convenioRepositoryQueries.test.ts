@@ -96,6 +96,16 @@ describe('sessoesDoConvenio', () => {
 describe('fecharFatura', () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it('recusa a seleção quando um atendimento não está mais disponível', async () => {
+    connection.query.mockResolvedValueOnce([[{ ref_core: 'charge-1', valor_centavos: 10000 }], []] as never);
+    await expect(fecharFatura('org-1', 'conv-1', {
+      competencia: '2026-09', periodoInicio: '2026-09-01', periodoFim: '2026-09-30',
+      cobrancaRefs: ['charge-1', 'charge-2'],
+    })).rejects.toThrow(/seleção de atendimentos mudou/);
+    expect(connection.execute).not.toHaveBeenCalled();
+    expect(connection.rollback).toHaveBeenCalled();
+  });
+
   it('só considera cobranças efetivamente custeadas pela empresa', async () => {
     // Sem cobranças elegíveis a função aborta, mas a consulta já foi montada.
     await expect(

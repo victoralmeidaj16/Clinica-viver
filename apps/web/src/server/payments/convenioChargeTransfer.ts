@@ -64,6 +64,24 @@ export async function transferirCobrancasParaEmpresa(
 }
 
 async function transferirSessao(agendamentoId: string): Promise<boolean> {
+  const lockConnection = await getMysqlPool().getConnection();
+  const lockName = `convenio-transfer-${agendamentoId}`;
+  try {
+    const [locks] = await lockConnection.query<RowDataPacket[]>('SELECT GET_LOCK(?, 10) AS acquired', [lockName]);
+    if (Number(locks[0]?.acquired) !== 1) throw new Error('A transferência está em andamento. Tente novamente.');
+    const [current] = await lockConnection.query<RowDataPacket[]>(
+      'SELECT custeado_pela_empresa FROM clinica_agendamentos WHERE instituicao_id = ? AND id = ?',
+      [instituicaoId(), agendamentoId]
+    );
+    if (Number(current[0]?.custeado_pela_empresa) === 1) return true;
+    return await transferirSessaoBloqueada(agendamentoId);
+  } finally {
+    await lockConnection.query('SELECT RELEASE_LOCK(?)', [lockName]).catch(() => undefined);
+    lockConnection.release();
+  }
+}
+
+async function transferirSessaoBloqueada(agendamentoId: string): Promise<boolean> {
   // A conta ignora a decisão gravada de propósito: ela foi tomada por causa da
   // cobrança individual que estamos desfazendo, não pelo acordo.
   if (!await empresaCobre(agendamentoId)) return false;
@@ -105,8 +123,9 @@ async function transferirSessao(agendamentoId: string): Promise<boolean> {
       [instituicaoId(), agendamentoId]
     );
     const agendamento = rows[0];
-    // Sessão futura não precisa de mais nada: sem cobrança individual, a
-    // realização calcula o custeio e emite a cobrança da empresa.
+    // Sessão futura: sem cobrança individual, a realização calcula o custeio e
+    // emite a cobrança da empresa. A decisão "paciente paga" gravada antes do
+    // vínculo sai junto, senão a realização a leria e cobraria o paciente.
     if (!agendamento || agendamento.status !== 'realizado' || !agendamento.sessao_clinica_ref) {
       await connection.execute('UPDATE clinica_agendamentos SET transferencia_convenio_ref = NULL WHERE instituicao_id = ? AND id = ?', [instituicaoId(), agendamentoId]);
       await connection.commit();

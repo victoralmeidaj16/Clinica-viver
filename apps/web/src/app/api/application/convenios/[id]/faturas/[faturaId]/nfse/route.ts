@@ -24,6 +24,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const context = await resolveRequestContext(request, true);
     const { id, faturaId } = await params;
     const body = await readJson(request);
-    return success(await emitirNfseFatura(context, decodeURIComponent(id), decodeURIComponent(faturaId), body.confirmar));
+    return success(await emitirNfseFatura(context, decodeURIComponent(id), decodeURIComponent(faturaId), body.confirmar, body.cnpjConferido));
   } catch (error) { return failure(error); }
 }

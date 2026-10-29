@@ -53,6 +53,13 @@ describe('geração de boleto empresarial', () => {
     await Promise.all([createConvenioBoleto(context, 'conv-1', 'fat-1'), createConvenioBoleto(context, 'conv-1', 'fat-1')]);
     expect(mocks.create).toHaveBeenCalledOnce();
     expect(mocks.registrar).toHaveBeenCalledOnce();
+    expect(mocks.registrar.mock.calls[0][3].tomador).toEqual({ cnpj: '12345678901234', nome: 'Empresa fictícia', email: undefined });
+  });
+
+  it('não presume o tomador de boleto recuperado após falha', async () => {
+    mocks.buscar.mockResolvedValue({ id: 'pay-1', value: 100, dueDate: '2026-11-05', bankSlipUrl: 'https://example.test' });
+    await createConvenioBoleto(context, 'conv-1', 'fat-1');
+    expect(mocks.registrar.mock.calls[0][3].tomador).toBeUndefined();
   });
 
   it('calcula sete dias depois quando não existe dia fixo', async () => {

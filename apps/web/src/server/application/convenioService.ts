@@ -182,6 +182,7 @@ export async function createConvenioBoleto(context: RequestContext, convenioId: 
 
   const externalReference = `VMPJ-${fatura.id}`;
   let payment = await findAsaasPaymentByExternalReference(externalReference);
+  const pagamentoRecuperado = Boolean(payment);
   if (!payment) {
     const customerId = await getOrCreateAsaasCustomer({
       name: convenio.razaoSocial ?? convenio.nome, cpfCnpj: convenio.cnpj,
@@ -200,6 +201,9 @@ export async function createConvenioBoleto(context: RequestContext, convenioId: 
   await registrarBoleto(organizationId, convenioId, faturaId, {
     providerId: payment.id, venceEm: payment.dueDate,
     boletoUrl: payment.bankSlipUrl ?? payment.invoiceUrl, linhaDigitavel,
+    tomador: pagamentoRecuperado ? undefined : {
+      cnpj: convenio.cnpj, nome: convenio.razaoSocial ?? convenio.nome, email: convenio.emailFaturamento,
+    },
   }, connection);
   await connection.commit();
   return (await obterFatura(organizationId, convenioId, faturaId, connection))!;

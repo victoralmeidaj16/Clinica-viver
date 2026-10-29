@@ -29,12 +29,15 @@ async function dados(context: RequestContext, convenioId: string, faturaId: stri
 
 export async function previaNfseFatura(context: RequestContext, convenioId: string, faturaId: string) {
   const { convenio, fatura } = await dados(context, convenioId, faturaId);
+  const tomador = fatura.tomadorCnpj
+    ? { cnpj: fatura.tomadorCnpj, nome: fatura.tomadorNome ?? convenio.nome, email: fatura.tomadorEmail ?? convenio.emailFaturamento }
+    : { cnpj: convenio.cnpj, nome: convenio.razaoSocial ?? convenio.nome, email: convenio.emailFaturamento };
   const camposPendentes: string[] = [];
-  if (!convenio.cnpj) camposPendentes.push('CNPJ do tomador');
-  if (!convenio.emailFaturamento) camposPendentes.push('e-mail de faturamento');
+  if (!tomador.cnpj) camposPendentes.push('CNPJ do tomador');
+  if (!tomador.email) camposPendentes.push('e-mail de faturamento');
   const certificado = statusCertificadoNfse();
   return {
-    faturaId, convenio: { id: convenio.id, nome: convenio.razaoSocial ?? convenio.nome, cnpj: convenio.cnpj, email: convenio.emailFaturamento },
+    faturaId, convenio: { id: convenio.id, ...tomador }, tomadorExigeConferencia: !fatura.tomadorCnpj,
     competencia: `${fatura.competencia}-01`,
     descricaoServico: `Atendimentos psicoterápicos - ${fatura.competencia} - ${fatura.totalSessoes} sessões`,
     valorCents: fatura.valorCents, totalSessoes: fatura.totalSessoes,
@@ -43,13 +46,16 @@ export async function previaNfseFatura(context: RequestContext, convenioId: stri
   };
 }
 
-export async function emitirNfseFatura(context: RequestContext, convenioId: string, faturaId: string, confirmou: unknown) {
+export async function emitirNfseFatura(context: RequestContext, convenioId: string, faturaId: string, confirmou: unknown, cnpjConferido?: unknown) {
   if (confirmou !== true) throw new ApplicationError('CONFIRMATION_REQUIRED', 'Confirme a emissão da NFS-e antes de enviar a DPS.', 400);
   if (!context.idempotencyKey) throw new ApplicationError('IDEMPOTENCY_REQUIRED', 'A emissão exige uma chave de idempotência.', 400);
   const previa = await previaNfseFatura(context, convenioId, faturaId);
-  const { organizationId, convenio, fatura } = await dados(context, convenioId, faturaId);
+  const { organizationId, fatura } = await dados(context, convenioId, faturaId);
   if (fatura.status !== 'paga') throw new ApplicationError('INVALID_FISCAL_STATE', 'A NFS-e PJ só pode ser emitida depois da baixa integral do boleto.', 422);
   if (previa.camposPendentes.length) throw new ApplicationError('INVALID_FISCAL_STATE', `Complete antes de emitir: ${previa.camposPendentes.join(', ')}.`, 422);
+  if (previa.tomadorExigeConferencia && (!cnpjConferido || cnpjConferido !== previa.convenio.cnpj)) {
+    throw new ApplicationError('TOMADOR_CONFIRMATION_REQUIRED', 'Confira o CNPJ do boleto e confirme o tomador antes de emitir a NFS-e.', 422);
+  }
   if (!previa.integracaoConfigurada) throw new ApplicationError('INVALID_FISCAL_CONFIG', 'O certificado fiscal não está apto para emissão.', 422);
 
   exigirPersistenciaFiscal();
@@ -79,7 +85,7 @@ export async function emitirNfseFatura(context: RequestContext, convenioId: stri
           codigoMunicipioIbge: PRESTADOR_NFSE.codigoMunicipioIbge, opcaoSimplesNacional: '3',
           regimeApuracaoSimples: '1', regimeEspecialTributacao: '0',
         },
-        tomador: { cpfOuCnpj: convenio.cnpj!, nome: convenio.razaoSocial ?? convenio.nome, email: convenio.emailFaturamento },
+        tomador: { cpfOuCnpj: previa.convenio.cnpj!, nome: previa.convenio.nome, email: previa.convenio.email },
         valorCents: fatura.valorCents, descricaoServico: previa.descricaoServico,
         codigoTributacaoNacional: SERVICO_NFSE.codigoTributacaoNacional, codigoNbs: SERVICO_NFSE.codigoNbs,
         codigoMunicipioPrestacao: PRESTADOR_NFSE.codigoMunicipioIbge,

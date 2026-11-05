@@ -154,7 +154,7 @@ function preferenciaGenero(valor: unknown): PreferenciaGeneroPsicologo {
  */
 export function validarSubmissaoTriagem(
   corpo: unknown,
-  opcoes: { exigirCompatibilidadeVitrine?: boolean } = {},
+  opcoes: { exigirCompatibilidadeVitrine?: boolean; cadastroManual?: boolean } = {},
 ): ResultadoValidacao {
   if (!corpo || typeof corpo !== 'object' || Array.isArray(corpo)) {
     return recusa('Não foi possível ler os dados enviados.');
@@ -195,7 +195,8 @@ export function validarSubmissaoTriagem(
   }
 
   const turno = normalizarTurnosPreferencia(body.turno).join(',');
-  if (!turno) {
+  const turnoAusente = body.turno === undefined || body.turno === null || body.turno === '';
+  if (!turno && (!opcoes.cadastroManual || !turnoAusente)) {
     return recusa('Selecione pelo menos um período de preferência: manhã, tarde ou noite.');
   }
 
@@ -291,7 +292,7 @@ export function validarSubmissaoTriagem(
       estadoUf,
       possuiConvenio: modalidadeParticular ? 'NAO' : texto(body.possuiConvenio, 20),
       convenioSelecionado: modalidadeParticular ? 'Nenhum' : texto(body.convenioSelecionado, 120) ?? 'Nenhum',
-      origem: texto(body.origem, 80) ?? 'Formulário Vitrine',
+      origem: texto(body.origem, 80) ?? (opcoes.cadastroManual ? '' : 'Formulário Vitrine'),
       turno,
       servico: texto(body.servico, 120),
       servicoKey,

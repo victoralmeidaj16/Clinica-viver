@@ -8,6 +8,8 @@ const ICONS = { MANHA: Sunrise, TARDE: Sun, NOITE: MoonStar } as const;
 type Props = {
   name?: string;
   compact?: boolean;
+  required?: boolean;
+  description?: string;
   allowedValues?: readonly TurnoPreferencia[];
 } & ({
   multiple: true;
@@ -16,19 +18,20 @@ type Props = {
 } | {
   multiple?: false;
   value: TurnoPreferencia | '';
-  onChange: (turno: TurnoPreferencia) => void;
+  onChange: (turno: TurnoPreferencia | '') => void;
 });
 
 export function TurnoPreferenceField(props: Props) {
-  const { value, name = 'turno', compact = false, allowedValues } = props;
+  const { value, name = 'turno', compact = false, required = true, description, allowedValues } = props;
   const selecionados = normalizarTurnosPreferencia(value);
   return (
     <fieldset className="space-y-2">
       <legend className="font-bold text-ink">
-        {props.multiple ? 'Períodos de preferência' : 'Período de preferência'} <span className="text-rose-500">*</span>
+        {props.multiple ? 'Períodos de preferência' : 'Período de preferência'}{' '}
+        {required ? <span className="text-rose-500">*</span> : <span className="font-normal text-muted">(opcional)</span>}
       </legend>
       <p className="text-[11px] leading-relaxed text-muted">
-        {props.multiple ? 'Selecione um ou mais períodos. Mostraremos psicólogos disponíveis em qualquer um deles.' : 'Essa escolha será cruzada com os turnos cadastrados pelos psicólogos.'}
+        {description ?? (props.multiple ? 'Selecione um ou mais períodos. Mostraremos psicólogos disponíveis em qualquer um deles.' : 'Essa escolha será cruzada com os turnos cadastrados pelos psicólogos.')}
       </p>
       <div className="grid grid-cols-3 gap-2">
         {TURNOS_ATENDIMENTO.map((turno) => {
@@ -50,7 +53,7 @@ export function TurnoPreferenceField(props: Props) {
                 value={turno.value}
                 checked={selected}
                 disabled={disabled}
-                required={!props.multiple}
+                required={required && !props.multiple}
                 onChange={() => {
                   if (props.multiple) {
                     props.onChange(normalizarTurnosPreferencia(selected
@@ -67,6 +70,7 @@ export function TurnoPreferenceField(props: Props) {
           );
         })}
       </div>
+      {!required && selecionados.length > 0 && <button type="button" onClick={() => props.onChange('')} className="text-xs font-semibold text-psi-deep underline">Limpar preferência</button>}
     </fieldset>
   );
 }

@@ -14,4 +14,5 @@ it('mantém o modo de seleção única dos cadastros internos', () => {
   const html = renderToStaticMarkup(<TurnoPreferenceField value="TARDE" onChange={vi.fn()} />);
   expect(html.match(/type="radio"/g)).toHaveLength(3);
   expect(html.match(/checked=""/g)).toHaveLength(1);
+  expect(html.match(/required=""/g)).toHaveLength(3);
 });

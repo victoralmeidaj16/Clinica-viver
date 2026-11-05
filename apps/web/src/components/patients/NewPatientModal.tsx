@@ -77,7 +77,6 @@ export default function NewPatientModal({ isOpen, onClose, onPatientCreated }: P
     if (!atendimentoPermitido(habilitacao, form.servicoKey, form.modalidade)) return setError('Selecione um serviço e uma modalidade habilitados no seu perfil pela clínica.');
     if (form.whatsapp !== form.whatsappConfirmacao) return setError('Os números de telefone não coincidem.');
     if (!validateGender(form.genero, form.generoOutro)) return setError('Selecione o gênero e detalhe a opção “Outro”, se necessário.');
-    if (!form.turno) return setError('Selecione o período de preferência.');
     if (!validCpf(form.cpf)) return setError('Informe um CPF válido.');
 
     setSaving(true);

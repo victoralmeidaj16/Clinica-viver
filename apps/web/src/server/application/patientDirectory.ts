@@ -347,7 +347,9 @@ export async function createPatient(
     throw new ApplicationError('FORBIDDEN', 'Um psicólogo só pode cadastrar pacientes para o próprio perfil.', 403);
   }
 
-  const fullRegistration = body.whatsapp ? validarSubmissaoTriagem(body) : undefined;
+  const fullRegistration = body.whatsapp ? validarSubmissaoTriagem(body, {
+    cadastroManual: context.actor.roles.includes('professional'),
+  }) : undefined;
   if (fullRegistration && !fullRegistration.ok) {
     throw new ApplicationError('INVALID_INPUT', fullRegistration.erro, fullRegistration.status);
   }

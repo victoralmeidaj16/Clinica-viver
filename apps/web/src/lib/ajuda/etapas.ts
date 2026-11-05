@@ -79,7 +79,7 @@ export const ETAPAS: Etapa[] = [
     ], passos: lista(
       'Escolha o **Serviço**.', 'Escolha a **Modalidade** (online ou presencial).', 'Digite o **Nome completo**.',
       'Digite o **Telefone** e repita em *Confirme o telefone*.', 'Digite o **E-mail** do paciente.', 'Selecione o **Gênero**.',
-      'Digite o **CPF** (e também CEP e número da residência).', 'Marque o **Período de preferência**: manhã, tarde ou noite.',
+      'Digite o **CPF** (e também CEP e número da residência).', 'Se desejar, informe o **Período de preferência** e **Como conheceu a clínica**; os dois campos são opcionais.',
       'Clique em **Salvar paciente**.') }],
     porque: 'Com o cadastro completo o paciente aparece na agenda e pode receber cobrança e documentos.',
     atencao: 'Campos com * são obrigatórios. O campo *Observações cadastrais* é só administrativo: nunca escreva evolução clínica ali — use o prontuário.',

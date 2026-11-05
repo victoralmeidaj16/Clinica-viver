@@ -16,7 +16,7 @@ export type PatientRegistrationForm = {
 export const EMPTY_PATIENT_REGISTRATION: PatientRegistrationForm = {
   nome: '', nomeSocial: '', whatsapp: '', whatsappConfirmacao: '', dataNascimento: '',
   idade: '', email: '', cpf: '', cep: '', numeroResidencia: '', logradouro: '', complemento: '', bairro: '', cidade: '', uf: '',
-  possuiConvenio: 'NAO', convenioSelecionado: '', origem: 'Indicação', turno: '', paraQuemE: '',
+  possuiConvenio: 'NAO', convenioSelecionado: '', origem: '', turno: '', paraQuemE: '',
   paraQuemEOutro: '', genero: '', generoOutro: '',
   servicoKey: '', modalidade: '', opcaoAvaliacaoPsicologica: '',
   especificarNecessidades: false, necessidadesPaciente: [],

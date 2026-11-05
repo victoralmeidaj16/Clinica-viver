@@ -115,6 +115,26 @@ describe('desistência registrada pelo psicólogo', () => {
 });
 
 describe('cadastro manual de paciente', () => {
+  it('aceita período e origem ausentes sem inventar valores e mantém o vínculo com o próprio psicólogo', async () => {
+    const patient = await createPatient(context, { ...body, turno: '', origem: '' });
+    expect(patient).toMatchObject({ primaryProfessionalId: 'professional-roster-1',
+      assignedProfessionalIds: ['professional-roster-1'] });
+    expect(state.capture.triagensPacientes).toHaveLength(1);
+    expect(state.capture.triagensPacientes[0]).toMatchObject({ pacienteRef: patient.id,
+      turno: '', origem: '', status: 'CONTATO_CONFIRMADO', psicologoAlocadoId: 'roster-1', transbordos: 0 });
+    expect(state.capture.cadastrosPsicologos.map((item) => item.pacientesAtivosCount)).toEqual([1, 0]);
+  });
+
+  it('preserva período e origem quando o profissional escolhe informá-los', async () => {
+    await createPatient(context, { ...body, turno: 'MANHA', origem: 'Google' });
+    expect(state.capture.triagensPacientes[0]).toMatchObject({ turno: 'MANHA', origem: 'Google' });
+  });
+
+  it('recusa período desconhecido mesmo no cadastro manual', async () => {
+    await expect(createPatient(context, { ...body, turno: 'MADRUGADA' })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+    expect(state.patients.size).toBe(0);
+  });
+
   it.each([
     { modalidade: 'PARTICULAR' },
     { servicoKey: 'AVALIACAO' },

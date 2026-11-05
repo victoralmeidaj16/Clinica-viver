@@ -203,8 +203,9 @@ export function PatientRegistrationFields({ form, setForm, convenios, conveniosC
     </div>
     <div><label className="mb-1 block font-bold text-ink">Observações cadastrais <span className="font-normal text-muted">(opcional)</span></label><textarea className={field} rows={3} value={form.registrationNotes} onChange={(e) => update('registrationNotes', e.target.value)} placeholder="Informações administrativas; não use este campo para evolução clínica." /></div>
     <div className="grid gap-3 sm:grid-cols-2">
-      <div><label className="mb-1 block font-bold text-ink">Como conheceu a clínica? *</label><select className={field} value={form.origem} onChange={(e) => update('origem', e.target.value)}>{PATIENT_ORIGINS.map((item) => <option key={item}>{item}</option>)}</select></div>
-      <TurnoPreferenceField value={form.turno} onChange={(value) => update('turno', value)} />
+      <div><label className="mb-1 block font-bold text-ink">Como conheceu a clínica? <span className="font-normal text-muted">(opcional)</span></label><select className={field} value={form.origem} onChange={(e) => update('origem', e.target.value)}><option value="">Não informado</option>{PATIENT_ORIGINS.map((item) => <option key={item}>{item}</option>)}</select></div>
+      <TurnoPreferenceField required={false} value={form.turno} onChange={(value) => update('turno', value)}
+        description="Preferência de horário para combinar as sessões. O paciente será atendido por você." />
     </div>
   </div>;
 }

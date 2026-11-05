@@ -96,6 +96,15 @@ describe('validação do formulário público de triagem', () => {
     expect(validarSubmissaoTriagem({ ...valido, turno: 'MADRUGADA' }).ok).toBe(false);
   });
 
+  it('não permite tornar o período opcional por um campo enviado no formulário público', () => {
+    expect(validarSubmissaoTriagem({ ...valido, turno: '', cadastroManual: true }, estrita).ok).toBe(false);
+  });
+
+  it('aceita ausência de período e origem somente quando o servidor indica cadastro manual', () => {
+    const resultado = validarSubmissaoTriagem({ ...valido, turno: undefined, origem: undefined }, { cadastroManual: true });
+    expect(resultado).toMatchObject({ ok: true, dados: { turno: '', origem: '' } });
+  });
+
   it('recusa o envio quando o campo-armadilha volta preenchido', () => {
     const resultado = validarSubmissaoTriagem({ ...valido, [CAMPO_ARMADILHA]: 'http://spam.example' });
     expect(resultado.ok).toBe(false);

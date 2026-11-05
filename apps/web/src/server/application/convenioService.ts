@@ -14,7 +14,7 @@ import {
 } from '@/server/adapters/asaasAdapter';
 import { gerarRelatorioConvenioPdf } from '@/server/reports/convenioReportPdf';
 import { transferirCobrancasParaEmpresa } from '@/server/payments/convenioChargeTransfer';
-import { normalizarCicloCusteio } from '@/lib/convenioBilling';
+import { coberturaDoConvenioAmpliou, normalizarCicloCusteio, rotuloSessaoConvenio } from '@/lib/convenioBilling';
 import { getMysqlPool } from '@/server/oci/runtime';
 import { instituicaoId } from '@/server/persistence/mysql/mappers';
 
@@ -46,7 +46,7 @@ function numeroOpcional(value: unknown, min: number, max: number, label: string)
 
 function dadosConvenio(body: Record<string, unknown>, partial = false) {
   const nome = texto(body.nome);
-  if (!partial && !nome) throw new ApplicationError('INVALID_INPUT', 'O nome do convênio é obrigatório.', 400);
+  if ((!partial || body.nome !== undefined) && !nome) throw new ApplicationError('INVALID_INPUT', 'O nome do convênio é obrigatório.', 400);
   return {
     ...(nome !== undefined ? { nome } : {}),
     ...(body.razaoSocial !== undefined ? { razaoSocial: texto(body.razaoSocial) } : {}),
@@ -54,6 +54,7 @@ function dadosConvenio(body: Record<string, unknown>, partial = false) {
     ...(body.emailFaturamento !== undefined ? { emailFaturamento: texto(body.emailFaturamento) } : {}),
     ...(body.empresaPagaSessoes !== undefined ? { empresaPagaSessoes: body.empresaPagaSessoes === true } : {}),
     ...(body.pacoteSessoes !== undefined ? { pacoteSessoes: numeroOpcional(body.pacoteSessoes, 1, 65535, 'O pacote de sessões') } : {}),
+    ...(body.pacoteSessoesCiclo !== undefined ? { pacoteSessoesCiclo: normalizarCicloCusteio(body.pacoteSessoesCiclo) ?? 'total' } : {}),
     ...(body.diaVencimento !== undefined ? { diaVencimento: numeroOpcional(body.diaVencimento, 1, 28, 'O dia de vencimento') } : {}),
     ...(body.ativo !== undefined ? { ativo: body.ativo === true } : {}),
   };
@@ -113,7 +114,7 @@ export async function createConvenio(context: RequestContext, body: Record<strin
       nome: input.nome, razaoSocial: input.razaoSocial, cnpj: input.cnpj,
       emailFaturamento: input.emailFaturamento,
       empresaPagaSessoes: input.empresaPagaSessoes ?? false,
-      pacoteSessoes: input.pacoteSessoes, diaVencimento: input.diaVencimento,
+      pacoteSessoes: input.pacoteSessoes, pacoteSessoesCiclo: input.pacoteSessoesCiclo, diaVencimento: input.diaVencimento,
       ativo: input.ativo ?? true,
     });
   } catch (error) {
@@ -122,13 +123,24 @@ export async function createConvenio(context: RequestContext, body: Record<strin
 }
 
 export async function updateConvenio(context: RequestContext, id: string, body: Record<string, unknown>) {
+  const organizationId = admin(context);
+  const input = dadosConvenio(body, true);
+  const anterior = await obterConvenio(organizationId, id);
   let updated;
   try {
-    updated = await atualizarConvenio(admin(context), id, dadosConvenio(body, true));
+    updated = await atualizarConvenio(organizationId, id, input);
   } catch (error) {
     return convenioNameConflict(error);
   }
   if (!updated) throw new ApplicationError('NOT_FOUND', 'Convênio não encontrado.', 404);
+  // O formulário sempre reenvia o acordo inteiro: corrigir um e-mail não pode
+  // cancelar a cobrança de uma sessão que a gestão decidiu deixar com o paciente.
+  if (anterior && coberturaDoConvenioAmpliou(anterior, updated)) {
+    const pacientes = await pacientesDoConvenio(organizationId, id);
+    for (const paciente of pacientes) {
+      if (paciente.custeadoPelaEmpresa) await transferirCobrancasParaEmpresa(organizationId, paciente.id);
+    }
+  }
   return updated;
 }
 
@@ -159,7 +171,7 @@ function dueDate(day: number | undefined): string {
   if (day === undefined) return new Date(Date.UTC(year, month - 1, today + 7, 12)).toISOString().slice(0, 10);
   const selectedDay = day;
   let due = new Date(Date.UTC(year, month - 1, selectedDay, 12));
-  if (selectedDay < today) due = new Date(Date.UTC(year, month, selectedDay, 12));
+  if (selectedDay <= today) due = new Date(Date.UTC(year, month, selectedDay, 12));
   return due.toISOString().slice(0, 10);
 }
 
@@ -197,7 +209,7 @@ export async function createConvenioBoleto(context: RequestContext, convenioId: 
   if (!Number.isFinite(payment.value) || Math.round(payment.value * 100) !== fatura.valorCents) {
     throw new ApplicationError('PROVIDER_AMOUNT_MISMATCH', 'O boleto existente no provedor tem valor diferente da fatura. Confira antes de continuar.', 409);
   }
-  const linhaDigitavel = await getAsaasBoletoIdentificationField(payment.id);
+  const linhaDigitavel = await getAsaasBoletoIdentificationField(payment.id).catch(() => undefined);
   await registrarBoleto(organizationId, convenioId, faturaId, {
     providerId: payment.id, venceEm: payment.dueDate,
     boletoUrl: payment.bankSlipUrl ?? payment.invoiceUrl, linhaDigitavel,
@@ -256,7 +268,7 @@ export async function convenioReport(context: RequestContext, convenioId: string
   }
   const rows = [
     ['Data', 'Paciente', 'Psicólogo', 'Sessão', 'Situação', 'Valor'],
-    ...sessions.map((item) => [item.realizadaEm, item.pacienteNome, item.psicologoNome, item.sessionId, item.faturaId ? 'Faturado' : 'A faturar', (item.valorCents / 100).toFixed(2).replace('.', ',')]),
+    ...sessions.map((item) => [item.realizadaEm, item.pacienteNome, item.psicologoNome, item.sessionId, rotuloSessaoConvenio(item), (item.valorCents / 100).toFixed(2).replace('.', ',')]),
   ];
   return { contentType: 'text/csv; charset=utf-8', filename: `relatorio-${convenioId}.csv`, body: `﻿${rows.map((row) => row.map(csvCell).join(';')).join('\r\n')}` };
 }

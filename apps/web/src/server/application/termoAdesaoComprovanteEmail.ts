@@ -25,6 +25,13 @@ function emailDaClinica(replyTo: string | undefined): string | undefined {
 export function conteudoComprovanteTermo(cadastro: CadastroPsicologoRecord, comprovante: ComprovanteGerado) {
   const aceite = cadastro.aceiteTermoAdesao!;
   const nome = cadastro.nomeCompleto.trim();
+  const aprovado = cadastro.status === 'APROVADO';
+  const introducao = aprovado
+    ? 'Segue em anexo a sua via do Termo de Adesão e Condições de Uso da Viver Mais Psicologia, com o registro do seu aceite eletrônico.'
+    : 'Segue em anexo a via da clínica do Termo de Adesão e Condições de Uso, com o aceite eletrônico registrado na solicitação de cadastro do profissional.';
+  const entrega = aprovado
+    ? 'Esta mesma mensagem foi enviada à Viver Mais Psicologia, que guarda a via da instituição.'
+    : 'A via do profissional será enviada junto ao e-mail de acesso ao portal, após a aprovação do cadastro pela gestão.';
   const quando = dataHoraBrasilia(aceite.aceitoEm);
   const registro = [
     `Profissional: ${nome} — CRP ${cadastro.crp.trim()}`,
@@ -37,10 +44,10 @@ export function conteudoComprovanteTermo(cadastro: CadastroPsicologoRecord, comp
   return {
     subject: `Comprovante de aceite do Termo de Adesão — ${nome}`,
     text: [
-      `Olá, ${nome}!`,
+      aprovado ? `Olá, ${nome}!` : 'Olá, equipe Viver Mais!',
       '',
-      'Segue em anexo a sua via do Termo de Adesão e Condições de Uso da Viver Mais Psicologia, com o registro do seu aceite eletrônico.',
-      'Esta mesma mensagem foi enviada à Viver Mais Psicologia, que guarda a via da instituição.',
+      introducao,
+      entrega,
       '',
       ...registro,
       '',
@@ -51,11 +58,11 @@ export function conteudoComprovanteTermo(cadastro: CadastroPsicologoRecord, comp
     html: montarEmailViverMais({
       preheader: 'Sua via do Termo de Adesão, com o registro do aceite eletrônico.',
       eyebrow: 'Termo de Adesão',
-      titulo: 'Sua via do termo aceito',
-      saudacao: `Olá, <strong>${escaparHtml(nome)}</strong>!`,
+      titulo: aprovado ? 'Sua via do termo aceito' : 'Via da clínica do termo aceito',
+      saudacao: aprovado ? `Olá, <strong>${escaparHtml(nome)}</strong>!` : 'Olá, equipe Viver Mais!',
       paragrafos: [
-        'Segue em anexo a sua via do <strong style="color:#43265e;">Termo de Adesão e Condições de Uso</strong>, com o registro do seu aceite eletrônico.',
-        'Esta mesma mensagem foi enviada à Viver Mais Psicologia, que guarda a via da instituição.',
+        introducao,
+        entrega,
         `<span style="font-size:12px;line-height:19px;">${registro.map(escaparHtml).join('<br>')}</span>`,
         'Guarde este e-mail e o PDF anexo. Se você não reconhece este aceite, responda a esta mensagem.',
       ],
@@ -64,9 +71,8 @@ export function conteudoComprovanteTermo(cadastro: CadastroPsicologoRecord, comp
 }
 
 /**
- * Envia o PDF do aceite numa única mensagem para o profissional (`to`) e para a
- * clínica (`cc`): as duas partes recebem o mesmo arquivo, com o mesmo hash, e
- * cada uma vê que a outra também recebeu.
+ * Na inscrição, entrega somente a via da clínica. O profissional recebe sua
+ * via no convite aprovado; reenvios manuais podem incluí-lo após a aprovação.
  */
 export async function enviarComprovanteTermoAdesao(
   cadastro: CadastroPsicologoRecord,
@@ -80,7 +86,7 @@ export async function enviarComprovanteTermoAdesao(
     console.warn('[email] Comprovante do Termo de Adesão não enviado: provedor desconfigurado.');
     return { situacao: 'provedor_desconfigurado', tentadoEm: agora.toISOString() };
   }
-  const profissional = normalizarEmail(cadastro.email);
+  const profissional = cadastro.status === 'APROVADO' ? normalizarEmail(cadastro.email) : undefined;
   const clinica = emailDaClinica(config.replyTo);
   const destinatarios = [profissional, clinica].filter((email): email is string => Boolean(email));
   if (destinatarios.length === 0) return { situacao: 'destinatario_invalido', tentadoEm: agora.toISOString() };

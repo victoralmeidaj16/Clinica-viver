@@ -127,7 +127,7 @@ async function transferirSessaoBloqueada(agendamentoId: string): Promise<boolean
     // emite a cobrança da empresa. A decisão "paciente paga" gravada antes do
     // vínculo sai junto, senão a realização a leria e cobraria o paciente.
     if (!agendamento || agendamento.status !== 'realizado' || !agendamento.sessao_clinica_ref) {
-      await connection.execute('UPDATE clinica_agendamentos SET transferencia_convenio_ref = NULL WHERE instituicao_id = ? AND id = ?', [instituicaoId(), agendamentoId]);
+      await connection.execute('UPDATE clinica_agendamentos SET transferencia_convenio_ref = NULL, custeado_pela_empresa = NULL WHERE instituicao_id = ? AND id = ?', [instituicaoId(), agendamentoId]);
       await connection.commit();
       return true;
     }

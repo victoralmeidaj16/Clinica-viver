@@ -866,6 +866,8 @@ export type ResultadoEdicaoAgendamento =
   | 'invalid_status'
   /** Sessão cancelada não volta por edição: a cobrança dela já foi cancelada. */
   | 'cancelled_locked'
+  /** Falta registrada não volta por edição: a decisão de cobrança já foi aplicada. */
+  | 'no_show_locked'
   /** Mover a sessão para um horário que já passou: o paciente seria avisado de uma remarcação impossível. */
   | 'past_start'
   | 'duration_locked'
@@ -883,6 +885,12 @@ export interface UpdateAppointmentOptions {
    * falha sobre uma alteração que já tinha sido persistida.
    */
   concluirDepois?: boolean;
+  /**
+   * Correção retroativa da gestão. Quem chama precisa ter validado o papel de
+   * administração. A sessão movida para o passado não gera aviso nem altera o
+   * vencimento da cobrança: não há remarcação a comunicar nem prazo a acompanhar.
+   */
+  permitirHorarioPassado?: boolean;
 }
 
 export async function updateAppointmentDetails(
@@ -903,7 +911,7 @@ export async function updateAppointmentDetails(
     const [rows] = await connection.query<RowDataPacket[]>(
       `SELECT a.id, a.ref_core, a.profissional_id, a.status, a.inicio, a.fim, a.duracao_min, a.versao,
               a.modalidade, a.servico_key, a.sessao_clinica_ref, a.custeado_pela_empresa,
-              ${custeioEfetivoSql({ paciente: 'pa', convenio: 'conv', agendamento: 'a', referencia: 'a.inicio' })}
+              ${custeioEfetivoSql({ paciente: 'pa', convenio: 'conv', agendamento: 'a', referencia: 'a.inicio', ignorarPadrao: true })}
                 AS custeio_disponivel
          FROM clinica_agendamentos a
          JOIN clinica_profissionais p ON p.id = a.profissional_id
@@ -939,6 +947,10 @@ export async function updateAppointmentDetails(
     if (String(agendamento.status) === 'cancelado') {
       await connection.rollback();
       return 'cancelled_locked';
+    }
+    if (String(agendamento.status) === 'faltou') {
+      await connection.rollback();
+      return 'no_show_locked';
     }
 
     if (String(agendamento.status) === 'realizado' && (agendamento.sessao_clinica_ref || !opcoes.concluirDepois)) {
@@ -1037,7 +1049,8 @@ export async function updateAppointmentDetails(
       // apontar para o futuro. Manter o horário de uma sessão já passada
       // (ajustar modalidade, concluir) continua valendo.
       const inicioAtual = agendamento.inicio ? new Date(agendamento.inicio).getTime() : Number.NaN;
-      if (novoInicio.getTime() !== inicioAtual && novoInicio.getTime() <= agora.getTime()) {
+      if (!opcoes.permitirHorarioPassado
+          && novoInicio.getTime() !== inicioAtual && novoInicio.getTime() <= agora.getTime()) {
         await connection.rollback();
         return 'past_start';
       }
@@ -1117,12 +1130,16 @@ export async function updateAppointmentDetails(
       values
     );
 
-    if (input.startsAt && novoInicio && novoInicio.getTime() !== new Date(agendamento.inicio).getTime()) {
+    const remarcadaParaOFuturo = Boolean(input.startsAt && novoInicio
+      && novoInicio.getTime() !== new Date(agendamento.inicio).getTime()
+      && novoInicio.getTime() > agora.getTime());
+
+    if (remarcadaParaOFuturo && novoInicio) {
       await resetAppointmentChargeDue(connection, String(agendamento.id), novoInicio.toISOString());
     }
 
     await connection.commit();
-    if (input.startsAt && novoInicio && novoFim && novoInicio.getTime() !== new Date(agendamento.inicio).getTime()) {
+    if (remarcadaParaOFuturo && novoInicio && novoFim) {
       await concluirReagendamento({ id: String(agendamento.id),
         inicioAnterior: new Date(agendamento.inicio).toISOString(), inicio: novoInicio.toISOString(),
         fim: novoFim.toISOString(), versao: Number(agendamento.versao ?? 0) + 1,

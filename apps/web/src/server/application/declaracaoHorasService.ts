@@ -198,7 +198,7 @@ async function apurar(cadastro: CadastroPsicologoRecord, organizationId: string)
   if (!apuracao) {
     throw new ApplicationError(
       'INVALID_STATE',
-      `Não há sessões de atendimento registradas para ${cadastro.nomeCompleto}. A declaração só pode ser emitida sobre atendimentos realizados.`,
+      `Não há atendimentos confirmados como realizados para ${cadastro.nomeCompleto}. A declaração só pode ser emitida sobre atendimentos cuja realização foi confirmada pelo psicólogo.`,
       422
     );
   }

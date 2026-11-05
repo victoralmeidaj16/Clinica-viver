@@ -115,6 +115,14 @@ export async function PATCH(request: Request) {
     const corpo = (await request.json()) as Record<string, unknown>;
     await validarCorpo(corpo, CAMPOS_DO_PROPRIO_PSICOLOGO);
 
+    const solicitacao = corpo.solicitacaoAlteracaoGestao;
+    if (solicitacao !== undefined && solicitacao !== null && (
+      typeof solicitacao !== 'object' || Array.isArray(solicitacao)
+      || (solicitacao as { status?: unknown }).status !== 'PENDENTE'
+    )) {
+      throw new CorpoInvalidoError('Somente a gestão pode aprovar ou recusar uma solicitação.');
+    }
+
     const { antes, atualizado } = await getCaptureRepository().mutate((state) => {
       const antes = state.cadastrosPsicologos.find((psi) => psi.id === cadastro.id && psi.usuarioRef === session.userId);
       if (!antes) throw new SemAcessoError('Cadastro não está mais vinculado a esta conta.', 409);

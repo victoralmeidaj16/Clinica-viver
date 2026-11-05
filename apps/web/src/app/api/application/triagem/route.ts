@@ -238,16 +238,21 @@ export async function GET() {
   try {
     await exigirGestao();
 
-    const varrido = await getCaptureRepository().mutate((state) => {
-      const resultado = varrerSla(captureStateAsSnapshot(state));
-      return {
-        next: {
-          triagensPacientes: resultado.snapshot.triagensPacientes ?? [],
-          cadastrosPsicologos: resultado.snapshot.cadastrosPsicologos ?? [],
-        },
-        result: resultado,
-      };
-    });
+    const repositorio = getCaptureRepository();
+    const estadoInicial = await repositorio.read();
+    const previa = varrerSla(captureStateAsSnapshot(estadoInicial));
+    const varrido = previa.alterado
+      ? await repositorio.mutate((state) => {
+          const resultado = varrerSla(captureStateAsSnapshot(state));
+          return {
+            next: {
+              triagensPacientes: resultado.snapshot.triagensPacientes ?? [],
+              cadastrosPsicologos: resultado.snapshot.cadastrosPsicologos ?? [],
+            },
+            result: resultado,
+          };
+        })
+      : previa;
 
     for (const transbordo of varrido.transbordos) {
       void avisarTransbordo(

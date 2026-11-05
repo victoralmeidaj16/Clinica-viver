@@ -22,15 +22,19 @@ vi.mock('@/server/persistence/mysql/convenioRepository', () => ({
   obterFatura: async () => ({ ...mocks.fatura }),
   registrarBoleto: mocks.registrar,
   cancelarFatura: mocks.cancelar,
+  sessoesDoConvenio: async () => [
+    { chargeId: 'c1', sessionId: 's1', patientId: 'p1', pacienteNome: 'Ana', professionalId: 'pr1', psicologoNome: 'Psi', realizadaEm: '2026-10-10', valorCents: 10000, status: 'pending', custeadoPelaEmpresa: false },
+  ],
 }));
+const getLinha = vi.hoisted(() => vi.fn(async () => 'linha'));
 vi.mock('@/server/adapters/asaasAdapter', () => ({
   findAsaasPaymentByExternalReference: mocks.buscar,
   getOrCreateAsaasCustomer: async () => 'customer',
   createAsaasPayment: mocks.create,
   deleteAsaasPayment: mocks.remover,
-  getAsaasBoletoIdentificationField: async () => 'linha',
+  getAsaasBoletoIdentificationField: getLinha,
 }));
-import { cancelConvenioInvoice, createConvenioBoleto } from './convenioService';
+import { cancelConvenioInvoice, convenioReport, createConvenioBoleto, updateConvenio } from './convenioService';
 
 const context = { actor: { organizationId: 'org-1', roles: ['admin'] } } as never;
 describe('geração de boleto empresarial', () => {
@@ -74,5 +78,22 @@ describe('geração de boleto empresarial', () => {
     mocks.buscar.mockResolvedValue({ id: 'pay-1', value: 50 });
     await expect(createConvenioBoleto(context, 'conv-1', 'fat-1')).rejects.toMatchObject({ code: 'PROVIDER_AMOUNT_MISMATCH' });
     expect(mocks.registrar).not.toHaveBeenCalled();
+  });
+
+  it('registra o boleto e o tomador mesmo se a linha digitável atrasar no Asaas', async () => {
+    getLinha.mockRejectedValueOnce(new Error('indisponível'));
+    await createConvenioBoleto(context, 'conv-1', 'fat-1');
+    expect(mocks.registrar).toHaveBeenCalledOnce();
+    expect(mocks.registrar.mock.calls[0][3]).toMatchObject({
+      providerId: 'pay-1',
+      linhaDigitavel: undefined,
+      tomador: { cnpj: '12345678901234', nome: 'Empresa fictícia' },
+    });
+  });
+
+  it('rejeita nome vazio na edição parcial e rotula sessão individual no CSV', async () => {
+    await expect(updateConvenio(context, 'conv-1', { nome: '   ' })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+    const csv = await convenioReport(context, 'conv-1', { format: 'csv' });
+    expect(String(csv.body)).toContain('Pagamento individual');
   });
 });

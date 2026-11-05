@@ -20,7 +20,6 @@ import { LISTA_NECESSIDADES } from '@/components/forms/necessidades';
 import {
   MODALIDADES_ATENDIMENTO,
   PUBLICO_ALVO,
-  TEMPOS_ATENDIMENTO_POS,
   TIPOS_ATENDIMENTO,
   TURNOS_PSICOLOGO,
   comValoresRegistrados,
@@ -30,6 +29,7 @@ import {
   opcoesAtendimentoDaPos,
 } from '@/components/forms/opcoesPsicologo';
 import { BrazilLocationFields } from '@/components/forms/BrazilLocationFields';
+import { TemposAtendimentoPsicologo } from '@/components/forms/TemposAtendimentoPsicologo';
 import { processImageUpload } from '@/lib/imageUpload';
 import { CardDefinidoPelaGestao } from '@/components/meu-cadastro/CardDefinidoPelaGestao';
 import { FocoDeNotificacao } from '@/components/layout/FocoDeNotificacao';
@@ -126,6 +126,7 @@ type Rascunho = {
 };
 
 function rascunhoDe(c: Cadastro): Rascunho {
+  const temposPermitidos = opcoesAtendimentoDaPos(c.posGraduacaoViverMais, c.segundaPosGraduacao)?.tempos;
   return {
     nomeCompleto: c.nomeCompleto,
     crp: c.crp,
@@ -142,7 +143,7 @@ function rascunhoDe(c: Cadastro): Rascunho {
     modalidadeAtendimento: c.modalidadeAtendimento ?? 'AMBOS',
     atendimentoPreferencia: c.atendimentoPreferencia ?? 'AMBOS',
     turnosDisponiveis: [...(c.turnosDisponiveis ?? [])],
-    temposAtendimento: [...(c.temposAtendimento ?? [])],
+    temposAtendimento: (c.temposAtendimento ?? []).filter((tempo) => !temposPermitidos || temposPermitidos.includes(tempo)),
     publicoAlvo: [...(c.publicoAlvo ?? [])],
     publicoAlvoOutro: c.publicoAlvoOutro ?? '',
     especificarNecessidades: Boolean(
@@ -242,7 +243,7 @@ export default function MeuCadastroPage() {
       return;
     }
     if (
-      opcoesAtendimentoDaPos(cadastro?.posGraduacaoViverMais, cadastro?.segundaPosGraduacao) &&
+      opcoesAtendimentoDaPos(cadastro?.posGraduacaoViverMais, cadastro?.segundaPosGraduacao)?.tempos.length &&
       rascunho.temposAtendimento.length === 0
     ) {
       setAviso('Selecione ao menos um tempo de atendimento.');
@@ -412,11 +413,6 @@ export default function MeuCadastroPage() {
                     }}
                   />
                 </label>
-                {rascunho.fotoUrl && (
-                  <button type="button" onClick={() => setRascunho({ ...rascunho, fotoUrl: '' })} className="text-xs font-extrabold text-rose-600 text-left hover:underline">
-                    Remover foto
-                  </button>
-                )}
                 <p className="text-[10px] text-muted">É a imagem que o paciente vê na vitrine.</p>
               </div>
             </div>
@@ -474,25 +470,9 @@ export default function MeuCadastroPage() {
             </div>
           </div>
 
-          {opcoesAtendimentoDaPos(cadastro.posGraduacaoViverMais, cadastro.segundaPosGraduacao) && (
-            <div>
-              <label className="text-[10px] uppercase tracking-wider font-extrabold text-muted block mb-2">Tempo de atendimento</label>
-              <div className="flex flex-wrap gap-2">
-                {TEMPOS_ATENDIMENTO_POS.map((tempo) => (
-                  <label key={tempo} className={chipClasse(rascunho.temposAtendimento.includes(tempo))}>
-                    <input type="checkbox" className="sr-only" checked={rascunho.temposAtendimento.includes(tempo)} onChange={() => setRascunho({ ...rascunho, temposAtendimento: alternar(rascunho.temposAtendimento.map(String), String(tempo)).map(Number) })} />
-                    {tempo === 90 ? '1h30min' : '50min'}
-                  </label>
-                ))}
-                {opcoesAtendimentoDaPos(cadastro.posGraduacaoViverMais, cadastro.segundaPosGraduacao)?.servicos.includes('Avaliação Psicológica') && (
-                  <span className={chipClasse(true)}><span aria-hidden="true">✓</span> Variável</span>
-                )}
-              </div>
-              {opcoesAtendimentoDaPos(cadastro.posGraduacaoViverMais, cadastro.segundaPosGraduacao)?.servicos.includes('Avaliação Psicológica') && (
-                <p className="mt-2 text-[11px] text-muted"><strong>Variável</strong> — disponível para Avaliação Psicológica. Informe horas e minutos ao agendar cada sessão.</p>
-              )}
-            </div>
-          )}
+          <TemposAtendimentoPsicologo posGraduacao={cadastro.posGraduacaoViverMais}
+            segundaPosGraduacao={cadastro.segundaPosGraduacao} value={rascunho.temposAtendimento}
+            onChange={(temposAtendimento) => setRascunho({ ...rascunho, temposAtendimento })} />
 
           {/*
             "Serviços que presto" não aparece aqui: ele é homologado pela
@@ -634,10 +614,9 @@ export default function MeuCadastroPage() {
                   )}
                 </div>
                 <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Público que atendo</p><Chips itens={[...(cadastro.publicoAlvo ?? []), ...(cadastro.publicoAlvoOutro ? [cadastro.publicoAlvoOutro] : [])]} /></div>
-                {cadastro.temposAtendimento?.length ? <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Tempo de atendimento</p><Chips itens={[
-                  ...cadastro.temposAtendimento.map((tempo) => tempo === 90 ? '1h30min' : '50min'),
-                  ...(opcoesAtendimentoDaPos(cadastro.posGraduacaoViverMais, cadastro.segundaPosGraduacao)?.servicos.includes('Avaliação Psicológica') ? ['Variável'] : []),
-                ]} /></div> : null}
+                {Boolean(opcoesAtendimentoDaPos(cadastro.posGraduacaoViverMais, cadastro.segundaPosGraduacao)?.tempos.length) && cadastro.temposAtendimento?.length ?
+                  <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Tempo de atendimento</p>
+                    <Chips itens={cadastro.temposAtendimento.map((tempo) => tempo === 90 ? '1h30min' : '50min')} /></div> : null}
                 {(cadastro.especificarNecessidades || cadastro.necessidadesAtendidas?.length || cadastro.necessidadesOutro) && (
                   <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Demandas específicas</p><Chips itens={[...(cadastro.necessidadesAtendidas ?? []), ...(cadastro.necessidadesOutro ? [cadastro.necessidadesOutro] : [])]} /></div>
                 )}

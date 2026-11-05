@@ -33,16 +33,20 @@ export async function POST(request: Request) {
     const leadId = typeof corpo?.leadId === 'string' ? corpo.leadId : undefined;
 
     const repositorio = getCaptureRepository();
-    const resultado = await repositorio.mutate((state) => {
-      const varrido = varrerSla(captureStateAsSnapshot(state), leadId);
-      return {
-        next: {
-          triagensPacientes: varrido.snapshot.triagensPacientes ?? [],
-          cadastrosPsicologos: varrido.snapshot.cadastrosPsicologos ?? [],
-        },
-        result: varrido,
-      };
-    });
+    const estadoInicial = await repositorio.read();
+    const previa = varrerSla(captureStateAsSnapshot(estadoInicial), leadId);
+    const resultado = previa.alterado
+      ? await repositorio.mutate((state) => {
+          const varrido = varrerSla(captureStateAsSnapshot(state), leadId);
+          return {
+            next: {
+              triagensPacientes: varrido.snapshot.triagensPacientes ?? [],
+              cadastrosPsicologos: varrido.snapshot.cadastrosPsicologos ?? [],
+            },
+            result: varrido,
+          };
+        })
+      : previa;
 
     for (const transbordo of resultado.transbordos) {
       void avisarTransbordo(

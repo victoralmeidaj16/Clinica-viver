@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 
 import type { CadastroPsicologoRecord } from './persistence';
-import { aplicarMudancas, assertDecisaoDoPedidoAtual, CAMPOS_DA_GESTAO, CAMPOS_DO_PROPRIO_PSICOLOGO, derivarModalidadesAtendidas } from './psychologistRegistration';
+import { aplicarMudancas, assertDecisaoDoPedidoAtual, CAMPOS_DA_GESTAO, CAMPOS_DO_PROPRIO_PSICOLOGO, derivarModalidadesAtendidas, validarCorpo } from './psychologistRegistration';
 
 const cadastro = (mudancas: Partial<CadastroPsicologoRecord> = {}): CadastroPsicologoRecord => ({
   id: 'psi-1',
@@ -18,6 +18,42 @@ const cadastro = (mudancas: Partial<CadastroPsicologoRecord> = {}): CadastroPsic
 });
 
 describe('estado operacional do psicólogo', () => {
+  it('remove a duração fixa legada ao editar um perfil de Neuropsicologia', () => {
+    const base = cadastro({ posGraduacaoViverMais: 'Pós-graduação em Neuropsicologia Clínica', temposAtendimento: [50, 90] });
+    expect(aplicarMudancas(base, { temposAtendimento: [50, 90] }, CAMPOS_DO_PROPRIO_PSICOLOGO).temposAtendimento).toBeUndefined();
+  });
+
+  it('exige uma duração permitida quando o profissional altera essa escolha nas demais pós', () => {
+    const base = cadastro({ posGraduacaoViverMais: 'Programa de Estudos e Pós-graduação em Psicanálise', temposAtendimento: [50] });
+    expect(() => aplicarMudancas(base, { temposAtendimento: [] }, CAMPOS_DO_PROPRIO_PSICOLOGO)).toThrow(/tempo de atendimento/);
+    expect(aplicarMudancas(base, { temposAtendimento: [90] }, CAMPOS_DO_PROPRIO_PSICOLOGO).temposAtendimento).toEqual([90]);
+  });
+  it('não permite remover a foto obrigatória ao editar o perfil', () => {
+    const comFoto = cadastro({ fotoUrl: 'data:image/png;base64,AAAA' });
+    expect(() => aplicarMudancas(comFoto, { fotoUrl: '   ' }, CAMPOS_DO_PROPRIO_PSICOLOGO)).toThrow(/foto de perfil/);
+    expect(() => aplicarMudancas(comFoto, { fotoUrl: '' }, CAMPOS_DA_GESTAO)).toThrow(/foto de perfil/);
+  });
+
+  it('não impede quem ainda não tem foto de salvar outras alterações', async () => {
+    const semFoto = cadastro({ fotoUrl: undefined });
+    const corpo = { fotoUrl: '', nomeCompleto: 'Nome corrigido' };
+    await expect(validarCorpo({ ...corpo }, CAMPOS_DO_PROPRIO_PSICOLOGO)).resolves.toBeUndefined();
+    const atualizado = aplicarMudancas(semFoto, corpo, CAMPOS_DO_PROPRIO_PSICOLOGO);
+    expect(atualizado.nomeCompleto).toBe('Nome corrigido');
+    expect(atualizado.fotoUrl).toBeUndefined();
+  });
+
+  it('aceita trocar a foto e recusa formato inválido', async () => {
+    const comFoto = cadastro({ fotoUrl: 'data:image/png;base64,AAAA' });
+    expect(aplicarMudancas(comFoto, { fotoUrl: 'data:image/png;base64,BBBB' }, CAMPOS_DA_GESTAO).fotoUrl)
+      .toBe('data:image/png;base64,BBBB');
+    await expect(validarCorpo({ fotoUrl: 123 }, CAMPOS_DO_PROPRIO_PSICOLOGO)).rejects.toMatchObject({ status: 400 });
+  });
+
+  it('preserva a acessibilidade informada quando a gestão aprova o cadastro', () => {
+    const acessibilidade = { necessita: true, descricao: 'Intérprete de Libras.' };
+    expect(aplicarMudancas(cadastro({ acessibilidade }), { status: 'APROVADO' }, CAMPOS_DA_GESTAO).acessibilidade).toEqual(acessibilidade);
+  });
   it('retira da vitrine ao pausar o rodízio', () => {
     const resultado = aplicarMudancas(
       cadastro(),

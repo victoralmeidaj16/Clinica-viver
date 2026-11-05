@@ -261,10 +261,19 @@ export class NfseRepository {
     ]);
   }
 
+  /**
+   * Uma recusa definitiva (4xx) descarta a DPS assinada: ela carrega os dados
+   * recusados, e reenviá-la depois da correção repetiria a mesma recusa. A
+   * próxima tentativa monta outra DPS com o mesmo número. Queda de rede, 408,
+   * 429 e 5xx mantêm o XML, porque a SEFIN pode ter recebido aquela DPS.
+   */
   async registrarFalha(emissaoId: string, falha: { status?: number; corpo?: string; codigo?: string; mensagem: string }) {
+    const recusada = falha.status !== undefined && falha.status >= 400 && falha.status < 500
+      && falha.status !== 408 && falha.status !== 429;
     await this.pool.query(`UPDATE fiscal_nfse_emissoes SET status = 'failed', processando_em = NULL, sefin_http_status = ?, sefin_retorno = ?,
-      erro_codigo = ?, erro_mensagem = ? WHERE instituicao_id = ? AND id = ?`, [
-      falha.status ?? null, falha.corpo ?? null, falha.codigo ?? null, falha.mensagem.slice(0, 1000), instituicaoId(), emissaoId,
+      erro_codigo = ?, erro_mensagem = ?, dps_xml = IF(?, NULL, dps_xml) WHERE instituicao_id = ? AND id = ?`, [
+      falha.status ?? null, falha.corpo ?? null, falha.codigo ?? null, falha.mensagem.slice(0, 1000), recusada,
+      instituicaoId(), emissaoId,
     ]);
   }
 

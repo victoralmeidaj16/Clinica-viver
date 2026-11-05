@@ -23,10 +23,16 @@ const body = { nome: 'Paciente fictício', legalName: 'Paciente fictício', what
   modalidade: 'SOCIAL', turno: 'TARDE', cep: '01310100', logradouro: 'Rua fictícia', numeroResidencia: '1',
   bairro: 'Centro', cidade: 'São Paulo', uf: 'SP' };
 
+function captura() {
+  return { triagensPacientes: [], cadastrosPsicologos: [{ id: 'cad-pro', profissionalRef: 'pro',
+    nomeCompleto: 'Profissional fictício', crp: '00/00000', whatsapp: '', criadoEm: '2026-01-01T12:00:00Z',
+    status: 'APROVADO', servicosHabilitados: ['PSICOTERAPIA'], modalidadesAtendidas: ['ACESSIVEL_SOCIAL'] }] };
+}
+
 beforeEach(() => {
   vi.resetAllMocks();
   state.query.mockResolvedValue([[]]);
-  state.mutate.mockImplementation(async (callback) => (await callback({ triagensPacientes: [], cadastrosPsicologos: [] },
+  state.mutate.mockImplementation(async (callback) => (await callback(captura(),
     { query: state.query })).result);
 });
 
@@ -39,6 +45,14 @@ it('grava perfil, contato e triagem pela mesma transação de captação', async
   expect(state.welcome).toHaveBeenCalledWith(expect.objectContaining({
     pacienteRef: state.save.mock.calls[0][0].id, status: 'CONTATO_CONFIRMADO',
   }));
+});
+
+it('recusa modalidade não habilitada na transação sem gravar ou enviar boas-vindas', async () => {
+  await expect(createPatient(context, { ...body, modalidade: 'PARTICULAR' })).rejects.toMatchObject({ status: 403 });
+  expect(state.save).not.toHaveBeenCalled();
+  expect(state.contact).not.toHaveBeenCalled();
+  expect(state.checkCpf).not.toHaveBeenCalled();
+  expect(state.welcome).not.toHaveBeenCalled();
 });
 
 it('não grava o perfil se o CPF já estiver em outro cadastro', async () => {
@@ -67,7 +81,7 @@ it('rejeita telefone inválido antes de gravar qualquer coisa ou enviar WhatsApp
 it('só envia a mensagem depois que a gravação foi confirmada', async () => {
   const ordem: string[] = [];
   state.mutate.mockImplementation(async (callback) => {
-    const { result } = await callback({ triagensPacientes: [], cadastrosPsicologos: [] }, { query: state.query });
+    const { result } = await callback(captura(), { query: state.query });
     ordem.push('commit');
     return result;
   });
@@ -78,7 +92,7 @@ it('só envia a mensagem depois que a gravação foi confirmada', async () => {
 
 it('não envia nada quando o commit da transação falha', async () => {
   state.mutate.mockImplementation(async (callback) => {
-    await callback({ triagensPacientes: [], cadastrosPsicologos: [] }, { query: state.query });
+    await callback(captura(), { query: state.query });
     throw new Error('commit falhou');
   });
   await expect(createPatient(context, body)).rejects.toThrow('commit falhou');

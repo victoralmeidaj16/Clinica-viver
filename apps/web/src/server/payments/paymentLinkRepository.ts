@@ -21,6 +21,20 @@ import { priceSessionBatch } from '@/lib/sessionBatchPayment';
 
 export class SessionChargeUnavailableError extends Error {}
 
+/**
+ * Sessão cancelada não tem o que pagar, nem falta que o profissional decidiu não
+ * cobrar: a ausência de cobrança ativa é o registro dessa decisão, e sem esta
+ * condição o link público criaria uma cobrança nova ao ser aberto.
+ */
+function sessaoAceitaPagamentoSql(a: string): string {
+  return `${a}.status <> 'cancelado'
+        AND (${a}.status <> 'faltou' OR EXISTS (
+          SELECT 1 FROM financeiro_cobrancas falta_fc
+           WHERE falta_fc.instituicao_id = ${a}.instituicao_id
+             AND falta_fc.sessao_ref IN (${a}.ref_core, COALESCE(${a}.sessao_clinica_ref, ${a}.ref_core))
+             AND falta_fc.status <> 'cancelled'))`;
+}
+
 export type PaymentModality = 'social' | 'particular';
 
 export interface ReservedCheckout {
@@ -115,7 +129,7 @@ export async function getSessionPaymentProfile(
          ON conv.instituicao_id = pa.instituicao_id AND conv.organizacao_ref = o.ref_core
         AND conv.ref_core = pa.convenio_ref
       WHERE a.instituicao_id = ? AND a.token_pagamento_sessao = ?
-        AND a.status <> 'cancelado'
+        AND ${sessaoAceitaPagamentoSql('a')}
       LIMIT 1`,
     [instituicaoId(), token]
   );
@@ -155,7 +169,7 @@ export async function listPayablePatientSessions(input: {
         AND conv.organizacao_ref = org.ref_core AND conv.ref_core = pa.convenio_ref
        LEFT JOIN financeiro_cobrancas c
          ON c.instituicao_id = future.instituicao_id AND c.sessao_ref = future.ref_core
-      WHERE anchor.instituicao_id = ? AND anchor.token_pagamento_sessao = ? AND anchor.status <> 'cancelado'
+      WHERE anchor.instituicao_id = ? AND anchor.token_pagamento_sessao = ? AND ${sessaoAceitaPagamentoSql('anchor')}
         AND (REPLACE(REPLACE(REPLACE(COALESCE(pa.documento, ''), '.', ''), '-', ''), ' ', '') = ?
           OR (${CPF_CADASTRO_SQL} IS NULL AND EXISTS (SELECT 1 FROM clinica_triagens_pacientes t
             JOIN clinica_organizacoes o ON o.id = anchor.organizacao_id
@@ -219,7 +233,7 @@ export async function reserveAppointmentCharge(input: {
            ON conv.instituicao_id = pa.instituicao_id AND conv.organizacao_ref = o.ref_core
           AND conv.ref_core = pa.convenio_ref
         WHERE a.instituicao_id = ? AND a.token_pagamento_sessao = ?
-          AND a.status <> 'cancelado'
+          AND ${sessaoAceitaPagamentoSql('a')}
           AND (
             REPLACE(REPLACE(REPLACE(COALESCE(pa.documento, ''), '.', ''), '-', ''), ' ', '') = ?
             OR (${CPF_CADASTRO_SQL} IS NULL AND EXISTS (

@@ -1,6 +1,6 @@
 export interface ConvenioView {
   id: string; nome: string; razaoSocial?: string; cnpj?: string; emailFaturamento?: string;
-  empresaPagaSessoes: boolean; pacoteSessoes?: number | null; diaVencimento?: number | null; ativo: boolean;
+  empresaPagaSessoes: boolean; pacoteSessoes?: number | null; pacoteSessoesCiclo?: 'total' | 'mensal' | null; diaVencimento?: number | null; ativo: boolean;
   pacientes: number; pacientesCusteados: number; sessoesProvisionadas: number; valorProvisionadoCents: number;
 }
 
@@ -12,7 +12,7 @@ export interface PacienteConvenioView {
 export interface SessaoConvenioView {
   chargeId: string; sessionId: string; patientId: string; pacienteNome: string;
   professionalId: string; psicologoNome: string; realizadaEm: string; valorCents: number;
-  status: string; faturaId?: string; custeadoPelaEmpresa: boolean;
+  status: string; faturaId?: string; custeadoPelaEmpresa: boolean; atendimentoRealizado?: boolean;
 }
 
 export interface FaturaConvenioView {
@@ -28,5 +28,5 @@ export interface ConvenioDetailView {
 
 export interface ConvenioPayload {
   nome: string; razaoSocial?: string; cnpj?: string; emailFaturamento?: string;
-  empresaPagaSessoes: boolean; pacoteSessoes?: number | null; diaVencimento?: number | null; ativo: boolean;
+  empresaPagaSessoes: boolean; pacoteSessoes?: number | null; pacoteSessoesCiclo?: 'total' | 'mensal' | null; diaVencimento?: number | null; ativo: boolean;
 }

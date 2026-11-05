@@ -23,6 +23,17 @@ describe('transferência de cobrança para empresa', () => {
     } finally { spy.mockRestore(); }
   });
 
+  it('sessão futura transferida perde a decisão antiga de "paciente paga"', async () => {
+    vi.clearAllMocks();
+    mocks.query.mockResolvedValueOnce([[{ id: 'a2' }], []]).mockResolvedValueOnce([[{ custeado: 1 }], []]).mockResolvedValueOnce([[{ id: 'a2' }], []]);
+    mocks.execute.mockResolvedValue([{ affectedRows: 1 }, []]);
+    mocks.cancel.mockResolvedValue('cancelled');
+    mocks.connectionQuery.mockResolvedValue([[{ status: 'agendado', sessao_clinica_ref: null }], []]);
+    mocks.connectionExecute.mockResolvedValue([{ affectedRows: 1 }, []]);
+    expect(await transferirCobrancasParaEmpresa('org-1', 'patient-1')).toEqual({ transferidas: 1, mantidas: 0, pendentes: 0 });
+    expect(mocks.connectionExecute.mock.calls[0][0]).toContain('custeado_pela_empresa = NULL');
+  });
+
   it('não cancela nem cria outra cobrança quando a sessão já foi transferida', async () => {
     vi.clearAllMocks();
     mocks.query.mockResolvedValueOnce([[{ id: 'a3' }], []]);

@@ -42,6 +42,25 @@ function bindings(sql: string, values: unknown[]) {
     .map((trecho, indice) => [trecho.trimEnd().split('\n').at(-1)!.trim(), values[indice]] as const);
 }
 
+describe('sessoesDoConvenio', () => {
+  beforeEach(() => vi.clearAllMocks());
+  const linha = { ref_core: 'c', sessao_ref: 's', paciente_ref: 'p', profissional_ref: 'pr', valor_centavos: 100,
+    status: 'pending', paciente_nome: 'Paciente fictício', realizada_em: '2026-10-01', custeado_efetivo: 1 };
+
+  // Mesma condição do fechamento: sem ela, a lista oferece o que a fatura recusa.
+  it.each([
+    ['agendamento em aberto', { agendamento_id: 'a', agendamento_status: 'agendado' }, false],
+    ['falta', { agendamento_id: 'a', agendamento_status: 'faltou' }, false],
+    ['atendimento realizado', { agendamento_id: 'a', agendamento_status: 'realizado' }, true],
+    ['cobrança sem agendamento', { agendamento_id: null, agendamento_status: null }, true],
+  ])('informa se o atendimento foi realizado: %s', async (_nome, campos, realizado) => {
+    query.mockResolvedValueOnce([[{ ...linha, ...campos }], []] as never);
+    const [sessao] = await sessoesDoConvenio('org-1', 'conv-1');
+    expect(sessao.atendimentoRealizado).toBe(realizado);
+    expect((query.mock.calls.at(-1) as unknown as [string])[0]).toContain('ag.status AS agendamento_status');
+  });
+});
+
 describe('pacientesDoConvenio', () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -123,13 +142,38 @@ describe('fecharFatura', () => {
     expect(sql).toContain('COALESCE(ag.custeado_pela_empresa,');
     expect(sql).toContain('LEFT JOIN clinica_agendamentos ag');
     expect(sql).toContain('COALESCE(p.custeado_pela_empresa, c.empresa_paga_sessoes, 1) = 0 THEN 0');
-    expect(sql).toContain('< p.custeio_sessoes_cota THEN 1');
+    expect(sql).toContain('< COALESCE(c.pacote_sessoes, p.custeio_sessoes_cota) THEN 1');
     expect(sql).toContain('JOIN clinica_convenios c');
     expect(sql).toContain('LEFT JOIN clinica_sessoes s');
+    expect(sql).toContain("(ag.id IS NULL OR ag.status = 'realizado')");
     expect(sql).toContain('COALESCE(s.inicio_real, s.inicio_previsto, ag.inicio, fc.emitida_em) >= DATE_ADD(?, INTERVAL 3 HOUR)');
     // O filtro de custeio não carrega parâmetro: a ordem original se mantém.
     expect(values).toEqual(['inst-1', 'org-1', 'conv-1', '2026-09-01', '2026-09-30']);
     expect(connection.rollback).toHaveBeenCalled();
+  });
+
+  it('cria nova fatura aberta quando a anterior da mesma competência já gerou boleto', async () => {
+    connection.query
+      .mockResolvedValueOnce([[{ ref_core: 'charge-2', valor_centavos: 12000 }], []] as never)
+      .mockResolvedValueOnce([[], []] as never)
+      .mockResolvedValueOnce([[], []] as never);
+    query.mockResolvedValueOnce([[{
+      ref_core: 'fatura-nova', convenio_ref: 'conv-1', competencia: '2026-09',
+      periodo_inicio: '2026-09-01', periodo_fim: '2026-09-30', total_sessoes: 1,
+      valor_centavos: 12000, status: 'aberta', criado_em: '2026-09-30',
+    }], []] as never);
+
+    const fatura = await fecharFatura('org-1', 'conv-1', {
+      competencia: '2026-09', periodoInicio: '2026-09-01', periodoFim: '2026-09-30',
+      cobrancaRefs: ['charge-2'],
+    });
+
+    const [buscaAbertaSql, buscaAbertaValues] = connection.query.mock.calls[1] as unknown as [string, unknown[]];
+    expect(buscaAbertaSql).toContain("AND status = 'aberta'");
+    expect(buscaAbertaValues).toEqual(['inst-1', 'org-1', 'conv-1', '2026-09']);
+    const writes = connection.execute.mock.calls as unknown as Array<[string, unknown[]]>;
+    expect(writes[0]?.[0]).toContain('INSERT INTO financeiro_faturas_convenio');
+    expect(fatura.id).toBe('fatura-nova');
   });
 });
 
@@ -267,9 +311,10 @@ describe('provisionamento empresarial', () => {
     const sum = sql.slice(sql.indexOf('COALESCE(SUM(CASE WHEN fc.fatura_convenio_ref'), sql.indexOf('AS valor_provisionado_centavos'));
     for (const aggregate of [count, sum]) {
       expect(aggregate).toContain("fc.status IN ('pending','overdue')");
+      expect(aggregate).toContain("(ag.id IS NULL OR ag.status = 'realizado')");
       expect(aggregate).toContain('COALESCE(ag.custeado_pela_empresa,');
       expect(aggregate).toContain('COALESCE(p.custeado_pela_empresa, c.empresa_paga_sessoes, 1) = 0 THEN 0');
-      expect(aggregate).toContain('< p.custeio_sessoes_cota THEN 1');
+      expect(aggregate).toContain('< COALESCE(c.pacote_sessoes, p.custeio_sessoes_cota) THEN 1');
       expect(aggregate).toContain('= 1');
     }
     expect(sql).toContain('ag.organizacao_id = p.organizacao_id');

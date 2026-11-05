@@ -29,6 +29,15 @@ const lead: TriagemPacienteRecord = {
 afterEach(() => vi.useRealTimers());
 
 describe('compatibilidade da vitrine com o envio da escolha direta', () => {
+  it('não publica a acessibilidade pessoal na vitrine', async () => {
+    mocks.read.mockResolvedValue({ ...emptySnapshot(), cadastrosPsicologos: [{ ...psi,
+      acessibilidade: { necessita: true, descricao: 'Recurso de acessibilidade fictício.' },
+    }] });
+    const { data } = await (await GET()).json();
+    expect(data).toHaveLength(1);
+    expect(data[0]).not.toHaveProperty('acessibilidade');
+    expect(JSON.stringify(data)).not.toContain('Recurso de acessibilidade fictício.');
+  });
   const casos: [string, Partial<CadastroPsicologoRecord>, Partial<TriagemPacienteRecord>, boolean][] = [
     ['mesmo telefone e email do profissional', {}, {}, true],
     ['modalidade não cadastrada', { modalidadesAtendidas: [] }, {}, false],

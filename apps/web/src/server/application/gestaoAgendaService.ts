@@ -32,6 +32,6 @@ export async function editGestaoAppointment(context: RequestContext, id: string,
   if (!professionalId) throw new ApplicationError('NOT_FOUND', 'Agendamento não encontrado.', 404);
   // O profissional vem do agendamento da organização autenticada, nunca do cliente.
   await editAgendaAppointment({ ...context, actor: { ...context.actor, professionalProfileId: professionalId } },
-    id, input, { somenteAgendadas: true });
+    id, input, { somenteAgendadas: true, permitirHorarioPassado: true });
   return { updated: true };
 }

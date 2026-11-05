@@ -11,6 +11,14 @@ export interface SessionEditableData {
   convenioNome?: string;
 }
 
+/** A gestão pode corrigir o histórico; para o psicólogo, um novo horário precisa estar no futuro. */
+export function erroDoNovoHorario(input: {
+  admin: boolean; horarioMudou: boolean; inicio: number; agora: number;
+}): string | undefined {
+  if (input.admin || !input.horarioMudou || input.inicio > input.agora) return undefined;
+  return 'O novo horário deve estar no futuro.';
+}
+
 export function camposIniciais(session: SessionEditableData) {
   const parts = Object.fromEntries(
     new Intl.DateTimeFormat('en-CA', {

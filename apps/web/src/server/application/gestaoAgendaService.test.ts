@@ -29,7 +29,7 @@ it.each(['admin', 'owner'] as const)('permite %s sem perfil profissional editar 
   expect(profissionalDoAgendamentoGestao).toHaveBeenCalledWith('org-1', 'apt');
   expect(editAgendaAppointment).toHaveBeenCalledWith({ ...authorized,
     actor: { ...authorized.actor, professionalProfileId: 'pro-from-appointment' } },
-  'apt', { custeadoPelaEmpresa: true }, { somenteAgendadas: true });
+  'apt', { custeadoPelaEmpresa: true }, { somenteAgendadas: true, permitirHorarioPassado: true });
 });
 it('não edita referência ausente da organização autenticada', async () => {
   vi.mocked(profissionalDoAgendamentoGestao).mockResolvedValueOnce(null);

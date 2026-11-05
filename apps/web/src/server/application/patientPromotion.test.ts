@@ -54,15 +54,22 @@ describe('promoverLeadEmPaciente', () => {
     expect(patients.size).toBe(1);
   });
 
-  it('cria o paciente com id derivado quando o lead ainda não tem vínculo', async () => {
+  it('cria o paciente com id derivado e preserva data de nascimento quando o lead ainda não tem vínculo', async () => {
     const lead = {
       id: 'lead-1',
       protocolo: 'VM-1',
       nomePaciente: 'Paciente',
+      dataNascimento: '1994-05-18',
       status: 'CONTATO_CONFIRMADO',
       psicologoAlocadoId: 'cad-1',
     } as TriagemPacienteRecord;
 
     expect(await promoverLeadEmPaciente(lead, psicologos)).toBe('paciente-lead-1');
+    expect(identities.savePatient).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'paciente-lead-1',
+        birthDate: '1994-05-18',
+      })
+    );
   });
 });

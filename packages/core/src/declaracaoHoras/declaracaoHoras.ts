@@ -24,20 +24,13 @@ export const HORAS_POR_SESSAO = 1;
 /**
  * Sessões que entram na conta.
  *
- * `completed` é o atendimento fechado. `awaiting_review` e `ready_to_complete`
- * também entram porque o atendimento **aconteceu** — o que falta neles é a
- * revisão do prontuário, que é trabalho posterior do profissional e não muda o
- * fato de o paciente ter sido atendido. Descontá-las puniria o psicólogo pelo
- * atraso na papelada.
- *
- * `no_show` e `cancelled` ficam de fora pelo motivo oposto: não houve
- * atendimento. `scheduled`, `confirmed` e `in_progress` são futuro ou presente,
- * e declaração não se emite sobre hora que ainda não terminou.
+ * Somente `completed`, que registra a confirmação de realização pelo
+ * profissional. Revisão de prontuário, agendamento, cancelamento e falta não
+ * substituem essa confirmação. O pagamento é independente: uma sessão
+ * confirmada como realizada conta mesmo quando ainda não foi paga.
  */
 export const STATUS_QUE_CONTAM_HORA: readonly ClinicalSessionStatus[] = [
   'completed',
-  'ready_to_complete',
-  'awaiting_review',
 ];
 
 /** O bastante de uma sessão para apurar horas. `ClinicalSession` satisfaz. */

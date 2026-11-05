@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Banknote, Check, Copy, ExternalLink, FileCheck2, Loader2, Trash2 } from 'lucide-react';
 import { applicationRequest, commandHeaders } from '@/lib/applicationApi';
 import type { FaturaConvenioView } from './types';
@@ -10,7 +10,7 @@ const statusLabel = { aberta: 'Aberta', boleto_gerado: 'Boleto gerado', paga: 'P
 
 interface FiscalData {
   preview: { camposPendentes: string[]; integracaoConfigurada: boolean; statusFatura: string; ambiente: 'producao' | 'producao_restrita'; tomadorExigeConferencia: boolean; convenio: { nome: string; cnpj?: string } };
-  emission: { status: string; numeroNfse?: string; danfseDisponivel?: boolean; xmlNfseDisponivel?: boolean };
+  emission: { status: string; numeroNfse?: string; danfseDisponivel?: boolean; xmlNfseDisponivel?: boolean; erroMensagem?: string; emailErro?: string };
 }
 
 export function FaturaNfsePanel({ convenioId, fatura, onRefresh }: { convenioId: string; fatura: FaturaConvenioView; onRefresh: () => Promise<void> }) {
@@ -36,6 +36,15 @@ export function FaturaNfsePanel({ convenioId, fatura, onRefresh }: { convenioId:
     try { const data = await applicationRequest<FiscalData>(`${base}/nfse`); setTomadorConferido(false); setFiscal(data); return data; }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Não foi possível consultar a NFS-e.'); }
   };
+
+  useEffect(() => {
+    if (fatura.status !== 'paga') return;
+    let active = true;
+    void applicationRequest<FiscalData>(`${base}/nfse`)
+      .then((data) => { if (active) setFiscal(data); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [base, fatura.status]);
 
   const nfse = async () => {
     setWorking('nfse'); setError('');
@@ -86,7 +95,9 @@ export function FaturaNfsePanel({ convenioId, fatura, onRefresh }: { convenioId:
       {fatura.linhaDigitavel && <div className="mt-3 flex items-center gap-2 rounded-xl bg-slate-50 p-2.5"><code className="min-w-0 flex-1 break-all text-[10px] text-ink">{fatura.linhaDigitavel}</code><button type="button" onClick={() => { void navigator.clipboard.writeText(fatura.linhaDigitavel!); setCopied(true); }} className="rounded-lg p-2 text-muted hover:bg-white hover:text-ink">{copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}</button></div>}
       {fiscal?.preview.camposPendentes.length ? <p className="mt-3 rounded-xl bg-amber-50 p-3 text-xs font-bold text-amber-800">Complete: {fiscal.preview.camposPendentes.join(', ')}.</p> : null}
       {fiscal && <p className="mt-3 rounded-xl bg-slate-50 p-3 text-xs font-bold text-ink">Ambiente fiscal: {fiscal.preview.ambiente === 'producao' ? 'Produção' : 'Homologação'}</p>}
-      {fiscal && <p className="mt-2 text-xs text-muted">Tomador da nota: {fiscal.preview.convenio.nome} · CNPJ {fiscal.preview.convenio.cnpj ?? 'pendente'}</p>}
+      {fiscal && <p className="mt-2 text-xs text-muted">Tomador da nota: {fiscal.preview.convenio.nome} · CNPJ {fiscal.preview.convenio.cnpj ?? 'pendente'}{fiscal.emission.numeroNfse ? ` · NFS-e nº ${fiscal.emission.numeroNfse}` : ''}</p>}
+      {fiscal?.emission.erroMensagem && <p className="mt-2 rounded-xl bg-rose-50 p-2.5 text-xs font-bold text-rose-700">{fiscal.emission.erroMensagem}</p>}
+      {fiscal?.emission.emailErro && <p className="mt-2 rounded-xl bg-amber-50 p-2.5 text-xs font-bold text-amber-800">{fiscal.emission.emailErro}</p>}
       {fiscal?.preview.tomadorExigeConferencia && fatura.status === 'paga' && <label className="mt-3 flex gap-2 rounded-xl bg-amber-50 p-3 text-xs font-bold text-amber-900"><input type="checkbox" checked={tomadorConferido} onChange={(event) => setTomadorConferido(event.target.checked)} /> <span>Conferi no boleto que o tomador é {fiscal.preview.convenio.nome}, CNPJ {fiscal.preview.convenio.cnpj ?? 'não informado'}.</span></label>}
       {error && <p className="mt-3 rounded-xl bg-rose-50 p-3 text-xs font-bold text-rose-700">{error}</p>}
       {fatura.status === 'revisao_pagamento' && <p role="alert" className="mt-3 rounded-xl bg-amber-50 p-3 text-xs font-bold text-amber-900">O valor informado pelo provedor{fatura.valorRecebidoDivergenteCents !== undefined ? ` (${money(fatura.valorRecebidoDivergenteCents)})` : ''} diverge da fatura. Confira o pagamento antes de emitir a NFS-e.</p>}

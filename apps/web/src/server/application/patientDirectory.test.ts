@@ -21,7 +21,14 @@ vi.mock('./store', () => ({
     updatePatientRegistration: state.updateRegistration,
     getPatient: async (_organizationId: string, id: string) => state.patients.get(id),
     savePatient: async (patient: PatientProfile) => { state.patients.set(patient.id, patient); },
-    getProfessional: async () => ({ id: 'professional-roster-1', displayName: 'Profissional fictício' }),
+    getProfessional: async () => ({ id: 'professional-roster-1', displayName: 'Profissional fictício', status: 'active' }),
+    reassignPatient: async ({ patientId, professionalId }: { patientId: string; professionalId: string }) => {
+      const patient = state.patients.get(patientId);
+      if (!patient) return null;
+      const next = { ...patient, primaryProfessionalId: professionalId, assignedProfessionalIds: [professionalId] };
+      state.patients.set(patientId, next);
+      return next;
+    },
   } }),
   persistApplicationState: vi.fn(async () => {}),
 }));
@@ -43,7 +50,8 @@ vi.mock('./persistence', async (importOriginal) => ({
   writeSnapshot: vi.fn(async () => {}),
 }));
 
-import { createPatient, listPatientDirectory, registerPatientDropout, getPatientRegistration, updatePatientRegistration } from './patientDirectory';
+import { createPatient, listPatientDirectory, registerPatientDropout, getPatientRegistration, updatePatientRegistration, reassignPatient } from './patientDirectory';
+import { notificacoesDoPsicologo } from './notificacoes';
 import { writeSnapshot } from './persistence';
 
 const context: RequestContext = {
@@ -75,6 +83,7 @@ beforeEach(() => {
       id, profissionalRef: `professional-${id}`, nomeCompleto: 'Profissional fictício',
       crp: '00/00000', whatsapp: '11999999999', status: 'APROVADO',
       criadoEm: '2026-01-01T12:00:00.000Z', pacientesAtivosCount: 0,
+      modalidadesAtendidas: ['ACESSIVEL_SOCIAL'], servicosHabilitados: ['PSICOTERAPIA'],
     })),
   };
 });
@@ -106,6 +115,16 @@ describe('desistência registrada pelo psicólogo', () => {
 });
 
 describe('cadastro manual de paciente', () => {
+  it.each([
+    { modalidade: 'PARTICULAR' },
+    { servicoKey: 'AVALIACAO' },
+  ])('recusa opções sem habilitação antes de salvar: %j', async (opcao) => {
+    await expect(createPatient(context, { ...body, ...opcao })).rejects.toMatchObject({ status: 403 });
+    expect(state.patients.size).toBe(0);
+    expect(state.capture.triagensPacientes).toEqual([]);
+    expect(state.welcome).not.toHaveBeenCalled();
+  });
+
   it('envia as boas-vindas somente após persistir o paciente e sua triagem confirmada', async () => {
     state.welcome.mockImplementation(async (lead) => {
       expect(state.patients.has(lead.pacienteRef)).toBe(true);
@@ -164,12 +183,75 @@ describe('cadastro manual de paciente', () => {
     expect(state.capture.cadastrosPsicologos[0].pacientesAtivosCount).toBe(1);
   });
 
-  it('não inventa vínculo de rodízio quando só existe o perfil clínico', async () => {
-    state.capture.cadastrosPsicologos = [];
+  it('impede o psicólogo de cadastrar paciente no perfil de outro psicólogo', async () => {
+    await expect(createPatient(context, { ...body, professionalId: 'professional-roster-2' }))
+      .rejects.toMatchObject({ status: 403 });
+    expect(state.patients.size).toBe(0);
+    expect(state.capture.triagensPacientes).toHaveLength(0);
+    expect(state.welcome).not.toHaveBeenCalled();
+  });
+
+  it('vincula ao próprio perfil quando o corpo não informa o profissional', async () => {
     const patient = await createPatient(context, body);
-    expect(patient.primaryProfessionalId).toBe('professional-roster-1');
-    expect(state.capture.triagensPacientes[0].psicologoAlocadoId).toBeUndefined();
-    expect(state.capture.triagensPacientes[0].psicologosJaTentados).toEqual([]);
+    expect(patient).toMatchObject({
+      primaryProfessionalId: 'professional-roster-1', assignedProfessionalIds: ['professional-roster-1'],
+    });
+  });
+
+  it('recusa cadastro sem nome antes de gravar', async () => {
+    await expect(createPatient(context, { ...body, nome: '  ', legalName: undefined }))
+      .rejects.toMatchObject({ status: 400 });
+    expect(state.patients.size).toBe(0);
+  });
+
+  it('registra o convênio escolhido na triagem do paciente conveniado', async () => {
+    await createPatient(context, {
+      ...body, possuiConvenio: 'SIM', convenioSelecionado: 'Convênio Fictício',
+    });
+    expect(state.capture.triagensPacientes[0]).toMatchObject({
+      possuiConvenio: 'SIM', convenioSelecionado: 'Convênio Fictício',
+    });
+  });
+
+  it('descarta convênio informado quando a modalidade é particular', async () => {
+    state.capture.cadastrosPsicologos[0].modalidadesAtendidas = ['PARTICULAR'];
+    await createPatient(context, {
+      ...body, modalidade: 'PARTICULAR', possuiConvenio: 'SIM', convenioSelecionado: 'Convênio Fictício',
+    });
+    expect(state.capture.triagensPacientes[0]).toMatchObject({ possuiConvenio: 'NAO', convenioSelecionado: 'Nenhum' });
+  });
+
+  it('recusa cadastro pelo psicólogo sem habilitações vinculadas ao perfil clínico', async () => {
+    state.capture.cadastrosPsicologos = [];
+    await expect(createPatient(context, body)).rejects.toMatchObject({ status: 403 });
+    expect(state.patients.size).toBe(0);
+    expect(state.capture.triagensPacientes).toEqual([]);
+    expect(state.welcome).not.toHaveBeenCalled();
+  });
+});
+
+describe('notificação após encaminhar paciente confirmado', () => {
+  it('mostra a nova atribuição sem herdar o primeiro contato do psicólogo anterior', async () => {
+    const patient = await createPatient(context, body);
+    const contatoAntigo = '2026-10-20T12:00:00.000Z';
+    state.capture.triagensPacientes = state.capture.triagensPacientes.map((lead) => ({ ...lead,
+      alocadoEm: contatoAntigo, aceitoEm: contatoAntigo, confirmadoEm: contatoAntigo }));
+    const admin: RequestContext = { ...context, actor: { ...context.actor, roles: ['admin'] } };
+    await reassignPatient(admin, { id: patient.id, professionalId: 'professional-roster-2', motivo: 'Troca solicitada' });
+
+    const novo = state.capture.cadastrosPsicologos[1];
+    const avisos = notificacoesDoPsicologo(state.capture, novo).filter((item) => item.chave.includes(state.capture.triagensPacientes[0].id));
+    expect(avisos).toHaveLength(1);
+    expect(avisos[0]).toMatchObject({ tipo: 'paciente-encaminhado', titulo: 'Paciente encaminhado para você',
+      ocorridoEm: state.capture.triagensPacientes[0].alocadoEm, pendente: false });
+    expect(avisos[0].ocorridoEm).not.toBe(contatoAntigo);
+    expect(state.capture.triagensPacientes[0].confirmadoEm).toBe(contatoAntigo);
+    expect(state.capture.cadastrosPsicologos.map((item) => item.pacientesAtivosCount)).toEqual([0, 1]);
+
+    await reassignPatient(admin, { id: patient.id, professionalId: 'professional-roster-2', motivo: 'Reenvio' });
+    const repetidos = notificacoesDoPsicologo(state.capture, state.capture.cadastrosPsicologos[1])
+      .filter((item) => item.tipo === 'paciente-encaminhado');
+    expect(repetidos.map((item) => item.chave)).toEqual([avisos[0].chave]);
   });
 });
 

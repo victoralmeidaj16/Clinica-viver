@@ -4,7 +4,7 @@ import { gerarDpsPsicologia } from '@thats-life/core';
 import type { RequestContext } from './context';
 import { ApplicationError } from './http';
 import { exigirAdminFiscal } from './clinicFinanceService';
-import { codigoDaFalha, dataHoraDps, interpretarNota, recuperarNotaPorDps, serieDps } from './nfseEmissionService';
+import { codigoDaFalha, dataHoraDps, enviarEmailDaNota, interpretarNota, recuperarNotaPorDps, serieDps } from './nfseEmissionService';
 import { obterConvenio, obterFatura } from '@/server/persistence/mysql/convenioRepository';
 import { statusCertificadoNfse } from '@/server/fiscal/certificadoNfse';
 import { exigirCertificadoNfseApto } from '@/server/fiscal/certificadoNfse';
@@ -68,7 +68,12 @@ export async function emitirNfseFatura(context: RequestContext, convenioId: stri
     usuarioId: context.actor.userId,
   });
   if (emission.ambiente !== ambiente) throw new ApplicationError('INVALID_FISCAL_STATE', 'Existe uma emissão desta fatura em outro ambiente fiscal. A emissão precisa ser revisada antes de prosseguir.', 409);
-  if (emission.status === 'issued') return { status: 'issued' as const, numeroNfse: emission.numeroNfse, ambiente: emission.ambiente };
+  if (emission.status === 'issued') {
+    if (typeof enviarEmailDaNota === 'function') {
+      return enviarEmailDaNota(repository, organizationId, faturaId, { nome: previa.convenio.nome, email: previa.convenio.email });
+    }
+    return { status: 'issued' as const, numeroNfse: emission.numeroNfse, ambiente: emission.ambiente };
+  }
   if (emission.status === 'cancelled') throw new ApplicationError('INVALID_FISCAL_STATE', 'Esta DPS foi cancelada e não pode ser reenviada.', 409);
   if (!(await repository.iniciarProcessamento(emission.id))) throw new ApplicationError('NFSE_IN_PROGRESS', 'Já existe uma emissão em andamento.', 409);
 
@@ -100,6 +105,9 @@ export async function emitirNfseFatura(context: RequestContext, convenioId: stri
     const response = recuperada?.resposta ?? await enviarDps(xmlAssinado);
     const nota = recuperada?.nota ?? interpretarNota(response);
     await repository.registrarNota(emission.id, { status: response.status, corpo: response.corpo, ...nota });
+    if (typeof enviarEmailDaNota === 'function') {
+      return enviarEmailDaNota(repository, organizationId, faturaId, { nome: previa.convenio.nome, email: previa.convenio.email });
+    }
     return { status: 'issued' as const, numeroNfse: nota.numeroNfse, ambiente };
   } catch (error) {
     const sefin = error instanceof SefinNacionalError ? error : undefined;

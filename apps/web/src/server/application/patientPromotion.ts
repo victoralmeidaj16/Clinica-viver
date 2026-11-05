@@ -100,6 +100,7 @@ export async function promoverLeadEmPaciente(
       // identifica ao ligar para a clínica.
       externalReference: lead.protocolo,
       displayName: lead.nomeSocial?.trim() || lead.nomePaciente,
+      birthDate: lead.dataNascimento,
       primaryProfessionalId: professionalId,
       assignedProfessionalIds: [professionalId],
       createdAt: lead.aceitoEm ?? lead.confirmadoEm ?? new Date().toISOString(),

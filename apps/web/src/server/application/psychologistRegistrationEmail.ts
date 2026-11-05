@@ -2,6 +2,7 @@ import 'server-only';
 
 import type { CadastroPsicologoRecord } from './persistence';
 import { montarEmailViverMais } from './viverMaisEmailTemplate';
+import { dataHoraBrasilia, type ComprovanteGerado } from './termoAdesaoComprovante';
 
 const RESEND_ENDPOINT = 'https://api.resend.com/emails';
 
@@ -21,6 +22,7 @@ interface ConteudoEmail {
   subject: string;
   text: string;
   html: string;
+  attachments?: Array<{ filename: string; content: string }>;
 }
 
 function nomeDeExibicao(record: CadastroPsicologoRecord): string {
@@ -116,7 +118,8 @@ export function conteudoCadastroRecebido(nome: string): ConteudoEmail {
 export function conteudoCadastroAprovado(
   nome: string,
   portalUrl: string,
-  activationUrl?: string
+  activationUrl?: string,
+  aceitoEm?: string
 ): ConteudoEmail {
   const seguro = escaparHtml(nome);
   const portalSeguro = escaparHtml(portalUrl);
@@ -127,6 +130,7 @@ export function conteudoCadastroAprovado(
       `Olá, ${nome}!`,
       '',
       'Seu cadastro profissional foi aprovado pela Viver Mais Psicologia.',
+      ...(aceitoEm ? ['', `Segue em anexo seu Comprovante de Aceite Eletrônico do Termo de Adesão. Aceito em: ${dataHoraBrasilia(aceitoEm)}.`] : []),
       '',
       `Portal: ${portalUrl}`,
       ...(activationUrl ? [`Cadastre sua senha: ${activationUrl}`] : []),
@@ -148,6 +152,7 @@ export function conteudoCadastroAprovado(
         ativacaoSegura
           ? 'Para começar, cadastre sua senha pessoal usando o botão abaixo. Depois disso, seu acesso ao portal estará liberado.'
           : 'Seu acesso já está disponível. Entre no portal para continuar sua jornada com a clínica.',
+        ...(aceitoEm ? [`Segue em anexo seu <strong>Comprovante de Aceite Eletrônico</strong> do Termo de Adesão. Aceito em: ${escaparHtml(dataHoraBrasilia(aceitoEm))}.`] : []),
       ],
       acaoPrincipal: ativacaoSegura
         ? { label: 'Cadastrar minha senha', href: ativacaoSegura }
@@ -219,11 +224,16 @@ export async function avisarCadastroAprovadoPorEmail(
   record: CadastroPsicologoRecord,
   portalUrl: string,
   activationUrl?: string,
-  tentativaId?: string
+  tentativaId?: string,
+  comprovante?: ComprovanteGerado
 ): Promise<ResultadoEmailPsicologo> {
   return enviar(
     record,
     `psychologist-registration-approved-${record.id}${tentativaId ? `-${tentativaId}` : ''}`,
-    conteudoCadastroAprovado(nomeDeExibicao(record), portalUrl, activationUrl)
+    {
+      ...conteudoCadastroAprovado(nomeDeExibicao(record), portalUrl, activationUrl,
+        comprovante ? record.aceiteTermoAdesao?.aceitoEm : undefined),
+      ...(comprovante ? { attachments: [{ filename: comprovante.arquivo, content: comprovante.pdf.toString('base64') }] } : {}),
+    }
   );
 }

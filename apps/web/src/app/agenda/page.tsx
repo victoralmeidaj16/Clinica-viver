@@ -123,6 +123,14 @@ export default function AgendaPage() {
     setDados((atual) => (atual ? { ...atual, appointments: resposta.appointments } : atual));
   };
 
+  const registrarFalta = async (id: string, cobrar: boolean, expectedVersion?: number) => {
+    const resposta = await applicationRequest<{ appointments: AgendamentoResumo[] }>(
+      `/agenda/agendamentos/${encodeURIComponent(id)}`,
+      { method: 'PATCH', body: JSON.stringify({ action: 'no_show', cobrar, expectedVersion }) }
+    );
+    setDados((atual) => (atual ? { ...atual, appointments: resposta.appointments } : atual));
+  };
+
   const atualizarVencimento = async (id: string, dueAt: string) => {
     const resposta = await applicationRequest<{ appointments: AgendamentoResumo[] }>(
       `/agenda/agendamentos/${encodeURIComponent(id)}`,
@@ -278,6 +286,7 @@ export default function AgendaPage() {
                 filtroPaciente={buscaPaciente}
                 onCancelar={cancelarSessao}
                 onConfirmarRealizacao={confirmarRealizacao}
+                onRegistrarFalta={registrarFalta}
                 onAtualizarVencimento={atualizarVencimento}
                 onReagendar={reagendarSessao}
                 onRecarregar={carregar}

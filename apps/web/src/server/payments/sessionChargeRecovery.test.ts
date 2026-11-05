@@ -77,7 +77,7 @@ it.skipIf(!sqlite)('a consulta real seleciona portal e vencimento passado sem in
     ref_core TEXT, sessao_clinica_ref TEXT, status TEXT, realizado_em TEXT, cobranca_vence_em TEXT, custeado_pela_empresa INT, inicio TEXT);
     CREATE TABLE clinica_organizacoes (id TEXT, ref_core TEXT);
     CREATE TABLE clinica_pacientes (id TEXT, instituicao_id TEXT, convenio_ref TEXT, custeado_pela_empresa INT, custeio_sessoes_cota INT, custeio_sessoes_ciclo TEXT);
-    CREATE TABLE clinica_convenios (instituicao_id TEXT, organizacao_ref TEXT, ref_core TEXT, empresa_paga_sessoes INT);
+    CREATE TABLE clinica_convenios (instituicao_id TEXT, organizacao_ref TEXT, ref_core TEXT, empresa_paga_sessoes INT, pacote_sessoes INT, pacote_sessoes_ciclo TEXT);
     CREATE TABLE financeiro_cobrancas (instituicao_id TEXT, organizacao_ref TEXT, sessao_ref TEXT, status TEXT);
     INSERT INTO clinica_organizacoes VALUES ('org-row', 'org');`);
   db.prepare('INSERT INTO clinica_pacientes (id, instituicao_id) VALUES (?, ?)').run('patient-row', inst);

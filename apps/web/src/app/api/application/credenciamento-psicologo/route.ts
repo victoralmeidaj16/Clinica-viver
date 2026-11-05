@@ -25,6 +25,7 @@ import { registrarAceiteTermoAdesao } from '@/server/application/termoAdesaoAcei
 import type { ComprovanteGerado } from '@/server/application/termoAdesaoComprovante';
 import { montarComprovanteTermoAdesao } from '@/server/application/termoAdesaoComprovantePdf';
 import { enviarComprovanteTermoAdesao } from '@/server/application/termoAdesaoComprovanteEmail';
+import { validarAcessibilidade } from '@/lib/psychologistAccessibility';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -111,7 +112,7 @@ async function prepararComprovante(cadastro: CadastroPsicologoRecord): Promise<C
   }
 }
 
-/** Envia a via do termo ao profissional e à clínica e anota o resultado na prova. */
+/** Envia a via da clínica na inscrição e anota o resultado na prova. */
 async function entregarComprovante(cadastro: CadastroPsicologoRecord, comprovante: ComprovanteGerado | null) {
   if (!comprovante) return 'nao_gerado' as const;
   const envio = await enviarComprovanteTermoAdesao(cadastro, comprovante);
@@ -150,6 +151,11 @@ export async function POST(request: Request) {
     const bairro = String(body.bairro ?? '').trim();
     const email = String(body.email ?? '').trim().toLocaleLowerCase('pt-BR');
     const genero = validateGender(body.genero, body.generoOutro);
+    const fotoUrl = typeof body.fotoUrl === 'string' ? body.fotoUrl.trim() : '';
+    const acessibilidade = validarAcessibilidade(body.acessibilidade);
+
+    if (!fotoUrl) return NextResponse.json({ success: false, error: 'Envie uma foto de perfil para concluir o cadastro.' }, { status: 400 });
+    if (!acessibilidade.ok) return NextResponse.json({ success: false, error: acessibilidade.error }, { status: 400 });
 
     if (!whatsapp) {
       return NextResponse.json({ success: false, error: 'Informe um telefone brasileiro válido com DDD.' }, { status: 400 });
@@ -195,12 +201,15 @@ export async function POST(request: Request) {
           typeof servico === 'string' && (!opcoesAtendimento || opcoesAtendimento.servicos.includes(servico))
         )
       : [];
-    const temposAtendimento = Array.isArray(body.temposAtendimento)
-      ? body.temposAtendimento.filter((tempo: unknown): tempo is number => tempo === 50 || tempo === 90)
-      : [];
     const publicoAlvo: unknown[] = Array.isArray(body.publicoAlvo) ? body.publicoAlvo : [];
-    if (opcoesAtendimento && (servicosPrestados.length === 0 || temposAtendimento.length === 0)) {
-      return NextResponse.json({ success: false, error: 'Selecione uma modalidade e um tempo de atendimento.' }, { status: 400 });
+    const temposSolicitados: unknown[] = Array.isArray(body.temposAtendimento) ? body.temposAtendimento : [];
+    const temposAtendimento = temposSolicitados.filter((tempo): tempo is number =>
+      typeof tempo === 'number' && Boolean(opcoesAtendimento?.tempos.includes(tempo)));
+    if (opcoesAtendimento?.tempos.length && (!temposAtendimento.length || temposAtendimento.length !== temposSolicitados.length)) {
+      return NextResponse.json({ success: false, error: 'Selecione ao menos um tempo de atendimento permitido para sua pós-graduação.' }, { status: 400 });
+    }
+    if (opcoesAtendimento && servicosPrestados.length === 0) {
+      return NextResponse.json({ success: false, error: 'Selecione ao menos um serviço de atendimento.' }, { status: 400 });
     }
     if (opcoesAtendimento && (publicoAlvo.length === 0 || publicoAlvo.some((publico) =>
       typeof publico !== 'string' || !opcoesAtendimento.publico.includes(publico)))) {
@@ -218,7 +227,8 @@ export async function POST(request: Request) {
       crp: body.crp,
       whatsapp,
       email,
-      fotoUrl: body.fotoUrl || undefined,
+      fotoUrl,
+      acessibilidade: acessibilidade.data,
       estadoUf,
       cidade,
       logradouro,
@@ -236,7 +246,7 @@ export async function POST(request: Request) {
       // O que o próprio profissional declara sobre o que atende.
       turnosDisponiveis,
       servicosPrestados,
-      temposAtendimento: temposAtendimento.length > 0 ? temposAtendimento : undefined,
+      temposAtendimento: temposAtendimento.length ? [...new Set(temposAtendimento)] : undefined,
       publicoAlvo: publicoAlvo as string[],
       publicoAlvoOutro: body.publicoAlvoOutro || undefined,
       especificarNecessidades: Boolean(body.especificarNecessidades),

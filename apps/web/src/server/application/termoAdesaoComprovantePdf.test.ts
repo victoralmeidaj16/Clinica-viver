@@ -32,7 +32,26 @@ describe('comprovante do aceite do Termo de Adesão', () => {
     const segundo = await gerarComprovanteTermoAdesaoPdf(cadastro);
     expect(primeiro.subarray(0, 5).toString()).toBe('%PDF-');
     expect(sha256(primeiro)).toBe(sha256(segundo));
+    expect(primeiro.toString('latin1').match(/\/Type \/Page\b/g)).toHaveLength(5);
     if (process.env.SALVAR_COMPROVANTE) writeFileSync(process.env.SALVAR_COMPROVANTE, primeiro);
+  });
+
+  it('reproduz o comprovante anterior sem alterar seu PDF nem os hashes registrados', async () => {
+    const pdf = await gerarComprovanteTermoAdesaoPdf({ ...cadastro,
+      aceiteTermoAdesao: { ...cadastro.aceiteTermoAdesao!, versao: '2026.2' },
+    });
+    // O renderizador original produz estes hashes nas versões de zlib usadas
+    // pelos runtimes locais; a compressão muda sem alterar o documento.
+    expect([
+      '026bc94e85d2c6217cf51aea842dd4534ea87ca7dabf4fde0179d09cec11553f',
+      '269a540ebc9dfbeb51ed2b256263d35c96c64d304d2738875c72266655c0d235',
+    ]).toContain(sha256(pdf));
+  });
+
+  it('não substitui uma versão desconhecida pelo texto atual', async () => {
+    await expect(gerarComprovanteTermoAdesaoPdf({ ...cadastro,
+      aceiteTermoAdesao: { ...cadastro.aceiteTermoAdesao!, versao: 'desconhecida' },
+    })).rejects.toThrow('Versão do Termo de Adesão indisponível.');
   });
 
   it('muda o código de verificação quando qualquer dado da prova muda', () => {

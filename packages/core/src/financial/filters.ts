@@ -28,6 +28,7 @@ export function filterChargesByScope(
     return (
       (!filter.organizationId ||
         charge.organizationId === filter.organizationId) &&
+      (!filter.chargeIds || filter.chargeIds.includes(charge.id)) &&
       (!filter.patientIds || filter.patientIds.includes(charge.patientId)) &&
       (!filter.professionalIds ||
         filter.professionalIds.includes(charge.professionalId)) &&

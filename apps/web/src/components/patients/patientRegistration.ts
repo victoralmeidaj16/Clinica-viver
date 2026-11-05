@@ -57,37 +57,7 @@ export async function buscarEnderecoPorCep(cep: string): Promise<EnderecoDoCep |
 
 export const PATIENT_AUDIENCES = ['Criança', 'Adolescente', 'Homem', 'Mulher', 'Idoso', 'Casal', 'Família', 'Grupo', 'Outro'] as const;
 export const PATIENT_ORIGINS = ['Facebook', 'Instagram', 'Google', 'Whatsapp', 'Sou aluno', 'Conveniado', 'Indicação', 'Outros'] as const;
-export const PATIENT_SERVICES = [
-  ['PSICOTERAPIA', 'Psicoterapia Individual'],
-  ['PSICOTERAPIA_CASAL', 'Psicoterapia de Casal'],
-  ['AVALIACAO', 'Avaliação Psicológica e Neuropsicológica'],
-  ['ORIENTACAO_PROFISSIONAL', 'Orientação Profissional/Vocacional'],
-  ['ORIENTACAO_PARENTAL', 'Orientação Parental'],
-] as const;
-export const PATIENT_MODALITIES = [
-  ['SOCIAL', 'Agendamento Acessível/Social'], ['PARTICULAR', 'Agendamento Particular'],
-  ['CASAL_SOCIAL', 'Agendamento Acessível/Social (Casal)'], ['CASAL_PARTICULAR', 'Agendamento Particular (Casal)'],
-  ['FAMILIA_SOCIAL', 'Agendamento Acessível/Social (Em família)'], ['FAMILIA_PARTICULAR', 'Agendamento Particular (Em família)'],
-] as const;
-
-export function serviceName(key: string): string {
-  return PATIENT_SERVICES.find(([value]) => value === key)?.[1] ?? '';
-}
-
-export function modalitiesForService(serviceKey: string) {
-  if (serviceKey === 'PSICOTERAPIA_CASAL') {
-    return PATIENT_MODALITIES.filter(([value]) => value.startsWith('CASAL_'));
-  }
-  if (serviceKey === 'ORIENTACAO_PARENTAL') {
-    return [
-      ['SOCIAL', 'Agendamento Acessível/Social (Individual)'],
-      ['PARTICULAR', 'Agendamento Particular (Individual)'],
-      ['FAMILIA_SOCIAL', 'Agendamento Acessível/Social (Em família)'],
-      ['FAMILIA_PARTICULAR', 'Agendamento Particular (Em família)'],
-    ] as const;
-  }
-  return PATIENT_MODALITIES.filter(([value]) => !value.startsWith('CASAL_') && !value.startsWith('FAMILIA_'));
-}
+export { PATIENT_SERVICES, PATIENT_MODALITIES, serviceName, modalitiesForService } from '@/lib/patientCareOptions';
 
 export function audiencesForService(serviceKey?: string | null): readonly string[] {
   if (serviceKey === 'PSICOTERAPIA_CASAL') {

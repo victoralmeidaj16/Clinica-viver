@@ -26,6 +26,7 @@ rsync -az --delete \
   --exclude '.git/' \
   --exclude '.env' \
   --exclude '.env.*' \
+  --exclude '.claude/*.local.json*' \
   --exclude 'secrets/' \
   --exclude 'backups/' \
   --exclude 'node_modules/' \

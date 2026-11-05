@@ -43,7 +43,30 @@ vi.mock('@/server/application/agendaService', () => ({
   })),
 }));
 
+vi.mock('@/server/application/agendaFaltaService', () => ({
+  registrarFaltaNaAgenda: vi.fn(async (_context, id, input) => ({ noShow: true, id, ...input })),
+}));
+
 describe('PATCH /api/application/agenda/agendamentos/[id]', () => {
+  it('registra a falta com a decisão de cobrança', async () => {
+    const req = new Request('http://localhost/api/application/agenda/agendamentos/123', {
+      method: 'PATCH',
+      body: JSON.stringify({ action: 'no_show', cobrar: false, expectedVersion: 4 }),
+    });
+    const res = await PATCH(req, { params: Promise.resolve({ id: '123' }) });
+    expect(res.status).toBe(200);
+    expect((await res.json()).data).toMatchObject({ noShow: true, id: '123', cobrar: false, expectedVersion: 4 });
+  });
+
+  it('não presume cobrança quando a decisão não vem no pedido', async () => {
+    const req = new Request('http://localhost/api/application/agenda/agendamentos/123', {
+      method: 'PATCH',
+      body: JSON.stringify({ action: 'no_show' }),
+    });
+    const res = await PATCH(req, { params: Promise.resolve({ id: '123' }) });
+    expect(res.status).toBe(400);
+  });
+
   it('processa action: edit com sucesso', async () => {
     const req = new Request('http://localhost/api/application/agenda/agendamentos/123', {
       method: 'PATCH',

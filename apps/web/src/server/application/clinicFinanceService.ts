@@ -26,7 +26,7 @@ import { custeioDoAgendamentoSql } from '@/server/persistence/mysql/custeioSql';
 import { quitadaPelaEmpresa } from '@/lib/convenioBilling';
 import { instituicaoId } from '@/server/persistence/mysql/mappers';
 import type { RowDataPacket } from 'mysql2/promise';
-import type { PatientContactCapable } from '@/server/persistence/mysql/identityRepository';
+import type { PatientContactCapable, PatientRegistrationCapable } from '@/server/persistence/mysql/identityRepository';
 import { ApplicationError } from './http';
 import { descricaoFiscalDaSessao } from '@/lib/sessionReference';
 import { normalizarEmailPaciente } from '@/server/fiscal/nfseEmail';
@@ -116,24 +116,24 @@ function recebimentosNoPeriodo(ledger: FinancialLedger, filter: FinancialFilter)
   return values;
 }
 
-async function resolverNomes(organizationId: string) {
+async function resolverNomes(
+  organizationId: string,
+  patientIds: ReadonlySet<string>,
+  professionalIds: ReadonlySet<string>
+) {
   const store = getApplicationStore();
 
-  const [pacientes, memberships] = await Promise.all([
-    store.identities.listPatients(organizationId),
-    store.identities.listMemberships(organizationId),
+  const [pacientes, perfis] = await Promise.all([
+    Promise.all([...patientIds].map((id) => store.identities.getPatient(organizationId, id))),
+    Promise.all([...professionalIds].map((id) => store.identities.getProfessional(organizationId, id))),
   ]);
 
-  const perfis = await Promise.all(
-    memberships
-      .filter((membership) => membership.professionalProfileId)
-      .map((membership) =>
-        store.identities.getProfessional(organizationId, membership.professionalProfileId as string)
-      )
-  );
-
   return {
-    pacientes: new Map(pacientes.map((paciente) => [paciente.id, paciente.displayName])),
+    pacientes: new Map(
+      pacientes
+        .filter((paciente): paciente is NonNullable<typeof paciente> => paciente !== null)
+        .map((paciente) => [paciente.id, paciente.displayName])
+    ),
     psicologos: new Map(
       perfis
         .filter((perfil): perfil is NonNullable<typeof perfil> => perfil !== null)
@@ -158,7 +158,7 @@ async function metadadosConvenios(organizationId: string, chargeIds: readonly st
        LEFT JOIN clinica_agendamentos ag ON ag.instituicao_id = fc.instituicao_id
         AND fc.sessao_ref IN (ag.ref_core, ag.sessao_clinica_ref)
        LEFT JOIN clinica_convenios conv ON conv.instituicao_id = fc.instituicao_id
-        AND conv.organizacao_ref = fc.organizacao_ref AND conv.ref_core = p.convenio_ref
+        AND conv.organizacao_ref = fc.organizacao_ref AND conv.ref_core = COALESCE(fc.convenio_ref, p.convenio_ref)
       WHERE fc.instituicao_id = ? AND fc.organizacao_ref = ? AND fc.ref_core IN (?)`,
     [instituicaoId(), organizationId, [...chargeIds]]
   );
@@ -190,9 +190,11 @@ export async function getClinicFinanceOverview(
   const receivables = reconcileSessionReceivables(ledger)
     .filter((item) => issuedChargeIds.has(item.chargeId) || receivedByCharge.has(item.chargeId));
   const chargeIds = receivables.map((item) => item.chargeId);
+  const patientIds = new Set(receivables.map((item) => item.patientId));
+  const professionalIds = new Set(receivables.map((item) => item.professionalId));
   const formasPagamento = new Map(ledger.charges.map((charge) => [charge.id, charge.paymentMethod]));
   const [nomes, emissoes, convenios] = await Promise.all([
-    resolverNomes(organizationId),
+    resolverNomes(organizationId, patientIds, professionalIds),
     isMysqlConfigured() ? new NfseRepository().porCobrancas(organizationId, chargeIds) : Promise.resolve(new Map()),
     metadadosConvenios(organizationId, chargeIds),
   ]);
@@ -319,6 +321,30 @@ function contactSource(valor: unknown): PatientContactCapable | null {
   return typeof candidato.listPatientContacts === 'function' ? (candidato as PatientContactCapable) : null;
 }
 
+function registrationSource(valor: unknown): PatientRegistrationCapable | null {
+  const candidato = valor as Partial<PatientRegistrationCapable>;
+  return typeof candidato.getPatientRegistration === 'function' ? (candidato as PatientRegistrationCapable) : null;
+}
+
+async function leadFiscalDoPaciente(organizationId: string, patientId: string): Promise<{ nomePaciente?: string; cpf?: string; email?: string } | undefined> {
+  if (isMysqlConfigured()) {
+    const [rows] = await getMysqlPool().query<RowDataPacket[]>(
+      `SELECT nome_paciente, cpf, email FROM clinica_triagens_pacientes
+        WHERE instituicao_id = ? AND organizacao_ref = ? AND paciente_ref = ?
+        ORDER BY criado_em DESC LIMIT 1`,
+      [instituicaoId(), organizationId, patientId]
+    );
+    const row = rows[0];
+    return row ? {
+      nomePaciente: row.nome_paciente ? String(row.nome_paciente) : undefined,
+      cpf: row.cpf ? String(row.cpf) : undefined,
+      email: row.email ? String(row.email) : undefined,
+    } : undefined;
+  }
+  const state = await getCaptureRepository().read();
+  return state.triagensPacientes.find((item) => item.pacienteRef === patientId);
+}
+
 /** Emissão fiscal é uma atribuição da administração, não de billing em geral. */
 export function exigirAdminFiscal(context: RequestContext) {
   const eAdmin = context.actor.roles.some((role) => role === 'owner' || role === 'admin');
@@ -336,7 +362,7 @@ export function exigirAdminFiscal(context: RequestContext) {
  * sintéticas de links antigos não viram competência por aproximação: emitir
  * no dia errado é pior do que pedir a correção do vínculo.
  */
-async function competenciaFiscalDaCobranca(
+export async function competenciaFiscalDaCobranca(
   organizationId: string,
   charge: FinancialCharge
 ): Promise<{ competencia: string; inicioAtendimento: string }> {
@@ -405,7 +431,7 @@ export async function getNfsePreview(
   exigirAdminFiscal(context);
   const store = getApplicationStore();
   const { organizationId } = context.actor;
-  const ledger = await store.financial.getLedger({ organizationId });
+  const ledger = await store.financial.getLedger({ organizationId, chargeIds: [chargeId] });
   const charge = ledger.charges.find((item) => item.id === chargeId);
   if (!charge) throw new ApplicationError('NOT_FOUND', 'Cobrança não encontrada.', 404);
 
@@ -458,16 +484,19 @@ export async function getNfsePreview(
   const fatoFiscal = await competenciaFiscalDaCobranca(organizationId, charge);
 
   const paciente = await store.identities.getPatient(organizationId, charge.patientId);
-  const state = await getCaptureRepository().read();
-  const lead = state.triagensPacientes.find((item) => item.pacienteRef === charge.patientId);
+  const lead = await leadFiscalDoPaciente(organizationId, charge.patientId);
 
   // O CPF pode estar em dois lugares, e os dois valem: a triagem, para quem
   // chegou pela vitrine, e o cadastro, para quem a recepção lançou direto.
   // Olhar só a triagem transformava metade dos pacientes em nota impossível.
+  const ficha = registrationSource(store.identities);
   const contatos = contactSource(store.identities);
-  const cadastro = contatos ? (await contatos.listPatientContacts(organizationId))[charge.patientId] : undefined;
-  const cpf = lead?.cpf?.replace(/\D/g, '') || cadastro?.documento?.replace(/\D/g, '') || undefined;
-  const email = normalizarEmailPaciente(lead?.email) ?? normalizarEmailPaciente(cadastro?.email);
+  const registro = ficha ? await ficha.getPatientRegistration(organizationId, charge.patientId) : null;
+  const cadastro = !registro && contatos ? (await contatos.listPatientContacts(organizationId))[charge.patientId] : undefined;
+  // O cadastro vem primeiro: é ele que a recepção corrige, e a triagem guarda o
+  // que foi digitado na chegada. Mesma ordem de `CPF_CADASTRO_SQL` no link de agenda.
+  const cpf = registro?.cpf?.replace(/\D/g, '') || cadastro?.documento?.replace(/\D/g, '') || lead?.cpf?.replace(/\D/g, '') || undefined;
+  const email = normalizarEmailPaciente(registro?.email) ?? normalizarEmailPaciente(cadastro?.email) ?? normalizarEmailPaciente(lead?.email);
 
   const camposPendentes: string[] = [];
   if (!cpf) camposPendentes.push('CPF do tomador');

@@ -14,6 +14,7 @@ import {
   completeGoogleCalendarConnection,
   confirmAppointment,
   rescheduleAppointment,
+  rescheduleAppointmentCommand,
   scheduleAppointment,
   scheduleAppointmentCommand,
   type AppointmentCommandMetadata,
@@ -132,6 +133,58 @@ describe('appointment commands', () => {
       ...metadata('2026-08-01T10:02:00.000Z'), commandId: 'cancel-slot-3',
     });
     expect(replacement.appointment.status).toBe('scheduled');
+  });
+
+  it('recusa reagendar para horário ocupado e mantém a sessão original', async () => {
+    const appointments = new InMemoryAppointmentRepository();
+    const dependencies = { appointments, identities: identities() };
+    await scheduleAppointmentCommand(dependencies, actor, input(), { ...metadata('2026-08-01T10:00:00.000Z'), commandId: 'busy-1' });
+    await scheduleAppointmentCommand(dependencies, actor, input({
+      id: 'appointment-2', startsAt: '2026-08-03T14:00:00.000Z', endsAt: '2026-08-03T14:50:00.000Z',
+    }), { ...metadata('2026-08-01T10:01:00.000Z'), commandId: 'busy-2' });
+
+    await expect(rescheduleAppointmentCommand(
+      dependencies, actor, 'appointment-2', '2026-08-03T12:20:00.000Z', '2026-08-03T13:10:00.000Z',
+      { ...metadata('2026-08-01T10:02:00.000Z'), commandId: 'busy-3' }
+    )).rejects.toThrow('conflito');
+    expect(await appointments.getById(organizationId, 'appointment-2')).toMatchObject({
+      startsAt: '2026-08-03T14:00:00.000Z', status: 'scheduled',
+    });
+  });
+
+  it('permite deslocar a sessão sobre o próprio horário e encostar na vizinha', async () => {
+    const appointments = new InMemoryAppointmentRepository();
+    const dependencies = { appointments, identities: identities() };
+    await scheduleAppointmentCommand(dependencies, actor, input(), { ...metadata('2026-08-01T10:00:00.000Z'), commandId: 'shift-1' });
+    await scheduleAppointmentCommand(dependencies, actor, input({
+      id: 'appointment-2', startsAt: '2026-08-03T13:10:00.000Z', endsAt: '2026-08-03T14:00:00.000Z',
+    }), { ...metadata('2026-08-01T10:01:00.000Z'), commandId: 'shift-2' });
+
+    const moved = await rescheduleAppointmentCommand(
+      dependencies, actor, 'appointment-1', '2026-08-03T12:20:00.000Z', '2026-08-03T13:10:00.000Z',
+      { ...metadata('2026-08-01T10:02:00.000Z'), commandId: 'shift-3' }
+    );
+    expect(moved.appointment).toMatchObject({ startsAt: '2026-08-03T12:20:00.000Z', status: 'scheduled' });
+  });
+
+  it('impede outro psicólogo de reagendar sessão que não é dele', async () => {
+    const appointments = new InMemoryAppointmentRepository();
+    const dependencies = { appointments, identities: identities() };
+    await scheduleAppointmentCommand(dependencies, actor, input(), { ...metadata('2026-08-01T10:00:00.000Z'), commandId: 'other-1' });
+    const outsider: StaffAccessContext = { ...actor, userId: 'user-other', membershipId: 'membership-2', professionalProfileId: 'professional-2' };
+
+    await expect(rescheduleAppointmentCommand(
+      dependencies, outsider, 'appointment-1', '2026-08-03T15:00:00.000Z', '2026-08-03T15:50:00.000Z',
+      { ...metadata('2026-08-01T10:01:00.000Z'), commandId: 'other-2' }
+    )).rejects.toThrow('Acesso negado');
+    expect((await appointments.getById(organizationId, 'appointment-1'))?.startsAt).toBe('2026-08-03T12:00:00.000Z');
+  });
+
+  it('recusa agendar paciente que não está vinculado ao profissional', async () => {
+    const dependencies = { appointments: new InMemoryAppointmentRepository(), identities: identities() };
+    await expect(scheduleAppointmentCommand(dependencies, actor, input({ professionalId: 'professional-2' }), {
+      ...metadata('2026-08-01T10:00:00.000Z'), commandId: 'unlinked-1',
+    })).rejects.toThrow('não está disponível');
   });
 
   it('bloqueia organização diferente antes de consultar os dados', async () => {

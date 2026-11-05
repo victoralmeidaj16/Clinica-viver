@@ -3,11 +3,13 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
-  CalendarClock, CalendarDays, CheckCircle2, Copy, CreditCard, FileText, Globe, Loader2, MapPin, Pencil, RefreshCw, XCircle,
+  CalendarClock, CalendarDays, CheckCircle2, Copy, CreditCard, FileText, Globe, Loader2, MapPin, Pencil, RefreshCw, UserX, XCircle,
 } from 'lucide-react';
+import { faltaCobrada, podeRegistrarFalta, possuiPagamento } from '@/lib/appointmentWorkflow';
 import { clinicDateTimeToIso } from '@/lib/manualAppointment';
 import { focoSessao } from '@/lib/focoNotificacao';
 import { permiteNovoPagamento, rotuloFormaPagamento } from '@/lib/modalidadesPagamento';
+import { NoShowDialog } from './NoShowDialog';
 import { RescheduleModal } from './RescheduleModal';
 import { EditSessionModal, type SessionEditableData } from './EditSessionModal';
 import { RescheduleRequestCard } from './RescheduleRequestCard';
@@ -42,6 +44,7 @@ interface Props {
   filtroPaciente?: string;
   onCancelar: (id: string, motivo: string) => Promise<void>;
   onConfirmarRealizacao: (id: string) => Promise<void>;
+  onRegistrarFalta?: (id: string, cobrar: boolean, expectedVersion?: number) => Promise<void>;
   onAtualizarVencimento: (id: string, dueAt: string) => Promise<void>;
   onReagendar?: (id: string, startsAt: string, endsAt: string, expectedVersion?: number) => Promise<void>;
   onRecarregar?: () => Promise<void>;
@@ -52,8 +55,9 @@ const FORMATO = new Intl.DateTimeFormat('pt-BR', {
   dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo',
 });
 
-export function UpcomingSessions({ agendamentos, filtroPaciente, onCancelar, onConfirmarRealizacao, onAtualizarVencimento, onReagendar, onRecarregar, onDecidirReagendamento }: Props) {
+export function UpcomingSessions({ agendamentos, filtroPaciente, onCancelar, onConfirmarRealizacao, onRegistrarFalta, onAtualizarVencimento, onReagendar, onRecarregar, onDecidirReagendamento }: Props) {
   const [cancelando, setCancelando] = useState<AgendamentoResumo>();
+  const [registrandoFalta, setRegistrandoFalta] = useState<AgendamentoResumo>();
   const [reagendando, setReagendando] = useState<AgendamentoResumo>();
   const [editingSession, setEditingSession] = useState<SessionEditableData>();
   const [motivo, setMotivo] = useState('');
@@ -183,10 +187,12 @@ export function UpcomingSessions({ agendamentos, filtroPaciente, onCancelar, onC
           // sido confirmado: enquanto a confirmação estiver disponível, a
           // sessão clínica e a cobrança empresarial ainda não existem.
           const aguardandoConfirmacao = !cancelado && item.podeConfirmarRealizacao;
-          const realizado = !cancelado && !aguardandoConfirmacao
+          const faltou = item.status === 'faltou';
+          const realizado = !cancelado && !faltou && !aguardandoConfirmacao
             && (item.status === 'realizado' || Boolean(item.realizadoEm) || jaPassou);
           const pagamentoDisponivel =
             !item.custeadoPelaEmpresa && permiteNovoPagamento(item.pagamentoStatus);
+          const faltaIsenta = faltou && !faltaCobrada(item.pagamentoStatus);
           return (
             <li key={item.id} data-foco={focoSessao(item.id)} className="space-y-3 px-6 py-4">
               {item.solicitacaoReagendamento && onDecidirReagendamento && (
@@ -217,6 +223,18 @@ export function UpcomingSessions({ agendamentos, filtroPaciente, onCancelar, onC
                     className="rounded-xl border border-line bg-white px-3 py-1.5 text-[11px] font-bold text-ink hover:bg-slate-100">
                     Conferir cancelamento
                   </button>
+                </div>
+              ) : faltou ? (
+                <div className="flex items-center gap-2">
+                  <span className="flex items-center gap-1 text-[11px] font-extrabold text-amber-700">
+                    <UserX className="h-4 w-4" /> FALTA · {faltaIsenta ? 'SEM COBRANÇA' : 'COBRADA'}
+                  </span>
+                  {onRegistrarFalta && !possuiPagamento(item.pagamentoStatus) && (
+                    <button type="button" onClick={() => setRegistrandoFalta(item)}
+                      className="rounded-xl border border-line bg-white px-3 py-1.5 text-[11px] font-bold text-ink hover:bg-slate-100">
+                      Alterar cobrança
+                    </button>
+                  )}
                 </div>
               ) : realizado || aguardandoConfirmacao ? (
                 <div className="flex items-center gap-2">
@@ -290,7 +308,7 @@ export function UpcomingSessions({ agendamentos, filtroPaciente, onCancelar, onC
               )}
               </div>
 
-              {!cancelado && (
+              {!cancelado && !faltaIsenta && (
                 <div className="flex flex-wrap gap-2 rounded-2xl border border-line bg-slate-50/70 p-2.5">
                   {item.podeConfirmarRealizacao && (
                     <button
@@ -301,6 +319,12 @@ export function UpcomingSessions({ agendamentos, filtroPaciente, onCancelar, onC
                     >
                       {confirmandoId === item.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
                       Confirmar que ocorreu
+                    </button>
+                  )}
+                  {onRegistrarFalta && podeRegistrarFalta(item.status, item.inicio, agora) && (
+                    <button type="button" onClick={() => setRegistrandoFalta(item)}
+                      className="flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-extrabold text-amber-900 hover:bg-amber-100">
+                      <UserX className="h-3.5 w-3.5" /> Registrar falta
                     </button>
                   )}
                   {item.custeadoPelaEmpresa ? (
@@ -338,6 +362,17 @@ export function UpcomingSessions({ agendamentos, filtroPaciente, onCancelar, onC
           </li>
         )}
       </ul>
+
+      {registrandoFalta && onRegistrarFalta && (
+        <NoShowDialog
+          session={registrandoFalta}
+          onClose={(falhou) => {
+            setRegistrandoFalta(undefined);
+            if (falhou) void onRecarregar?.();
+          }}
+          onConfirm={(cobrar) => onRegistrarFalta(registrandoFalta.id, cobrar, registrandoFalta.versao)}
+        />
+      )}
 
       {reagendando && (
         <RescheduleModal

@@ -26,6 +26,9 @@ interface Props {
 }
 
 function statusDaSessao(sessao: AgendamentoResumo) {
+  if (sessao.status === 'faltou') {
+    return { rotulo: 'Falta', classe: 'bg-amber-100 text-amber-700' };
+  }
   if (sessao.status === 'realizado' || sessao.realizadoEm) {
     return { rotulo: 'Realizada', classe: 'bg-emerald-100 text-emerald-700' };
   }

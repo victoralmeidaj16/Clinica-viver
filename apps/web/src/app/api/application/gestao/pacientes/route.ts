@@ -12,7 +12,7 @@ import { isMysqlConfigured, getMysqlPool } from '@/server/oci/runtime';
 import { instituicaoId } from '@/server/persistence/mysql/mappers';
 import type { RowDataPacket } from 'mysql2/promise';
 import { listarConvenios } from '@/server/persistence/mysql/convenioRepository';
-import { custeioEfetivoSql } from '@/server/persistence/mysql/custeioSql';
+import { cicloDeCusteioSql, cotaDeCusteioSql, custeioEfetivoSql, dentroDoCicloSql } from '@/server/persistence/mysql/custeioSql';
 import { normalizarCicloCusteio } from '@/lib/convenioBilling';
 import { listarPsicologosCompativeis, reatribuirLeadPelaGestao } from '@/server/application/viverMaisRodizio';
 import { avisarAlocacao, avisarTransbordo } from '@/server/application/viverMaisWhatsApp';
@@ -64,15 +64,16 @@ export async function GET() {
           listarConvenios(organizationId),
           getMysqlPool().query<RowDataPacket[]>(
             `SELECT p.ref_core, p.convenio_ref, p.custeado_pela_empresa,
-                    p.custeio_sessoes_cota, p.custeio_sessoes_ciclo,
+                    ${cotaDeCusteioSql('p', 'c')} AS custeio_sessoes_cota,
+                    ${cicloDeCusteioSql('p', 'c')} AS custeio_sessoes_ciclo,
                     p.categoria_valor_sessao, p.valor_sessao_personalizado_centavos,
                     ${custeioEfetivoSql({ paciente: 'p', convenio: 'c' })} AS custeado_efetivo,
                     (SELECT COUNT(*) FROM clinica_agendamentos cota_ag
                       WHERE cota_ag.instituicao_id = p.instituicao_id
                         AND cota_ag.paciente_id = p.id
                         AND cota_ag.custeado_pela_empresa = 1
-                        AND (p.custeio_sessoes_ciclo <> 'mensal'
-                             OR DATE_FORMAT(cota_ag.inicio, '%Y-%m') = DATE_FORMAT(CURRENT_TIMESTAMP(3), '%Y-%m')))
+                        AND cota_ag.status <> 'cancelado'
+                        AND ${dentroDoCicloSql('p', 'c', 'cota_ag.inicio', 'CURRENT_TIMESTAMP(3)')})
                       AS custeio_consumidas,
                     c.nome AS convenio_nome, c.empresa_paga_sessoes
                FROM clinica_pacientes p
@@ -246,6 +247,7 @@ export async function GET() {
     return NextResponse.json(
       { success: true, data, psicologos, convenios: convenios.map((item) => ({
         id: item.id, nome: item.nome, empresaPagaSessoes: item.empresaPagaSessoes,
+        pacoteSessoes: item.pacoteSessoes, pacoteSessoesCiclo: item.pacoteSessoesCiclo,
       })) },
       { headers: { 'Cache-Control': 'no-store' } }
     );

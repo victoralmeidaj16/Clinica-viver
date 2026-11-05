@@ -1,4 +1,5 @@
 import type { TurmaEncerrada } from '@/lib/turmaEncerrada';
+import type { AcessibilidadePsicologo } from '@/lib/psychologistAccessibility';
 
 export type StatusCadastro = 'EM_ANALISE' | 'APROVADO' | 'RECUSADO';
 
@@ -10,6 +11,7 @@ export interface PsicologoItem {
   whatsapp: string;
   email?: string;
   fotoUrl?: string;
+  acessibilidade?: AcessibilidadePsicologo;
   cidade?: string;
   estadoUf?: string;
   logradouro?: string;

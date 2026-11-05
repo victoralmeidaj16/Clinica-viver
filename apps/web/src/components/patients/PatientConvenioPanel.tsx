@@ -20,7 +20,7 @@ export default function PatientConvenioPanel({ patient, convenios, onConvenioCha
   // uma cota. Guardá-lo como modo separado só na tela mantém o `custeado_pela_
   // empresa` com os três estados que o resto do sistema já entende.
   const [custeio, setCusteio] = useState<'herdar' | 'sim' | 'nao' | 'personalizado'>(
-    patient?.custeioCota !== undefined ? 'personalizado'
+    patient?.custeioCota !== undefined && !convenios.find((item) => item.id === patient.convenioId)?.pacoteSessoes ? 'personalizado'
       : patient?.custeioConfigurado === undefined ? 'herdar'
         : patient.custeioConfigurado ? 'sim' : 'nao'
   );
@@ -28,6 +28,8 @@ export default function PatientConvenioPanel({ patient, convenios, onConvenioCha
   const [ciclo, setCiclo] = useState<CusteioCiclo>(patient?.custeioCiclo ?? 'total');
   const [savingConvenio, setSavingConvenio] = useState(false);
   const selectedConvenio = convenios.find((item) => item.id === convenioId);
+  // O pacote do convênio é a cota que vale: não há quantidade individual para escolher.
+  const pacote = selectedConvenio?.pacoteSessoes;
 
   const cotaNumero = Number(cota);
   const cotaValida = Number.isInteger(cotaNumero) && cotaNumero >= 1 && cotaNumero <= 65535;
@@ -71,9 +73,17 @@ export default function PatientConvenioPanel({ patient, convenios, onConvenioCha
                       <option value="herdar">Padrão do convênio ({selectedConvenio?.empresaPagaSessoes ? 'empresa paga' : 'paciente paga'})</option>
                       <option value="sim">Empresa paga (exceção)</option>
                       <option value="nao">Paciente paga (exceção)</option>
-                      <option value="personalizado">Personalizada: empresa cobre uma quantidade</option>
+                      {!pacote && <option value="personalizado">Personalizada: empresa cobre uma quantidade</option>}
                     </select>
                   </label>
+                )}
+                {pacote && custeio !== 'nao' && (selectedConvenio?.empresaPagaSessoes || custeio === 'sim') && (
+                  <p className="rounded-xl border border-emerald-200 bg-white p-3 text-[11px] font-bold text-emerald-900">
+                    Pacote do convênio: {pacote} {pacote === 1 ? 'sessão' : 'sessões'} {selectedConvenio?.pacoteSessoesCiclo === 'mensal' ? 'por mês' : 'no total'}
+                    {convenioId === patient.convenioId && typeof patient.custeioConsumidas === 'number' && (
+                      <> · Já usadas {patient.custeioConsumidas} de {pacote}{selectedConvenio?.pacoteSessoesCiclo === 'mensal' ? ' neste mês' : ''} · {Math.max(0, pacote - patient.custeioConsumidas)} restantes</>
+                    )}
+                  </p>
                 )}
                 {convenioId && custeio === 'personalizado' && (
                   <div className="space-y-3 rounded-xl border border-emerald-200 bg-white p-3">

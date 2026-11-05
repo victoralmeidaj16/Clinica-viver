@@ -16,11 +16,29 @@ import 'server-only';
  *   3. sem cota, o custeio vale para todas as sessões (comportamento antigo);
  *   4. com cota, desconta decisões gravadas e agendamentos anteriores elegíveis.
  *
+ * A cota é a do pacote do convênio, contada por paciente. A cota gravada no
+ * paciente só vale quando o convênio não tem pacote.
+ *
  * Na consulta de uma sessão, as anteriores reservam o saldo por ordem de início
  * e id. Cancelamentos e faltas sem decisão não reservam benefício. A reserva é
  * recalculada; apenas a decisão gravada na realização é definitiva.
  * Sem agendamento de referência, retorna o saldo efetivamente consumido.
  */
+export function cotaDeCusteioSql(paciente: string, convenio: string): string {
+  return `COALESCE(${convenio}.pacote_sessoes, ${paciente}.custeio_sessoes_cota)`;
+}
+
+/** NULL quando não há cota. O ciclo do pacote não se mistura com o do paciente. */
+export function cicloDeCusteioSql(paciente: string, convenio: string): string {
+  return `CASE WHEN ${convenio}.pacote_sessoes IS NOT NULL THEN COALESCE(${convenio}.pacote_sessoes_ciclo, 'total') ELSE ${paciente}.custeio_sessoes_ciclo END`;
+}
+
+/** Filtra as sessões do ciclo: sem o COALESCE, um ciclo NULL faria a cota total agir como mensal. */
+export function dentroDoCicloSql(paciente: string, convenio: string, inicio: string, referencia: string): string {
+  return `(COALESCE(${cicloDeCusteioSql(paciente, convenio)}, 'total') <> 'mensal'
+                  OR DATE_FORMAT(CONVERT_TZ(${inicio}, '+00:00', '-03:00'), '%Y-%m') = DATE_FORMAT(CONVERT_TZ(${referencia}, '+00:00', '-03:00'), '%Y-%m'))`;
+}
+
 export function custeioEfetivoSql(alias: {
   /** Alias da tabela `clinica_pacientes`. */
   paciente: string;
@@ -34,11 +52,16 @@ export function custeioEfetivoSql(alias: {
    * responde a pergunta que a tela faz: a próxima sessão sai por conta de quem?
    */
   referencia?: string;
+  /** Ignora o padrão do paciente/convênio quando a gestão força custeio por sessão, mantendo a checagem de cota. */
+  ignorarPadrao?: boolean;
 }): string {
   const p = alias.paciente;
   const c = alias.convenio;
   const referencia = alias.referencia ?? 'CURRENT_TIMESTAMP(3)';
   const a = alias.agendamento;
+  const padrao = alias.ignorarPadrao
+    ? ''
+    : `\n    WHEN COALESCE(${p}.custeado_pela_empresa, ${c}.empresa_paga_sessoes, 1) = 0 THEN 0`;
   const reservaAnterior = a ? `OR (cota_ag.custeado_pela_empresa IS NULL
                AND NOT EXISTS (SELECT 1 FROM financeiro_cobrancas cota_fc
                                 WHERE cota_fc.instituicao_id = cota_ag.instituicao_id
@@ -48,16 +71,14 @@ export function custeioEfetivoSql(alias: {
                AND (cota_ag.inicio < ${a}.inicio
                     OR (cota_ag.inicio = ${a}.inicio AND cota_ag.id < ${a}.id)))` : '';
   return `CASE
-    WHEN ${p}.convenio_ref IS NULL THEN 0
-    WHEN COALESCE(${p}.custeado_pela_empresa, ${c}.empresa_paga_sessoes, 1) = 0 THEN 0
-    WHEN ${p}.custeio_sessoes_cota IS NULL THEN 1
+    WHEN ${p}.convenio_ref IS NULL THEN 0${padrao}
+    WHEN ${cotaDeCusteioSql(p, c)} IS NULL THEN 1
     WHEN (SELECT COUNT(*) FROM clinica_agendamentos cota_ag
            WHERE cota_ag.instituicao_id = ${p}.instituicao_id
              AND cota_ag.paciente_id = ${p}.id
-             AND (cota_ag.custeado_pela_empresa = 1 ${reservaAnterior})
-             AND (${p}.custeio_sessoes_ciclo <> 'mensal'
-                  OR DATE_FORMAT(CONVERT_TZ(cota_ag.inicio, '+00:00', '-03:00'), '%Y-%m') = DATE_FORMAT(CONVERT_TZ(${referencia}, '+00:00', '-03:00'), '%Y-%m')))
-         < ${p}.custeio_sessoes_cota THEN 1
+             AND ((cota_ag.custeado_pela_empresa = 1 AND cota_ag.status <> 'cancelado') ${reservaAnterior})
+             AND ${dentroDoCicloSql(p, c, 'cota_ag.inicio', referencia)})
+         < ${cotaDeCusteioSql(p, c)} THEN 1
     ELSE 0 END`;
 }
 

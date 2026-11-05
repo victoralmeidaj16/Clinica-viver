@@ -59,18 +59,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Valor inválido.' }, { status: 400 });
     }
     const eventId = String(payload.id || `${eventType}:${paymentId}`);
+    const rawDate = String(payment?.paymentDate || payment?.confirmedDate || new Date().toISOString());
+    const receivedAt = /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? `${rawDate}T12:00:00-03:00` : rawDate;
     let result = await reconcileAsaasPayment({
       eventId,
       eventType,
       paymentId,
       amountCents,
-      receivedAt: String(payment?.paymentDate || payment?.confirmedDate || new Date().toISOString()),
+      receivedAt,
       billingType: String(payment?.billingType || 'UNDEFINED'),
     });
     if (result === 'unknown') {
       result = await reconcileConvenioInvoicePayment({
         eventId, eventType, paymentId, amountCents,
-        receivedAt: String(payment?.paymentDate || payment?.confirmedDate || new Date().toISOString()),
+        receivedAt,
       });
     }
     if (result === 'unknown') {

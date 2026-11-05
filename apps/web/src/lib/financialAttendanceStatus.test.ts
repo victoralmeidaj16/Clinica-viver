@@ -10,6 +10,10 @@ describe('financialAttendanceStatus', () => {
     expect(financialAttendanceStatus(status)).toBe('cancelado');
   });
 
+  it.each(['faltou', 'no_show'])('considera %s como falta', (status) => {
+    expect(financialAttendanceStatus(status)).toBe('falta');
+  });
+
   it.each(['agendado', 'confirmado', 'scheduled', 'confirmed', undefined])(
     'mantém %s a confirmar até a conclusão explícita',
     (status) => {

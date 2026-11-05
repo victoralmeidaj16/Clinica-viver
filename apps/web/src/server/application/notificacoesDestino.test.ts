@@ -11,6 +11,7 @@ import {
   notificacoesDePagamento,
   notificacoesDePerfilAlterado,
   notificacoesDoPsicologo,
+  montarLista,
 } from './notificacoes';
 
 /**
@@ -70,6 +71,57 @@ function estado(overrides: Partial<CaptureState> = {}): CaptureState {
 }
 
 describe('destino das notificações do psicólogo', () => {
+  it('não mostra contato antigo quando o encaminhamento legado só trocou o responsável', () => {
+    const itens = notificacoesDoPsicologo(estado({ triagensPacientes: [lead({
+      status: 'CONTATO_CONFIRMADO', psicologoAlocadoId: 'cad-1', pacienteRef: 'pac-1',
+      alocadoEm: '2026-09-01T12:00:00.000Z', confirmadoEm: '2026-09-01T13:00:00.000Z',
+      psicologosJaTentados: ['cad-anterior'],
+    })] }), cadastro(), AGORA);
+    expect(itens.filter((item) => item.tipo === 'contato-confirmado' || item.tipo === 'paciente-encaminhado')).toEqual([]);
+  });
+
+  it('avisa o envio da própria solicitação e não mostra pedidos de outros profissionais', () => {
+    const pedido = { status: 'PENDENTE' as const, solicitadoEm: '2026-09-06T12:00:00.000Z' };
+    const proprio = cadastro({ solicitacaoAlteracaoGestao: pedido });
+    const outro = cadastro({ id: 'outro', solicitacaoAlteracaoGestao: pedido });
+    const itens = notificacoesDoPsicologo(estado({ cadastrosPsicologos: [proprio, outro] }), proprio, AGORA);
+    const avisos = itens.filter((item) => item.tipo.startsWith('solicitacao-perfil-'));
+    expect(avisos).toHaveLength(1);
+    expect(avisos[0]).toMatchObject({
+      tipo: 'solicitacao-perfil-enviada', href: '/meu-cadastro', ocorridoEm: pedido.solicitadoEm,
+    });
+    expect(avisos[0].chave).toContain('cad-1');
+  });
+
+  it.each([
+    ['APROVADO', 'solicitacao-perfil-aprovada'],
+    ['RECUSADO', 'solicitacao-perfil-recusada'],
+  ] as const)('avisa a decisão %s com leitura independente do envio', (status, tipo) => {
+    const pedido = {
+      status, solicitadoEm: '2026-09-06T12:00:00.000Z', respondidoEm: '2026-09-07T12:00:00.000Z',
+      motivoRecusa: status === 'RECUSADO' ? 'Solicitação incompleta' : undefined,
+    };
+    const avisos = notificacoesDoPsicologo(estado(), cadastro({ solicitacaoAlteracaoGestao: pedido }), AGORA)
+      .filter((item) => item.tipo.startsWith('solicitacao-perfil-'));
+    const enviado = avisos.find((item) => item.tipo === 'solicitacao-perfil-enviada')!;
+    const decisao = avisos.find((item) => item.tipo === tipo)!;
+    expect(avisos).toHaveLength(2);
+    expect(decisao).toMatchObject({ href: '/meu-cadastro', ocorridoEm: pedido.respondidoEm });
+    if (status === 'RECUSADO') expect(decisao.descricao).toContain('Solicitação incompleta');
+    const lista = montarLista(avisos, new Set([enviado.chave]), AGORA);
+    expect(lista.naoLidas).toBe(1);
+    expect(lista.itens.find((item) => item.tipo === tipo)?.lida).toBe(false);
+  });
+
+  it('cria nova chave ao substituir um pedido e remove os avisos quando cancelado', () => {
+    const aviso = (solicitadoEm: string) => notificacoesDoPsicologo(estado(), cadastro({
+      solicitacaoAlteracaoGestao: { status: 'PENDENTE', solicitadoEm },
+    }), AGORA).find((item) => item.tipo === 'solicitacao-perfil-enviada')!;
+    expect(aviso('2026-09-06T12:00:00.000Z').chave).not.toBe(aviso('2026-09-07T12:00:00.000Z').chave);
+    expect(notificacoesDoPsicologo(estado(), cadastro(), AGORA)
+      .some((item) => item.tipo.startsWith('solicitacao-perfil-'))).toBe(false);
+  });
+
   it('leva o contato confirmado ao paciente promovido', () => {
     const itens = notificacoesDoPsicologo(
       estado({

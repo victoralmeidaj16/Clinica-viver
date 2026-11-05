@@ -23,7 +23,10 @@ import { createHash } from 'node:crypto';
 import { MysqlIdentityRepository } from '@/server/persistence/mysql/identityRepository';
 import { MysqlCaptureRepository, type CaptureState } from '@/server/persistence/mysql/captureRepository';
 import { assertPatientCpfAvailable } from '@/server/persistence/mysql/patientCpfUniqueness';
+import { cicloDeCusteioSql, cotaDeCusteioSql, custeioEfetivoSql } from '@/server/persistence/mysql/custeioSql';
 import { normalizarCicloCusteio } from '@/lib/convenioBilling';
+import { custeioAoAgendar, type CusteioAoAgendar } from '@/lib/sessionChargeRules';
+import { atendimentoPermitido } from '@/lib/patientCareOptions';
 
 /**
  * Cadastro de pacientes visto pela equipe.
@@ -55,6 +58,11 @@ export interface PatientDirectoryEntry {
   custeioConfigurado?: boolean;
   custeioCota?: number;
   custeioCiclo?: 'total' | 'mensal';
+  /**
+   * Quem paga, pela mesma regra da cobrança. `conveniado` não serve para isso:
+   * inclui convênio só declarado na triagem, e essas sessões são cobradas.
+   */
+  custeioAoAgendar?: CusteioAoAgendar;
   demanda?: string;
 }
 
@@ -95,7 +103,9 @@ export async function listPatientDirectory(context: RequestContext): Promise<rea
       ? getMysqlPool()
           .query<RowDataPacket[]>(
             `SELECT p.ref_core, p.convenio_ref, p.custeado_pela_empresa,
-                    p.custeio_sessoes_cota, p.custeio_sessoes_ciclo,
+                    ${cotaDeCusteioSql('p', 'c')} AS custeio_sessoes_cota,
+                    ${cicloDeCusteioSql('p', 'c')} AS custeio_sessoes_ciclo,
+                    ${custeioEfetivoSql({ paciente: 'p', convenio: 'c' })} AS custeado_efetivo,
                     c.empresa_paga_sessoes,
                     c.nome AS convenio_nome
                FROM clinica_pacientes p
@@ -199,6 +209,9 @@ export async function listPatientDirectory(context: RequestContext): Promise<rea
       custeioCota: agreement?.custeio_sessoes_cota === null || agreement?.custeio_sessoes_cota === undefined
         ? undefined : Number(agreement.custeio_sessoes_cota),
       custeioCiclo: normalizarCicloCusteio(agreement?.custeio_sessoes_ciclo) ?? undefined,
+      custeioAoAgendar: agreement
+        ? custeioAoAgendar({ custeadoEfetivo: agreement.custeado_efetivo, cota: agreement.custeio_sessoes_cota })
+        : undefined,
       demanda,
     };
   });
@@ -355,6 +368,14 @@ export async function createPatient(
   const existing = await store.identities.getPatient(context.actor.organizationId, id);
   if (existing) return existing;
 
+  const assertHabilitacao = (state: CaptureState) => {
+    if (!context.actor.roles.includes('professional')) return;
+    const cadastro = state.cadastrosPsicologos.find((item) => item.profissionalRef === professionalId);
+    if (!atendimentoPermitido(cadastro ?? null, String(body.servicoKey ?? ''), String(body.modalidade ?? ''))) {
+      throw new ApplicationError('FORBIDDEN', 'Selecione um serviço e uma modalidade habilitados no seu perfil pela clínica.', 403);
+    }
+  };
+
   const patient = createPatientProfile({
     id,
     organizationId: context.actor.organizationId,
@@ -466,12 +487,14 @@ export async function createPatient(
         [instituicaoId(), context.actor.organizationId, patient.id]
       );
       if (existingRows.length) return { next: state, result: null };
+      assertHabilitacao(state);
       await assertPatientCpfAvailable(connection, context.actor.organizationId, patient.id, registration.data.cpf);
       await identities.savePatient(patient, connection);
       await identities.savePatientContact(patient.id, contact, connection);
       return addTriage(state);
     }, context.actor.organizationId);
   } else {
+    assertHabilitacao(await getCaptureRepository().read());
     await store.identities.savePatient(patient);
     const contacts = contactSource(store.identities);
     if (contacts) await contacts.savePatientContact(patient.id, contact);
@@ -576,13 +599,14 @@ export async function reassignPatient(
     throw new ApplicationError('FORBIDDEN', 'Um psicólogo não pode encaminhar o paciente a outro perfil.', 403);
   }
 
+  const changedAt = new Date().toISOString();
   const reassigned = await store.identities.reassignPatient({
     organizationId: context.actor.organizationId,
     patientId: id,
     professionalId,
     actorUserId: context.actor.userId,
     reason,
-    changedAt: new Date().toISOString(),
+    changedAt,
   });
   if (!reassigned) throw new ApplicationError('NOT_FOUND', 'Paciente não encontrado.', 404);
 
@@ -598,8 +622,10 @@ export async function reassignPatient(
     const snapshot = recalcularPacientesAtivos({
       ...captureStateAsSnapshot(state),
       triagensPacientes: state.triagensPacientes.map((lead) =>
-        lead.pacienteRef === id
-          ? { ...lead, psicologoAlocadoId: target.id, psicologoNome: target.nomeSocial || target.nomeCompleto }
+        lead.pacienteRef === id && lead.psicologoAlocadoId !== target.id
+          ? { ...lead, psicologoAlocadoId: target.id, psicologoNome: target.nomeSocial || target.nomeCompleto,
+            alocadoEm: changedAt, slaExpirado: false,
+            psicologosJaTentados: [...(lead.psicologosJaTentados ?? []).filter((psiId) => psiId !== target.id), target.id] }
           : lead
       ),
     });

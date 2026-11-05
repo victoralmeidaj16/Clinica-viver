@@ -64,6 +64,7 @@ export function MyReceivablesTable({ receivables, pacientesMap, linkCopiado, onC
 
                 const isCancelado = item.attendanceStatus === 'cancelado';
                 const isRealizado = item.attendanceStatus === 'realizado';
+                const isFalta = item.attendanceStatus === 'falta';
 
                 const isConveniado = Boolean(item.conveniado || patientInfo?.conveniado);
                 const convenioNome = item.convenioNome || patientInfo?.convenioNome;
@@ -83,6 +84,10 @@ export function MyReceivablesTable({ receivables, pacientesMap, linkCopiado, onC
                       ) : isCancelado ? (
                         <span className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] font-bold text-rose-700">
                           <XCircle className="w-3 h-3" /> Cancelado
+                        </span>
+                      ) : isFalta ? (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-extrabold text-amber-800">
+                          <XCircle className="w-3 h-3" /> Falta
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-extrabold text-sky-800">
@@ -141,13 +146,13 @@ export function MyReceivablesTable({ receivables, pacientesMap, linkCopiado, onC
                       )}
                     </td>
                     <td className="text-right py-3 pr-2">
-                      <button
+                      {!isFalta && <button
                         type="button"
                         onClick={() => onEditSession(item)}
                         className="rounded-xl border border-line bg-white px-2.5 py-1 text-[11px] font-bold text-ink hover:bg-slate-100 hover:text-psi-deep transition inline-flex items-center gap-1 shadow-sm"
                       >
                         <Pencil className="w-3 h-3 text-psi-vibrant" /> Editar
-                      </button>
+                      </button>}
                     </td>
                   </tr>
                 );

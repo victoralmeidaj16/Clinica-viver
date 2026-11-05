@@ -7,6 +7,7 @@ vi.mock('@/server/adapters/asaasAdapter', () => ({}));
 vi.mock('@/server/persistence/mysql/convenioRepository', () => ({
   criarConvenio: vi.fn(),
   atualizarConvenio: vi.fn(),
+  obterConvenio: vi.fn(async () => null),
 }));
 
 import { createConvenio, updateConvenio } from './convenioService';

@@ -18,6 +18,10 @@ function requisicao(headers: Record<string, string>) {
 }
 
 describe('prova do aceite do Termo de Adesão', () => {
+  it('mantém o hash canônico da versão anteriormente aceita', () => {
+    expect(hashTermoAdesao('2026.2')).toBe('c993f052e90115a95bec869833c9ff2378597dd6154b60024a2eefb7e99be39a');
+    expect(hashTermoAdesao()).not.toBe(hashTermoAdesao('2026.2'));
+  });
   it('calcula o SHA-256 sobre o texto canônico da versão vigente', () => {
     const esperado = createHash('sha256').update(textoCanonicoTermoAdesao(), 'utf8').digest('hex');
     expect(hashTermoAdesao()).toBe(esperado);

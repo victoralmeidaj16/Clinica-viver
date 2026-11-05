@@ -16,12 +16,12 @@ describe.skipIf(!sqlite)('pagador histórico das sessões', () => {
     db.exec(`
       CREATE TABLE financeiro_cobrancas (instituicao_id TEXT, organizacao_ref TEXT, paciente_ref TEXT, ref_core TEXT, sessao_ref TEXT, profissional_ref TEXT, valor_centavos INT, status TEXT, fatura_convenio_ref TEXT, convenio_ref TEXT, emitida_em TEXT);
       CREATE TABLE clinica_pacientes (id TEXT, instituicao_id TEXT, ref_core TEXT, nome TEXT, nome_social TEXT, convenio_ref TEXT, custeado_pela_empresa INT, custeio_sessoes_cota INT, custeio_sessoes_ciclo TEXT);
-      CREATE TABLE clinica_convenios (instituicao_id TEXT, organizacao_ref TEXT, ref_core TEXT, empresa_paga_sessoes INT);
+      CREATE TABLE clinica_convenios (instituicao_id TEXT, organizacao_ref TEXT, ref_core TEXT, empresa_paga_sessoes INT, pacote_sessoes INT, pacote_sessoes_ciclo TEXT);
       CREATE TABLE clinica_agendamentos (id TEXT, instituicao_id TEXT, ref_core TEXT, sessao_clinica_ref TEXT, status TEXT, custeado_pela_empresa INT, paciente_id TEXT, inicio TEXT, organizacao_id TEXT);
       CREATE TABLE clinica_sessoes (instituicao_id TEXT, organizacao_ref TEXT, ref_core TEXT, status TEXT, inicio_real TEXT, inicio_previsto TEXT);
       CREATE TABLE clinica_profissionais (instituicao_id TEXT, ref_core TEXT, nome TEXT);
       CREATE TABLE clinica_organizacoes (id TEXT, ref_core TEXT);
-      INSERT INTO clinica_convenios VALUES ('inst','org','anterior',1), ('inst','org','novo',1);
+      INSERT INTO clinica_convenios (instituicao_id, organizacao_ref, ref_core, empresa_paga_sessoes) VALUES ('inst','org','anterior',1), ('inst','org','novo',1);
       INSERT INTO clinica_pacientes VALUES ('p','inst','pac','Paciente fictício',NULL,'novo',1,NULL,NULL);
       INSERT INTO clinica_agendamentos VALUES ('a','inst','ag','sess','realizado',1,'p','2026-10-10','o');
       INSERT INTO clinica_sessoes VALUES ('inst','org','sess','completed','2026-10-10','2026-10-10');

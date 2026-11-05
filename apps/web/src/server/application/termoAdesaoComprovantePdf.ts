@@ -3,6 +3,9 @@ import 'server-only';
 import PDFDocument from 'pdfkit';
 import {
   TERMO_ADESAO_CLAUSULAS,
+  TERMO_ADESAO_HONORARIOS_CABECALHOS,
+  TERMO_ADESAO_SUBTITULO,
+  TERMO_ADESAO_PAINEL,
   TERMO_ADESAO_HONORARIOS,
   TERMO_ADESAO_IDENTIFICACAO,
   TERMO_ADESAO_TITULO,
@@ -10,6 +13,8 @@ import {
 } from '@/components/forms/termoAdesaoContent';
 import { certificateAssets } from '@/server/certificados/certificateAssets';
 import type { CadastroPsicologoRecord } from '@/server/application/persistence';
+import { gerarComprovanteTermoAdesaoPdf as gerarComprovanteLegado } from './termoAdesaoComprovantePdf2026_2';
+import { fonteTermoAdesao } from './termoAdesaoFont';
 import {
   codigoVerificacaoAceite,
   dataHoraBrasilia,
@@ -20,12 +25,9 @@ import {
 
 const COR = { tinta: '#2a2028', marca: '#43265e', suave: '#6b6170', linha: '#d9cfe0', fundo: '#f6f1f9' };
 const FONTE = { texto: 'TL-Texto', semi: 'TL-Semi', negrito: 'TL-Negrito' };
-const MARGEM = 56;
+const MARGEM = 24;
 const LARGURA = 595.28 - MARGEM * 2;
-const LIMITE_Y = 841.89 - 80;
-
-/** A fonte embutida não tem o "✓" que o modal mostra nos botões citados na cláusula 10. */
-const semGlifosAusentes = (texto: string) => texto.replace(/✓\s?/g, '');
+const LIMITE_Y = 841.89 - 44;
 
 function garantirEspaco(pdf: PDFKit.PDFDocument, altura: number) {
   if (pdf.y + altura > LIMITE_Y) pdf.addPage();
@@ -33,15 +35,15 @@ function garantirEspaco(pdf: PDFKit.PDFDocument, altura: number) {
 
 function titulo(pdf: PDFKit.PDFDocument, texto: string) {
   garantirEspaco(pdf, 60);
-  pdf.moveDown(0.8).font(FONTE.negrito).fontSize(10.5).fillColor(COR.marca)
+  pdf.moveDown(0.55).font(FONTE.negrito).fontSize(11).fillColor(COR.marca)
     .text(texto.toLocaleUpperCase('pt-BR'), MARGEM, pdf.y, { width: LARGURA, characterSpacing: 0.4 });
-  pdf.moveDown(0.4).fillColor(COR.tinta);
+  pdf.moveDown(0.25).fillColor(COR.tinta);
 }
 
 function paragrafo(pdf: PDFKit.PDFDocument, texto: string) {
-  pdf.font(FONTE.texto).fontSize(9.5).fillColor(COR.tinta)
-    .text(semGlifosAusentes(texto), MARGEM, pdf.y, { width: LARGURA, align: 'justify', lineGap: 2.5 });
-  pdf.moveDown(0.5);
+  pdf.font(FONTE.texto).fontSize(10.5).fillColor(COR.tinta)
+    .text(texto, MARGEM, pdf.y, { width: LARGURA, align: 'justify', lineGap: 1 });
+  pdf.moveDown(0.25);
 }
 
 function campo(pdf: PDFKit.PDFDocument, rotulo: string, valor: string, mono = false) {
@@ -55,26 +57,29 @@ function campo(pdf: PDFKit.PDFDocument, rotulo: string, valor: string, mono = fa
 }
 
 function tabelaHonorarios(pdf: PDFKit.PDFDocument) {
-  const colunas = [{ rotulo: 'Serviço / Modalidade', largura: 0.46 }, { rotulo: 'Particular', largura: 0.18 },
-    { rotulo: 'Acessível / Social', largura: 0.18 }, { rotulo: 'Pacotes (4+)', largura: 0.18 }];
-  const linhas = [colunas.map((c) => c.rotulo),
-    ...TERMO_ADESAO_HONORARIOS.map((h) => [h.servico, h.particular, h.social, '10% de desconto'])];
-  garantirEspaco(pdf, linhas.length * 22 + 10);
+  const larguras = [0.32, 0.12, 0.14, 0.21, 0.21];
+  const linhas = [TERMO_ADESAO_HONORARIOS_CABECALHOS,
+    ...TERMO_ADESAO_HONORARIOS.map((h) => [h.servico, h.particular, h.social, h.pacoteSocial, h.pacoteParticular])];
+  const alturas = linhas.map((linha, indice) => Math.max(...linha.map((texto, col) =>
+    pdf.font(indice === 0 ? FONTE.negrito : FONTE.texto).fontSize(8.5)
+      .heightOfString(texto, { width: LARGURA * larguras[col] - 10, lineGap: 1 }))) + 12);
+  garantirEspaco(pdf, alturas.reduce((soma, altura) => soma + altura, 0) + 8);
   linhas.forEach((linha, indice) => {
     const y = pdf.y;
-    if (indice === 0) pdf.rect(MARGEM, y, LARGURA, 20).fill(COR.marca);
-    else if (indice % 2 === 0) pdf.rect(MARGEM, y, LARGURA, 20).fill(COR.fundo);
+    const altura = alturas[indice];
+    if (indice === 0) pdf.rect(MARGEM, y, LARGURA, altura).fill(COR.marca);
+    else if (indice % 2 === 0) pdf.rect(MARGEM, y, LARGURA, altura).fill(COR.fundo);
     let x = MARGEM;
-    linha.forEach((celula, i) => {
-      const largura = LARGURA * colunas[i].largura;
-      pdf.font(indice === 0 ? FONTE.negrito : FONTE.texto).fontSize(8)
+    linha.forEach((celula, col) => {
+      const largura = LARGURA * larguras[col];
+      pdf.font(indice === 0 ? FONTE.negrito : FONTE.texto).fontSize(8.5)
         .fillColor(indice === 0 ? '#ffffff' : COR.tinta)
-        .text(celula, x + 6, y + 6, { width: largura - 12, align: i === 0 ? 'left' : 'center', lineBreak: false, ellipsis: true });
+        .text(celula, x + 5, y + 6, { width: largura - 10, align: col === 0 ? 'left' : 'center', lineGap: 1 });
       x += largura;
     });
-    pdf.y = y + 20;
+    pdf.y = y + altura;
   });
-  pdf.moveDown(0.6);
+  pdf.moveDown(0.4);
 }
 
 function manifesto(pdf: PDFKit.PDFDocument, cadastro: CadastroPsicologoRecord, codigo: string) {
@@ -107,7 +112,7 @@ function manifesto(pdf: PDFKit.PDFDocument, cadastro: CadastroPsicologoRecord, c
 
   titulo(pdf, 'Validade e integridade');
   paragrafo(pdf, 'O aceite foi manifestado eletronicamente e é admitido como meio de comprovação de autoria e integridade, nos termos do art. 10, § 2º, da Medida Provisória nº 2.200-2/2001 e da Lei nº 14.063/2020, conforme a cláusula 10 do próprio termo.');
-  paragrafo(pdf, 'Este comprovante foi gerado automaticamente no momento do envio do cadastro e remetido, na mesma mensagem, ao(à) profissional e à Viver Mais Psicologia. O hash SHA-256 deste arquivo PDF fica registrado no cadastro e consta do e-mail de envio: qualquer alteração no arquivo muda esse hash. O hash do texto permite conferir que a íntegra abaixo é exatamente a versão aceita.');
+  paragrafo(pdf, 'Este comprovante registra a prova do aceite manifestado no envio do cadastro. A via institucional é enviada à clínica na solicitação; a via do profissional acompanha o e-mail de acesso após a aprovação pela gestão. O hash SHA-256 deste arquivo PDF fica registrado no cadastro e consta do e-mail de envio: qualquer alteração no arquivo muda esse hash. O hash do texto permite conferir que a íntegra abaixo é exatamente a versão aceita.');
 }
 
 function integra(pdf: PDFKit.PDFDocument, cadastro: CadastroPsicologoRecord) {
@@ -120,6 +125,7 @@ function integra(pdf: PDFKit.PDFDocument, cadastro: CadastroPsicologoRecord) {
     pdf.moveDown(0.5).font(FONTE.semi).fontSize(9).fillColor('#9a3412')
       .text(`Atenção: o formulário informou a versão ${cadastro.aceiteTermoAdesao?.versao}; a íntegra reproduzida é a versão vigente no servidor.`, { width: LARGURA, align: 'center' });
   }
+  pdf.font(FONTE.texto).fontSize(9).text(TERMO_ADESAO_SUBTITULO, { width: LARGURA, align: 'center' });
   pdf.moveDown(0.6);
   TERMO_ADESAO_IDENTIFICACAO.forEach((texto) => paragrafo(pdf, texto));
   for (const clausula of TERMO_ADESAO_CLAUSULAS) {
@@ -129,6 +135,7 @@ function integra(pdf: PDFKit.PDFDocument, cadastro: CadastroPsicologoRecord) {
       if (clausula.numero === '05' && indice === 0) tabelaHonorarios(pdf);
     });
   }
+  TERMO_ADESAO_PAINEL.forEach((texto) => paragrafo(pdf, texto));
 }
 
 function rodapes(pdf: PDFKit.PDFDocument, codigo: string) {
@@ -137,9 +144,9 @@ function rodapes(pdf: PDFKit.PDFDocument, codigo: string) {
     pdf.switchToPage(pagina);
     const margemInferior = pdf.page.margins.bottom;
     pdf.page.margins.bottom = 0;
-    pdf.moveTo(MARGEM, 800).lineTo(MARGEM + LARGURA, 800).lineWidth(0.5).stroke(COR.linha);
+    pdf.moveTo(MARGEM, 810).lineTo(MARGEM + LARGURA, 810).lineWidth(0.5).stroke(COR.linha);
     pdf.font(FONTE.texto).fontSize(7).fillColor(COR.suave)
-      .text(`Código de verificação ${codigo} · Página ${pagina + 1} de ${paginas.count}`, MARGEM, 808, { width: LARGURA, align: 'center', lineBreak: false });
+      .text(`Código de verificação ${codigo} · Página ${pagina + 1} de ${paginas.count}`, MARGEM, 817, { width: LARGURA, align: 'center', lineBreak: false });
     pdf.page.margins.bottom = margemInferior;
   }
 }
@@ -152,10 +159,12 @@ function rodapes(pdf: PDFKit.PDFDocument, codigo: string) {
 export async function gerarComprovanteTermoAdesaoPdf(cadastro: CadastroPsicologoRecord): Promise<Buffer> {
   const aceite = cadastro.aceiteTermoAdesao;
   if (!aceite) throw new Error('Cadastro sem prova de aceite do Termo de Adesão.');
+  if (aceite.versao === '2026.2') return gerarComprovanteLegado(cadastro);
+  if (aceite.versao !== VERSAO_TERMO_ADESAO) throw new Error('Versão do Termo de Adesão indisponível.');
   const codigo = codigoVerificacaoAceite(cadastro);
   const quando = new Date(aceite.aceitoEm);
   const pdf = new PDFDocument({
-    size: 'A4', margins: { top: MARGEM, bottom: 80, left: MARGEM, right: MARGEM }, bufferPages: true,
+    size: 'A4', margins: { top: MARGEM, bottom: 44, left: MARGEM, right: MARGEM }, bufferPages: true,
     info: {
       Title: `Comprovante de aceite — ${TERMO_ADESAO_TITULO}`,
       Author: 'Viver Mais Psicologia',
@@ -171,7 +180,7 @@ export async function gerarComprovanteTermoAdesaoPdf(cadastro: CadastroPsicologo
     pdf.on('end', () => resolve(Buffer.concat(partes)));
     pdf.on('error', reject);
   });
-  pdf.registerFont(FONTE.texto, certificateAssets.interTight400());
+  pdf.registerFont(FONTE.texto, fonteTermoAdesao());
   pdf.registerFont(FONTE.semi, certificateAssets.interTight600());
   pdf.registerFont(FONTE.negrito, certificateAssets.interTight800());
   manifesto(pdf, cadastro, codigo);

@@ -16,13 +16,15 @@ interface Input {
   validDuration: boolean;
   chargeDueDate: string;
   chargeDueTime: string;
+  /** A empresa custeia todas as sessões: não há vencimento a enviar. */
+  companyFunded?: boolean;
   mode: ManualAppointmentMode;
   serviceKey: string;
   onScheduled?: () => void | Promise<void>;
 }
 
 export function useManualAppointmentSubmission({ patientId, professionalId, adminMode, recurrenceDates, date, time,
-  durationMinutes, validDuration, chargeDueDate, chargeDueTime, mode, serviceKey, onScheduled }: Input) {
+  durationMinutes, validDuration, chargeDueDate, chargeDueTime, companyFunded = false, mode, serviceKey, onScheduled }: Input) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ kind: 'error' | 'success' | 'warning'; text: string }>();
   // Cada ocorrência mantém id e chave enquanto o formulário estiver aberto. Uma
@@ -71,8 +73,6 @@ export function useManualAppointmentSubmission({ patientId, professionalId, admi
           createdCount += 1;
           continue;
         }
-        const dayOffset = civilDaysBetween(date, occurrenceDate);
-        const occurrenceDueDate = shiftCivilDate(chargeDueDate, dayOffset);
         const result = await applicationRequest<{ charge: { status: string } }>('/appointments', {
           method: 'POST',
           headers: occurrence.headers,
@@ -88,7 +88,9 @@ export function useManualAppointmentSubmission({ patientId, professionalId, admi
             mode,
             createdAt: new Date().toISOString(),
             serviceKey,
-            chargeDueAt: clinicDateTimeToIso(occurrenceDueDate, chargeDueTime),
+            ...(companyFunded
+              ? {}
+              : { chargeDueAt: clinicDateTimeToIso(shiftCivilDate(chargeDueDate, civilDaysBetween(date, occurrenceDate)), chargeDueTime) }),
           }),
         });
         occurrence.created = true;

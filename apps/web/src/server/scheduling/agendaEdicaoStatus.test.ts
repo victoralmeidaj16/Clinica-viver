@@ -31,6 +31,7 @@ vi.mock('@/server/persistence/mysql/mappers', () => ({
 }));
 
 import { updateAppointmentDetails } from './agendaRepository';
+import { concluirReagendamento } from './agendaReagendamentoEffects';
 
 const AGENDAMENTO = {
   id: 'apt-1',
@@ -89,6 +90,60 @@ describe('updateAppointmentDetails', () => {
     const agora = new Date('2099-01-01T15:00:00Z');
     expect(await updateAppointmentDetails('org-1', 'pro-1', 'apt-1',
       { startsAt: '2099-01-01T14:50:00Z', endsAt: '2099-01-01T15:40:00Z' }, {}, agora)).toBe('past_start');
+    expect(connection.execute).not.toHaveBeenCalled();
+    expect(connection.rollback).toHaveBeenCalled();
+  });
+
+  describe('correção retroativa da gestão', () => {
+    const agora = new Date('2099-01-01T15:00:00Z');
+    const passado = { startsAt: '2098-12-20T14:00:00.000Z', endsAt: '2098-12-20T14:50:00.000Z' };
+
+    it('aceita mover a sessão para o passado', async () => {
+      expect(await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', passado,
+        { permitirHorarioPassado: true }, agora)).toBe('ok');
+      const [sql, valores] = connection.execute.mock.calls[0];
+      expect(sql).toContain('inicio = ?');
+      expect(valores).toContainEqual(new Date(passado.startsAt));
+      expect(connection.commit).toHaveBeenCalled();
+    });
+
+    it('não avisa o paciente de uma remarcação que já passou', async () => {
+      await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', passado, { permitirHorarioPassado: true }, agora);
+      expect(concluirReagendamento).not.toHaveBeenCalled();
+    });
+
+    it('não leva o vencimento da cobrança para o passado', async () => {
+      const previousQuery = connection.query.getMockImplementation()!;
+      connection.query.mockImplementation(async (sql, values) => sql.includes('SELECT c.ref_core')
+        ? [[{ ref_core: 'charge', organizacao_ref: 'org-1', status: 'pending', possui_pagamento: 0 }], []]
+        : previousQuery(sql, values));
+      await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', passado, { permitirHorarioPassado: true }, agora);
+      const escritas = connection.execute.mock.calls.map(([sql]) => sql);
+      expect(escritas.some((sql) => sql.includes('financeiro_ajustes_vencimento'))).toBe(false);
+      expect(escritas.some((sql) => sql.includes('cobranca_vence_em'))).toBe(false);
+    });
+
+    it('continua recusando conflito com outro atendimento', async () => {
+      const previousQuery = connection.query.getMockImplementation()!;
+      connection.query.mockImplementation(async (sql, values) => sql.includes('AND a.id <> ?')
+        ? [[{ id: 'outro' }], []]
+        : previousQuery(sql, values));
+      expect(await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', passado,
+        { permitirHorarioPassado: true }, agora)).toBe('conflict');
+      expect(connection.execute).not.toHaveBeenCalled();
+    });
+
+    it('volta a avisar quando a gestão move para o futuro', async () => {
+      await updateAppointmentDetails('org-1', 'pro-1', 'apt-1',
+        { startsAt: '2099-03-01T12:00:00.000Z', endsAt: '2099-03-01T12:50:00.000Z' },
+        { permitirHorarioPassado: true }, agora);
+      expect(concluirReagendamento).toHaveBeenCalledOnce();
+    });
+  });
+
+  it('não edita sessão com falta registrada: a decisão de cobrança já foi tomada', async () => {
+    comAgendamento({ status: 'faltou' });
+    expect(await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', { status: 'agendado' })).toBe('no_show_locked');
     expect(connection.execute).not.toHaveBeenCalled();
     expect(connection.rollback).toHaveBeenCalled();
   });

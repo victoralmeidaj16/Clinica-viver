@@ -13,6 +13,8 @@ import { variableDurationMinutes } from './VariableDurationFields';
 import { ManualAppointmentServiceFields } from './ManualAppointmentServiceFields';
 import { ManualAppointmentHeader } from './ManualAppointmentHeader';
 import { ManualAppointmentActions } from './ManualAppointmentActions';
+import { ManualAppointmentChargeDue } from './ManualAppointmentChargeDue';
+import type { CusteioAoAgendar } from '@/lib/sessionChargeRules';
 import {
   CLINICAL_SERVICES,
   getServiceDuration,
@@ -29,6 +31,8 @@ export interface ManualAppointmentPatient {
   status: string;
   primaryProfessionalId?: string;
   professionalName?: string;
+  convenioNome?: string;
+  custeioAoAgendar?: CusteioAoAgendar;
 }
 
 interface Props {
@@ -90,6 +94,7 @@ export function ManualAppointmentDialog({
   const [chargeDueDate, setChargeDueDate] = useState(() => todayAtClinic());
   const [chargeDueTime, setChargeDueTime] = useState('14:00');
   const [customDue, setCustomDue] = useState(false);
+  const custeio = selectedPatient?.custeioAoAgendar;
 
   const variableDuration = hasVariableDuration(serviceKey);
   const manualDuration = variableDuration && durationPreset === 'manual';
@@ -105,7 +110,7 @@ export function ManualAppointmentDialog({
 
   const { submit, saving, message, completed } = useManualAppointmentSubmission({
     patientId, professionalId: selectedPatient?.primaryProfessionalId, adminMode, recurrenceDates, date, time,
-    durationMinutes, validDuration, chargeDueDate, chargeDueTime, mode, serviceKey, onScheduled,
+    durationMinutes, validDuration, chargeDueDate, chargeDueTime, companyFunded: custeio === 'empresa', mode, serviceKey, onScheduled,
   });
 
   return (
@@ -193,14 +198,15 @@ export function ManualAppointmentDialog({
             onDatesChange={setCustomDates}
           />
 
-          <fieldset disabled={saving || completed} className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
-            <legend className="px-2 text-xs font-black text-amber-950">Vencimento da cobrança</legend>
-            <p className="mb-3 text-[11px] text-amber-800">O link e o Pix serão encerrados neste horário exato.</p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="text-xs font-bold text-ink">Data *<input type="date" required min={todayAtClinic()} value={chargeDueDate} onChange={(event) => { setCustomDue(true); setChargeDueDate(event.target.value); }} className="input mt-1.5 py-3 text-xs font-bold" /></label>
-              <label className="text-xs font-bold text-ink">Horário *<input type="time" required value={chargeDueTime} onChange={(event) => { setCustomDue(true); setChargeDueTime(event.target.value); }} className="input mt-1.5 py-3 text-xs font-bold" /></label>
-            </div>
-          </fieldset>
+          <ManualAppointmentChargeDue
+            custeio={custeio}
+            convenioNome={selectedPatient?.convenioNome}
+            date={chargeDueDate}
+            time={chargeDueTime}
+            disabled={saving || completed}
+            onDateChange={(value) => { setCustomDue(true); setChargeDueDate(value); }}
+            onTimeChange={(value) => { setCustomDue(true); setChargeDueTime(value); }}
+          />
 
           <fieldset disabled={saving || completed}>
             <legend className="text-xs font-bold text-ink">Modalidade</legend>
@@ -219,7 +225,11 @@ export function ManualAppointmentDialog({
           </fieldset>
 
           <p className="rounded-2xl border border-psi-soft bg-psi-light/60 px-4 py-3 text-[11px] leading-relaxed text-psi-deep">
-            Os horários serão registrados em Brasília com duração de <strong>{validDuration ? `${durationMinutes} min` : 'a definir'}</strong> ({selectedService.label}). Cada sessão receberá sua própria cobrança e aparecerá nas notificações do sino.
+            Os horários serão registrados em Brasília com duração de <strong>{validDuration ? `${durationMinutes} min` : 'a definir'}</strong> ({selectedService.label}). {custeio === 'empresa'
+              ? 'Cada sessão aparecerá nas notificações do sino.'
+              : custeio === 'empresa_com_limite'
+                ? 'Cada sessão aparecerá nas notificações do sino, e as cobradas do paciente terão cobrança própria.'
+                : 'Cada sessão receberá sua própria cobrança e aparecerá nas notificações do sino.'}
           </p>
           </div>
 

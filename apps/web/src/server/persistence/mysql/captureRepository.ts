@@ -1,4 +1,5 @@
 import 'server-only';
+import { validarAcessibilidade } from '@/lib/psychologistAccessibility';
 
 import { assertMudancasDeCadastroUnicas } from '@/server/application/psychologistUniqueness';
 import { assertEmailsDeCadastroDisponiveis, syncIdentidadeDoCadastro } from '@/server/application/psychologistIdentityGuard';
@@ -23,6 +24,7 @@ import {
   fromSqlTimestamp,
   instituicaoId,
   rowId,
+  toSqlDate,
   toSqlTimestamp,
 } from './mappers';
 import { comTurmasEncerradas } from '@/server/persistence/turmasEncerradas';
@@ -43,6 +45,7 @@ interface TriagemRow extends RowDataPacket {
   nome_paciente: string;
   nome_social?: string | null;
   telefone: string;
+  data_nascimento?: string | Date | null;
   idade: string | null;
   email: string | null;
   cpf: string | null;
@@ -78,6 +81,7 @@ interface TriagemRow extends RowDataPacket {
   sla_expirado: number;
   transbordos: number;
   psicologos_ja_tentados: unknown;
+  tipo_alocacao?: string | null;
   criado_em: string;
 }
 
@@ -89,6 +93,7 @@ interface PsicologoRow extends RowDataPacket {
   whatsapp: string;
   email: string | null;
   foto_url: string | null;
+  acessibilidade?: unknown;
   usuario_ref: string | null;
   profissional_ref: string | null;
   acesso_criado_em: string | null;
@@ -186,6 +191,16 @@ function preferenciaGeneroLida(valor: string | null): PreferenciaGeneroPsicologo
   return valor === 'MASCULINO' || valor === 'FEMININO' ? valor : undefined;
 }
 
+function tipoAlocacaoLido(valor: string | null | undefined): TriagemPacienteRecord['tipoAlocacao'] {
+  return valor === 'ESCOLHA_DIRETA' || valor === 'RODIZIO' ? valor : undefined;
+}
+
+function dataNascimentoLida(valor: string | Date | null | undefined): string | undefined {
+  if (!valor) return undefined;
+  const iso = valor instanceof Date ? valor.toISOString() : String(valor);
+  return iso.slice(0, 10) || undefined;
+}
+
 function toLead(row: TriagemRow): TriagemPacienteRecord {
   return {
     id: row.ref_core,
@@ -193,6 +208,7 @@ function toLead(row: TriagemRow): TriagemPacienteRecord {
     nomePaciente: row.nome_paciente,
     nomeSocial: row.nome_social?.trim() || undefined,
     telefone: row.telefone,
+    dataNascimento: dataNascimentoLida(row.data_nascimento),
     idade: row.idade ?? undefined,
     email: row.email ?? undefined,
     cpf: row.cpf ?? undefined,
@@ -229,6 +245,7 @@ function toLead(row: TriagemRow): TriagemPacienteRecord {
     slaExpirado: Boolean(row.sla_expirado),
     transbordos: row.transbordos,
     psicologosJaTentados: asStringArray(row.psicologos_ja_tentados),
+    tipoAlocacao: tipoAlocacaoLido(row.tipo_alocacao),
   };
 }
 
@@ -241,6 +258,13 @@ function toPsychologist(row: PsicologoRow): CadastroPsicologoRecord {
     whatsapp: row.whatsapp,
     email: row.email ?? undefined,
     fotoUrl: row.foto_url ?? undefined,
+    acessibilidade: (() => {
+      try {
+        const value = typeof row.acessibilidade === 'string' ? JSON.parse(row.acessibilidade) : row.acessibilidade;
+        const parsed = validarAcessibilidade(value);
+        return parsed.ok ? parsed.data : undefined;
+      } catch { return undefined; }
+    })(),
     usuarioRef: row.usuario_ref ?? undefined,
     profissionalRef: row.profissional_ref ?? undefined,
     acessoCriadoEm: fromSqlTimestamp(row.acesso_criado_em),
@@ -346,7 +370,7 @@ export class MysqlCaptureRepository {
       assertMudancasDeCadastroUnicas(migrated.cadastrosPsicologos, change.next.cadastrosPsicologos);
       await assertEmailsDeCadastroDisponiveis(connection, migrated.cadastrosPsicologos, change.next.cadastrosPsicologos);
       await syncIdentidadeDoCadastro(connection, migrated.cadastrosPsicologos, change.next.cadastrosPsicologos);
-      await this.writeState(connection, change.next);
+      await this.writeState(connection, change.next, migrated);
       await connection.commit();
       return change.result;
     } catch (error) {
@@ -387,11 +411,15 @@ export class MysqlCaptureRepository {
    * comprovante. `JSON_SET` mexe só nessa chave: data, IP e hashes gravados no
    * credenciamento continuam intocados.
    */
-  async registrarEnvioComprovanteTermo(cadastroId: string, envio: EnvioComprovanteTermo): Promise<void> {
+  async registrarEnvioComprovanteTermo(
+    cadastroId: string,
+    envio: EnvioComprovanteTermo,
+    campo: 'envioComprovante' | 'envioComprovanteConvite' = 'envioComprovante'
+  ): Promise<void> {
     if (!(await this.supportsAceiteTermoColumn(this.pool))) return;
     await this.pool.execute(
       `UPDATE clinica_cadastros_psicologos
-          SET aceite_termo_adesao = JSON_SET(aceite_termo_adesao, '$.envioComprovante', CAST(? AS JSON))
+          SET aceite_termo_adesao = JSON_SET(aceite_termo_adesao, '$.${campo}', CAST(? AS JSON))
         WHERE id = ? AND aceite_termo_adesao IS NOT NULL`,
       [JSON.stringify(envio), rowId('cadastro_psicologo', cadastroId)]
     );
@@ -399,9 +427,21 @@ export class MysqlCaptureRepository {
 
   private static hasNomeSocialColumn: boolean | null = null;
   private static hasAceiteTermoColumn = false;
+  private static hasNascimentoAlocacaoColumns = false;
+  private static hasAcessibilidadeColumn = false;
+
+  private async supportsAcessibilidadeColumn(connection: Pool | PoolConnection): Promise<boolean> {
+    if (MysqlCaptureRepository.hasAcessibilidadeColumn) return true;
+    const [rows] = await connection.query<RowDataPacket[]>(
+      `SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE()
+        AND table_name = 'clinica_cadastros_psicologos' AND column_name = 'acessibilidade' LIMIT 1`
+    );
+    MysqlCaptureRepository.hasAcessibilidadeColumn = rows.length > 0;
+    return MysqlCaptureRepository.hasAcessibilidadeColumn;
+  }
 
   /**
-   * A Vercel publica a cada push e pode rodar antes da migração 058 chegar ao
+   * A Vercel publica a cada push e pode rodar antes da migração chegar ao
    * banco. Sem a coluna, o cadastro segue funcionando e só a prova do aceite
    * deixa de ser lida e gravada, em vez de toda leitura da captação falhar.
    * Só o "sim" fica em cache: a coluna passa a ser usada assim que a migração
@@ -422,6 +462,23 @@ export class MysqlCaptureRepository {
       return false;
     }
     return MysqlCaptureRepository.hasAceiteTermoColumn;
+  }
+
+  private async supportsNascimentoAlocacaoColumns(connection: Pool | PoolConnection): Promise<boolean> {
+    if (MysqlCaptureRepository.hasNascimentoAlocacaoColumns) return true;
+    try {
+      const [rows] = await connection.query<RowDataPacket[]>(
+        `SELECT 1 FROM information_schema.columns
+          WHERE table_schema = DATABASE()
+            AND table_name = 'clinica_triagens_pacientes'
+            AND column_name = 'data_nascimento'
+          LIMIT 1`
+      );
+      MysqlCaptureRepository.hasNascimentoAlocacaoColumns = rows.length > 0;
+    } catch {
+      return false;
+    }
+    return MysqlCaptureRepository.hasNascimentoAlocacaoColumns;
   }
 
   private async supportsNomeSocialColumn(connection: Pool | PoolConnection): Promise<boolean> {
@@ -447,10 +504,12 @@ export class MysqlCaptureRepository {
   ): Promise<CaptureState> {
     const lock = lockRows ? ' FOR UPDATE' : '';
     const temNomeSocial = await this.supportsNomeSocialColumn(connection);
+    const temNascimentoAlocacao = await this.supportsNascimentoAlocacaoColumns(connection);
     const temAceiteTermo = await this.supportsAceiteTermoColumn(connection);
+    const temAcessibilidade = await this.supportsAcessibilidadeColumn(connection);
     const campoNomeSocial = temNomeSocial ? 'nome_social' : 'NULL AS nome_social';
     const [leadRows] = await connection.query<TriagemRow[]>(
-      `SELECT ref_core, protocolo, nome_paciente, ${campoNomeSocial}, telefone, idade, email, cpf, cep,
+      `SELECT ref_core, protocolo, nome_paciente, ${campoNomeSocial}, telefone,${temNascimentoAlocacao ? ' data_nascimento,' : ''} idade, email, cpf, cep,
               logradouro, numero_residencia, complemento, bairro, cidade, estado_uf,
               possui_convenio, convenio_selecionado, origem, turno, servico,
               servico_key, modalidade, para_quem_e, preferencia_genero_psicologo,
@@ -458,14 +517,14 @@ export class MysqlCaptureRepository {
               necessidades_paciente, necessidades_outro, opcao_avaliacao_psicologica,
               genero, genero_outro, status, psicologo_alocado_id,
               psicologo_nome, paciente_ref, alocado_em, aceito_em, confirmado_em, sla_expirado,
-              transbordos, psicologos_ja_tentados, criado_em
+              transbordos, psicologos_ja_tentados,${temNascimentoAlocacao ? ' tipo_alocacao,' : ''} criado_em
          FROM clinica_triagens_pacientes
         WHERE instituicao_id = ? AND organizacao_ref = ?
         ORDER BY criado_em${lock}`,
       [instituicaoId(), organizacaoRef()]
     );
     const [psychRows] = await connection.query<PsicologoRow[]>(
-      `SELECT ref_core, nome_completo, nome_social, crp, whatsapp, email, foto_url,
+      `SELECT ref_core, nome_completo, nome_social, crp, whatsapp, email, foto_url,${temAcessibilidade ? ' acessibilidade,' : ''}
               usuario_ref, profissional_ref, acesso_criado_em, boas_vindas_enviada_em,
               cidade_uf, estado_uf, cidade, logradouro, bairro,
               genero, genero_outro,
@@ -578,11 +637,138 @@ export class MysqlCaptureRepository {
     return next;
   }
 
+  private static psychValues(psych: CadastroPsicologoRecord): Array<string | number | null> {
+    return [
+      rowId('cadastro_psicologo', psych.id),
+      instituicaoId(),
+      organizacaoRef(),
+      psych.id,
+      psych.nomeCompleto,
+      psych.nomeSocial ?? null,
+      psych.crp,
+      psych.whatsapp,
+      psych.email ?? null,
+      psych.fotoUrl ?? null,
+      psych.usuarioRef ?? null,
+      psych.profissionalRef ?? null,
+      psych.acessoCriadoEm ? toSqlTimestamp(psych.acessoCriadoEm) : null,
+      psych.boasVindasEnviadaEm ? toSqlTimestamp(psych.boasVindasEnviadaEm) : null,
+      psych.cidadeUf ?? (psych.cidade && psych.estadoUf ? `${psych.cidade}/${psych.estadoUf}` : null),
+      psych.estadoUf ?? null,
+      psych.cidade ?? null,
+      psych.logradouro ?? null,
+      psych.bairro ?? null,
+      psych.genero ?? null,
+      psych.generoOutro ?? null,
+      psych.especialidade ?? null,
+      psych.modalidadeAtendimento ?? null,
+      psych.atendimentoPreferencia ?? null,
+      psych.minibio ?? null,
+      psych.status,
+      asJson(psych.turnosDisponiveis),
+      asJson(psych.modalidadesAtendidas),
+      asJson(psych.servicosHabilitados),
+      asJson(psych.servicosPrestados),
+      asJson(psych.temposAtendimento),
+      asJson(psych.publicoAlvo),
+      psych.publicoAlvoOutro ?? null,
+      psych.especificarNecessidades ? 1 : 0,
+      asJson(psych.necessidadesAtendidas),
+      psych.necessidadesOutro ?? null,
+      psych.limitePacientesAtivos ?? null,
+      psych.pacientesAtivosCount ?? 0,
+      psych.exibirNaVitrine === false ? 0 : 1,
+      psych.pausadoNoRodizio ? 1 : 0,
+      psych.motivoPausaRodizio ?? null,
+      psych.motivoDesativacao ?? null,
+      psych.ultimoLeadRecebidoEm ? toSqlTimestamp(psych.ultimoLeadRecebidoEm) : null,
+      psych.turmaViverMais ?? null,
+      psych.posGraduacaoViverMais ?? null,
+      psych.segundaPosGraduacao ?? null,
+      asNullableJson(psych.solicitacaoAlteracaoGestao),
+      toSqlTimestamp(psych.criadoEm),
+    ];
+  }
+
+  private static leadEntries(
+    lead: TriagemPacienteRecord,
+    temNomeSocial: boolean,
+    temNascimentoAlocacao: boolean
+  ): Array<[string, string | number | null, boolean]> {
+    const entries: Array<[string, string | number | null, boolean]> = [
+      ['id', rowId('triagem', lead.id), false],
+      ['instituicao_id', instituicaoId(), false],
+      ['organizacao_ref', organizacaoRef(), false],
+      ['ref_core', lead.id, false],
+      ['protocolo', lead.protocolo, true],
+      ['nome_paciente', lead.nomePaciente, true],
+    ];
+    if (temNomeSocial) entries.push(['nome_social', lead.nomeSocial?.trim() || null, true]);
+    entries.push(['telefone', lead.telefone, true]);
+    if (temNascimentoAlocacao) entries.push(['data_nascimento', toSqlDate(lead.dataNascimento), true]);
+    entries.push(
+      ['idade', lead.idade ?? null, true],
+      ['email', lead.email ?? null, true],
+      ['cpf', lead.cpf ?? null, true],
+      ['cep', lead.cep ?? null, true],
+      ['logradouro', lead.logradouro ?? null, true],
+      ['numero_residencia', lead.numeroResidencia ?? null, true],
+      ['complemento', lead.complemento ?? null, true],
+      ['bairro', lead.bairro ?? null, true],
+      ['cidade', lead.cidade ?? null, true],
+      ['estado_uf', lead.estadoUf ?? null, true],
+      ['possui_convenio', lead.possuiConvenio ?? null, true],
+      ['convenio_selecionado', lead.convenioSelecionado, true],
+      ['origem', lead.origem, true],
+      ['turno', lead.turno, true],
+      ['servico', lead.servico ?? null, true],
+      ['servico_key', lead.servicoKey ?? null, true],
+      ['modalidade', lead.modalidade ?? null, true],
+      ['para_quem_e', lead.paraQuemE ?? null, true],
+      ['preferencia_genero_psicologo', lead.preferenciaGeneroPsicologo ?? null, true],
+      ['especificar_necessidades', lead.especificarNecessidades ? 1 : 0, true],
+      ['necessidades_paciente', asJson(lead.necessidadesPaciente), true],
+      ['necessidades_outro', lead.necessidadesOutro ?? null, true],
+      ['opcao_avaliacao_psicologica', lead.opcaoAvaliacaoPsicologica ?? null, true],
+      ['genero', lead.genero ?? null, true],
+      ['genero_outro', lead.generoOutro ?? null, true],
+      ['status', lead.status, true],
+      ['psicologo_alocado_id', lead.psicologoAlocadoId ?? null, true],
+      ['psicologo_nome', lead.psicologoNome ?? null, true],
+      ['paciente_ref', lead.pacienteRef ?? null, true],
+      ['alocado_em', lead.alocadoEm ? toSqlTimestamp(lead.alocadoEm) : null, true],
+      ['aceito_em', lead.aceitoEm ? toSqlTimestamp(lead.aceitoEm) : null, true],
+      ['confirmado_em', lead.confirmadoEm ? toSqlTimestamp(lead.confirmadoEm) : null, true],
+      ['sla_expirado', lead.slaExpirado ? 1 : 0, true],
+      ['transbordos', lead.transbordos ?? 0, true],
+      ['psicologos_ja_tentados', asJson(lead.psicologosJaTentados), true]
+    );
+    if (temNascimentoAlocacao) entries.push(['tipo_alocacao', lead.tipoAlocacao ?? null, true]);
+    entries.push(['criado_em', toSqlTimestamp(lead.criadoEm), false]);
+    return entries;
+  }
+
   private async writeState(
     connection: Pool | PoolConnection,
-    state: CaptureState
+    state: CaptureState,
+    previous?: CaptureState
   ): Promise<void> {
+    const prevPsychs = previous
+      ? new Map(previous.cadastrosPsicologos.map((item) => [item.id, item]))
+      : null;
     for (const psych of state.cadastrosPsicologos) {
+      const params = MysqlCaptureRepository.psychValues(psych);
+      const before = prevPsychs?.get(psych.id);
+      const changed =
+        !before ||
+        JSON.stringify(psych.acessibilidade) !== JSON.stringify(before.acessibilidade) ||
+        JSON.stringify(params) !== JSON.stringify(MysqlCaptureRepository.psychValues(before)) ||
+        Boolean(psych.aceiteTermoAdesao && !before.aceiteTermoAdesao);
+      if (!changed) continue;
+      const temAcessibilidade = await this.supportsAcessibilidadeColumn(connection);
+      if (psych.acessibilidade && !temAcessibilidade) {
+        throw new Error('A gravação da acessibilidade requer a migration 076_psicologo_acessibilidade.sql.');
+      }
       await connection.execute(
         `INSERT INTO clinica_cadastros_psicologos
            (id, instituicao_id, organizacao_ref, ref_core, nome_completo, nome_social,
@@ -632,57 +818,14 @@ export class MysqlCaptureRepository {
            pos_graduacao_viver_mais = VALUES(pos_graduacao_viver_mais),
            segunda_pos_graduacao_viver_mais = VALUES(segunda_pos_graduacao_viver_mais),
            solicitacao_alteracao_gestao = VALUES(solicitacao_alteracao_gestao)`,
-        [
-          rowId('cadastro_psicologo', psych.id),
-          instituicaoId(),
-          organizacaoRef(),
-          psych.id,
-          psych.nomeCompleto,
-          psych.nomeSocial ?? null,
-          psych.crp,
-          psych.whatsapp,
-          psych.email ?? null,
-          psych.fotoUrl ?? null,
-          psych.usuarioRef ?? null,
-          psych.profissionalRef ?? null,
-          psych.acessoCriadoEm ? toSqlTimestamp(psych.acessoCriadoEm) : null,
-          psych.boasVindasEnviadaEm ? toSqlTimestamp(psych.boasVindasEnviadaEm) : null,
-          psych.cidadeUf ?? (psych.cidade && psych.estadoUf ? `${psych.cidade}/${psych.estadoUf}` : null),
-          psych.estadoUf ?? null,
-          psych.cidade ?? null,
-          psych.logradouro ?? null,
-          psych.bairro ?? null,
-          psych.genero ?? null,
-          psych.generoOutro ?? null,
-          psych.especialidade ?? null,
-          psych.modalidadeAtendimento ?? null,
-          psych.atendimentoPreferencia ?? null,
-          psych.minibio ?? null,
-          psych.status,
-          asJson(psych.turnosDisponiveis),
-          asJson(psych.modalidadesAtendidas),
-          asJson(psych.servicosHabilitados),
-          asJson(psych.servicosPrestados),
-          asJson(psych.temposAtendimento),
-          asJson(psych.publicoAlvo),
-          psych.publicoAlvoOutro ?? null,
-          psych.especificarNecessidades ? 1 : 0,
-          asJson(psych.necessidadesAtendidas),
-          psych.necessidadesOutro ?? null,
-          psych.limitePacientesAtivos ?? null,
-          psych.pacientesAtivosCount ?? 0,
-          psych.exibirNaVitrine === false ? 0 : 1,
-          psych.pausadoNoRodizio ? 1 : 0,
-          psych.motivoPausaRodizio ?? null,
-          psych.motivoDesativacao ?? null,
-          psych.ultimoLeadRecebidoEm ? toSqlTimestamp(psych.ultimoLeadRecebidoEm) : null,
-          psych.turmaViverMais ?? null,
-          psych.posGraduacaoViverMais ?? null,
-          psych.segundaPosGraduacao ?? null,
-          asNullableJson(psych.solicitacaoAlteracaoGestao),
-          toSqlTimestamp(psych.criadoEm),
-        ]
+        params
       );
+      if (temAcessibilidade) {
+        await connection.execute(
+          'UPDATE clinica_cadastros_psicologos SET acessibilidade = ? WHERE id = ?',
+          [asNullableJson(psych.acessibilidade), rowId('cadastro_psicologo', psych.id)]
+        );
+      }
       // A prova do aceite é gravada uma única vez: `IS NULL` impede que uma
       // edição posterior do cadastro troque a data, o IP ou o hash registrados.
       if (psych.aceiteTermoAdesao && (await this.supportsAceiteTermoColumn(connection))) {
@@ -696,172 +839,34 @@ export class MysqlCaptureRepository {
     }
 
     const temNomeSocial = await this.supportsNomeSocialColumn(connection);
+    const temNascimentoAlocacao = await this.supportsNascimentoAlocacaoColumns(connection);
+    const prevLeads = previous
+      ? new Map(previous.triagensPacientes.map((item) => [item.id, item]))
+      : null;
     for (const lead of state.triagensPacientes) {
-      if (temNomeSocial) {
-        await connection.execute(
-          `INSERT INTO clinica_triagens_pacientes
-             (id, instituicao_id, organizacao_ref, ref_core, protocolo, nome_paciente, nome_social,
-              telefone, idade, email, cpf, cep, logradouro, numero_residencia, complemento,
-              bairro, cidade, estado_uf, possui_convenio,
-              convenio_selecionado, origem, turno, servico, servico_key, modalidade,
-              para_quem_e, preferencia_genero_psicologo,
-              especificar_necessidades, necessidades_paciente,
-              necessidades_outro, opcao_avaliacao_psicologica, genero, genero_outro, status,
-              psicologo_alocado_id, psicologo_nome, paciente_ref, alocado_em, aceito_em, confirmado_em,
-              sla_expirado, transbordos, psicologos_ja_tentados, criado_em)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-           ON DUPLICATE KEY UPDATE
-             protocolo = VALUES(protocolo), nome_paciente = VALUES(nome_paciente),
-             nome_social = VALUES(nome_social),
-             telefone = VALUES(telefone), idade = VALUES(idade), email = VALUES(email),
-             cpf = VALUES(cpf), cep = VALUES(cep), logradouro = VALUES(logradouro),
-             numero_residencia = VALUES(numero_residencia), complemento = VALUES(complemento),
-             bairro = VALUES(bairro), cidade = VALUES(cidade), estado_uf = VALUES(estado_uf),
-             possui_convenio = VALUES(possui_convenio),
-             convenio_selecionado = VALUES(convenio_selecionado), origem = VALUES(origem),
-             turno = VALUES(turno), servico = VALUES(servico), servico_key = VALUES(servico_key),
-             modalidade = VALUES(modalidade), para_quem_e = VALUES(para_quem_e),
-             preferencia_genero_psicologo = VALUES(preferencia_genero_psicologo),
-             especificar_necessidades = VALUES(especificar_necessidades),
-             necessidades_paciente = VALUES(necessidades_paciente),
-             necessidades_outro = VALUES(necessidades_outro),
-             opcao_avaliacao_psicologica = VALUES(opcao_avaliacao_psicologica),
-             genero = VALUES(genero), genero_outro = VALUES(genero_outro),
-             status = VALUES(status),
-             psicologo_alocado_id = VALUES(psicologo_alocado_id), psicologo_nome = VALUES(psicologo_nome),
-             paciente_ref = VALUES(paciente_ref),
-             alocado_em = VALUES(alocado_em), aceito_em = VALUES(aceito_em), confirmado_em = VALUES(confirmado_em),
-             sla_expirado = VALUES(sla_expirado), transbordos = VALUES(transbordos),
-             psicologos_ja_tentados = VALUES(psicologos_ja_tentados)`,
-          [
-            rowId('triagem', lead.id),
-            instituicaoId(),
-            organizacaoRef(),
-            lead.id,
-            lead.protocolo,
-            lead.nomePaciente,
-            lead.nomeSocial?.trim() || null,
-            lead.telefone,
-            lead.idade ?? null,
-            lead.email ?? null,
-            lead.cpf ?? null,
-            lead.cep ?? null,
-            lead.logradouro ?? null,
-            lead.numeroResidencia ?? null,
-            lead.complemento ?? null,
-            lead.bairro ?? null,
-            lead.cidade ?? null,
-            lead.estadoUf ?? null,
-            lead.possuiConvenio ?? null,
-            lead.convenioSelecionado,
-            lead.origem,
-            lead.turno,
-            lead.servico ?? null,
-            lead.servicoKey ?? null,
-            lead.modalidade ?? null,
-            lead.paraQuemE ?? null,
-            lead.preferenciaGeneroPsicologo ?? null,
-            lead.especificarNecessidades ? 1 : 0,
-            asJson(lead.necessidadesPaciente),
-            lead.necessidadesOutro ?? null,
-            lead.opcaoAvaliacaoPsicologica ?? null,
-            lead.genero ?? null,
-            lead.generoOutro ?? null,
-            lead.status,
-            lead.psicologoAlocadoId ?? null,
-            lead.psicologoNome ?? null,
-            lead.pacienteRef ?? null,
-            lead.alocadoEm ? toSqlTimestamp(lead.alocadoEm) : null,
-            lead.aceitoEm ? toSqlTimestamp(lead.aceitoEm) : null,
-            lead.confirmadoEm ? toSqlTimestamp(lead.confirmadoEm) : null,
-            lead.slaExpirado ? 1 : 0,
-            lead.transbordos ?? 0,
-            asJson(lead.psicologosJaTentados),
-            toSqlTimestamp(lead.criadoEm),
-          ]
-        );
-      } else {
-        await connection.execute(
-          `INSERT INTO clinica_triagens_pacientes
-             (id, instituicao_id, organizacao_ref, ref_core, protocolo, nome_paciente,
-              telefone, idade, email, cpf, cep, logradouro, numero_residencia, complemento,
-              bairro, cidade, estado_uf, possui_convenio,
-              convenio_selecionado, origem, turno, servico, servico_key, modalidade,
-              para_quem_e, preferencia_genero_psicologo,
-              especificar_necessidades, necessidades_paciente,
-              necessidades_outro, opcao_avaliacao_psicologica, genero, genero_outro, status,
-              psicologo_alocado_id, psicologo_nome, paciente_ref, alocado_em, aceito_em, confirmado_em,
-              sla_expirado, transbordos, psicologos_ja_tentados, criado_em)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-           ON DUPLICATE KEY UPDATE
-             protocolo = VALUES(protocolo), nome_paciente = VALUES(nome_paciente),
-             telefone = VALUES(telefone), idade = VALUES(idade), email = VALUES(email),
-             cpf = VALUES(cpf), cep = VALUES(cep), logradouro = VALUES(logradouro),
-             numero_residencia = VALUES(numero_residencia), complemento = VALUES(complemento),
-             bairro = VALUES(bairro), cidade = VALUES(cidade), estado_uf = VALUES(estado_uf),
-             possui_convenio = VALUES(possui_convenio),
-             convenio_selecionado = VALUES(convenio_selecionado), origem = VALUES(origem),
-             turno = VALUES(turno), servico = VALUES(servico), servico_key = VALUES(servico_key),
-             modalidade = VALUES(modalidade), para_quem_e = VALUES(para_quem_e),
-             preferencia_genero_psicologo = VALUES(preferencia_genero_psicologo),
-             especificar_necessidades = VALUES(especificar_necessidades),
-             necessidades_paciente = VALUES(necessidades_paciente),
-             necessidades_outro = VALUES(necessidades_outro),
-             opcao_avaliacao_psicologica = VALUES(opcao_avaliacao_psicologica),
-             genero = VALUES(genero), genero_outro = VALUES(genero_outro),
-             status = VALUES(status),
-             psicologo_alocado_id = VALUES(psicologo_alocado_id), psicologo_nome = VALUES(psicologo_nome),
-             paciente_ref = VALUES(paciente_ref),
-             alocado_em = VALUES(alocado_em), aceito_em = VALUES(aceito_em), confirmado_em = VALUES(confirmado_em),
-             sla_expirado = VALUES(sla_expirado), transbordos = VALUES(transbordos),
-             psicologos_ja_tentados = VALUES(psicologos_ja_tentados)`,
-          [
-            rowId('triagem', lead.id),
-            instituicaoId(),
-            organizacaoRef(),
-            lead.id,
-            lead.protocolo,
-            lead.nomePaciente,
-            lead.telefone,
-            lead.idade ?? null,
-            lead.email ?? null,
-            lead.cpf ?? null,
-            lead.cep ?? null,
-            lead.logradouro ?? null,
-            lead.numeroResidencia ?? null,
-            lead.complemento ?? null,
-            lead.bairro ?? null,
-            lead.cidade ?? null,
-            lead.estadoUf ?? null,
-            lead.possuiConvenio ?? null,
-            lead.convenioSelecionado,
-            lead.origem,
-            lead.turno,
-            lead.servico ?? null,
-            lead.servicoKey ?? null,
-            lead.modalidade ?? null,
-            lead.paraQuemE ?? null,
-            lead.preferenciaGeneroPsicologo ?? null,
-            lead.especificarNecessidades ? 1 : 0,
-            asJson(lead.necessidadesPaciente),
-            lead.necessidadesOutro ?? null,
-            lead.opcaoAvaliacaoPsicologica ?? null,
-            lead.genero ?? null,
-            lead.generoOutro ?? null,
-            lead.status,
-            lead.psicologoAlocadoId ?? null,
-            lead.psicologoNome ?? null,
-            lead.pacienteRef ?? null,
-            lead.alocadoEm ? toSqlTimestamp(lead.alocadoEm) : null,
-            lead.aceitoEm ? toSqlTimestamp(lead.aceitoEm) : null,
-            lead.confirmadoEm ? toSqlTimestamp(lead.confirmadoEm) : null,
-            lead.slaExpirado ? 1 : 0,
-            lead.transbordos ?? 0,
-            asJson(lead.psicologosJaTentados),
-            toSqlTimestamp(lead.criadoEm),
-          ]
-        );
+      const entries = MysqlCaptureRepository.leadEntries(lead, temNomeSocial, temNascimentoAlocacao);
+      const before = prevLeads?.get(lead.id);
+      if (
+        before &&
+        JSON.stringify(entries) ===
+          JSON.stringify(MysqlCaptureRepository.leadEntries(before, temNomeSocial, temNascimentoAlocacao))
+      ) {
+        continue;
       }
+      const columns = entries.map(([col]) => col);
+      const placeholders = entries.map(() => '?').join(', ');
+      const updates = entries
+        .filter(([, , up]) => up)
+        .map(([col]) => `${col} = VALUES(${col})`)
+        .join(',\n             ');
+      await connection.execute(
+        `INSERT INTO clinica_triagens_pacientes
+           (${columns.join(', ')})
+         VALUES (${placeholders})
+         ON DUPLICATE KEY UPDATE
+           ${updates}`,
+        entries.map(([, val]) => val)
+      );
     }
   }
 }

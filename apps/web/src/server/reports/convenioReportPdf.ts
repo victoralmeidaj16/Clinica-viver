@@ -1,6 +1,7 @@
 import 'server-only';
 
 import PDFDocument from 'pdfkit';
+import { rotuloSessaoConvenio } from '@/lib/convenioBilling';
 import type { Convenio, SessaoConvenio } from '@/server/persistence/mysql/convenioRepository';
 
 const color = { ink: '#21192b', muted: '#746b7c', deep: '#43265e', accent: '#22c7a9', line: '#e7dfeb', soft: '#f8f4fa' };
@@ -20,7 +21,8 @@ function header(doc: PDFKit.PDFDocument, convenio: Convenio, periodo: { inicio?:
 }
 
 function summary(doc: PDFKit.PDFDocument, sessions: readonly SessaoConvenio[]) {
-  const total = sessions.reduce((sum, item) => sum + item.valorCents, 0);
+  const custeadas = sessions.filter((item) => item.custeadoPelaEmpresa && item.status !== 'refunded');
+  const total = custeadas.reduce((sum, item) => sum + item.valorCents, 0);
   const cards = [
     ['ATENDIMENTOS', String(sessions.length)],
     ['VALOR DO PERÍODO', money(total)],
@@ -60,7 +62,7 @@ function render(doc: PDFKit.PDFDocument, convenio: Convenio, sessions: readonly 
     doc.text(date(item.realizadaEm), 47, y + 4, { width: 52 });
     doc.font('Helvetica-Bold').text(item.pacienteNome, 107, y + 4, { width: 139, ellipsis: true });
     doc.font('Helvetica').text(item.psicologoNome, 254, y + 4, { width: 130, ellipsis: true });
-    doc.text(item.faturaId ? 'Faturado' : 'A faturar', 392, y + 4, { width: 72 });
+    doc.text(rotuloSessaoConvenio(item), 392, y + 4, { width: 72 });
     doc.font('Helvetica-Bold').fillColor(color.deep).text(money(item.valorCents), 475, y + 4, { width: 72, align: 'right' });
     doc.moveTo(36, y + 26).lineTo(559, y + 26).strokeColor(color.line).lineWidth(0.4).stroke();
     y += 31;

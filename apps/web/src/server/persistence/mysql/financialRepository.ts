@@ -112,6 +112,10 @@ export class MysqlFinancialRepository implements FinancialRepository {
       clauses.push('emitida_em <= ?');
       params.push(toSqlTimestamp(filter.endDate));
     }
+    if (filter.chargeIds?.length) {
+      clauses.push('ref_core IN (?)');
+      params.push([...filter.chargeIds]);
+    }
     if (filter.patientIds?.length) {
       clauses.push('paciente_ref IN (?)');
       params.push([...filter.patientIds]);

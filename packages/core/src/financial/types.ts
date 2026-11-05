@@ -96,6 +96,7 @@ export interface FinancialFilter {
   organizationId?: string;
   startDate?: string;
   endDate?: string;
+  chargeIds?: readonly string[];
   patientIds?: readonly string[];
   professionalIds?: readonly string[];
   chargeStatuses?: readonly ChargeStatus[];

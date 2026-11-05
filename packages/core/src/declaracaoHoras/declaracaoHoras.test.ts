@@ -18,7 +18,7 @@ function sessao(
 }
 
 describe('apurarHorasClinicas', () => {
-  it('conta apenas as sessões em que houve atendimento', () => {
+  it('conta apenas atendimentos confirmados como concluídos pelo profissional', () => {
     const apuracao = apurarHorasClinicas([
       sessao('s1', 'completed', '2026-03-02T13:00:00.000Z'),
       sessao('s2', 'awaiting_review', '2026-04-06T13:00:00.000Z'),
@@ -28,12 +28,28 @@ describe('apurarHorasClinicas', () => {
       sessao('s6', 'scheduled', '2026-12-01T13:00:00.000Z'),
       sessao('s7', 'confirmed', '2026-12-08T13:00:00.000Z'),
       sessao('s8', 'in_progress', '2026-12-15T13:00:00.000Z'),
+      sessao('s9', 'awaiting_processing', '2026-06-15T13:00:00.000Z'),
+      sessao('s10', 'processing_failed', '2026-06-16T13:00:00.000Z'),
     ]);
 
     expect(apuracao).not.toBeNull();
-    expect(apuracao!.sessaoIds).toEqual(['s1', 's2', 's3']);
-    expect(apuracao!.totalSessoes).toBe(3);
-    expect(apuracao!.totalHoras).toBe(3);
+    expect(apuracao!.sessaoIds).toEqual(['s1']);
+    expect(apuracao!.totalSessoes).toBe(1);
+    expect(apuracao!.totalHoras).toBe(1);
+  });
+
+  it('conta confirmação paga e não paga e exclui pagamento sem confirmação de realização', () => {
+    const sessoes = [
+      { ...sessao('confirmada-paga', 'completed', '2026-03-02T13:00:00Z'), pagamentoStatus: 'paid' },
+      { ...sessao('confirmada-nao-paga', 'completed', '2026-03-03T13:00:00Z'), pagamentoStatus: 'open' },
+      { ...sessao('falta-paga', 'no_show', '2026-03-04T13:00:00Z'), pagamentoStatus: 'paid' },
+      { ...sessao('agendada-paga', 'confirmed', '2026-03-05T13:00:00Z'), pagamentoStatus: 'paid' },
+      { ...sessao('em-revisao-paga', 'awaiting_review', '2026-03-06T13:00:00Z'), pagamentoStatus: 'paid' },
+    ];
+    expect(apurarHorasClinicas(sessoes)).toMatchObject({
+      sessaoIds: ['confirmada-nao-paga', 'confirmada-paga'], totalSessoes: 2, totalHoras: 2,
+      periodoInicio: '2026-03-02', periodoFim: '2026-03-03',
+    });
   });
 
   /**

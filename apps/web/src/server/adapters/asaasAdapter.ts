@@ -4,6 +4,7 @@
 
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { isAsaasPaymentSettled } from '@/lib/chargeDue';
 
 export interface AsaasCustomerInput {
   name: string;
@@ -63,21 +64,23 @@ const REQUEST_TIMEOUT_MS = 10_000;
 
 async function withPixQrCode(payment: Record<string, unknown>): Promise<AsaasPaymentResult> {
   let pixData: AsaasPaymentResult['pixQrCode'];
-  try {
-    const pixRes = await fetch(`${getApiUrl()}/payments/${payment.id}/pixQrCode`, {
-      headers: getHeaders(),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
-    if (pixRes.ok) {
-      const pixJson = await pixRes.json();
-      pixData = {
-        encodedImage: pixJson.encodedImage ? `data:image/png;base64,${pixJson.encodedImage}` : '',
-        payload: pixJson.payload || '',
-        expirationDate: pixJson.expirationDate,
-      };
+  if (String(payment.billingType) !== 'BOLETO') {
+    try {
+      const pixRes = await fetch(`${getApiUrl()}/payments/${payment.id}/pixQrCode`, {
+        headers: getHeaders(),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      if (pixRes.ok) {
+        const pixJson = await pixRes.json();
+        pixData = {
+          encodedImage: pixJson.encodedImage ? `data:image/png;base64,${pixJson.encodedImage}` : '',
+          payload: pixJson.payload || '',
+          expirationDate: pixJson.expirationDate,
+        };
+      }
+    } catch {
+      // A URL da fatura continua válida mesmo se o QR Code estiver indisponível.
     }
-  } catch {
-    // A URL da fatura continua válida mesmo se o QR Code estiver indisponível.
   }
   return {
     id: String(payment.id), customer: String(payment.customer), value: Number(payment.value),
@@ -247,7 +250,14 @@ export async function getOrCreateAsaasCustomer(input: AsaasCustomerInput): Promi
     if (searchRes.ok) {
       const data = await searchRes.json();
       if (data.data && data.data.length > 0) {
-        return data.data[0].id;
+        const existing = data.data[0] as { id: string; name?: string; email?: string };
+        if (existing.name !== input.name || (input.email && existing.email !== input.email)) {
+          await asaasFetch(`/customers/${encodeURIComponent(existing.id)}`, {
+            method: 'POST',
+            body: JSON.stringify({ name: input.name, email: input.email || undefined }),
+          }).catch(() => undefined);
+        }
+        return existing.id;
       }
     }
   }
@@ -320,6 +330,13 @@ export async function getAsaasPayment(id: string): Promise<AsaasPaymentResult> {
 
 /** Remove somente uma cobrança ainda aberta; pagamento confirmado nunca é estornado por aqui. */
 export async function deleteAsaasPayment(id: string): Promise<boolean> {
+  try {
+    const current = await getAsaasPayment(id);
+    if (isAsaasPaymentSettled(current.status)) return false;
+  } catch (error) {
+    if (error instanceof AsaasPaymentNotFoundError) return true;
+    throw error;
+  }
   const response = await asaasFetch(`/payments/${encodeURIComponent(id)}`, { method: 'DELETE' });
   if (response.status === 404) return true;
   if (!response.ok) throw new Error(`Falha ao remover cobrança no Asaas (${response.status}).`);

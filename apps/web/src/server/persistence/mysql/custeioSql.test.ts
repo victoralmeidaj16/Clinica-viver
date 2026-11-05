@@ -15,16 +15,20 @@ describe('custeioEfetivoSql', () => {
   });
 
   it('sem cota, o custeio vale para todas as sessões', () => {
-    expect(sql).toContain('WHEN pa.custeio_sessoes_cota IS NULL THEN 1');
+    expect(sql).toContain('WHEN COALESCE(conv.pacote_sessoes, pa.custeio_sessoes_cota) IS NULL THEN 1');
   });
 
   it('conta apenas sessões já decididas, nunca agendamentos futuros', () => {
     expect(sql).toContain('cota_ag.custeado_pela_empresa = 1');
-    expect(sql).toContain('< pa.custeio_sessoes_cota THEN 1');
+    expect(sql).toContain('< COALESCE(conv.pacote_sessoes, pa.custeio_sessoes_cota) THEN 1');
+  });
+
+  it('sessão cancelada não consome a cota, mesmo com decisão gravada', () => {
+    expect(sql).toContain("cota_ag.custeado_pela_empresa = 1 AND cota_ag.status <> 'cancelado'");
   });
 
   it('o ciclo mensal recorta a contagem pela competência de referência', () => {
-    expect(sql).toContain("pa.custeio_sessoes_ciclo <> 'mensal'");
+    expect(sql).toContain("COALESCE(CASE WHEN conv.pacote_sessoes IS NOT NULL THEN COALESCE(conv.pacote_sessoes_ciclo, 'total') ELSE pa.custeio_sessoes_ciclo END, 'total') <> 'mensal'");
     expect(sql).toContain("DATE_FORMAT(CONVERT_TZ(CURRENT_TIMESTAMP(3), '+00:00', '-03:00'), '%Y-%m')");
     expect(custeioEfetivoSql({ paciente: 'pa', convenio: 'conv', referencia: 'a.inicio' }))
       .toContain("DATE_FORMAT(CONVERT_TZ(a.inicio, '+00:00', '-03:00'), '%Y-%m')");

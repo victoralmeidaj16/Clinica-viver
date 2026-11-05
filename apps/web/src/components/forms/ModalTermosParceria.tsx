@@ -72,7 +72,7 @@ export function ModalTermosParceria({
         aria-labelledby="termo-adesao-titulo"
         className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-white shadow-2xl sm:h-auto sm:max-h-[94dvh] sm:max-w-5xl sm:rounded-3xl sm:border sm:border-psi-soft"
       >
-        <div className="relative border-b border-psi-soft bg-white px-4 py-4 sm:px-6 sm:py-5">
+        <div className="relative border-b border-psi-soft bg-white px-3 py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="flex min-w-0 items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-psi-darkest text-white shadow-md shadow-psi-darkest/20">
@@ -107,12 +107,12 @@ export function ModalTermosParceria({
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className="min-h-0 flex-1 overflow-y-auto bg-[#FCFAFD] px-4 py-7 sm:px-8 sm:py-9"
+          className="min-h-0 flex-1 overflow-y-auto bg-[#FCFAFD] px-3 py-3 sm:px-4"
         >
           <TermoAdesaoDocument />
         </div>
 
-        <div className="border-t border-psi-soft bg-white px-4 py-4 sm:px-6">
+        <div className="border-t border-psi-soft bg-white px-3 py-3">
           <div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
             {!rolouAteOFim ? (
               <div className="flex items-center justify-center gap-2 text-xs font-bold text-amber-700 sm:justify-start">

@@ -21,7 +21,9 @@ const label = (value: string) => new Intl.DateTimeFormat('pt-BR', {
 
 const tokenFromLink = (link: string) => link.split('/').filter(Boolean).at(-1) ?? '';
 
-export function BookedSessionsPayment({ sessions, cpf }: { sessions: readonly Session[]; cpf: string }) {
+export function BookedSessionsPayment({ sessions, cpf, hidePatientPayerBadge = false }: {
+  sessions: readonly Session[]; cpf: string; hidePatientPayerBadge?: boolean;
+}) {
   const [selected, setSelected] = useState(() => new Set(sessions.filter((session) =>
     !session.custeadoPelaEmpresa
     && sessionPaymentMonth(session.inicio) === sessionPaymentMonth(new Date())
@@ -121,9 +123,9 @@ export function BookedSessionsPayment({ sessions, cpf }: { sessions: readonly Se
             className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-xs font-bold transition ${funded ? 'cursor-default border-emerald-200 bg-emerald-50 text-emerald-900' : active ? 'border-psi-vibrant bg-psi-light text-psi-deep' : 'border-line bg-white text-muted'}`}>
             <span className={`flex h-5 w-5 items-center justify-center rounded-md border ${active ? 'border-psi-vibrant bg-psi-vibrant text-white' : 'border-line'}`}>{active && <Check className="h-3 w-3" />}</span>
             <span className="flex-1 capitalize">{label(session.inicio)}</span>
-            <span className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wide ${funded ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'}`}>
+            {(funded || !hidePatientPayerBadge) && <span className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wide ${funded ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'}`}>
               {funded ? 'Empresa paga' : 'Paciente paga'}
-            </span>
+            </span>}
           </button>;
         })}
       </div>

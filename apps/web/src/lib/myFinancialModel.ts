@@ -23,7 +23,7 @@ export interface Receivable {
   startsAt?: string;
   endsAt?: string;
   status: PaymentStatus;
-  attendanceStatus?: 'a_confirmar' | 'realizado' | 'cancelado';
+  attendanceStatus?: 'a_confirmar' | 'realizado' | 'cancelado' | 'falta';
   modalidade?: 'online' | 'presencial' | 'telefone';
   conveniado?: boolean;
   convenioNome?: string;

@@ -6,7 +6,8 @@ import {
   rescheduleAgendaAppointment,
   updateAgendaAppointmentChargeDue,
 } from '@/server/application/agendaService';
-import { failure, readJson, success } from '@/server/application/http';
+import { registrarFaltaNaAgenda } from '@/server/application/agendaFaltaService';
+import { ApplicationError, failure, readJson, success } from '@/server/application/http';
 import type { UpdateAppointmentInput } from '@/server/scheduling/agendaRepository';
 
 const MODALIDADES = ['online', 'presencial', 'telefone'] as const;
@@ -30,6 +31,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const body = await readJson(request);
     if (body.action === 'complete') {
       return success(await confirmAgendaAppointmentCompleted(context, id));
+    }
+    if (body.action === 'no_show') {
+      if (typeof body.cobrar !== 'boolean') {
+        throw new ApplicationError('INVALID_INPUT', 'Informe se a falta será cobrada.', 400);
+      }
+      return success(await registrarFaltaNaAgenda(context, id, {
+        cobrar: body.cobrar,
+        expectedVersion: body.expectedVersion === undefined ? undefined : Number(body.expectedVersion),
+      }));
     }
     if (body.action === 'update_charge_due') {
       return success(await updateAgendaAppointmentChargeDue(context, id, String(body.dueAt ?? '')));

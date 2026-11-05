@@ -1,13 +1,8 @@
 import 'server-only';
 
 import { createHash } from 'node:crypto';
-import {
-  TERMO_ADESAO_CLAUSULAS,
-  TERMO_ADESAO_HONORARIOS,
-  TERMO_ADESAO_IDENTIFICACAO,
-  TERMO_ADESAO_TITULO,
-  VERSAO_TERMO_ADESAO,
-} from '@/components/forms/termoAdesaoContent';
+import * as atual from '@/components/forms/termoAdesaoContent';
+import * as anterior from '@/components/forms/termoAdesaoContent2026_2';
 import type { AceiteTermoAdesao } from '@/server/application/persistence';
 
 /**
@@ -18,18 +13,22 @@ import type { AceiteTermoAdesao } from '@/server/application/persistence';
  * tinha a `versao` registrada. Qualquer mudança de vírgula muda o hash — por
  * isso uma edição do texto exige subir `VERSAO_TERMO_ADESAO`.
  */
-export function textoCanonicoTermoAdesao(): string {
+export function textoCanonicoTermoAdesao(versao = atual.VERSAO_TERMO_ADESAO): string {
+  const termo = versao === atual.VERSAO_TERMO_ADESAO ? atual : versao === anterior.VERSAO_TERMO_ADESAO ? anterior : null;
+  if (!termo) throw new Error('Versão do Termo de Adesão indisponível.');
   return JSON.stringify({
-    titulo: TERMO_ADESAO_TITULO,
-    versao: VERSAO_TERMO_ADESAO,
-    identificacao: TERMO_ADESAO_IDENTIFICACAO,
-    clausulas: TERMO_ADESAO_CLAUSULAS,
-    honorarios: TERMO_ADESAO_HONORARIOS,
+    titulo: termo.TERMO_ADESAO_TITULO,
+    versao: termo.VERSAO_TERMO_ADESAO,
+    identificacao: termo.TERMO_ADESAO_IDENTIFICACAO,
+    clausulas: termo.TERMO_ADESAO_CLAUSULAS,
+    honorarios: termo.TERMO_ADESAO_HONORARIOS,
+    ...(termo === atual ? { subtitulo: atual.TERMO_ADESAO_SUBTITULO,
+      cabecalhosHonorarios: atual.TERMO_ADESAO_HONORARIOS_CABECALHOS, painelAceite: atual.TERMO_ADESAO_PAINEL } : {}),
   });
 }
 
-export function hashTermoAdesao(): string {
-  return createHash('sha256').update(textoCanonicoTermoAdesao(), 'utf8').digest('hex');
+export function hashTermoAdesao(versao = atual.VERSAO_TERMO_ADESAO): string {
+  return createHash('sha256').update(textoCanonicoTermoAdesao(versao), 'utf8').digest('hex');
 }
 
 function limitar(valor: string | null, maximo: number): string | undefined {
@@ -70,6 +69,6 @@ export function registrarAceiteTermoAdesao(
     ...ipDoCliente(request),
     navegador: limitar(request.headers.get('user-agent'), 500),
     hashAlgoritmo: 'SHA-256',
-    hashTexto: versao === VERSAO_TERMO_ADESAO ? hashTermoAdesao() : undefined,
+    hashTexto: versao === atual.VERSAO_TERMO_ADESAO ? hashTermoAdesao() : undefined,
   };
 }

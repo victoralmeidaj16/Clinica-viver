@@ -51,6 +51,10 @@ clinical-data/
 uploads/
 recordings/
 transcriptions/
+output/backups/
+
+# Configurações locais e suas cópias podem conter permissões e credenciais.
+.claude/*.local.json*
 
 # Estado local de demonstração (contém dados de sessões da demo)
 .demo-state/

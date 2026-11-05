@@ -4,7 +4,8 @@ import { useRef, useState } from 'react';
 import { GenderFields } from '@/components/forms/GenderFields';
 import { TurnoPreferenceField } from '@/components/forms/TurnoPreferenceField';
 import { NecessidadesSelector, OPCOES_AVALIACAO_PSICOLOGICA } from '@/components/forms/necessidades';
-import { audiencesForService, buscarEnderecoPorCep, PATIENT_ORIGINS, PATIENT_SERVICES, maskCep, maskCpf, maskPhone, modalitiesForService, validCpf, type PatientRegistrationForm } from './patientRegistration';
+import { audiencesForService, buscarEnderecoPorCep, PATIENT_ORIGINS, maskCep, maskCpf, maskPhone, modalitiesForService, validCpf, type PatientRegistrationForm } from './patientRegistration';
+import { servicesForRegistration, type HabilitacaoAtendimento } from '@/lib/patientCareOptions';
 
 interface Props {
   form: PatientRegistrationForm;
@@ -16,11 +17,12 @@ interface Props {
   conveniosIndisponiveis: boolean;
   temNomeSocial: boolean;
   onTemNomeSocialChange: (value: boolean) => void;
+  habilitacao: HabilitacaoAtendimento | null;
 }
 
 const field = 'input';
 
-export function PatientRegistrationFields({ form, setForm, convenios, conveniosCarregando, conveniosIndisponiveis, temNomeSocial, onTemNomeSocialChange }: Props) {
+export function PatientRegistrationFields({ form, setForm, convenios, conveniosCarregando, conveniosIndisponiveis, temNomeSocial, onTemNomeSocialChange, habilitacao }: Props) {
   const [buscandoCep, setBuscandoCep] = useState(false);
   const [cepConsultado, setCepConsultado] = useState(false);
   const [cepNaoEncontrado, setCepNaoEncontrado] = useState(false);
@@ -90,8 +92,8 @@ export function PatientRegistrationFields({ form, setForm, convenios, conveniosC
 
   return <div className="space-y-4">
     <div className="grid gap-3 sm:grid-cols-2">
-      <div><label className="mb-1 block font-bold text-ink">Serviço *</label><select className={field} required value={form.servicoKey} onChange={(e) => handleServiceChange(e.target.value)}><option value="">Selecione</option>{PATIENT_SERVICES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
-      <div><label className="mb-1 block font-bold text-ink">Modalidade *</label><select className={field} required disabled={!form.servicoKey} value={form.modalidade} onChange={(e) => update('modalidade', e.target.value)}><option value="">Selecione</option>{modalitiesForService(form.servicoKey).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
+      <div><label className="mb-1 block font-bold text-ink">Serviço *</label><select className={field} required disabled={!habilitacao} value={form.servicoKey} onChange={(e) => handleServiceChange(e.target.value)}><option value="">Selecione</option>{servicesForRegistration(habilitacao).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
+      <div><label className="mb-1 block font-bold text-ink">Modalidade *</label><select className={field} required disabled={!form.servicoKey || !habilitacao} value={form.modalidade} onChange={(e) => update('modalidade', e.target.value)}><option value="">Selecione</option>{modalitiesForService(form.servicoKey, habilitacao).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
     </div>
 
     <div>

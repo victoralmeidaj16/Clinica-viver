@@ -93,6 +93,26 @@ describe('e-mails do credenciamento de psicólogo', () => {
     expect(JSON.parse(String(init.body)).text).toContain(activationUrl);
   });
 
+  it('anexa o comprovante no mesmo e-mail da senha com a data original do aceite', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const aprovado: CadastroPsicologoRecord = { ...cadastro, status: 'APROVADO',
+      aceiteTermoAdesao: { versao: '2026.2', aceitoEm: '2026-10-15T17:32:10.000Z', hashAlgoritmo: 'SHA-256' } };
+    const comprovante = { pdf: Buffer.from('%PDF-teste'), arquivo: 'comprovante.pdf',
+      sha256: 'b'.repeat(64), codigoVerificacao: 'c'.repeat(64) };
+    await avisarCadastroAprovadoPorEmail(aprovado, 'https://example.com/login',
+      'https://example.com/ativar-conta?token=ficticio', 'tentativa', comprovante);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const enviado = JSON.parse(String(fetchMock.mock.calls[0][1].body));
+    expect(enviado.to).toEqual(['ana@example.com']);
+    expect(enviado.cc).toBeUndefined();
+    expect(enviado.text).toContain('Cadastre sua senha: https://example.com/ativar-conta?token=ficticio');
+    expect(enviado.text).toContain('15 de outubro de 2026');
+    expect(enviado.text).toContain('14:32:10');
+    expect(enviado.html).toContain('Comprovante de Aceite Eletrônico');
+    expect(enviado.attachments).toEqual([{ filename: 'comprovante.pdf', content: comprovante.pdf.toString('base64') }]);
+  });
+
   it('devolve o motivo sanitizado quando o Resend recusa o envio', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       name: 'validation_error',

@@ -140,7 +140,7 @@ export const ETAPAS: Etapa[] = [
       'Escolha a **Frequência**: semanal, quinzenal ou personalizada.',
       'Confira o resumo: **quantas sessões** serão criadas e em quais dias.',
       'Escolha a **Modalidade**: online ou presencial.', 'Clique em **Agendar … sessões**.',
-      'Opcional: ajuste o **Vencimento da cobrança**, o dia e a hora em que o link e o Pix se encerram.') }],
+      'Opcional: ajuste o **Vencimento da cobrança**, o dia e a hora em que o link e o Pix se encerram. Esse campo não aparece quando a empresa custeia todas as sessões do paciente.') }],
     porque: 'Com a sessão agendada o paciente recebe o link de pagamento e o horário fica reservado na sua agenda.',
     atencao: 'A frequência **Semanal** vem marcada e cria várias sessões de uma vez. Leia o resumo e o texto do botão antes de salvar.',
   },

@@ -106,7 +106,7 @@ function resultado(emissao: EmissaoNfse) {
  * A nota permanece `issued` se a entrega falhar, e a falha fica disponível
  * para nova tentativa sem gerar outra DPS.
  */
-async function enviarEmailDaNota(
+export async function enviarEmailDaNota(
   repositorio: NfseRepository,
   organizationId: string,
   chargeId: string,
@@ -155,7 +155,7 @@ export async function emitirNfse(context: RequestContext, chargeId: string, conf
   }
 
   const store = getApplicationStore();
-  const ledger = await store.financial.getLedger({ organizationId: context.actor.organizationId });
+  const ledger = await store.financial.getLedger({ organizationId: context.actor.organizationId, chargeIds: [chargeId] });
   const charge = ledger.charges.find((item) => item.id === chargeId);
   if (!charge || charge.status !== 'paid') {
     throw new ApplicationError('INVALID_FISCAL_STATE', 'A NFS-e só pode ser emitida para uma cobrança integralmente quitada.', 422);

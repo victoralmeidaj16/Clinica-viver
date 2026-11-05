@@ -34,6 +34,17 @@ it('mantém a confirmação normal quando as cobranças foram criadas', async ()
   await renderSubmission().submit({ preventDefault() {} } as React.FormEvent);
   expect(renderSubmission()).toMatchObject({ message: { kind: 'success' }, completed: true });
 });
+it('não envia vencimento quando a empresa custeia, mesmo com um vencimento antigo no formulário', async () => {
+  const custeado = { ...input, companyFunded: true, chargeDueDate: '', chargeDueTime: '' };
+  function CusteadoHarness() { return useManualAppointmentSubmission(custeado); }
+  const harness = () => { hooks.cursor = 0; return CusteadoHarness(); };
+  request.mockResolvedValue({ charge: { status: 'skipped' } });
+  await harness().submit({ preventDefault() {} } as React.FormEvent);
+  expect(harness().message).toMatchObject({ kind: 'success' });
+  const bodies = request.mock.calls.map(([, init]) => JSON.parse(init.body));
+  expect(bodies).toHaveLength(2);
+  expect(bodies.every((body) => !('chargeDueAt' in body))).toBe(true);
+});
 it('após falha no meio da série, a nova tentativa envia só o restante com a mesma chave', async () => {
   const series = { ...input, recurrenceDates: ['2099-01-10', '2099-01-17', '2099-01-24'] };
   function SeriesHarness() { return useManualAppointmentSubmission(series); }

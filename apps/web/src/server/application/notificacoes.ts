@@ -201,7 +201,26 @@ export function notificacoesDoPsicologo(
       continue;
     }
 
+    // O primeiro contato histórico pertence à alocação anterior quando a gestão troca o responsável.
+    if (meu && lead.status === 'CONTATO_CONFIRMADO' && lead.alocadoEm &&
+      (!lead.confirmadoEm || Date.parse(lead.alocadoEm) > Date.parse(lead.confirmadoEm))) {
+      itens.push({
+        chave: `paciente-encaminhado:${lead.id}:${cadastro.id}:${lead.alocadoEm}`,
+        tipo: 'paciente-encaminhado',
+        titulo: 'Paciente encaminhado para você',
+        descricao: `A gestão encaminhou ${lead.nomePaciente} para sua lista de pacientes.`,
+        ocorridoEm: lead.alocadoEm,
+        severidade: 'INFO',
+        href: lead.pacienteRef ? comFoco('/pacientes', focoPaciente(lead.pacienteRef)) : '/pacientes',
+        pendente: false,
+      });
+      continue;
+    }
+
     if (meu && lead.status === 'CONTATO_CONFIRMADO' && lead.confirmadoEm) {
+      // Encaminhamentos antigos trocavam só o responsável; o contato continuava sendo do último tentado.
+      const ultimoTentado = lead.psicologosJaTentados?.at(-1);
+      if (ultimoTentado && ultimoTentado !== cadastro.id) continue;
       itens.push({
         chave: `contato-confirmado:${lead.id}:${lead.confirmadoEm}`,
         tipo: 'contato-confirmado',
@@ -238,7 +257,42 @@ export function notificacoesDoPsicologo(
     }
   }
 
-  itens.push(...notificacoesDoCadastro(cadastro));
+  itens.push(...notificacoesDoCadastro(cadastro), ...notificacoesDaSolicitacaoDePerfil(cadastro));
+  return itens;
+}
+
+function notificacoesDaSolicitacaoDePerfil(cadastro: CadastroPsicologoRecord): NotificacaoDerivada[] {
+  const solicitacao = cadastro.solicitacaoAlteracaoGestao;
+  if (!solicitacao?.solicitadoEm) return [];
+
+  const itens: NotificacaoDerivada[] = [{
+    chave: `solicitacao-perfil-enviada:${cadastro.id}:${solicitacao.solicitadoEm}`,
+    tipo: 'solicitacao-perfil-enviada',
+    titulo: 'Solicitação de alteração enviada',
+    descricao: 'Sua solicitação de alteração do perfil foi enviada à gestão.',
+    ocorridoEm: solicitacao.solicitadoEm,
+    severidade: 'INFO',
+    href: '/meu-cadastro',
+    pendente: false,
+  }];
+
+  if (solicitacao.status === 'APROVADO' || solicitacao.status === 'RECUSADO') {
+    const aprovada = solicitacao.status === 'APROVADO';
+    const respondidoEm = solicitacao.respondidoEm || solicitacao.solicitadoEm;
+    const motivo = typeof solicitacao.motivoRecusa === 'string' ? solicitacao.motivoRecusa.trim() : '';
+    itens.push({
+      chave: `solicitacao-perfil-${solicitacao.status.toLowerCase()}:${cadastro.id}:${solicitacao.solicitadoEm}:${respondidoEm}`,
+      tipo: aprovada ? 'solicitacao-perfil-aprovada' : 'solicitacao-perfil-recusada',
+      titulo: aprovada ? 'Alteração de perfil aprovada' : 'Alteração de perfil recusada',
+      descricao: aprovada
+        ? 'A gestão aprovou sua solicitação de alteração do perfil.'
+        : motivo ? `A gestão recusou sua solicitação. Motivo: ${motivo}` : 'A gestão recusou sua solicitação de alteração do perfil.',
+      ocorridoEm: respondidoEm,
+      severidade: aprovada ? 'INFO' : 'ATENCAO',
+      href: '/meu-cadastro',
+      pendente: false,
+    });
+  }
   return itens;
 }
 

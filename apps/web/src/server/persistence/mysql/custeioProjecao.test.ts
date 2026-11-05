@@ -27,7 +27,7 @@ describe.skipIf(!sqlite)('projeção da cota por agendamento', () => {
         custeado_pela_empresa INTEGER, custeio_sessoes_cota INTEGER,
         custeio_sessoes_ciclo TEXT
       );
-      CREATE TABLE clinica_convenios (empresa_paga_sessoes INTEGER);
+      CREATE TABLE clinica_convenios (empresa_paga_sessoes INTEGER, pacote_sessoes INTEGER, pacote_sessoes_ciclo TEXT);
       CREATE TABLE clinica_agendamentos (
         id TEXT, ref_core TEXT, instituicao_id TEXT, paciente_id TEXT, inicio TEXT,
         status TEXT, custeado_pela_empresa INTEGER
@@ -36,7 +36,7 @@ describe.skipIf(!sqlite)('projeção da cota por agendamento', () => {
         instituicao_id TEXT, sessao_ref TEXT, status TEXT
       );
       INSERT INTO clinica_pacientes VALUES ('p', 'i', 'c', 1, 2, 'total');
-      INSERT INTO clinica_convenios VALUES (1);
+      INSERT INTO clinica_convenios VALUES (1, NULL, NULL);
     `);
     const insert = db.prepare(`INSERT INTO clinica_agendamentos
       VALUES (?, ?, 'i', 'p', ?, 'agendado', NULL)`);
@@ -54,6 +54,56 @@ describe.skipIf(!sqlite)('projeção da cota por agendamento', () => {
       CROSS JOIN clinica_convenios c
       WHERE a.status <> 'cancelado' ORDER BY a.id`).all().map(row => row.custeado);
   }
+
+  describe('pacote de sessões do convênio', () => {
+    const semCotaDoPaciente = "UPDATE clinica_pacientes SET custeio_sessoes_cota = NULL, custeio_sessoes_ciclo = NULL";
+
+    it('limita as sessões mesmo sem cota no paciente', () => {
+      db.exec(`${semCotaDoPaciente}; UPDATE clinica_convenios SET pacote_sessoes = 3`);
+      expect(custeios()).toEqual([1, 1, 1, 0]);
+    });
+
+    it.each([[1, [1, 0, 0, 0]], [3, [1, 1, 1, 0]]])('vale sobre a cota do paciente (pacote %i)', (pacote, esperado) => {
+      db.exec(`UPDATE clinica_convenios SET pacote_sessoes = ${pacote}`);
+      expect(custeios()).toEqual(esperado);
+    });
+
+    it('sem ciclo definido, conta o total e não renova no mês seguinte', () => {
+      db.exec(`${semCotaDoPaciente}; UPDATE clinica_convenios SET pacote_sessoes = 3;
+        UPDATE clinica_agendamentos SET inicio = '2026-11-07 10:00:00' WHERE id = '4'`);
+      expect(custeios()).toEqual([1, 1, 1, 0]);
+    });
+
+    it('ignora o ciclo mensal do paciente quando o pacote é total', () => {
+      db.exec(`UPDATE clinica_pacientes SET custeio_sessoes_ciclo = 'mensal';
+        UPDATE clinica_convenios SET pacote_sessoes = 3, pacote_sessoes_ciclo = 'total';
+        UPDATE clinica_agendamentos SET inicio = '2026-11-07 10:00:00' WHERE id = '4'`);
+      expect(custeios()).toEqual([1, 1, 1, 0]);
+    });
+
+    it('renova a cada mês quando o pacote é mensal', () => {
+      db.exec(`UPDATE clinica_convenios SET pacote_sessoes = 3, pacote_sessoes_ciclo = 'mensal';
+        UPDATE clinica_agendamentos SET inicio = '2026-11-07 10:00:00' WHERE id = '4'`);
+      expect(custeios()).toEqual([1, 1, 1, 1]);
+    });
+
+    it('sem pacote nem cota, a empresa paga todas', () => {
+      db.exec(semCotaDoPaciente);
+      expect(custeios()).toEqual([1, 1, 1, 1]);
+    });
+
+    it('não vale quando o paciente é exceção e paga as próprias sessões', () => {
+      db.exec(`UPDATE clinica_convenios SET pacote_sessoes = 3;
+        UPDATE clinica_pacientes SET custeado_pela_empresa = 0`);
+      expect(custeios()).toEqual([0, 0, 0, 0]);
+    });
+
+    it('sessão com falta registrada não consome o pacote', () => {
+      db.exec(`${semCotaDoPaciente}; UPDATE clinica_convenios SET pacote_sessoes = 3;
+        UPDATE clinica_agendamentos SET status = 'faltou', custeado_pela_empresa = 0 WHERE id = '1'`);
+      expect(custeios()).toEqual([0, 1, 1, 1]);
+    });
+  });
 
   it('empresa paga somente as duas primeiras das quatro sessões futuras', () => {
     expect(custeios()).toEqual([1, 1, 0, 0]);

@@ -74,4 +74,7 @@ export interface CompatiblePsychologist {
   pacientesAtivos: number;
   limitePacientes: number;
 }
-export interface ManagedConvenio { id: string; nome: string; empresaPagaSessoes: boolean; }
+export interface ManagedConvenio {
+  id: string; nome: string; empresaPagaSessoes: boolean;
+  pacoteSessoes?: number; pacoteSessoesCiclo?: CusteioCiclo;
+}

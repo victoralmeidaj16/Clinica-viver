@@ -13,4 +13,13 @@ describe('isolamento dos ambientes fiscais', () => {
     expect(query.mock.calls[0][0]).toContain('AND ambiente = ?');
     expect(query.mock.calls[0][1]).toEqual(['inst', 'org', 'cobranca', 'producao']);
   });
+
+  it.each([
+    [422, true], [400, true], [408, false], [429, false], [502, false], [undefined, false],
+  ])('falha %s descarta a DPS assinada: %s', async (status, descarta) => {
+    const query = vi.fn().mockResolvedValue([{ affectedRows: 1 }, []]);
+    await new NfseRepository({ query } as never).registrarFalha('e1', { status, mensagem: 'recusa fictícia' });
+    expect(query.mock.calls[0][0]).toContain('dps_xml = IF(?, NULL, dps_xml)');
+    expect(query.mock.calls[0][1][4]).toBe(descarta);
+  });
 });

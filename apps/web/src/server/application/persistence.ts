@@ -3,6 +3,7 @@ import { mkdir, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { MotivoDesistencia } from '@/lib/desistencias';
 import type { TurmaEncerrada } from '@/lib/turmaEncerrada';
+import type { AcessibilidadePsicologo } from '@/lib/psychologistAccessibility';
 import type {
   Appointment,
   ClinicalRecord,
@@ -178,6 +179,7 @@ export interface CadastroPsicologoRecord {
   whatsapp: string;
   email?: string;
   fotoUrl?: string;
+  acessibilidade?: AcessibilidadePsicologo;
   usuarioRef?: string;
   profissionalRef?: string;
   acessoCriadoEm?: string;
@@ -280,6 +282,8 @@ export interface AceiteTermoAdesao {
   };
   /** Gravado depois do envio, à parte da prova: só registra o que o provedor respondeu. */
   envioComprovante?: EnvioComprovanteTermo;
+  /** Envio junto do convite, só ao profissional: guardado à parte para não apagar o registro da via da clínica. */
+  envioComprovanteConvite?: EnvioComprovanteTermo;
 }
 
 /** Resultado do e-mail que leva o comprovante ao profissional e à clínica. */

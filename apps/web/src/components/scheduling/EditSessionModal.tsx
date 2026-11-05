@@ -13,7 +13,7 @@ import { clinicDateTimeToIso } from '@/lib/manualAppointment';
 import { applicationRequest } from '@/lib/applicationApi';
 import { EditSessionFields, type StatusEdicao } from './EditSessionFields';
 import { SessionPayerField } from './SessionPayerField';
-import { camposIniciais, type SessionEditableData } from './editSessionModel';
+import { camposIniciais, erroDoNovoHorario, type SessionEditableData } from './editSessionModel';
 
 export type { SessionEditableData } from './editSessionModel';
 
@@ -78,8 +78,9 @@ function FormularioEdicao({
       return;
     }
     const horarioMudou = data !== iniciais.data || hora !== iniciais.hora;
-    if (horarioMudou && startsAtDate.getTime() <= Date.now()) {
-      setError('O novo horário deve estar no futuro.');
+    const erroHorario = erroDoNovoHorario({ admin, horarioMudou, inicio: startsAtDate.getTime(), agora: Date.now() });
+    if (erroHorario) {
+      setError(erroHorario);
       return;
     }
     if (!Number.isInteger(duracaoMin) || duracaoMin < 15 || duracaoMin > 240) {

@@ -54,32 +54,41 @@ describe('envio do comprovante do Termo de Adesão', () => {
     delete process.env.TERMO_ADESAO_EMAIL_CLINICA;
   });
 
-  it('manda o mesmo PDF ao profissional e, em cópia, à clínica', async () => {
+  it('envia apenas a via da clínica enquanto o cadastro aguarda aprovação', async () => {
     const corpoEnviado = provedor();
     const envio = await enviarComprovanteTermoAdesao(cadastro, comprovante, agora);
 
     expect(envio).toEqual({
       situacao: 'enviada',
       tentadoEm: agora.toISOString(),
-      paraProfissional: true,
+      paraProfissional: false,
       paraClinica: true,
       idMensagem: 'msg-1',
     });
     const corpo = corpoEnviado();
-    expect(corpo.to).toEqual(['profissional@example.com']);
-    expect(corpo.cc).toEqual(['clinica@example.com']);
+    expect(corpo.to).toEqual(['clinica@example.com']);
+    expect(corpo.cc).toBeUndefined();
     expect(corpo.attachments).toEqual([
       { filename: comprovante.arquivo, content: comprovante.pdf.toString('base64') },
     ]);
     expect(corpo.text).toContain(comprovante.sha256);
     expect(corpo.text).toContain(comprovante.codigoVerificacao);
+    expect(corpo.text).not.toContain('Esta mesma mensagem foi enviada');
   });
 
   it('usa a caixa própria da clínica quando configurada', async () => {
     process.env.TERMO_ADESAO_EMAIL_CLINICA = 'termos@example.com';
     const corpoEnviado = provedor();
     await enviarComprovanteTermoAdesao(cadastro, comprovante, agora);
-    expect(corpoEnviado().cc).toEqual(['termos@example.com']);
+    expect(corpoEnviado().to).toEqual(['termos@example.com']);
+  });
+
+  it('permite o reenvio manual ao profissional e à clínica depois da aprovação', async () => {
+    const corpoEnviado = provedor();
+    const envio = await enviarComprovanteTermoAdesao({ ...cadastro, status: 'APROVADO' }, comprovante, agora, 'reenvio');
+    expect(envio).toMatchObject({ situacao: 'enviada', paraProfissional: true, paraClinica: true });
+    expect(corpoEnviado().to).toEqual(['profissional@example.com']);
+    expect(corpoEnviado().cc).toEqual(['clinica@example.com']);
   });
 
   it('entrega a via da clínica mesmo sem e-mail válido do profissional', async () => {

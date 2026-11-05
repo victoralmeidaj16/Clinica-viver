@@ -31,6 +31,7 @@ beforeEach(() => {
     receivedAt: '2026-10-10T12:00:00Z',
   }] });
   mocks.store.mockReturnValue({ financial: repository, identities: {
+    getPatient: async (_org: string, id: string) => id === 'patient-test' ? { id: 'patient-test', displayName: 'Paciente teste' } : null,
     listPatients: async () => [{ id: 'patient-test', displayName: 'Paciente teste' }],
     listMemberships: async () => [{ professionalProfileId: 'pro-test' }],
     getProfessional: async () => ({ id: 'pro-test', displayName: 'Profissional teste' }),

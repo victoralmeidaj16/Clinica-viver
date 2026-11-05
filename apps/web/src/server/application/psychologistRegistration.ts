@@ -6,6 +6,7 @@ import { isBrazilUf } from '@/lib/brazilLocations';
 import { municipioPertenceAoEstado } from './brazilLocalities';
 import { validateGender } from '@/lib/gender';
 import { limitePacientesValido, mensagemLimitePacientesInvalido } from '@/lib/psychologistCapacity';
+import { opcoesAtendimentoDaPos } from '@/components/forms/opcoesPsicologo';
 
 /**
  * Regras de edição do cadastro de psicólogo, num lugar só.
@@ -149,6 +150,9 @@ export async function validarCorpo(
   if (corpo.status !== undefined && !STATUS_VALIDOS.includes(corpo.status as StatusCadastroPsicologo)) {
     throw new CorpoInvalidoError('Status inválido.');
   }
+  if (corpo.fotoUrl !== undefined && typeof corpo.fotoUrl !== 'string') {
+    throw new CorpoInvalidoError('Envie uma foto de perfil válida.');
+  }
 
   if (corpo.whatsapp !== undefined) {
     const whatsapp = normalizeBrazilPhone(corpo.whatsapp);
@@ -250,6 +254,12 @@ export function aplicarMudancas(
   permitidos: ReadonlySet<string>
 ): CadastroPsicologoRecord {
   const pode = (campo: string) => permitidos.has(campo) && corpo[campo] !== undefined;
+  // A foto é exigida na inscrição e não pode ser retirada, mas os formulários
+  // sempre reenviam o campo: quem já estava cadastrado sem foto segue editando.
+  const fotoUrl = pode('fotoUrl') ? (corpo.fotoUrl as string).trim() || undefined : existente.fotoUrl;
+  if (!fotoUrl && existente.fotoUrl) {
+    throw new CorpoInvalidoError('A foto de perfil é obrigatória. Envie outra foto em vez de remover a atual.');
+  }
   let solicitacaoAlteracaoGestao = pode('solicitacaoAlteracaoGestao')
     ? (corpo.solicitacaoAlteracaoGestao as CadastroPsicologoRecord['solicitacaoAlteracaoGestao']) ?? undefined
     : existente.solicitacaoAlteracaoGestao;
@@ -301,6 +311,20 @@ export function aplicarMudancas(
       ? listaDeTexto(corpo.modalidadesAtendidas) ?? existente.modalidadesAtendidas
       : existente.modalidadesAtendidas;
 
+  const posGraduacaoViverMais = pode('posGraduacaoViverMais') ? texto(corpo.posGraduacaoViverMais) : existente.posGraduacaoViverMais;
+  const segundaPosGraduacao = pode('segundaPosGraduacao') ? texto(corpo.segundaPosGraduacao) : existente.segundaPosGraduacao;
+  const opcoes = opcoesAtendimentoDaPos(posGraduacaoViverMais, segundaPosGraduacao);
+  let temposAtendimento = existente.temposAtendimento;
+  if (opcoes && !opcoes.tempos.length) {
+    temposAtendimento = undefined;
+  } else if (pode('temposAtendimento')) {
+    const tempos = corpo.temposAtendimento;
+    if (!Array.isArray(tempos) || (opcoes && (!tempos.length || tempos.some((tempo) => !opcoes.tempos.includes(tempo))))) {
+      throw new CorpoInvalidoError('Selecione ao menos um tempo de atendimento permitido para sua pós-graduação.');
+    }
+    temposAtendimento = Array.from(new Set(tempos as number[]));
+  }
+
   return {
     ...existente,
     status: pode('status') ? (corpo.status as StatusCadastroPsicologo) : existente.status,
@@ -310,7 +334,8 @@ export function aplicarMudancas(
     crp: pode('crp') ? texto(corpo.crp) ?? existente.crp : existente.crp,
     whatsapp: pode('whatsapp') ? String(corpo.whatsapp) : existente.whatsapp,
     email: pode('email') ? (corpo.email as string) || undefined : existente.email,
-    fotoUrl: pode('fotoUrl') ? (corpo.fotoUrl as string) || undefined : existente.fotoUrl,
+    fotoUrl,
+    acessibilidade: existente.acessibilidade,
     estadoUf,
     cidade,
     logradouro,
@@ -358,9 +383,7 @@ export function aplicarMudancas(
         : ['SOCIAL', 'PARTICULAR'],
     servicosHabilitados,
     servicosPrestados,
-    temposAtendimento: pode('temposAtendimento')
-      ? Array.from(new Set(corpo.temposAtendimento as number[]))
-      : existente.temposAtendimento,
+    temposAtendimento,
     publicoAlvo: pode('publicoAlvo')
       ? listaDeTexto(corpo.publicoAlvo) ?? existente.publicoAlvo
       : existente.publicoAlvo,
@@ -387,12 +410,8 @@ export function aplicarMudancas(
     turmaViverMais: pode('turmaViverMais')
       ? (corpo.turmaViverMais as string) || undefined
       : existente.turmaViverMais,
-    posGraduacaoViverMais: pode('posGraduacaoViverMais')
-      ? (corpo.posGraduacaoViverMais as string) || undefined
-      : existente.posGraduacaoViverMais,
-    segundaPosGraduacao: pode('segundaPosGraduacao')
-      ? (corpo.segundaPosGraduacao as string) || undefined
-      : existente.segundaPosGraduacao,
+    posGraduacaoViverMais,
+    segundaPosGraduacao,
     solicitacaoAlteracaoGestao,
   };
 }

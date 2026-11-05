@@ -72,12 +72,32 @@ interface SituacaoSessaoConvenio {
   faturaId?: string;
   custeadoPelaEmpresa: boolean;
   status: string;
+  /** Falso quando a cobrança aponta para um agendamento ainda não realizado. */
+  atendimentoRealizado?: boolean;
 }
 
-/** Mesma elegibilidade do fechamento: empresa, pendente/vencida e sem fatura. */
+const emAberto = (status: string) => ['pending', 'overdue'].includes(status);
+
+/** Mesma elegibilidade do fechamento: empresa, pendente/vencida, sem fatura e atendimento realizado. */
 export function podeFaturarSessaoConvenio(sessao: SituacaoSessaoConvenio): boolean {
-  return !sessao.faturaId && sessao.custeadoPelaEmpresa
-    && ['pending', 'overdue'].includes(sessao.status);
+  return !sessao.faturaId && sessao.custeadoPelaEmpresa && emAberto(sessao.status)
+    && sessao.atendimentoRealizado !== false;
+}
+
+interface CoberturaConvenio {
+  empresaPagaSessoes: boolean;
+  pacoteSessoes?: number | null;
+  pacoteSessoesCiclo?: CusteioCiclo | null;
+}
+
+/** Só uma ampliação real do acordo justifica levar para a empresa cobranças já emitidas ao paciente. */
+export function coberturaDoConvenioAmpliou(anterior: CoberturaConvenio, atual: CoberturaConvenio): boolean {
+  if (!atual.empresaPagaSessoes) return false;
+  if (!anterior.empresaPagaSessoes) return true;
+  if (!atual.pacoteSessoes) return Boolean(anterior.pacoteSessoes);
+  if (!anterior.pacoteSessoes) return false;
+  return atual.pacoteSessoes > anterior.pacoteSessoes
+    || (anterior.pacoteSessoesCiclo !== 'mensal' && atual.pacoteSessoesCiclo === 'mensal');
 }
 
 export function rotuloSessaoConvenio(sessao: SituacaoSessaoConvenio): string {
@@ -86,6 +106,7 @@ export function rotuloSessaoConvenio(sessao: SituacaoSessaoConvenio): string {
   if (sessao.status === 'refunded') return 'Estornada';
   if (!sessao.custeadoPelaEmpresa) return 'Pagamento individual';
   if (podeFaturarSessaoConvenio(sessao)) return 'A faturar';
+  if (emAberto(sessao.status) && sessao.atendimentoRealizado === false) return 'Atendimento não realizado';
   if (sessao.status === 'paid') return 'Paga';
   if (sessao.status === 'partially_paid') return 'Paga parcialmente';
   return 'Não disponível para faturar';

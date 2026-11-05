@@ -44,7 +44,7 @@ async function applyManualPayment(
   beforeSave?: () => Promise<void>,
 ) {
   const { organizationId, userId } = context.actor;
-  const ledger = await repository.getLedger({ organizationId });
+  const ledger = await repository.getLedger({ organizationId, chargeIds: [chargeId] });
   const charge = ledger.charges.find((item) => item.id === chargeId);
   if (!charge) throw new ApplicationError('NOT_FOUND', 'Cobrança não encontrada.', 404);
   const paymentId = `manual-${createHash('sha256').update(JSON.stringify([organizationId, chargeId, context.idempotencyKey])).digest('hex')}`;
@@ -120,7 +120,7 @@ export async function registerManualPayment(context: RequestContext, chargeId: s
          LEFT JOIN clinica_agendamentos ag ON ag.instituicao_id = fc.instituicao_id
           AND fc.sessao_ref IN (ag.ref_core, ag.sessao_clinica_ref)
          LEFT JOIN clinica_convenios conv ON conv.instituicao_id = fc.instituicao_id
-          AND conv.organizacao_ref = fc.organizacao_ref AND conv.ref_core = p.convenio_ref
+          AND conv.organizacao_ref = fc.organizacao_ref AND conv.ref_core = COALESCE(fc.convenio_ref, p.convenio_ref)
         WHERE fc.instituicao_id = ? AND fc.organizacao_ref = ? AND fc.ref_core = ?`,
       [instituicaoId(), context.actor.organizationId, chargeId],
     );

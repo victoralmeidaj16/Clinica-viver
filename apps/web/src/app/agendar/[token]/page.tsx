@@ -270,7 +270,7 @@ export default function AgendarPage({ params }: Props) {
           <p className="text-xs text-muted">
             {professionalName} já recebeu a confirmação do seu horário.
           </p>
-          {confirmado.pagamentoIndisponivel ? <p role="alert" className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">Seu agendamento está confirmado, mas os dados de pagamento estão indisponíveis. Entre em contato com a clínica para orientações.</p> : <BookedSessionsPayment sessions={confirmado.sessoes ?? [confirmado]} cpf={cpf.replace(/\D/g, '')} />}
+          {confirmado.pagamentoIndisponivel ? <p role="alert" className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">Seu agendamento está confirmado, mas os dados de pagamento estão indisponíveis. Entre em contato com a clínica para orientações.</p> : <BookedSessionsPayment sessions={confirmado.sessoes ?? [confirmado]} cpf={cpf.replace(/\D/g, '')} hidePatientPayerBadge />}
         </section>
       ) : !agenda ? (
         <form

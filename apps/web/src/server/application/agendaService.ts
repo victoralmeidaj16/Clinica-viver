@@ -361,7 +361,7 @@ export async function editAgendaAppointment(
   context: RequestContext,
   appointmentId: string,
   input: UpdateAppointmentInput,
-  opcoes: { somenteAgendadas?: boolean } = {}
+  opcoes: { somenteAgendadas?: boolean; permitirHorarioPassado?: boolean } = {}
 ) {
   const { organizationId, professionalId } = perfilDaSessao(context);
   if (input.custeadoPelaEmpresa !== undefined
@@ -453,6 +453,13 @@ export async function editAgendaAppointment(
     throw new ApplicationError(
       'APPOINTMENT_CANCELLED',
       'Esta sessão já foi cancelada e não pode ser editada. Agende uma nova sessão, se for o caso.',
+      409
+    );
+  }
+  if (outcome === 'no_show_locked') {
+    throw new ApplicationError(
+      'APPOINTMENT_NO_SHOW',
+      'Esta sessão tem falta registrada e não pode ser editada. Agende uma nova sessão, se for o caso.',
       409
     );
   }

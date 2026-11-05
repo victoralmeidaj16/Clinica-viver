@@ -106,14 +106,15 @@ export function opcoesAtendimentoDaPos(
   segundaPosGraduacao?: string
 ): OpcoesAtendimentoDaPos | null {
   const pos = [posGraduacao, segundaPosGraduacao].filter((curso): curso is string => Boolean(curso));
+  const tempos = pos.some((curso) => POS_COM_OPCOES_DE_AVALIACAO.includes(curso)) ? [] : TEMPOS_ATENDIMENTO_POS;
   if (pos.some((curso) => POS_COM_OPCOES_AMPLAS_DE_ATENDIMENTO.includes(curso))) {
-    return { tempos: TEMPOS_ATENDIMENTO_POS, servicos: SERVICOS_POS_AMPLAS, publico: PUBLICO_ALVO };
+    return { tempos, servicos: SERVICOS_POS_AMPLAS, publico: PUBLICO_ALVO };
   }
   if (pos.some((curso) => POS_COM_OPCOES_RESTRITAS_DE_ATENDIMENTO.includes(curso))) {
-    return { tempos: TEMPOS_ATENDIMENTO_POS, servicos: SERVICOS_POS_RESTRITAS, publico: PUBLICO_ALVO };
+    return { tempos, servicos: SERVICOS_POS_RESTRITAS, publico: PUBLICO_ALVO };
   }
   if (pos.some((curso) => POS_COM_OPCOES_DE_AVALIACAO.includes(curso))) {
-    return { tempos: TEMPOS_ATENDIMENTO_POS, servicos: SERVICOS_POS_AVALIACAO, publico: PUBLICO_POS_AVALIACAO };
+    return { tempos, servicos: SERVICOS_POS_AVALIACAO, publico: PUBLICO_POS_AVALIACAO };
   }
   return null;
 }

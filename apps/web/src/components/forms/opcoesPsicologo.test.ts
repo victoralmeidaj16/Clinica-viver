@@ -81,9 +81,14 @@ describe('opcoesAtendimentoDaPos', () => {
     'Pós-graduação em Neuropsicologia Clínica',
   ])('restringe %s à avaliação psicológica', (posGraduacao) => {
     expect(opcoesAtendimentoDaPos(posGraduacao)).toEqual({
-      tempos: [50, 90],
+      tempos: [],
       servicos: ['Avaliação Psicológica'],
       publico: ['Adolescente', 'Criança', 'Idoso', 'Homens', 'Mulheres'],
     });
+  });
+
+  it('oculta duração quando avaliação é a segunda pós, mantendo os serviços da formação ampla', () => {
+    expect(opcoesAtendimentoDaPos('Programa de Estudos e Pós-graduação em Psicanálise',
+      'Pós-graduação em Neuropsicologia Clínica')).toEqual({ tempos: [], servicos: servicosAmplos, publico: publicoAmplo });
   });
 });

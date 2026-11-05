@@ -24,3 +24,9 @@ describe('cadastro completo do paciente', () => {
     expect(validatePatientRegistrationDetails({ ...complete, address: { ...complete.address, complemento: undefined } }).ok).toBe(true);
   });
 });
+
+it('valida e preserva acessibilidade no cadastro manual', () => {
+  expect(validatePatientRegistrationDetails({ ...complete, acessibilidade: { necessita: true, descricao: 'Acesso sem degraus' } }))
+    .toMatchObject({ ok: true, data: { acessibilidade: { necessita: true, descricao: 'Acesso sem degraus' } } });
+  expect(validatePatientRegistrationDetails({ ...complete, acessibilidade: { necessita: 'sim' } }).ok).toBe(false);
+});

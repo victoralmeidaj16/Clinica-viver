@@ -1,3 +1,4 @@
+import type { PatientAccessibility } from '@/lib/patientAccessibility';
 import { assertStaffAuthorized, createPatientProfile, type PatientProfile } from '@thats-life/core';
 import type { PatientContact, PatientContactCapable, PatientRegistrationCapable } from '@/server/persistence/mysql/identityRepository';
 import { validatePatientRegistrationDetails, type PatientRegistrationRecord, type PatientRegistrationUpdate } from '@/lib/patientRegistrationDetails';
@@ -38,6 +39,7 @@ import { atendimentoPermitido } from '@/lib/patientCareOptions';
  */
 
 export interface PatientDirectoryEntry {
+  acessibilidade?: PatientAccessibility | null;
   id: string;
   displayName: string;
   status: PatientProfile['status'];
@@ -192,6 +194,7 @@ export async function listPatientDirectory(context: RequestContext): Promise<rea
       birthDate: patient.birthDate,
       phone: contactMap[patient.id]?.phone,
       email: contactMap[patient.id]?.email,
+      acessibilidade: contactMap[patient.id]?.acessibilidade,
       primaryProfessionalId: patient.primaryProfessionalId,
       professionalName: patient.primaryProfessionalId
         ? professionalNames.get(patient.primaryProfessionalId)
@@ -406,6 +409,7 @@ export async function createPatient(
     emergencyContactName: registration.data.emergencyContactName,
     emergencyContactPhone: registration.data.emergencyContactPhone,
     registrationNotes: registration.data.registrationNotes,
+    acessibilidade: registration.data.acessibilidade,
   };
 
   // O cadastro interno usa a mesma fonte complementar da vitrine. Ele já nasce

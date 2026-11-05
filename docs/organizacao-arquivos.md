@@ -82,3 +82,7 @@ Os oito planos receberam a seção final “Pendências conhecidas” e foram mo
 | `docs/superpowers/plans/2026-10-21-valor-personalizado-por-paciente.md` | `docs/historico/planos/2026-10-21-valor-personalizado-por-paciente.md` |
 | `docs/superpowers/plans/2026-10-23-extracao-plataforma-educacional.md` | `docs/historico/planos/2026-10-23-extracao-plataforma-educacional.md` |
 | `docs/superpowers/plans/2026-10-23-vitrine-publicos-pos.md` | `docs/historico/planos/2026-10-23-vitrine-publicos-pos.md` |
+
+## Registro de 05/11/2026
+
+Adicionado `docs/historico/planos/2026-11-05-acessibilidade-paciente.md`, com link no índice, para registrar a inclusão da pergunta de acessibilidade nos fluxos de paciente e agendamento. Nenhum arquivo anterior foi movido ou removido.

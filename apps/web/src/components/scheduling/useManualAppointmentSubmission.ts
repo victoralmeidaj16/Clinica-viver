@@ -1,11 +1,13 @@
 'use client';
 
+import type { PatientAccessibility } from '@/lib/patientAccessibility';
 import { useState } from 'react';
 import { applicationRequest, commandHeaders } from '@/lib/applicationApi';
 import { civilDaysBetween, clinicDateTimeToIso, manualAppointmentTimes, shiftCivilDate, type ManualAppointmentMode } from '@/lib/manualAppointment';
 import { FUSO_CLINICA } from '@/lib/sessionReference';
 
 interface Input {
+  acessibilidade?: PatientAccessibility | null;
   patientId: string;
   professionalId?: string;
   adminMode: boolean;
@@ -23,7 +25,7 @@ interface Input {
   onScheduled?: () => void | Promise<void>;
 }
 
-export function useManualAppointmentSubmission({ patientId, professionalId, adminMode, recurrenceDates, date, time,
+export function useManualAppointmentSubmission({ acessibilidade, patientId, professionalId, adminMode, recurrenceDates, date, time,
   durationMinutes, validDuration, chargeDueDate, chargeDueTime, companyFunded = false, mode, serviceKey, onScheduled }: Input) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ kind: 'error' | 'success' | 'warning'; text: string }>();
@@ -79,6 +81,7 @@ export function useManualAppointmentSubmission({ patientId, professionalId, admi
           body: JSON.stringify({
             id: occurrence.id,
             patientId,
+            acessibilidade,
             ...(professionalId
               ? { professionalId }
               : {}),

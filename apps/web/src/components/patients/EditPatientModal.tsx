@@ -1,5 +1,7 @@
 'use client';
 
+import { PatientAccessibilityFields } from './PatientAccessibilityFields';
+import type { PatientAccessibility } from '@/lib/patientAccessibility';
 import { useEffect, useRef, useState } from 'react';
 import { Loader2, MapPin, Save, ShieldCheck, UserRoundPen, X } from 'lucide-react';
 import { applicationRequest, commandHeaders } from '@/lib/applicationApi';
@@ -14,6 +16,7 @@ interface Props {
 }
 
 type Form = {
+  acessibilidade?: PatientAccessibility | null;
   legalName: string; socialName: string; phone: string; email: string; cpf: string;
   cep: string; logradouro: string; numero: string; complemento: string;
   bairro: string; cidade: string; uf: string; emergencyContactName: string;
@@ -25,7 +28,7 @@ const EMPTY: Form = { legalName: '', socialName: '', phone: '', email: '', cpf: 
   emergencyContactName: '', emergencyContactPhone: '', registrationNotes: '' };
 
 function fromRecord(value: PatientRegistrationRecord): Form {
-  return { legalName: value.legalName, socialName: value.socialName ?? '', phone: maskPhone(value.phone),
+  return { acessibilidade: value.acessibilidade, legalName: value.legalName, socialName: value.socialName ?? '', phone: maskPhone(value.phone),
     email: value.email, cpf: maskCpf(value.cpf), cep: maskCep(value.address.cep),
     logradouro: value.address.logradouro, numero: value.address.numero,
     complemento: value.address.complemento ?? '', bairro: value.address.bairro,
@@ -88,6 +91,7 @@ export default function EditPatientModal({ patientId, patientName, onClose, onSa
           emergencyContactName: form.emergencyContactName,
           emergencyContactPhone: form.emergencyContactPhone,
           registrationNotes: form.registrationNotes,
+          acessibilidade: JSON.stringify(form.acessibilidade) === JSON.stringify(record.acessibilidade) ? undefined : form.acessibilidade,
         }),
       });
       await onSaved(updated); onClose();
@@ -128,6 +132,7 @@ export default function EditPatientModal({ patientId, patientName, onClose, onSa
           <label className="font-bold text-ink">Contato de emergência<input className={input} value={form.emergencyContactName} onChange={(e) => update('emergencyContactName', e.target.value)} /></label>
           <label className="font-bold text-ink">Telefone de emergência<input className={input} value={form.emergencyContactPhone} onChange={(e) => update('emergencyContactPhone', maskPhone(e.target.value))} /></label>
         </div>
+        <PatientAccessibilityFields value={form.acessibilidade} onChange={(value) => update('acessibilidade', value)} disabled={saving} />
         <label className="block font-bold text-ink">Observações cadastrais<textarea rows={3} className={input} value={form.registrationNotes} onChange={(e) => update('registrationNotes', e.target.value)} /></label>
         {record?.lastRegistrationUpdate && <p className="flex items-center gap-2 rounded-xl border border-line bg-canvas p-3 text-[11px] text-muted"><ShieldCheck className="h-4 w-4 text-emerald-600" /> Última alteração por {record.lastRegistrationUpdate.actorDisplayName ?? record.lastRegistrationUpdate.actorUserId}, em {new Date(record.lastRegistrationUpdate.updatedAt).toLocaleString('pt-BR')}.</p>}
         {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 font-bold text-rose-700">{error}</p>}

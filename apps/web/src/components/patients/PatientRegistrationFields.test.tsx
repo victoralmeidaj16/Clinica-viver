@@ -12,6 +12,8 @@ describe('opções de atendimento do cadastro manual', () => {
       conveniosIndisponiveis={false} temNomeSocial={false} onTemNomeSocialChange={() => {}}
       habilitacao={{ status: 'APROVADO', servicosHabilitados: ['PSICOTERAPIA'], modalidadesAtendidas: ['ACESSIVEL_SOCIAL'] }} />);
     expect(html).toContain('Como conheceu a clínica?');
+    expect(html).toContain('deficiência ou necessidade de acessibilidade?');
+    expect(html).toContain('Prefiro não informar');
     expect(html).not.toContain('Como conheceu a clínica? *');
     expect(html).toContain('Não informado');
     expect(html).not.toContain('Essa escolha será cruzada');

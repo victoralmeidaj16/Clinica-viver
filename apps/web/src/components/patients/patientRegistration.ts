@@ -1,7 +1,9 @@
+import type { PatientAccessibility } from '@/lib/patientAccessibility';
 import type { GenderValue } from '@/lib/gender';
 import type { TurnoPreferencia } from '@/lib/turnos';
 
 export type PatientRegistrationForm = {
+  acessibilidade?: PatientAccessibility | null;
   nome: string; nomeSocial: string; whatsapp: string; whatsappConfirmacao: string;
   dataNascimento: string; idade: string; email: string; cpf: string; cep: string;
   numeroResidencia: string; logradouro: string; complemento: string; bairro: string; cidade: string; uf: string;

@@ -64,3 +64,15 @@ it('após falha no meio da série, a nova tentativa envia só o restante com a m
   expect(new Set(calls.map((call) => call.id)).size).toBe(3);
   expect(calls[3]).toEqual(calls[2]);
 });
+
+it('envia a adaptação informada com o paciente de cada reserva', async () => {
+  hooks.cursor = 0;
+  request.mockResolvedValue({ charge: { status: 'created' } });
+  const acessibilidade = { necessita: true, descricao: 'Acesso sem degraus' };
+  const hook = useManualAppointmentSubmission({ ...input, acessibilidade });
+  await hook.submit({ preventDefault() {} } as React.FormEvent);
+  for (const [, init] of request.mock.calls) {
+    expect(JSON.parse(init.body)).toMatchObject({ patientId: input.patientId, acessibilidade });
+  }
+  expect(request).toHaveBeenCalledTimes(2);
+});

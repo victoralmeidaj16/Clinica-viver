@@ -48,3 +48,11 @@ describe('ManualAppointmentDialog', () => {
     });
   });
 });
+
+it('carrega a acessibilidade do paciente no agendamento manual', () => {
+  const html = renderToStaticMarkup(<ManualAppointmentDialog initialPatientId="p"
+    patients={[{ id: 'p', displayName: 'Paciente fictício', status: 'active',
+      acessibilidade: { necessita: true, descricao: 'Acesso sem degraus' } }]} onClose={() => {}} />);
+  expect(html).toContain('deficiência ou necessidade de acessibilidade?');
+  expect(html).toContain('Acesso sem degraus');
+});

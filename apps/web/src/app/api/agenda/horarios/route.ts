@@ -74,6 +74,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         pacienteNome: paciente.nome,
+        acessibilidade: paciente.acessibilidade,
         professionalName: paciente.professionalName,
         dias: [...dias.entries()].map(([dia, horarios]) => ({ dia, horarios })),
         agendamentoAtual: agendamentoAtual ?? null,

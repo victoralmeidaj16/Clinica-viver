@@ -2,7 +2,8 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { createStaffAccessContext, InMemoryAppointmentRepository, InMemoryIdentityRepository } from '@thats-life/core';
 import type { RequestContext } from './context';
 vi.mock('server-only', () => ({}));
-const mocks = vi.hoisted(() => ({ store: vi.fn(), guarantee: vi.fn(), contacts: vi.fn(), notify: vi.fn(), mysql: false }));
+const mocks = vi.hoisted(() => ({ store: vi.fn(), guarantee: vi.fn(), contacts: vi.fn(), notify: vi.fn(), mysql: false, accessibility: vi.fn() }));
+vi.mock('@/server/persistence/mysql/patientAccessibility', () => ({ savePatientAccessibility: mocks.accessibility }));
 vi.mock('./store', () => ({ getApplicationStore: mocks.store, persistApplicationState: async () => {} }));
 vi.mock('@/server/scheduling/agendaRepository', () => ({ getProfessionalAgendaProfile: async () => ({ servicosHabilitados: ['PSICOTERAPIA'] }), getContatosDaSessao: mocks.contacts }));
 vi.mock('@/server/scheduling/agendaAvisos', () => ({ avisarPacienteSessaoMarcada: mocks.notify }));
@@ -59,4 +60,23 @@ it('retenta a cobrança sem duplicar a sessão nem substituir o vencimento origi
   expect(replay).toMatchObject({ idempotentReplay: true, charge: { status: 'created', dueAt } });
   expect(await appointments.list({ organizationId: 'org-test' })).toHaveLength(1);
   expect(mocks.guarantee).toHaveBeenLastCalledWith(input.id, dueAt);
+});
+
+it('salva a adaptação no paciente autorizado após criar o agendamento manual', async () => {
+  mocks.mysql = true;
+  const accessibility = { necessita: true, descricao: 'Acesso sem degraus' };
+  await createAppointmentFlow(context, input, dueAt, 'PSICOTERAPIA', accessibility);
+  expect(mocks.accessibility).toHaveBeenCalledWith('org-test', 'patient-test', accessibility);
+});
+it('recusa acessibilidade inválida antes de criar sessão ou cobrança', async () => {
+  await expect(createAppointmentFlow(context, input, dueAt, 'PSICOTERAPIA', { necessita: 'sim' })).rejects.toMatchObject({ status: 400 });
+  expect(await appointments.list({ organizationId: 'org-test' })).toHaveLength(0);
+  expect(mocks.guarantee).not.toHaveBeenCalled();
+  expect(mocks.accessibility).not.toHaveBeenCalled();
+});
+it('não altera acessibilidade de paciente não vinculado ao psicólogo', async () => {
+  mocks.mysql = true;
+  await expect(createAppointmentFlow(context, { ...input, patientId: 'patient-other' }, dueAt,
+    'PSICOTERAPIA', { necessita: false })).rejects.toBeDefined();
+  expect(mocks.accessibility).not.toHaveBeenCalled();
 });

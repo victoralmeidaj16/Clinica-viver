@@ -1,3 +1,5 @@
+import { readPatientAccessibility, type PatientAccessibility } from '@/lib/patientAccessibility';
+import { savePatientAccessibility } from '@/server/persistence/mysql/patientAccessibility';
 import 'server-only';
 import { concluirReagendamento } from './agendaReagendamentoEffects';
 
@@ -44,6 +46,7 @@ export interface AgendaProfile {
 }
 
 export interface PacienteIdentificado {
+  acessibilidade?: PatientAccessibility | null;
   patientRef: string;
   patientRowId: string;
   nome: string;
@@ -1222,7 +1225,7 @@ export async function identifyPatient(
     `SELECT o.ref_core AS organizacao_ref, p.ref_core AS profissional_ref,
             p.id AS profissional_id, p.nome AS profissional_nome,
             p.valor_social_centavos, p.valor_sessao_centavos,
-            pa.ref_core AS paciente_ref, pa.id AS paciente_id,
+            pa.ref_core AS paciente_ref, pa.id AS paciente_id, pa.acessibilidade,
             pa.categoria_valor_sessao, pa.valor_sessao_personalizado_centavos,
             COALESCE(NULLIF(TRIM(pa.nome_social), ''), pa.nome) AS nome_paciente,
             t.modalidade AS modalidade_triagem
@@ -1251,7 +1254,7 @@ export async function identifyPatient(
     `SELECT o.ref_core AS organizacao_ref, p.ref_core AS profissional_ref,
             p.id AS profissional_id, p.nome AS profissional_nome,
             p.valor_social_centavos, p.valor_sessao_centavos,
-            pa.ref_core AS paciente_ref, pa.id AS paciente_id,
+            pa.ref_core AS paciente_ref, pa.id AS paciente_id, pa.acessibilidade,
             pa.categoria_valor_sessao, pa.valor_sessao_personalizado_centavos,
             COALESCE(NULLIF(TRIM(pa.nome_social), ''), pa.nome) AS nome_paciente,
             (SELECT t.modalidade FROM clinica_triagens_pacientes t
@@ -1279,6 +1282,7 @@ export async function identifyPatient(
   const row = [...matches.values()][0];
 
   return {
+    acessibilidade: readPatientAccessibility(row.acessibilidade),
     patientRef: String(row.paciente_ref),
     patientRowId: String(row.paciente_id),
     nome: String(row.nome_paciente),
@@ -1391,7 +1395,8 @@ export type ResultadoAgendamentos =
 export async function bookAppointments(
   paciente: PacienteIdentificado,
   inicioIsos: readonly string[],
-  agora: Date = new Date()
+  agora: Date = new Date(),
+  acessibilidade?: PatientAccessibility | null
 ): Promise<ResultadoAgendamentos> {
   if (inicioIsos.some((value) => !Number.isFinite(Date.parse(value)))) return { ok: false, motivo: 'INDISPONIVEL' };
   const uniqueStarts = [...new Set(inicioIsos.map((value) => new Date(value).toISOString()))].sort();
@@ -1474,6 +1479,7 @@ export async function bookAppointments(
       agendamentos.push({ ok: true, agendamentoId, inicio: slot.inicio, fim: slot.fim,
         modalidade: slot.modalidade, linkPagamento: `/pagar/sessao/${tokenPagamento}` });
     }
+    await savePatientAccessibility(paciente.organizationId, paciente.patientRef, acessibilidade, connection);
     await connection.commit();
     return { ok: true, agendamentos };
   } catch (error) {

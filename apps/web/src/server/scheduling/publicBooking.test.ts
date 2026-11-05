@@ -69,3 +69,19 @@ describe('reserva múltipla', () => {
     expect(poolQuery).not.toHaveBeenCalled();
   });
 });
+
+it('grava acessibilidade na mesma transação do agendamento público com isolamento de organização', async () => {
+  await bookAppointments(patient, [start], now, { necessita: true, descricao: 'Acesso sem degraus' });
+  expect(connection.execute).toHaveBeenCalledWith(expect.stringContaining('pa.acessibilidade = CAST(? AS JSON)'),
+    [JSON.stringify({ necessita: true, descricao: 'Acesso sem degraus' }), 'inst', 'org', 'p']);
+  expect(connection.commit).toHaveBeenCalledOnce();
+});
+it('desfaz a reserva se não conseguir salvar a acessibilidade', async () => {
+  connection.execute.mockImplementation(async (sql: string) => {
+    if (sql.includes('pa.acessibilidade')) throw new Error('falha de gravação');
+    return [{ affectedRows: 1 }, []];
+  });
+  await expect(bookAppointments(patient, [start], now, { necessita: false })).rejects.toThrow('falha de gravação');
+  expect(connection.rollback).toHaveBeenCalledOnce();
+  expect(connection.commit).not.toHaveBeenCalled();
+});

@@ -42,3 +42,12 @@ describe('confirmação do agendamento público', () => {
     expect(await response.json()).toMatchObject({ success: true, pagamentoIndisponivel: false, sessoes: [{ custeadoPelaEmpresa: true }] });
   });
 });
+
+it('recusa acessibilidade inválida sem reservar nem cobrar', async () => {
+  mocks.book.mockClear(); mocks.charge.mockClear();
+  const response = await POST(new Request('http://localhost/api/agenda/agendar', { method: 'POST',
+    body: JSON.stringify({ token: 'a'.repeat(32), cpf: '12345678901', inicio: '2099-01-01T12:00:00Z', acessibilidade: { necessita: 'SIM' } }) }));
+  expect(response.status).toBe(400);
+  expect(mocks.book).not.toHaveBeenCalled();
+  expect(mocks.charge).not.toHaveBeenCalled();
+});

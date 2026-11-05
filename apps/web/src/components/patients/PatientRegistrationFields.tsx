@@ -1,4 +1,5 @@
 'use client';
+import { PatientAccessibilityFields } from './PatientAccessibilityFields';
 
 import { useRef, useState } from 'react';
 import { GenderFields } from '@/components/forms/GenderFields';
@@ -184,6 +185,7 @@ export function PatientRegistrationFields({ form, setForm, convenios, conveniosC
       vitrine usa como filtro chegava vazio ao servidor, sem nenhum lugar na
       tela onde pudesse ser informado.
     */}
+    <PatientAccessibilityFields value={form.acessibilidade} onChange={(value) => update('acessibilidade', value)} />
     <NecessidadesSelector
       prefix="cadastro-interno-paciente"
       titulo="Deseja especificar a necessidade do paciente?"

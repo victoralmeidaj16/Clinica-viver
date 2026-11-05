@@ -1,3 +1,4 @@
+import { validatePatientAccessibility, type PatientAccessibility } from './patientAccessibility';
 export interface PatientAddress {
   cep: string;
   logradouro: string;
@@ -18,6 +19,7 @@ export interface PatientRegistrationDetails {
   emergencyContactName?: string;
   emergencyContactPhone?: string;
   registrationNotes?: string;
+  acessibilidade?: PatientAccessibility | null;
 }
 
 export interface PatientRegistrationUpdate {
@@ -46,6 +48,8 @@ export type PatientRegistrationValidation =
 
 /** Validação compartilhada pela criação e pela edição cadastral. */
 export function validatePatientRegistrationDetails(body: Record<string, unknown>): PatientRegistrationValidation {
+  const accessibility = validatePatientAccessibility(body.acessibilidade);
+  if (!accessibility.ok) return accessibility;
   const rawAddress = body.address && typeof body.address === 'object'
     ? body.address as Record<string, unknown>
     : body;
@@ -76,6 +80,7 @@ export function validatePatientRegistrationDetails(body: Record<string, unknown>
   return {
     ok: true,
     data: {
+      acessibilidade: accessibility.data,
       legalName,
       socialName: socialName || undefined,
       phone,

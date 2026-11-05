@@ -70,6 +70,10 @@ Fontes de contexto e requisitos. Propostas e benchmarks não são inventários c
 - [Imagens originais](design/assets/): materiais da marca. Os assets servidos pelo site continuam em `apps/web/public/`.
 - `referencias/`: materiais externos locais, como a apostila de documentos psicológicos. O PDF continua ignorado pelo Git e pode não existir em um clone novo.
 
+## Alterações recentes
+
+- [Acessibilidade do paciente — 05/11/2026](historico/planos/2026-11-05-acessibilidade-paciente.md): cadastro manual e agendamentos público e manual. Consulte o plano para o estado da validação e publicação.
+
 ## Especificações e planos históricos
 
 As pastas [specs/](superpowers/specs/) e [planos/](historico/planos/) contêm, respectivamente, sete especificações e oito planos nesta conferência. Comece pelo documento mais recente de cada assunto, conforme o guia da raiz, e confirme se suas decisões continuam válidas. A data, por si só, não comprova implementação, publicação ou escopo vigente. A antiga pasta `docs/superpowers/plans/` não existe mais.

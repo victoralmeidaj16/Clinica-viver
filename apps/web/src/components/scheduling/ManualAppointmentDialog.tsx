@@ -1,5 +1,7 @@
 'use client';
 
+import { PatientAccessibilityFields } from '../patients/PatientAccessibilityFields';
+import type { PatientAccessibility } from '@/lib/patientAccessibility';
 import { useMemo, useState } from 'react';
 import {
   CheckCircle2,
@@ -13,6 +15,7 @@ import { variableDurationMinutes } from './VariableDurationFields';
 import { ManualAppointmentServiceFields } from './ManualAppointmentServiceFields';
 import { ManualAppointmentHeader } from './ManualAppointmentHeader';
 import { ManualAppointmentActions } from './ManualAppointmentActions';
+import { ManualAppointmentModeFields } from './ManualAppointmentModeFields';
 import { ManualAppointmentChargeDue } from './ManualAppointmentChargeDue';
 import type { CusteioAoAgendar } from '@/lib/sessionChargeRules';
 import {
@@ -26,6 +29,7 @@ import {
 } from '@/lib/manualAppointment';
 
 export interface ManualAppointmentPatient {
+  acessibilidade?: PatientAccessibility | null;
   id: string;
   displayName: string;
   status: string;
@@ -43,11 +47,6 @@ interface Props {
   onClose: () => void;
   onScheduled?: () => void | Promise<void>;
 }
-
-const MODES: Array<{ value: ManualAppointmentMode; label: string }> = [
-  { value: 'video', label: 'Online' },
-  { value: 'in_person', label: 'Presencial' },
-];
 
 type DurationPreset = 50 | 90 | 'manual';
 
@@ -67,6 +66,7 @@ export function ManualAppointmentDialog({
     [patients]
   );
 
+  const [accessibilityByPatient, setAccessibilityByPatient] = useState<Record<string, PatientAccessibility | null>>({});
   const [patientId, setPatientId] = useState(initialPatientId ?? '');
   const selectedPatient = useMemo(
     () => eligible.find((p) => p.id === patientId),
@@ -110,6 +110,7 @@ export function ManualAppointmentDialog({
 
   const { submit, saving, message, completed } = useManualAppointmentSubmission({
     patientId, professionalId: selectedPatient?.primaryProfessionalId, adminMode, recurrenceDates, date, time,
+    acessibilidade: accessibilityByPatient[patientId],
     durationMinutes, validDuration, chargeDueDate, chargeDueTime, companyFunded: custeio === 'empresa', mode, serviceKey, onScheduled,
   });
 
@@ -171,6 +172,8 @@ export function ManualAppointmentDialog({
             </div>
           )}
 
+          {selectedPatient && <PatientAccessibilityFields value={accessibilityByPatient[patientId] === undefined ? selectedPatient.acessibilidade : accessibilityByPatient[patientId]}
+            onChange={(value) => setAccessibilityByPatient((current) => ({ ...current, [patientId]: value }))} disabled={saving || completed} />}
           <ManualAppointmentServiceFields services={servicosDisponiveis} serviceKey={serviceKey}
             onServiceChange={(value) => { setServiceKey(value); setDurationPreset(50); setCustomHours(''); setCustomMinutes(''); }}
             variableDuration={variableDuration} manualDuration={manualDuration} durationPreset={durationPreset}
@@ -208,21 +211,7 @@ export function ManualAppointmentDialog({
             onTimeChange={(value) => { setCustomDue(true); setChargeDueTime(value); }}
           />
 
-          <fieldset disabled={saving || completed}>
-            <legend className="text-xs font-bold text-ink">Modalidade</legend>
-            <div className="mt-1.5 grid grid-cols-2 gap-2">
-              {MODES.map((item) => (
-                <button
-                  key={item.value}
-                  type="button"
-                  onClick={() => setMode(item.value)}
-                  className={`rounded-xl border px-2 py-3 text-[11px] font-extrabold transition ${mode === item.value ? 'border-psi-vibrant bg-psi-vibrant text-white shadow-md shadow-psi-vibrant/15' : 'border-line bg-slate-50 text-muted hover:border-psi-vibrant/40 hover:text-ink'}`}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          </fieldset>
+          <ManualAppointmentModeFields value={mode} onChange={setMode} disabled={saving || completed} />
 
           <p className="rounded-2xl border border-psi-soft bg-psi-light/60 px-4 py-3 text-[11px] leading-relaxed text-psi-deep">
             Os horários serão registrados em Brasília com duração de <strong>{validDuration ? `${durationMinutes} min` : 'a definir'}</strong> ({selectedService.label}). {custeio === 'empresa'

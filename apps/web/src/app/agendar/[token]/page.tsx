@@ -1,5 +1,7 @@
 'use client';
 
+import { PatientAccessibilityFields } from '@/components/patients/PatientAccessibilityFields';
+import type { PatientAccessibility } from '@/lib/patientAccessibility';
 import { use, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
@@ -55,6 +57,7 @@ interface AgendamentoAtual {
   };
 }
 interface Agenda {
+  acessibilidade?: PatientAccessibility | null;
   pacienteNome: string;
   professionalName: string;
   dias: DiaComHorarios[];
@@ -80,6 +83,7 @@ function rotuloDia(dia: string): string {
 
 export default function AgendarPage({ params }: Props) {
   const { token } = use(params);
+  const [acessibilidade, setAcessibilidade] = useState<PatientAccessibility | null>();
   const [professionalName, setProfessionalName] = useState<string>();
   const [cpf, setCpf] = useState('');
   const [agenda, setAgenda] = useState<Agenda>();
@@ -122,6 +126,7 @@ export default function AgendarPage({ params }: Props) {
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || 'Não foi possível carregar os horários.');
       setAgenda(body);
+      setAcessibilidade(undefined);
       setDiaSelecionado(undefined);
       setDiasSelecionados([]);
       setModoReagendar(false);
@@ -177,7 +182,7 @@ export default function AgendarPage({ params }: Props) {
       const inicios = horario.inicios ?? [horario.inicio];
       const payload = isReagendando
         ? { token, cpf, appointmentId: agenda?.agendamentoAtual?.id, inicio: horario.inicio }
-        : { token, cpf, ...bookingStartsPayload(inicios) };
+        : { token, cpf, acessibilidade, ...bookingStartsPayload(inicios) };
 
       const response = await fetch(url, {
         method: 'POST',
@@ -441,6 +446,7 @@ export default function AgendarPage({ params }: Props) {
 
             {!modoReagendar && <PublicBookingFrequencyField value={frequencia} onChange={mudarFrequencia} />}
 
+            {!modoReagendar && <PatientAccessibilityFields value={acessibilidade === undefined ? agenda.acessibilidade : acessibilidade} onChange={setAcessibilidade} disabled={Boolean(salvando)} />}
             {agenda.dias.length === 0 ? (
               <p className="rounded-2xl border border-line bg-soft/50 p-4 text-xs text-muted">
                 Não há horários livres nas próximas semanas. Fale com {professionalName} pelo WhatsApp.

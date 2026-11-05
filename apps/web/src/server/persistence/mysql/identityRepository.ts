@@ -1,4 +1,5 @@
 import 'server-only';
+import { readPatientAccessibility, type PatientAccessibility } from '@/lib/patientAccessibility';
 
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import type { Pool, PoolConnection } from 'mysql2/promise';
@@ -106,6 +107,7 @@ interface ReatribuicaoRow extends RowDataPacket {
 }
 
 export interface PatientContact {
+  acessibilidade?: PatientAccessibility | null;
   phone?: string;
   email?: string;
   /** Nome civil e nome social são aceitos no cadastro completo, sem ampliar o agregado clínico. */
@@ -552,7 +554,7 @@ export class MysqlIdentityRepository implements IdentityRepository, PatientConta
       `SELECT pa.ref_core, pa.nome, pa.nome_social, pa.telefone, pa.email, pa.documento,
               pa.cep, pa.logradouro, pa.numero_residencia, pa.complemento, pa.bairro,
               pa.cidade, pa.estado_uf, pa.contato_emergencia_nome,
-              pa.contato_emergencia_telefone, pa.observacao_cadastral,
+              pa.contato_emergencia_telefone, pa.observacao_cadastral, pa.acessibilidade,
               pa.cadastro_alterado_por, pa.cadastro_alterado_em, u.nome_exibicao AS ator_nome
          FROM clinica_pacientes pa
          JOIN clinica_organizacoes o ON o.id = pa.organizacao_id
@@ -574,6 +576,7 @@ export class MysqlIdentityRepository implements IdentityRepository, PatientConta
           emergencyContactName: row.contato_emergencia_nome ?? undefined,
           emergencyContactPhone: row.contato_emergencia_telefone ?? undefined,
           registrationNotes: row.observacao_cadastral ?? undefined,
+          acessibilidade: readPatientAccessibility(row.acessibilidade),
           lastRegistrationUpdate: row.cadastro_alterado_em ? {
             actorUserId: String(row.cadastro_alterado_por),
             actorDisplayName: row.ator_nome ?? undefined,
@@ -595,7 +598,8 @@ export class MysqlIdentityRepository implements IdentityRepository, PatientConta
               logradouro = COALESCE(?, logradouro), numero_residencia = COALESCE(?, numero_residencia),
               complemento = ?, bairro = COALESCE(?, bairro), cidade = COALESCE(?, cidade),
               estado_uf = COALESCE(?, estado_uf), contato_emergencia_nome = ?,
-              contato_emergencia_telefone = ?, observacao_cadastral = ?
+              contato_emergencia_telefone = ?, observacao_cadastral = ?,
+              acessibilidade = IF(?, CAST(? AS JSON), acessibilidade)
         WHERE instituicao_id = ? AND ref_core = ?`,
       [
         contact.phone ?? null,
@@ -613,6 +617,8 @@ export class MysqlIdentityRepository implements IdentityRepository, PatientConta
         contact.emergencyContactName ?? null,
         contact.emergencyContactPhone ?? null,
         contact.registrationNotes ?? null,
+        contact.acessibilidade !== undefined,
+        JSON.stringify(contact.acessibilidade ?? null),
         instituicaoId(),
         patientId,
       ]
@@ -628,7 +634,7 @@ export class MysqlIdentityRepository implements IdentityRepository, PatientConta
       `SELECT pa.ref_core, pa.nome, pa.nome_social, pa.telefone, pa.email, pa.documento,
               pa.cep, pa.logradouro, pa.numero_residencia, pa.complemento, pa.bairro,
               pa.cidade, pa.estado_uf, pa.contato_emergencia_nome,
-              pa.contato_emergencia_telefone, pa.observacao_cadastral,
+              pa.contato_emergencia_telefone, pa.observacao_cadastral, pa.acessibilidade,
               pa.cadastro_alterado_por, pa.cadastro_alterado_em,
               u.nome_exibicao AS ator_nome,
               (SELECT ac.campos_alterados
@@ -661,6 +667,7 @@ export class MysqlIdentityRepository implements IdentityRepository, PatientConta
       emergencyContactName: row.contato_emergencia_nome ? String(row.contato_emergencia_nome) : undefined,
       emergencyContactPhone: row.contato_emergencia_telefone ? String(row.contato_emergencia_telefone) : undefined,
       registrationNotes: row.observacao_cadastral ? String(row.observacao_cadastral) : undefined,
+      acessibilidade: readPatientAccessibility(row.acessibilidade),
       lastRegistrationUpdate: row.cadastro_alterado_em ? {
         actorUserId: String(row.cadastro_alterado_por),
         actorDisplayName: row.ator_nome ? String(row.ator_nome) : undefined,
@@ -710,6 +717,7 @@ export class MysqlIdentityRepository implements IdentityRepository, PatientConta
         ['emergencyContactName', current.emergencyContactName, next.emergencyContactName],
         ['emergencyContactPhone', current.emergencyContactPhone, next.emergencyContactPhone],
         ['registrationNotes', current.registrationNotes, next.registrationNotes],
+        ['acessibilidade', JSON.stringify(current.acessibilidade ?? null), JSON.stringify(next.acessibilidade === undefined ? current.acessibilidade ?? null : next.acessibilidade)],
       ];
       const changedFields = pairs.filter(([, before, after]) => (before ?? '') !== (after ?? '')).map(([name]) => name);
       if (changedFields.length > 0) {
@@ -720,12 +728,14 @@ export class MysqlIdentityRepository implements IdentityRepository, PatientConta
                   pa.cep = ?, pa.logradouro = ?, pa.numero_residencia = ?, pa.complemento = ?,
                   pa.bairro = ?, pa.cidade = ?, pa.estado_uf = ?, pa.contato_emergencia_nome = ?,
                   pa.contato_emergencia_telefone = ?, pa.observacao_cadastral = ?,
+                  pa.acessibilidade = IF(?, CAST(? AS JSON), pa.acessibilidade),
                   pa.cadastro_alterado_por = ?, pa.cadastro_alterado_em = ?, pa.atualizado_em = ?
             WHERE pa.instituicao_id = ? AND o.ref_core = ? AND pa.ref_core = ?`,
           [next.legalName, next.socialName ?? null, next.phone, next.email, next.cpf,
             next.address.cep, next.address.logradouro, next.address.numero, next.address.complemento ?? null,
             next.address.bairro, next.address.cidade, next.address.uf, next.emergencyContactName ?? null,
-            next.emergencyContactPhone ?? null, next.registrationNotes ?? null, input.actorUserId,
+            next.emergencyContactPhone ?? null, next.registrationNotes ?? null,
+            next.acessibilidade !== undefined, JSON.stringify(next.acessibilidade ?? null), input.actorUserId,
             toSqlTimestamp(input.changedAt), toSqlTimestamp(input.changedAt), instituicaoId(),
             input.organizationId, input.patientId]
         );

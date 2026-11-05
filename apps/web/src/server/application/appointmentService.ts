@@ -1,3 +1,5 @@
+import { validatePatientAccessibility } from '@/lib/patientAccessibility';
+import { savePatientAccessibility } from '@/server/persistence/mysql/patientAccessibility';
 import { assertStaffAuthorized, cancelAppointmentCommand, confirmAppointmentCommand, enqueueNotification, rescheduleAppointmentCommand, scheduleAppointmentCommand, type ScheduleAppointmentInput } from '@thats-life/core';
 import type { RequestContext } from './context';
 import { ApplicationError } from './http';
@@ -26,7 +28,9 @@ export async function listAppointments(context: RequestContext) {
   });
 }
 
-export async function createAppointmentFlow(context: RequestContext, input: ScheduleAppointmentInput, chargeDueAt?: string, serviceKey?: string) {
+export async function createAppointmentFlow(context: RequestContext, input: ScheduleAppointmentInput, chargeDueAt?: string, serviceKey?: string, accessibilityInput?: unknown) {
+  const accessibility = validatePatientAccessibility(accessibilityInput);
+  if (!accessibility.ok) throw new ApplicationError('INVALID_INPUT', accessibility.error, 400);
   if (!serviceKey?.trim()) {
     throw new ApplicationError('INVALID_INPUT', 'Informe o serviço do agendamento.', 400);
   }
@@ -74,6 +78,9 @@ export async function createAppointmentFlow(context: RequestContext, input: Sche
   const result = await scheduleAppointmentCommand({ appointments: store.appointments, identities: store.identities }, context.actor,
     { ...resolvedInput, chargeDueAt: effectiveDueAt },
     { actorUserId: context.actor.userId, occurredAt: resolvedInput.createdAt, correlationId: context.correlationId, commandId: context.idempotencyKey! });
+  if (isMysqlConfigured() && accessibility.data !== undefined) {
+    await savePatientAccessibility(context.actor.organizationId, input.patientId, accessibility.data);
+  }
   const preference = store.preferences.find((item) => item.organizationId === resolvedInput.organizationId && item.patientId === resolvedInput.patientId);
   let reminder: { id?: string; status: string } = { status: 'skipped' };
   // O lembrete externo é complementar. Ausência de preferência ou consentimento

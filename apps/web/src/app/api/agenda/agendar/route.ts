@@ -1,3 +1,4 @@
+import { validatePatientAccessibility } from '@/lib/patientAccessibility';
 import { NextResponse } from 'next/server';
 import { rateLimited, validCpf } from '@/server/http/publicRequest';
 import {
@@ -28,6 +29,8 @@ export async function POST(request: Request) {
   }
   try {
     const body = (await request.json()) as Record<string, unknown>;
+    const accessibility = validatePatientAccessibility(body.acessibilidade);
+    if (!accessibility.ok) return NextResponse.json({ error: accessibility.error }, { status: 400 });
     const token = String(body.token ?? '').trim();
     const cpf = String(body.cpf ?? '').replace(/\D/g, '');
     const inicios = Array.isArray(body.inicios)
@@ -51,7 +54,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const resultado = await bookAppointments(paciente, inicios);
+    const resultado = await bookAppointments(paciente, inicios, new Date(), accessibility.data);
     if (!resultado.ok) {
       return NextResponse.json(
         {

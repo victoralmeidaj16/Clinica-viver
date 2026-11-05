@@ -585,6 +585,20 @@ export function notificacoesDaGestao(
   }
 
   for (const cadastro of state.cadastrosPsicologos) {
+    const solicitacao = cadastro.solicitacaoAlteracaoGestao;
+    if (solicitacao?.status === 'PENDENTE' && solicitacao.solicitadoEm) {
+      itens.push({
+        chave: `solicitacao-perfil-pendente:${cadastro.id}:${solicitacao.solicitadoEm}`,
+        tipo: 'solicitacao-perfil-pendente',
+        titulo: 'Solicitação de alteração de cadastro',
+        descricao: `${nomeDeExibicao(cadastro)} solicitou alteração de serviços ou dados acadêmicos. Revise o pedido para aprovar ou recusar.`,
+        ocorridoEm: solicitacao.solicitadoEm,
+        severidade: 'ATENCAO',
+        href: comFoco('/gestao/psicologos', focoPsicologo(cadastro.id)),
+        pendente: true,
+      });
+    }
+
     if (cadastro.status === 'EM_ANALISE') {
       itens.push({
         chave: `credenciamento-em-analise:${cadastro.id}`,

@@ -126,7 +126,9 @@ type Rascunho = {
 };
 
 function rascunhoDe(c: Cadastro): Rascunho {
-  const temposPermitidos = opcoesAtendimentoDaPos(c.posGraduacaoViverMais, c.segundaPosGraduacao)?.tempos;
+  const opcoesDaPos = opcoesAtendimentoDaPos(c.posGraduacaoViverMais, c.segundaPosGraduacao);
+  const temposPermitidos = opcoesDaPos?.tempos;
+  const publicosPermitidos = opcoesDaPos?.publico;
   return {
     nomeCompleto: c.nomeCompleto,
     crp: c.crp,
@@ -144,7 +146,7 @@ function rascunhoDe(c: Cadastro): Rascunho {
     atendimentoPreferencia: c.atendimentoPreferencia ?? 'AMBOS',
     turnosDisponiveis: [...(c.turnosDisponiveis ?? [])],
     temposAtendimento: (c.temposAtendimento ?? []).filter((tempo) => !temposPermitidos || temposPermitidos.includes(tempo)),
-    publicoAlvo: [...(c.publicoAlvo ?? [])],
+    publicoAlvo: (c.publicoAlvo ?? []).filter((publico) => !publicosPermitidos || publicosPermitidos.includes(publico)),
     publicoAlvoOutro: c.publicoAlvoOutro ?? '',
     especificarNecessidades: Boolean(
       c.especificarNecessidades || c.necessidadesAtendidas?.length || c.necessidadesOutro
@@ -242,11 +244,13 @@ export default function MeuCadastroPage() {
       setAviso('Selecione ao menos um turno — é por ele que os encaminhamentos chegam até você.');
       return;
     }
-    if (
-      opcoesAtendimentoDaPos(cadastro?.posGraduacaoViverMais, cadastro?.segundaPosGraduacao)?.tempos.length &&
-      rascunho.temposAtendimento.length === 0
-    ) {
+    const opcoesDaPos = opcoesAtendimentoDaPos(cadastro?.posGraduacaoViverMais, cadastro?.segundaPosGraduacao);
+    if (opcoesDaPos?.tempos.length && rascunho.temposAtendimento.length === 0) {
       setAviso('Selecione ao menos um tempo de atendimento.');
+      return;
+    }
+    if (opcoesDaPos?.publico.length && rascunho.publicoAlvo.length === 0) {
+      setAviso('Selecione ao menos um público que você atende.');
       return;
     }
 
@@ -484,7 +488,7 @@ export default function MeuCadastroPage() {
           <div>
             <label className="text-[10px] uppercase tracking-wider font-extrabold text-muted block mb-2">Público que atendo</label>
             <div className="flex flex-wrap gap-2">
-              {comValoresRegistrados(PUBLICO_ALVO, rascunho.publicoAlvo).map((publico) => (
+              {(opcoesAtendimentoDaPos(cadastro.posGraduacaoViverMais, cadastro.segundaPosGraduacao)?.publico ?? comValoresRegistrados(PUBLICO_ALVO, rascunho.publicoAlvo)).map((publico) => (
                 <label key={publico} className={chipClasse(rascunho.publicoAlvo.includes(publico))}>
                   <input type="checkbox" className="sr-only" checked={rascunho.publicoAlvo.includes(publico)} onChange={() => setRascunho({ ...rascunho, publicoAlvo: alternar(rascunho.publicoAlvo, publico) })} />
                   {publico}

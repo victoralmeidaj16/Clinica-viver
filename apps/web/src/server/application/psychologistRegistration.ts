@@ -314,6 +314,43 @@ export function aplicarMudancas(
   const posGraduacaoViverMais = pode('posGraduacaoViverMais') ? texto(corpo.posGraduacaoViverMais) : existente.posGraduacaoViverMais;
   const segundaPosGraduacao = pode('segundaPosGraduacao') ? texto(corpo.segundaPosGraduacao) : existente.segundaPosGraduacao;
   const opcoes = opcoesAtendimentoDaPos(posGraduacaoViverMais, segundaPosGraduacao);
+
+  if (pode('solicitacaoAlteracaoGestao') && solicitacaoAlteracaoGestao?.status === 'PENDENTE' && solicitacaoAlteracaoGestao.servicosPrestados !== undefined) {
+    const posPedido = solicitacaoAlteracaoGestao.posGraduacaoViverMais !== undefined
+      ? texto(solicitacaoAlteracaoGestao.posGraduacaoViverMais)
+      : posGraduacaoViverMais;
+    const segundaPosPedido = solicitacaoAlteracaoGestao.segundaPosGraduacao !== undefined
+      ? texto(solicitacaoAlteracaoGestao.segundaPosGraduacao)
+      : segundaPosGraduacao;
+    const opcoesPedido = opcoesAtendimentoDaPos(posPedido, segundaPosPedido);
+    const servicosPedido = listaDeTexto(solicitacaoAlteracaoGestao.servicosPrestados);
+    if (!servicosPedido?.length || (opcoesPedido && servicosPedido.some((s) => !opcoesPedido.servicos.includes(s)))) {
+      throw new CorpoInvalidoError('Selecione apenas os serviços permitidos para a pós-graduação.');
+    }
+    solicitacaoAlteracaoGestao = { ...solicitacaoAlteracaoGestao, servicosPrestados: servicosPedido };
+  }
+
+  if (pode('servicosPrestados') && opcoes) {
+    const servicosEnviados = listaDeTexto(corpo.servicosPrestados);
+    if (!servicosEnviados?.length || servicosEnviados.some((s) => !opcoes.servicos.includes(s))) {
+      throw new CorpoInvalidoError('Selecione apenas os serviços permitidos para a pós-graduação.');
+    }
+  }
+
+  let publicoAlvo = existente.publicoAlvo;
+  if (pode('publicoAlvo')) {
+    const publicoEnviado = listaDeTexto(corpo.publicoAlvo);
+    if (!publicoEnviado?.length || (opcoes && publicoEnviado.some((p) => !opcoes.publico.includes(p)))) {
+      throw new CorpoInvalidoError('Selecione apenas os públicos permitidos para a pós-graduação.');
+    }
+    publicoAlvo = publicoEnviado;
+  } else if (opcoes && publicoAlvo) {
+    publicoAlvo = publicoAlvo.filter((p) => opcoes.publico.includes(p));
+  }
+  const publicoAlvoOutro = (!publicoAlvo || publicoAlvo.includes('Outro'))
+    ? (pode('publicoAlvoOutro') ? (corpo.publicoAlvoOutro as string) || undefined : existente.publicoAlvoOutro)
+    : undefined;
+
   let temposAtendimento = existente.temposAtendimento;
   if (opcoes && !opcoes.tempos.length) {
     temposAtendimento = undefined;
@@ -384,12 +421,8 @@ export function aplicarMudancas(
     servicosHabilitados,
     servicosPrestados,
     temposAtendimento,
-    publicoAlvo: pode('publicoAlvo')
-      ? listaDeTexto(corpo.publicoAlvo) ?? existente.publicoAlvo
-      : existente.publicoAlvo,
-    publicoAlvoOutro: pode('publicoAlvoOutro')
-      ? (corpo.publicoAlvoOutro as string) || undefined
-      : existente.publicoAlvoOutro,
+    publicoAlvo,
+    publicoAlvoOutro,
     especificarNecessidades: pode('especificarNecessidades')
       ? Boolean(corpo.especificarNecessidades)
       : existente.especificarNecessidades,

@@ -26,6 +26,7 @@ export interface PsicologoItem {
   atendimentoPreferencia?: 'PARTICULAR' | 'SOCIAL' | 'AMBOS';
   turnosDisponiveis?: string[];
   servicosPrestados?: string[];
+  temposAtendimento?: number[];
   publicoAlvo?: string[];
   necessidadesAtendidas?: string[];
   necessidadesOutro?: string;

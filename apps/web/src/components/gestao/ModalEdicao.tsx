@@ -23,7 +23,9 @@ import {
   POS_GRADUACOES_VIVER_MAIS,
   MODALIDADES_ATENDIMENTO,
   comValoresRegistrados,
+  opcoesAtendimentoDaPos,
 } from '@/components/forms/opcoesPsicologo';
+import { TemposAtendimentoPsicologo } from '@/components/forms/TemposAtendimentoPsicologo';
 import { processImageUpload } from '@/lib/imageUpload';
 import { GenderFields } from '@/components/forms/GenderFields';
 import { BrazilLocationFields } from '@/components/forms/BrazilLocationFields';
@@ -78,8 +80,10 @@ export function ModalEdicao({
   // 4. Critérios de Rodízio & Encaminhamento
   const [turnos, setTurnos] = useState<string[]>([...(psicologo.turnosDisponiveis ?? [])]);
   const [servicos, setServicos] = useState<string[]>([...(psicologo.servicosPrestados ?? [])]);
+  const [temposAtendimento, setTemposAtendimento] = useState<number[]>([...(psicologo.temposAtendimento ?? [])]);
   const [publicos, setPublicos] = useState<string[]>([...(psicologo.publicoAlvo ?? [])]);
   const [publicoOutro, setPublicoOutro] = useState(psicologo.publicoAlvoOutro ?? '');
+  const opcoesDaPos = opcoesAtendimentoDaPos(posGraduacaoViverMais || undefined, segundaPosGraduacao || undefined);
   const [especificarNecessidades, setEspecificarNecessidades] = useState<boolean>(
     Boolean(psicologo.especificarNecessidades || psicologo.necessidadesAtendidas?.length || psicologo.necessidadesOutro)
   );
@@ -142,6 +146,26 @@ export function ModalEdicao({
       return;
     }
 
+    const servicosSelecionados = opcoesDaPos ? servicos.filter((s) => opcoesDaPos.servicos.includes(s)) : servicos;
+    const publicosSelecionados = opcoesDaPos ? publicos.filter((p) => opcoesDaPos.publico.includes(p)) : publicos;
+    const temposSelecionados = temposAtendimento.filter((t) => opcoesDaPos?.tempos.includes(t));
+
+    if (opcoesDaPos?.tempos.length && temposSelecionados.length === 0) {
+      setAbaAtiva('criterios');
+      setAviso('Selecione ao menos um tempo de atendimento permitido para a pós-graduação.');
+      return;
+    }
+    if (opcoesDaPos && servicosSelecionados.length === 0) {
+      setAbaAtiva('criterios');
+      setAviso('Selecione ao menos um serviço prestado permitido para a pós-graduação.');
+      return;
+    }
+    if (opcoesDaPos && publicosSelecionados.length === 0) {
+      setAbaAtiva('criterios');
+      setAviso('Selecione ao menos um público permitido para a pós-graduação.');
+      return;
+    }
+
     const limiteNum = Number(limitePacientesAtivos);
     if (!limitePacientesValido(limiteNum)) {
       setAbaAtiva('formacao');
@@ -178,9 +202,10 @@ export function ModalEdicao({
 
         // Critérios & Rodízio
         turnosDisponiveis: turnos,
-        servicosPrestados: servicos,
-        publicoAlvo: publicos,
-        publicoAlvoOutro: publicoOutro.trim(),
+        servicosPrestados: servicosSelecionados,
+        temposAtendimento: opcoesDaPos?.tempos.length ? temposSelecionados : undefined,
+        publicoAlvo: publicosSelecionados,
+        publicoAlvoOutro: publicosSelecionados.includes('Outro') ? publicoOutro.trim() : '',
         especificarNecessidades: especificarNecessidades && necessidades.length > 0,
         necessidadesAtendidas: especificarNecessidades ? necessidades : [],
         necessidadesOutro: undefined,
@@ -573,12 +598,19 @@ export function ModalEdicao({
                 </div>
               </div>
 
+              <TemposAtendimentoPsicologo
+                posGraduacao={posGraduacaoViverMais || undefined}
+                segundaPosGraduacao={segundaPosGraduacao || undefined}
+                value={temposAtendimento}
+                onChange={setTemposAtendimento}
+              />
+
               <div>
                 <label className="text-[10px] uppercase tracking-wider font-extrabold text-slate-500 block mb-2">
                   Serviços Prestados
                 </label>
                 <div className="flex flex-wrap gap-2">
-                  {comValoresRegistrados(SERVICOS_PRESTADOS, servicos).map((servico) => (
+                  {(opcoesDaPos?.servicos ?? comValoresRegistrados(SERVICOS_PRESTADOS, servicos)).map((servico) => (
                     <label key={servico} className={chip(servicos.includes(servico))}>
                       <input
                         type="checkbox"
@@ -597,7 +629,7 @@ export function ModalEdicao({
                   Público que Atende
                 </label>
                 <div className="flex flex-wrap gap-2">
-                  {comValoresRegistrados(PUBLICO_ALVO, publicos).map((publico) => (
+                  {(opcoesDaPos?.publico ?? comValoresRegistrados(PUBLICO_ALVO, publicos)).map((publico) => (
                     <label key={publico} className={chip(publicos.includes(publico))}>
                       <input
                         type="checkbox"
@@ -609,7 +641,7 @@ export function ModalEdicao({
                     </label>
                   ))}
                 </div>
-                {publicos.includes('Outro') && (
+                {(opcoesDaPos?.publico ?? PUBLICO_ALVO).includes('Outro') && publicos.includes('Outro') && (
                   <input
                     value={publicoOutro}
                     onChange={(e) => setPublicoOutro(e.target.value)}

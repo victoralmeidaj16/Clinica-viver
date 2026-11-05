@@ -28,6 +28,22 @@ describe('estado operacional do psicólogo', () => {
     expect(() => aplicarMudancas(base, { temposAtendimento: [] }, CAMPOS_DO_PROPRIO_PSICOLOGO)).toThrow(/tempo de atendimento/);
     expect(aplicarMudancas(base, { temposAtendimento: [90] }, CAMPOS_DO_PROPRIO_PSICOLOGO).temposAtendimento).toEqual([90]);
   });
+
+  it('restringe público-alvo e serviços solicitados/homologados às opções do grupo da pós-graduação', () => {
+    const avaliacao = cadastro({ posGraduacaoViverMais: 'Pós-graduação em Avaliação Psicológica' });
+    expect(() => aplicarMudancas(avaliacao, { publicoAlvo: ['Casais'] }, CAMPOS_DO_PROPRIO_PSICOLOGO)).toThrow(/públicos permitidos/);
+    expect(aplicarMudancas(avaliacao, { publicoAlvo: ['Criança', 'Adolescente'] }, CAMPOS_DO_PROPRIO_PSICOLOGO).publicoAlvo)
+      .toEqual(['Criança', 'Adolescente']);
+    expect(() => aplicarMudancas(avaliacao, {
+      solicitacaoAlteracaoGestao: { status: 'PENDENTE', solicitadoEm: '2026-10-16T12:00:00Z', servicosPrestados: ['Atendimento Psicológico'] },
+    }, CAMPOS_DO_PROPRIO_PSICOLOGO)).toThrow(/serviços permitidos/);
+
+    const restrita = cadastro({ posGraduacaoViverMais: 'Pós-graduação em Psicologia Perinatal e Parentalidade' });
+    expect(() => aplicarMudancas(restrita, { servicosPrestados: ['Avaliação Psicológica'] }, CAMPOS_DA_GESTAO)).toThrow(/serviços permitidos/);
+    expect(() => aplicarMudancas(restrita, { servicosPrestados: ['Orientação Vocacional'] }, CAMPOS_DA_GESTAO)).toThrow(/serviços permitidos/);
+    expect(aplicarMudancas(restrita, { servicosPrestados: ['Orientação Parental'] }, CAMPOS_DA_GESTAO).servicosPrestados)
+      .toEqual(['Orientação Parental']);
+  });
   it('não permite remover a foto obrigatória ao editar o perfil', () => {
     const comFoto = cadastro({ fotoUrl: 'data:image/png;base64,AAAA' });
     expect(() => aplicarMudancas(comFoto, { fotoUrl: '   ' }, CAMPOS_DO_PROPRIO_PSICOLOGO)).toThrow(/foto de perfil/);

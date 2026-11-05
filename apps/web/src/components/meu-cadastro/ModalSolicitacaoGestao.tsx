@@ -15,6 +15,7 @@ import {
   POS_GRADUACOES_VIVER_MAIS,
   SERVICOS_PRESTADOS,
   comValoresRegistrados,
+  opcoesAtendimentoDaPos,
 } from '@/components/forms/opcoesPsicologo';
 
 import type { ModalSolicitacaoGestaoProps } from './solicitacaoGestao';
@@ -44,6 +45,8 @@ export function ModalSolicitacaoGestao({
 
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const opcoesDaPos = opcoesAtendimentoDaPos(posGraduacaoViverMais || undefined, segundaPosGraduacao || undefined);
+  const servicosDisponiveis = opcoesDaPos?.servicos ?? comValoresRegistrados(SERVICOS_PRESTADOS, servicosPrestados);
 
   const alternarServico = (servico: string) => {
     setServicosPrestados((atuais) =>
@@ -55,7 +58,11 @@ export function ModalSolicitacaoGestao({
     e.preventDefault();
     setErro(null);
 
-    if (servicosPrestados.length === 0) {
+    const servicosValidos = opcoesDaPos
+      ? servicosPrestados.filter((s) => opcoesDaPos.servicos.includes(s))
+      : servicosPrestados;
+
+    if (servicosValidos.length === 0) {
       setErro('Selecione ao menos um serviço que você presta na clínica.');
       return;
     }
@@ -65,8 +72,8 @@ export function ModalSolicitacaoGestao({
       await onEnviar({
         turmaViverMais: turmaViverMais.trim() || undefined,
         posGraduacaoViverMais: posGraduacaoViverMais.trim() || undefined,
-        segundaPosGraduacao: segundaPosGraduacao.trim() || undefined,
-        servicosPrestados,
+        segundaPosGraduacao: segundaPosGraduacao.trim(),
+        servicosPrestados: servicosValidos,
         justificativa: justificativa.trim() || undefined,
       });
     } catch (err) {
@@ -204,7 +211,7 @@ export function ModalSolicitacaoGestao({
               Selecione as modalidades clínicas que você está habilitado e deseja ofertar na clínica:
             </p>
             <div className="flex flex-wrap gap-2">
-              {comValoresRegistrados(SERVICOS_PRESTADOS, servicosPrestados).map((servico) => (
+              {servicosDisponiveis.map((servico) => (
                 <label key={servico} className={chipClasse(servicosPrestados.includes(servico))}>
                   <input
                     type="checkbox"

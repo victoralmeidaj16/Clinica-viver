@@ -27,6 +27,32 @@ it('preserva a pausa da gestão feita depois da leitura inicial do cadastro', as
   expect(body.data).toMatchObject({ nomeCompleto: 'Nome atualizado', pausadoNoRodizio: true, exibirNaVitrine: false });
 });
 
+it('conclui a nova seleção usando a pendência atual do registro, mesmo após uma leitura antiga', async () => {
+  state.mutate.mockImplementation(async (mutator) => mutator({ triagensPacientes: [], cadastrosPsicologos: [{
+    id: 'psi', usuarioRef: 'user', nomeCompleto: 'Profissional fictício', status: 'APROVADO',
+    posGraduacaoViverMais: 'Pós-graduação em Avaliação Psicológica', reconfiguracaoAtendimentoPendente: true,
+    publicoAlvo: [], servicosPrestados: [], servicosHabilitados: [],
+  }] }).result);
+  const response = await PATCH(new Request('http://localhost/api/application/credenciamento-psicologo/me', {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ publicoAlvo: ['Criança'], servicosPrestados: ['Avaliação Psicológica'] }),
+  }));
+  expect(response.status).toBe(200);
+  expect((await response.json()).data).toMatchObject({ reconfiguracaoAtendimentoPendente: false,
+    publicoAlvo: ['Criança'], servicosPrestados: ['Avaliação Psicológica'], servicosHabilitados: ['AVALIACAO'] });
+});
+
+it('não permite habilitar serviços criando uma pendência pelo cliente', async () => {
+  const response = await PATCH(new Request('http://localhost/api/application/credenciamento-psicologo/me', {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reconfiguracaoAtendimentoPendente: true, servicosPrestados: ['Avaliação Psicológica'] }),
+  }));
+  expect(response.status).toBe(200);
+  const { data } = await response.json();
+  expect(data.reconfiguracaoAtendimentoPendente).toBe(false);
+  expect(data.servicosPrestados).toBeUndefined();
+});
+
 it.each(['APROVADO', 'RECUSADO'])('impede o psicólogo de registrar a decisão %s', async (status) => {
   const response = await PATCH(new Request('http://localhost/api/application/credenciamento-psicologo/me', {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' },

@@ -86,6 +86,7 @@ interface TriagemRow extends RowDataPacket {
 }
 
 interface PsicologoRow extends RowDataPacket {
+  reconfiguracao_atendimento_pendente?: number;
   ref_core: string;
   nome_completo: string;
   nome_social: string | null;
@@ -279,6 +280,7 @@ function toPsychologist(row: PsicologoRow): CadastroPsicologoRecord {
     especialidade: row.especialidade ?? undefined,
     modalidadeAtendimento: row.modalidade_atendimento ?? undefined,
     atendimentoPreferencia: row.atendimento_preferencia ?? undefined,
+    reconfiguracaoAtendimentoPendente: Boolean(row.reconfiguracao_atendimento_pendente),
     minibio: row.minibio ?? undefined,
     status: row.status,
     criadoEm: fromSqlTimestamp(row.criado_em) ?? new Date(0).toISOString(),
@@ -429,6 +431,17 @@ export class MysqlCaptureRepository {
   private static hasAceiteTermoColumn = false;
   private static hasNascimentoAlocacaoColumns = false;
   private static hasAcessibilidadeColumn = false;
+  private static hasReconfiguracaoColumn = false;
+
+  private async supportsReconfiguracaoColumn(connection: Pool | PoolConnection): Promise<boolean> {
+    if (MysqlCaptureRepository.hasReconfiguracaoColumn) return true;
+    const [rows] = await connection.query<RowDataPacket[]>(
+      `SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE()
+        AND table_name = 'clinica_cadastros_psicologos' AND column_name = 'reconfiguracao_atendimento_pendente' LIMIT 1`
+    );
+    MysqlCaptureRepository.hasReconfiguracaoColumn = rows.length > 0;
+    return MysqlCaptureRepository.hasReconfiguracaoColumn;
+  }
 
   private async supportsAcessibilidadeColumn(connection: Pool | PoolConnection): Promise<boolean> {
     if (MysqlCaptureRepository.hasAcessibilidadeColumn) return true;
@@ -507,6 +520,7 @@ export class MysqlCaptureRepository {
     const temNascimentoAlocacao = await this.supportsNascimentoAlocacaoColumns(connection);
     const temAceiteTermo = await this.supportsAceiteTermoColumn(connection);
     const temAcessibilidade = await this.supportsAcessibilidadeColumn(connection);
+    const temReconfiguracao = await this.supportsReconfiguracaoColumn(connection);
     const campoNomeSocial = temNomeSocial ? 'nome_social' : 'NULL AS nome_social';
     const [leadRows] = await connection.query<TriagemRow[]>(
       `SELECT ref_core, protocolo, nome_paciente, ${campoNomeSocial}, telefone,${temNascimentoAlocacao ? ' data_nascimento,' : ''} idade, email, cpf, cep,
@@ -535,7 +549,7 @@ export class MysqlCaptureRepository {
               limite_pacientes_ativos, pacientes_ativos_count, exibir_na_vitrine,
               pausado_no_rodizio, motivo_pausa_rodizio, motivo_desativacao, ultimo_lead_recebido_em, turma_viver_mais,
               pos_graduacao_viver_mais, segunda_pos_graduacao_viver_mais,
-              solicitacao_alteracao_gestao,${temAceiteTermo ? ' aceite_termo_adesao,' : ''} criado_em
+              solicitacao_alteracao_gestao,${temReconfiguracao ? ' reconfiguracao_atendimento_pendente,' : ''}${temAceiteTermo ? ' aceite_termo_adesao,' : ''} criado_em
          FROM clinica_cadastros_psicologos
         WHERE instituicao_id = ? AND organizacao_ref = ?
         ORDER BY criado_em${lock}`,
@@ -762,10 +776,15 @@ export class MysqlCaptureRepository {
       const changed =
         !before ||
         JSON.stringify(psych.acessibilidade) !== JSON.stringify(before.acessibilidade) ||
+        Boolean(psych.reconfiguracaoAtendimentoPendente) !== Boolean(before.reconfiguracaoAtendimentoPendente) ||
         JSON.stringify(params) !== JSON.stringify(MysqlCaptureRepository.psychValues(before)) ||
         Boolean(psych.aceiteTermoAdesao && !before.aceiteTermoAdesao);
       if (!changed) continue;
       const temAcessibilidade = await this.supportsAcessibilidadeColumn(connection);
+      const temReconfiguracao = await this.supportsReconfiguracaoColumn(connection);
+      if (psych.reconfiguracaoAtendimentoPendente && !temReconfiguracao) {
+        throw new Error('A troca de pós-graduação requer a migration 078_psicologo_reconfiguracao_atendimento.sql.');
+      }
       if (psych.acessibilidade && !temAcessibilidade) {
         throw new Error('A gravação da acessibilidade requer a migration 076_psicologo_acessibilidade.sql.');
       }
@@ -820,6 +839,12 @@ export class MysqlCaptureRepository {
            solicitacao_alteracao_gestao = VALUES(solicitacao_alteracao_gestao)`,
         params
       );
+      if (temReconfiguracao) {
+        await connection.execute(
+          'UPDATE clinica_cadastros_psicologos SET reconfiguracao_atendimento_pendente = ? WHERE id = ?',
+          [psych.reconfiguracaoAtendimentoPendente ? 1 : 0, rowId('cadastro_psicologo', psych.id)]
+        );
+      }
       if (temAcessibilidade) {
         await connection.execute(
           'UPDATE clinica_cadastros_psicologos SET acessibilidade = ? WHERE id = ?',

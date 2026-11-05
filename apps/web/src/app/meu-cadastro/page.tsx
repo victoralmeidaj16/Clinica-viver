@@ -32,12 +32,14 @@ import { BrazilLocationFields } from '@/components/forms/BrazilLocationFields';
 import { TemposAtendimentoPsicologo } from '@/components/forms/TemposAtendimentoPsicologo';
 import { processImageUpload } from '@/lib/imageUpload';
 import { CardDefinidoPelaGestao } from '@/components/meu-cadastro/CardDefinidoPelaGestao';
+import { ReconfiguracaoAtendimento } from '@/components/meu-cadastro/ReconfiguracaoAtendimento';
 import { FocoDeNotificacao } from '@/components/layout/FocoDeNotificacao';
 import { FOCO_SECAO } from '@/lib/focoNotificacao';
 import { ModalTermosParceria } from '@/components/forms/ModalTermosParceria';
 import type { SolicitacaoGestaoFormValues } from '@/components/meu-cadastro/ModalSolicitacaoGestao';
 
 interface Cadastro {
+  reconfiguracaoAtendimentoPendente?: boolean;
   id: string;
   nomeCompleto: string;
   nomeSocial?: string;
@@ -354,7 +356,7 @@ export default function MeuCadastroPage() {
           <h1 className="text-3xl font-black text-ink mt-1">Meu cadastro na Viver Mais</h1>
           <p className="text-sm text-muted mt-2">Estes são os dados que a clínica tem sobre a sua prática — e é por eles que os encaminhamentos chegam.</p>
         </div>
-        {!editando && (
+        {!editando && !cadastro.reconfiguracaoAtendimentoPendente && (
           <button onClick={abrirEdicao} className="inline-flex items-center gap-2 rounded-xl bg-psi-deep px-5 py-3 text-sm font-extrabold text-white hover:bg-psi-darkest">
             <Pencil className="w-4 h-4" /> Editar meu perfil
           </button>
@@ -379,7 +381,13 @@ export default function MeuCadastroPage() {
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-900">{aviso}</div>
       )}
 
-      {editando && rascunho ? (
+      {cadastro.reconfiguracaoAtendimentoPendente && (
+        <ReconfiguracaoAtendimento key={`${cadastro.posGraduacaoViverMais}:${cadastro.segundaPosGraduacao}`}
+          posGraduacao={cadastro.posGraduacaoViverMais} segundaPosGraduacao={cadastro.segundaPosGraduacao}
+          onConcluido={async () => { setEditando(false); await carregar(); }} />
+      )}
+
+      {editando && rascunho && !cadastro.reconfiguracaoAtendimentoPendente ? (
         <form onSubmit={salvar} className="bg-surface rounded-3xl border border-line shadow-card p-6 space-y-6">
           <div className="flex items-center gap-3 border-b border-line pb-4">
             <Pencil className="w-5 h-5 text-psi-vibrant" />

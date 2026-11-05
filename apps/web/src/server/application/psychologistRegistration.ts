@@ -6,7 +6,7 @@ import { isBrazilUf } from '@/lib/brazilLocations';
 import { municipioPertenceAoEstado } from './brazilLocalities';
 import { validateGender } from '@/lib/gender';
 import { limitePacientesValido, mensagemLimitePacientesInvalido } from '@/lib/psychologistCapacity';
-import { opcoesAtendimentoDaPos } from '@/components/forms/opcoesPsicologo';
+import { opcoesAtendimentoDaPos, POS_GRADUACOES_VIVER_MAIS } from '@/components/forms/opcoesPsicologo';
 
 /**
  * Regras de edição do cadastro de psicólogo, num lugar só.
@@ -47,17 +47,15 @@ export const CAMPOS_DA_GESTAO = new Set([
  * dos próprios dados profissionais; status, vitrine e capacidade continuam
  * sendo decisões da clínica.
  *
- * `servicosPrestados` ficou de fora: quais serviços o profissional está
- * habilitado a prestar é homologação da coordenação, não autodeclaração. Ele
- * pede a mudança por `solicitacaoAlteracaoGestao` e a gestão aplica ao
- * aprovar. O descarte aqui é silencioso, como nos demais campos fora da
- * allowlist — um PATCH que ainda carregue o campo mantém o valor homologado.
+ * Serviços dependem de homologação, exceto na nova seleção obrigatória após
+ * a gestão trocar a pós. `aplicarMudancas` confere essa pendência no registro.
  */
 export const CAMPOS_DO_PROPRIO_PSICOLOGO = new Set([
   'nomeCompleto', 'crp', 'email', 'nomeSocial', 'whatsapp', 'fotoUrl', 'minibio', 'especialidade',
   'estadoUf', 'cidade', 'logradouro', 'bairro', 'genero', 'generoOutro',
   'modalidadeAtendimento', 'atendimentoPreferencia', 'turnosDisponiveis',
   'temposAtendimento', 'publicoAlvo', 'publicoAlvoOutro',
+  'servicosPrestados',
   'especificarNecessidades', 'necessidadesAtendidas', 'necessidadesOutro',
   'solicitacaoAlteracaoGestao',
 ]);
@@ -253,7 +251,29 @@ export function aplicarMudancas(
   corpo: Record<string, unknown>,
   permitidos: ReadonlySet<string>
 ): CadastroPsicologoRecord {
-  const pode = (campo: string) => permitidos.has(campo) && corpo[campo] !== undefined;
+  const gestao = permitidos.has('posGraduacaoViverMais');
+  const enviado = (campo: string) => permitidos.has(campo) && corpo[campo] !== undefined;
+  const posGraduacaoViverMais = enviado('posGraduacaoViverMais') ? texto(corpo.posGraduacaoViverMais) : existente.posGraduacaoViverMais;
+  const segundaPosGraduacao = enviado('segundaPosGraduacao') ? texto(corpo.segundaPosGraduacao) : existente.segundaPosGraduacao;
+  const mudouPos = posGraduacaoViverMais !== existente.posGraduacaoViverMais || segundaPosGraduacao !== existente.segundaPosGraduacao;
+  if (mudouPos && (!posGraduacaoViverMais || !POS_GRADUACOES_VIVER_MAIS.includes(posGraduacaoViverMais)
+    || (segundaPosGraduacao && !POS_GRADUACOES_VIVER_MAIS.includes(segundaPosGraduacao)))) {
+    throw new CorpoInvalidoError('Selecione uma pós-graduação da lista da Viver Mais.');
+  }
+  const reiniciarEscolhas = gestao && (mudouPos || Boolean(existente.reconfiguracaoAtendimentoPendente));
+  const pode = (campo: string) => enviado(campo)
+    && !(reiniciarEscolhas && ['servicosPrestados', 'servicosHabilitados', 'publicoAlvo', 'publicoAlvoOutro'].includes(campo))
+    && !(campo === 'servicosPrestados' && !gestao && !existente.reconfiguracaoAtendimentoPendente);
+  let reconfiguracaoAtendimentoPendente = mudouPos || Boolean(existente.reconfiguracaoAtendimentoPendente);
+  if (!gestao && reconfiguracaoAtendimentoPendente && (pode('publicoAlvo') || pode('servicosPrestados'))) {
+    if (!pode('publicoAlvo') || !pode('servicosPrestados')) {
+      throw new CorpoInvalidoError('Selecione novamente os públicos e serviços da nova pós-graduação.');
+    }
+    if (!opcoesAtendimentoDaPos(posGraduacaoViverMais, segundaPosGraduacao)) {
+      throw new CorpoInvalidoError('A gestão precisa definir uma pós-graduação válida antes da nova seleção.');
+    }
+    reconfiguracaoAtendimentoPendente = false;
+  }
   // A foto é exigida na inscrição e não pode ser retirada, mas os formulários
   // sempre reenviam o campo: quem já estava cadastrado sem foto segue editando.
   const fotoUrl = pode('fotoUrl') ? (corpo.fotoUrl as string).trim() || undefined : existente.fotoUrl;
@@ -311,8 +331,6 @@ export function aplicarMudancas(
       ? listaDeTexto(corpo.modalidadesAtendidas) ?? existente.modalidadesAtendidas
       : existente.modalidadesAtendidas;
 
-  const posGraduacaoViverMais = pode('posGraduacaoViverMais') ? texto(corpo.posGraduacaoViverMais) : existente.posGraduacaoViverMais;
-  const segundaPosGraduacao = pode('segundaPosGraduacao') ? texto(corpo.segundaPosGraduacao) : existente.segundaPosGraduacao;
   const opcoes = opcoesAtendimentoDaPos(posGraduacaoViverMais, segundaPosGraduacao);
 
   if (pode('solicitacaoAlteracaoGestao') && solicitacaoAlteracaoGestao?.status === 'PENDENTE' && solicitacaoAlteracaoGestao.servicosPrestados !== undefined) {
@@ -323,6 +341,10 @@ export function aplicarMudancas(
       ? texto(solicitacaoAlteracaoGestao.segundaPosGraduacao)
       : segundaPosGraduacao;
     const opcoesPedido = opcoesAtendimentoDaPos(posPedido, segundaPosPedido);
+    if ((solicitacaoAlteracaoGestao.posGraduacaoViverMais !== undefined && (!posPedido || !POS_GRADUACOES_VIVER_MAIS.includes(posPedido)))
+      || (segundaPosPedido && !POS_GRADUACOES_VIVER_MAIS.includes(segundaPosPedido))) {
+      throw new CorpoInvalidoError('Selecione uma pós-graduação da lista da Viver Mais.');
+    }
     const servicosPedido = listaDeTexto(solicitacaoAlteracaoGestao.servicosPrestados);
     if (!servicosPedido?.length || (opcoesPedido && servicosPedido.some((s) => !opcoesPedido.servicos.includes(s)))) {
       throw new CorpoInvalidoError('Selecione apenas os serviços permitidos para a pós-graduação.');
@@ -418,11 +440,12 @@ export function aplicarMudancas(
       modalidadesAtendidas && modalidadesAtendidas.length > 0
         ? modalidadesAtendidas
         : ['SOCIAL', 'PARTICULAR'],
-    servicosHabilitados,
-    servicosPrestados,
+    reconfiguracaoAtendimentoPendente,
+    servicosHabilitados: reconfiguracaoAtendimentoPendente ? [] : servicosHabilitados,
+    servicosPrestados: reconfiguracaoAtendimentoPendente ? [] : servicosPrestados,
     temposAtendimento,
-    publicoAlvo,
-    publicoAlvoOutro,
+    publicoAlvo: reconfiguracaoAtendimentoPendente ? [] : publicoAlvo,
+    publicoAlvoOutro: reconfiguracaoAtendimentoPendente ? undefined : publicoAlvoOutro,
     especificarNecessidades: pode('especificarNecessidades')
       ? Boolean(corpo.especificarNecessidades)
       : existente.especificarNecessidades,

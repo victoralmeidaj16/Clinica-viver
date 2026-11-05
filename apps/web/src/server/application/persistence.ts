@@ -250,6 +250,8 @@ export interface CadastroPsicologoRecord {
   posGraduacaoViverMais?: string;
   segundaPosGraduacao?: string;
   solicitacaoAlteracaoGestao?: SolicitacaoAlteracaoGestao;
+  /** Após trocar a pós, o profissional precisa escolher públicos e serviços novamente. */
+  reconfiguracaoAtendimentoPendente?: boolean;
   aceitouTermos?: boolean;
   aceitouTermosEm?: string;
   versaoTermos?: string;

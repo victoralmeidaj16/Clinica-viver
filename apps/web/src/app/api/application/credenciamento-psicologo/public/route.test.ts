@@ -29,6 +29,13 @@ const lead: TriagemPacienteRecord = {
 afterEach(() => vi.useRealTimers());
 
 describe('compatibilidade da vitrine com o envio da escolha direta', () => {
+  it('retira da vitrine e impede escolha direta enquanto a nova seleção estiver pendente', async () => {
+    const snapshot = { ...emptySnapshot(), cadastrosPsicologos: [{ ...psi, reconfiguracaoAtendimentoPendente: true }],
+      triagensPacientes: [lead] };
+    mocks.read.mockResolvedValue(snapshot);
+    expect((await (await GET()).json()).data).toEqual([]);
+    expect(alocarLeadEscolhido(snapshot, lead, psi.id, agora).psicologo).toBeUndefined();
+  });
   it('não publica a acessibilidade pessoal na vitrine', async () => {
     mocks.read.mockResolvedValue({ ...emptySnapshot(), cadastrosPsicologos: [{ ...psi,
       acessibilidade: { necessita: true, descricao: 'Recurso de acessibilidade fictício.' },

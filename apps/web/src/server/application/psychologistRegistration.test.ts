@@ -18,6 +18,64 @@ const cadastro = (mudancas: Partial<CadastroPsicologoRecord> = {}): CadastroPsic
 });
 
 describe('estado operacional do psicólogo', () => {
+  const psicanalise = 'Programa de Estudos e Pós-graduação em Psicanálise';
+  const avaliacao = 'Pós-graduação em Avaliação Psicológica';
+
+  it('exige nova seleção do profissional após a gestão trocar a pós, mesmo enviando opções antigas', () => {
+    const resultado = aplicarMudancas(cadastro({ posGraduacaoViverMais: psicanalise,
+      publicoAlvo: ['Casais'], servicosPrestados: ['Atendimento Psicológico'], servicosHabilitados: ['PSICOTERAPIA'],
+    }), { posGraduacaoViverMais: avaliacao, servicosPrestados: ['Avaliação Psicológica'], publicoAlvo: ['Criança'] }, CAMPOS_DA_GESTAO);
+    expect(resultado).toMatchObject({ reconfiguracaoAtendimentoPendente: true, publicoAlvo: [],
+      servicosPrestados: [], servicosHabilitados: [] });
+  });
+
+  it('permite ao próprio psicólogo concluir a pendência somente com públicos e serviços compatíveis', () => {
+    const pendente = cadastro({ posGraduacaoViverMais: avaliacao, reconfiguracaoAtendimentoPendente: true,
+      publicoAlvo: [], servicosPrestados: [], servicosHabilitados: [], pausadoNoRodizio: true });
+    expect(() => aplicarMudancas(pendente, { publicoAlvo: ['Criança'] }, CAMPOS_DO_PROPRIO_PSICOLOGO)).toThrow(/públicos e serviços/);
+    expect(() => aplicarMudancas(pendente, { publicoAlvo: ['Casais'], servicosPrestados: ['Avaliação Psicológica'] }, CAMPOS_DO_PROPRIO_PSICOLOGO)).toThrow(/públicos permitidos/);
+    expect(() => aplicarMudancas(pendente, { publicoAlvo: ['Criança'], servicosPrestados: ['Atendimento Psicológico'] }, CAMPOS_DO_PROPRIO_PSICOLOGO)).toThrow(/serviços permitidos/);
+    expect(aplicarMudancas(pendente, { publicoAlvo: ['Criança'], servicosPrestados: ['Avaliação Psicológica'] }, CAMPOS_DO_PROPRIO_PSICOLOGO))
+      .toMatchObject({ reconfiguracaoAtendimentoPendente: false, publicoAlvo: ['Criança'],
+        servicosPrestados: ['Avaliação Psicológica'], servicosHabilitados: ['AVALIACAO'], pausadoNoRodizio: true });
+  });
+
+  it('mantém a pendência ao editar outro dado e não permite à gestão concluí-la pelo profissional', () => {
+    const pendente = cadastro({ posGraduacaoViverMais: avaliacao, reconfiguracaoAtendimentoPendente: true,
+      publicoAlvo: [], servicosPrestados: [], servicosHabilitados: [] });
+    expect(aplicarMudancas(pendente, { minibio: 'Apresentação fictícia', reconfiguracaoAtendimentoPendente: false }, CAMPOS_DO_PROPRIO_PSICOLOGO).reconfiguracaoAtendimentoPendente).toBe(true);
+    expect(aplicarMudancas(pendente, { publicoAlvo: ['Criança'], servicosPrestados: ['Avaliação Psicológica'] }, CAMPOS_DA_GESTAO))
+      .toMatchObject({ reconfiguracaoAtendimentoPendente: true, publicoAlvo: [], servicosPrestados: [], servicosHabilitados: [] });
+  });
+
+  it('reinicia as escolhas ao alterar ou remover a segunda pós, mas não ao reenviar os mesmos cursos', () => {
+    const base = cadastro({ posGraduacaoViverMais: psicanalise, segundaPosGraduacao: avaliacao, publicoAlvo: ['Criança'] });
+    expect(aplicarMudancas(base, { segundaPosGraduacao: '' }, CAMPOS_DA_GESTAO).reconfiguracaoAtendimentoPendente).toBe(true);
+    expect(aplicarMudancas(base, { segundaPosGraduacao: psicanalise }, CAMPOS_DA_GESTAO).reconfiguracaoAtendimentoPendente).toBe(true);
+    expect(aplicarMudancas(base, { posGraduacaoViverMais: psicanalise, segundaPosGraduacao: avaliacao }, CAMPOS_DA_GESTAO).publicoAlvo).toEqual(['Criança']);
+  });
+
+  it('inicia a pendência ao aprovar a troca solicitada e mantém Particular/Social/Ambos', () => {
+    const pedido = { status: 'PENDENTE' as const, solicitadoEm: '2026-11-05T12:00:00Z',
+      posGraduacaoViverMais: avaliacao, servicosPrestados: ['Avaliação Psicológica'] };
+    const base = cadastro({ posGraduacaoViverMais: psicanalise, publicoAlvo: ['Casais'],
+      servicosPrestados: ['Atendimento Psicológico'], atendimentoPreferencia: 'PARTICULAR',
+      modalidadesAtendidas: ['PARTICULAR'], solicitacaoAlteracaoGestao: pedido });
+    const aprovado = aplicarMudancas(base, { posGraduacaoViverMais: pedido.posGraduacaoViverMais,
+      servicosPrestados: pedido.servicosPrestados, solicitacaoAlteracaoGestao: { ...pedido, status: 'APROVADO' },
+    }, CAMPOS_DA_GESTAO);
+    expect(aprovado).toMatchObject({ reconfiguracaoAtendimentoPendente: true, publicoAlvo: [],
+      servicosPrestados: [], servicosHabilitados: [], atendimentoPreferencia: 'PARTICULAR', modalidadesAtendidas: ['PARTICULAR'] });
+    const concluido = aplicarMudancas(aprovado, { publicoAlvo: ['Criança'], servicosPrestados: ['Avaliação Psicológica'] }, CAMPOS_DO_PROPRIO_PSICOLOGO);
+    expect(concluido).toMatchObject({ reconfiguracaoAtendimentoPendente: false, atendimentoPreferencia: 'PARTICULAR',
+      modalidadesAtendidas: ['PARTICULAR'], servicosHabilitados: ['AVALIACAO'] });
+  });
+
+  it('preserva a homologação da gestão fora da reconfiguração e recusa novos cursos fora da lista', () => {
+    const base = cadastro({ posGraduacaoViverMais: avaliacao, servicosPrestados: ['Avaliação Psicológica'] });
+    expect(aplicarMudancas(base, { servicosPrestados: ['Atendimento Psicológico'] }, CAMPOS_DO_PROPRIO_PSICOLOGO).servicosPrestados).toEqual(['Avaliação Psicológica']);
+    expect(() => aplicarMudancas(base, { posGraduacaoViverMais: 'Curso inexistente' }, CAMPOS_DA_GESTAO)).toThrow(/pós-graduação/);
+  });
   it('remove a duração fixa legada ao editar um perfil de Neuropsicologia', () => {
     const base = cadastro({ posGraduacaoViverMais: 'Pós-graduação em Neuropsicologia Clínica', temposAtendimento: [50, 90] });
     expect(aplicarMudancas(base, { temposAtendimento: [50, 90] }, CAMPOS_DO_PROPRIO_PSICOLOGO).temposAtendimento).toBeUndefined();

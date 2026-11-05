@@ -21,6 +21,7 @@ function banco(solicitacao: SolicitacaoAlteracaoGestao | null) {
   const connection = {
     query: vi.fn(async (sql: string) => {
       if (sql.includes('information_schema.columns') && sql.includes("column_name = 'acessibilidade'")) return [[{ existe: 1 }]];
+      if (sql.includes('information_schema.columns') && sql.includes("column_name = 'reconfiguracao_atendimento_pendente'")) return [[{ existe: 1 }]];
       if (!sql.includes('FROM clinica_cadastros_psicologos')) return [[]];
       // Devolve somente as colunas selecionadas, como o driver MySQL.
       const columns = sql.slice(sql.indexOf('SELECT') + 6, sql.indexOf('FROM')).split(',');
@@ -28,6 +29,7 @@ function banco(solicitacao: SolicitacaoAlteracaoGestao | null) {
     }),
     execute: vi.fn(async (sql: string, params: unknown[]) => {
       if (sql.includes('SET acessibilidade = ?')) row.acessibilidade = params[0];
+      if (sql.includes('SET reconfiguracao_atendimento_pendente = ?')) row.reconfiguracao_atendimento_pendente = params[0];
       if (sql.includes('INSERT INTO clinica_cadastros_psicologos')) {
         const columns = sql.slice(sql.indexOf('(') + 1, sql.indexOf(')')).split(',');
         columns.forEach((column, index) => { row[column.trim()] = params[index]; });
@@ -45,6 +47,17 @@ const solicitacao: SolicitacaoAlteracaoGestao = {
 };
 
 describe('solicitação de ajuste de perfil persistida', () => {
+  it('preserva a pendência de reconfiguração entre leituras e grava sua conclusão', async () => {
+    const repository = new MysqlCaptureRepository(banco(null) as never);
+    for (const pendente of [true, false]) {
+      await repository.mutate((state) => ({ next: { ...state,
+        cadastrosPsicologos: state.cadastrosPsicologos.map((cadastro) => ({
+          ...cadastro, reconfiguracaoAtendimentoPendente: pendente,
+        })),
+      }, result: null }));
+      expect((await repository.read()).cadastrosPsicologos[0].reconfiguracaoAtendimentoPendente).toBe(pendente);
+    }
+  });
   it('salva e recarrega a acessibilidade do profissional sem perder ao editar outro campo', async () => {
     const repository = new MysqlCaptureRepository(banco(null) as never);
     await repository.mutate((state) => ({ next: { ...state, cadastrosPsicologos: state.cadastrosPsicologos.map((cadastro) => ({

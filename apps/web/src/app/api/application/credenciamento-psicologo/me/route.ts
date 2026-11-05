@@ -92,7 +92,8 @@ export async function GET() {
  * disso é ele e a alternativa é a gestão virar cartório de recado. O nome, CRP
  * e e-mail também pertencem ao profissional e são sincronizados com sua
  * identidade de acesso. Status, vitrine, capacidade e os serviços homologados
- * seguem protegidos — estes últimos mudam só por solicitação aprovada.
+ * seguem protegidos. Após a gestão trocar a pós, o profissional precisa
+ * selecionar os serviços e públicos da nova formação para voltar à fila.
  */
 export async function PATCH(request: Request) {
   try {

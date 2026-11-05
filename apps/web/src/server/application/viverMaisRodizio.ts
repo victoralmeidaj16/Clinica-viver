@@ -153,6 +153,7 @@ export function paraPsicologoPerfil(
     // sem tocar na pausa manual.
     pausadoNoRodizio:
       (record.pausadoNoRodizio ?? false) ||
+      Boolean(record.reconfiguracaoAtendimentoPendente) ||
       Boolean(ausenciaVigente(record, agora)) ||
       desligadoPorTurma(record.turmaEncerrada),
     posicaoFilaRoundRobin: 0,

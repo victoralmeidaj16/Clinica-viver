@@ -17,6 +17,7 @@ export async function GET() {
       .filter(
         (item) =>
           item.status === 'APROVADO' &&
+          !item.reconfiguracaoAtendimentoPendente &&
           item.exibirNaVitrine !== false &&
           !desligadoPorTurma(item.turmaEncerrada)
       )

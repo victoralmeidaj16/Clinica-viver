@@ -26,6 +26,7 @@ import type { ComprovanteGerado } from '@/server/application/termoAdesaoComprova
 import { montarComprovanteTermoAdesao } from '@/server/application/termoAdesaoComprovantePdf';
 import { enviarComprovanteTermoAdesao } from '@/server/application/termoAdesaoComprovanteEmail';
 import { validarAcessibilidade } from '@/lib/psychologistAccessibility';
+import { posicoesDoRodizio } from '@/server/application/gestaoRodizio';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -130,8 +131,11 @@ export async function GET() {
   try {
     await exigirGestao();
     const { cadastrosPsicologos: cadastros } = await getCaptureRepository().read();
-
-    return NextResponse.json({ success: true, data: await comEstadoDeAcesso(cadastros) });
+    const posicoes = posicoesDoRodizio(cadastros);
+    const data = (await comEstadoDeAcesso(cadastros)).map((cadastro) => ({
+      ...cadastro, rodizio: posicoes.get(cadastro.id),
+    }));
+    return NextResponse.json({ success: true, data });
   } catch (error) {
     if (error instanceof NaoAutorizadoError) {
       return NextResponse.json({ success: false, error: error.message }, { status: error.status });

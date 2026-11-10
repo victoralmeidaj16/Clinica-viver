@@ -13,6 +13,7 @@ import { clinicDateTimeToIso } from '@/lib/manualAppointment';
 import { applicationRequest } from '@/lib/applicationApi';
 import { EditSessionFields, type StatusEdicao } from './EditSessionFields';
 import { SessionPayerField } from './SessionPayerField';
+import { SessionMonthlyCoverageModal } from './SessionMonthlyCoverageModal';
 import { camposIniciais, erroDoNovoHorario, type SessionEditableData } from './editSessionModel';
 
 export type { SessionEditableData } from './editSessionModel';
@@ -55,6 +56,7 @@ function FormularioEdicao({
   const [modalidade, setModalidade] = useState<'online' | 'presencial' | 'telefone'>(iniciais.modalidade);
   const [status, setStatus] = useState<StatusEdicao>(iniciais.status);
   const [pagadorEmpresa, setPagadorEmpresa] = useState(Boolean(session.custeadoPelaEmpresa));
+  const [monthlyCoverage, setMonthlyCoverage] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
 
@@ -124,6 +126,9 @@ function FormularioEdicao({
     }
   };
 
+  if (monthlyCoverage) return <SessionMonthlyCoverageModal session={session}
+    onBack={() => setMonthlyCoverage(false)} onClose={onClose} onSaved={onSaved} />;
+
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="max-h-[92dvh] w-full max-w-md space-y-5 overflow-y-auto rounded-3xl border border-line bg-surface p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
@@ -190,7 +195,10 @@ function FormularioEdicao({
           />
 
           {admin && session.convenioNome && status !== 'realizado' && <SessionPayerField
-            value={pagadorEmpresa} onChange={setPagadorEmpresa} convenio={session.convenioNome} />}
+            value={pagadorEmpresa} onChange={setPagadorEmpresa} convenio={session.convenioNome}
+            onMonthlyCoverage={() => setMonthlyCoverage(true)}
+            monthlyLimit={session.pacoteSessoes ? (session.pacoteSessoesCiclo === 'mensal' ? session.pacoteSessoes : undefined)
+              : session.custeioCiclo === 'mensal' ? session.custeioCota : undefined} />}
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-line">
             <button
               type="button"

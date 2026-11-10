@@ -1,5 +1,6 @@
 import type { TurmaEncerrada } from '@/lib/turmaEncerrada';
 import type { AcessibilidadePsicologo } from '@/lib/psychologistAccessibility';
+import type { PosicaoRodizio } from '@/lib/posicaoRodizio';
 
 export type StatusCadastro = 'EM_ANALISE' | 'APROVADO' | 'RECUSADO';
 
@@ -45,6 +46,7 @@ export interface PsicologoItem {
    */
   ausenciasAgenda?: Array<{ inicio: string; fim: string; motivo?: string; criadoEm: string }>;
   ultimoLeadRecebidoEm?: string;
+  rodizio?: PosicaoRodizio;
   turmaViverMais?: string;
   /** Encerramento da turma, derivado no servidor. Ver `lib/turmaEncerrada.ts`. */
   turmaEncerrada?: TurmaEncerrada;

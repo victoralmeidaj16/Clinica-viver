@@ -7,7 +7,7 @@ import { AvailabilityDayCard } from './AvailabilityDayCard';
 import {
   assinatura, DIAS, erroDaGrade, ordenar, padraoDaGrade, type JanelaEditavel,
 } from './availabilityEditorModel';
-import { DURACOES_SESSAO } from '@/lib/duracaoSessao';
+import { DURACOES_SESSAO, duracaoDoRascunho } from '@/lib/duracaoSessao';
 
 export type { JanelaEditavel } from './availabilityEditorModel';
 
@@ -19,13 +19,18 @@ interface Props {
 }
 
 export function AvailabilityEditor({ janelas, onSalvar, duracoesFixas = DURACOES_SESSAO, permiteDuracaoVariavel = false }: Props) {
-  const [rascunho, setRascunho] = useState<JanelaEditavel[]>(() => ordenar(janelas));
+  const [rascunho, setRascunho] = useState<JanelaEditavel[]>(() => ordenar(janelas).map((janela) => ({
+    ...janela, duracaoMin: duracaoDoRascunho(janela.duracaoMin, duracoesFixas, permiteDuracaoVariavel),
+  })));
   const [expandido, setExpandido] = useState(() => janelas[0]?.diaSemana ?? 1);
   const [copiarDe, setCopiarDe] = useState<number>();
   const [destinos, setDestinos] = useState<number[]>([]);
   const [salvando, setSalvando] = useState(false);
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string }>();
-  const padrao = useMemo(() => padraoDaGrade(janelas), [janelas]);
+  const padrao = useMemo(() => {
+    const base = padraoDaGrade(janelas);
+    return { ...base, duracaoMin: duracaoDoRascunho(janelas.length ? base.duracaoMin : (duracoesFixas[0] ?? 50), duracoesFixas, permiteDuracaoVariavel) };
+  }, [janelas, duracoesFixas, permiteDuracaoVariavel]);
   const alterado = assinatura(rascunho) !== assinatura(janelas);
   const erro = erroDaGrade(rascunho);
 

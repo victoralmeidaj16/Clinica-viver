@@ -115,6 +115,22 @@ describe('desistência registrada pelo psicólogo', () => {
 });
 
 describe('cadastro manual de paciente', () => {
+  it('notifica o cadastro sem afirmar que houve confirmação de primeiro contato', async () => {
+    const patient = await createPatient(context, body);
+    const lead = state.capture.triagensPacientes[0];
+    const avisos = notificacoesDoPsicologo(state.capture, state.capture.cadastrosPsicologos[0])
+      .filter((item) => item.chave.includes(lead.id));
+
+    expect(avisos).toHaveLength(1);
+    expect(avisos[0]).toMatchObject({
+      titulo: 'Paciente cadastrado', ocorridoEm: lead.criadoEm, pendente: false,
+    });
+    expect(avisos[0].descricao).toContain('cadastro manual');
+    expect(avisos[0].href).toContain(`paciente-${patient.id}`);
+    expect(notificacoesDoPsicologo(state.capture, state.capture.cadastrosPsicologos[1])
+      .filter((item) => item.chave.includes(lead.id))).toEqual([]);
+  });
+
   it('aceita período e origem ausentes sem inventar valores e mantém o vínculo com o próprio psicólogo', async () => {
     const patient = await createPatient(context, { ...body, turno: '', origem: '' });
     expect(patient).toMatchObject({ primaryProfessionalId: 'professional-roster-1',
@@ -264,6 +280,7 @@ describe('notificação após encaminhar paciente confirmado', () => {
     expect(avisos).toHaveLength(1);
     expect(avisos[0]).toMatchObject({ tipo: 'paciente-encaminhado', titulo: 'Paciente encaminhado para você',
       ocorridoEm: state.capture.triagensPacientes[0].alocadoEm, pendente: false });
+    expect(avisos[0].descricao).toContain('não confirma o primeiro contato com você');
     expect(avisos[0].ocorridoEm).not.toBe(contatoAntigo);
     expect(state.capture.triagensPacientes[0].confirmadoEm).toBe(contatoAntigo);
     expect(state.capture.cadastrosPsicologos.map((item) => item.pacientesAtivosCount)).toEqual([0, 1]);

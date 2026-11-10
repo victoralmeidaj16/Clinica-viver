@@ -3,6 +3,7 @@ import { FileText } from 'lucide-react';
 import { rotuloFormaPagamento } from '@/lib/modalidadesPagamento';
 import { nfseRowAction, nfseRowTone, type NfseRowStatus } from './nfsePresentation';
 import { ManualPaymentButton } from './ManualPaymentButton';
+import { ChargeDueButton } from './ChargeDueButton';
 export interface Atendimento {
   chargeId: string;
   patientId: string;
@@ -50,6 +51,11 @@ const estiloStatus: Record<Atendimento['status'], string> = {
   cancelled: 'bg-slate-100 text-slate-500 border-slate-200',
 };
 
+/** Após qualquer recebimento o prazo fica travado; sessão do convênio segue o prazo da fatura. */
+export const podeEditarVencimento = (item: Atendimento) =>
+  ['draft', 'pending', 'overdue'].includes(item.status) && item.recebidoCents === 0
+  && !item.custeadoPelaEmpresa && !item.faturaConvenioId;
+
 export function ClinicReceivablesTable({ atendimentos, eAdmin, abrirPreviaNfse, onPaymentSaved }: {
   atendimentos: Atendimento[]; eAdmin: boolean | null;
   abrirPreviaNfse: (id: string) => void; onPaymentSaved: () => void;
@@ -96,7 +102,13 @@ export function ClinicReceivablesTable({ atendimentos, eAdmin, abrirPreviaNfse, 
                     ) : <span className="text-muted">-</span>}
                   </td>
                   <td className="px-6 py-4 font-semibold text-ink">{item.psicologoNome}</td>
-                  <td className="px-6 py-4 text-muted">{dataBr(item.vencimentoEm)}</td>
+                  <td className="px-6 py-4 text-muted">
+                    {dataBr(item.vencimentoEm)}
+                    {eAdmin && podeEditarVencimento(item) && (
+                      <ChargeDueButton chargeId={item.chargeId} patientName={item.pacienteNome}
+                        dueAt={item.vencimentoEm} onSaved={onPaymentSaved} />
+                    )}
+                  </td>
                   <td className="px-6 py-4 font-bold text-ink">{dinheiro(item.valorLiquidoCents)}</td>
                   <td className="px-6 py-4 font-semibold text-emerald-700">
                     {dinheiro(item.recebidoCents)}

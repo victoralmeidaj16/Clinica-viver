@@ -1,9 +1,10 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { CalendarDays, CalendarPlus, Loader2, Pencil, Search } from 'lucide-react';
+import { CalendarDays, CalendarClock, CalendarPlus, Loader2, Pencil, Search } from 'lucide-react';
 import { applicationRequest } from '@/lib/applicationApi';
 import { EditSessionModal, type SessionEditableData } from '@/components/scheduling/EditSessionModal';
 import { ManualAppointmentDialog } from '@/components/scheduling/ManualAppointmentDialog';
+import { SessionChargeDueModal } from '@/components/scheduling/SessionChargeDueModal';
 import type { PatientDirectoryEntry } from '@/server/application/patientDirectory';
 
 type Appointment = SessionEditableData & { profissionalNome: string };
@@ -17,6 +18,7 @@ export default function GestaoAgendaPage() {
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState('');
   const [edicao, setEdicao] = useState<Appointment>();
+  const [vencimento, setVencimento] = useState<Appointment>();
   const [versao, setVersao] = useState(0);
   const [agendamentoAberto, setAgendamentoAberto] = useState(false);
   const [pacientes, setPacientes] = useState<readonly PatientDirectoryEntry[]>([]);
@@ -66,7 +68,7 @@ export default function GestaoAgendaPage() {
     </section>
     <section className="overflow-hidden rounded-3xl border border-line bg-surface">
       <div className="border-b border-line p-5"><h2 className="font-extrabold text-ink">Sessões e confirmações</h2>
-        <p className="mt-1 text-xs text-muted">Edite horário, modalidade, responsável pelo pagamento e status.</p></div>
+        <p className="mt-1 text-xs text-muted">Edite horário, modalidade, vencimento, responsável pelo pagamento e status.</p></div>
       {erro ? <div role="alert" className="space-y-3 p-6 text-sm text-rose-700"><p>{erro}</p>
         <button className="btn-outline" onClick={() => setVersao((value) => value + 1)}>Tentar novamente</button></div>
         : loading ? <div role="status" className="flex items-center gap-2 p-8 text-muted"><Loader2 className="h-4 w-4 animate-spin" /> Carregando sessões…</div>
@@ -76,10 +78,13 @@ export default function GestaoAgendaPage() {
             <p className="text-xs text-muted">{format.format(new Date(item.inicio))} · {item.modalidade === 'presencial' ? 'Presencial' : item.modalidade === 'telefone' ? 'Telefone' : 'Online'}</p>
             <p className="text-xs text-muted">Psicólogo: {item.profissionalNome}</p>
             {item.convenioNome && <p className="text-xs font-semibold text-psi-deep">{item.convenioNome} · {item.custeadoPelaEmpresa ? 'Pago pela empresa' : 'Pago pelo paciente'}</p>}
+            {!item.custeadoPelaEmpresa && item.vencimentoCobrancaEm && <p className="text-xs text-muted">Vencimento: {format.format(new Date(item.vencimentoCobrancaEm))}</p>}
           </div>
-          <div className="flex items-center gap-3">{item.fim && new Date(item.fim).getTime() < (resultado.carregadoEm ?? 0)
+          <div className="flex flex-wrap items-center gap-3">{item.fim && new Date(item.fim).getTime() < (resultado.carregadoEm ?? 0)
             ? <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800">Aguardando conclusão</span>
             : <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-bold text-sky-800">{item.status === 'confirmado' ? 'Confirmada' : 'Agendada'}</span>}
+            {!item.custeadoPelaEmpresa && !['paid', 'partially_paid', 'refunded'].includes(item.pagamentoStatus ?? '') &&
+              <button type="button" className="btn-outline gap-2 text-xs" onClick={() => setVencimento(item)} aria-label={`Editar vencimento de ${item.pacienteNome}`}><CalendarClock className="h-3.5 w-3.5" />Editar vencimento</button>}
             <button type="button" className="btn-outline gap-2 text-xs" onClick={() => setEdicao(item)} aria-label={`Editar sessão de ${item.pacienteNome}`}><Pencil className="h-3.5 w-3.5" />Editar</button></div>
         </li>)}</ul>}
       <div className="flex items-center justify-between border-t border-line p-4">
@@ -90,6 +95,8 @@ export default function GestaoAgendaPage() {
     </section>
     <EditSessionModal admin session={edicao} isOpen={Boolean(edicao)} onClose={() => setEdicao(undefined)}
       onSaved={() => setVersao((value) => value + 1)} />
+    {vencimento && <SessionChargeDueModal session={vencimento} onClose={() => setVencimento(undefined)}
+      onSaved={() => setVersao((value) => value + 1)} />}
     {agendamentoAberto && (
       <ManualAppointmentDialog
         adminMode

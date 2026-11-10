@@ -1,7 +1,8 @@
 'use client';
 import { Building2, UserRound } from 'lucide-react';
-export function SessionPayerField({ value, onChange, convenio }: {
+export function SessionPayerField({ value, onChange, convenio, onMonthlyCoverage, monthlyLimit }: {
   value: boolean; onChange: (value: boolean) => void; convenio: string;
+  onMonthlyCoverage: () => void; monthlyLimit?: number;
 }) {
   return <fieldset className="space-y-2">
     <legend className="text-xs font-bold text-ink">Responsável pelo pagamento</legend>
@@ -14,6 +15,9 @@ export function SessionPayerField({ value, onChange, convenio }: {
         {empresa ? 'Empresa' : 'Paciente'}
       </button>)}
     </div>
+    <button type="button" onClick={onMonthlyCoverage} className="btn-outline w-full text-xs">
+      Sessões por mês{monthlyLimit ? ` · ${monthlyLimit} pagas pela empresa` : ''}
+    </button>
     <p className="text-[11px] text-muted">Convênio: {convenio}</p>
   </fieldset>;
 }

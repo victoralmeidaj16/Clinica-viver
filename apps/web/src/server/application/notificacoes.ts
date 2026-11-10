@@ -208,7 +208,7 @@ export function notificacoesDoPsicologo(
         chave: `paciente-encaminhado:${lead.id}:${cadastro.id}:${lead.alocadoEm}`,
         tipo: 'paciente-encaminhado',
         titulo: 'Paciente encaminhado para você',
-        descricao: `A gestão encaminhou ${lead.nomePaciente} para sua lista de pacientes.`,
+        descricao: `A gestão encaminhou ${lead.nomePaciente} para sua lista de pacientes. Este encaminhamento não confirma o primeiro contato com você.`,
         ocorridoEm: lead.alocadoEm,
         severidade: 'INFO',
         href: lead.pacienteRef ? comFoco('/pacientes', focoPaciente(lead.pacienteRef)) : '/pacientes',
@@ -221,11 +221,16 @@ export function notificacoesDoPsicologo(
       // Encaminhamentos antigos trocavam só o responsável; o contato continuava sendo do último tentado.
       const ultimoTentado = lead.psicologosJaTentados?.at(-1);
       if (ultimoTentado && ultimoTentado !== cadastro.id) continue;
+      // O cadastro manual nasce ativo, mas não registra uma ação de confirmar contato.
+      const cadastroManual = lead.id === `triagem-manual-${lead.pacienteRef}`;
       itens.push({
+        // Preserva as marcas de leitura existentes ao corrigir o texto do cadastro manual.
         chave: `contato-confirmado:${lead.id}:${lead.confirmadoEm}`,
         tipo: 'contato-confirmado',
-        titulo: 'Primeiro contato confirmado',
-        descricao: `${lead.nomePaciente} entrou na sua lista de pacientes ativos.`,
+        titulo: cadastroManual ? 'Paciente cadastrado' : 'Primeiro contato confirmado',
+        descricao: cadastroManual
+          ? `${lead.nomePaciente} entrou na sua lista de pacientes ativos por cadastro manual.`
+          : `${lead.nomePaciente} entrou na sua lista de pacientes ativos.`,
         ocorridoEm: lead.confirmadoEm,
         severidade: 'INFO',
         // A promoção do lead em paciente pode ainda não ter acontecido; sem a

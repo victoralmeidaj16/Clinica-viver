@@ -43,6 +43,7 @@ import {
   normalizarTurnosPreferencia,
   rotuloTurnoPreferencia,
 } from '@/lib/turnos';
+import { formatarTempoDecorrido } from '@/lib/tempoDecorrido';
 
 /** Linha da fila, como o `GET /api/application/triagem` a devolve. */
 interface LeadFila {
@@ -637,8 +638,8 @@ export default function GestaoCockpitPage() {
                     </div>
                     <div className="min-w-0">
                       <dt className="text-[10px] font-bold uppercase tracking-wider text-muted">Tempo decorrido</dt>
-                      <dd className="font-mono font-bold text-ink">
-                        {item.horasDecorridas === null ? '—' : `${item.horasDecorridas.toFixed(1)}h`}
+                      <dd className="font-bold text-ink">
+                        {formatarTempoDecorrido(item.horasDecorridas)}
                       </dd>
                     </div>
                     <div className="min-w-0">
@@ -753,8 +754,8 @@ export default function GestaoCockpitPage() {
                           {item.psicologoAlocadoId ? 'Trocar psicólogo' : 'Encaminhar'}
                         </button>
                       </td>
-                      <td className="px-6 py-4 font-mono font-bold text-ink">
-                        {item.horasDecorridas === null ? '—' : `${item.horasDecorridas.toFixed(1)}h`}
+                      <td className="px-6 py-4 font-bold text-ink whitespace-nowrap">
+                        {formatarTempoDecorrido(item.horasDecorridas)}
                       </td>
                       <td className="px-6 py-4">
                         {item.confirmadoEm ? (

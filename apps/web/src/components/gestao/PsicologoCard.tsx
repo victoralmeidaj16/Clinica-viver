@@ -16,6 +16,7 @@ import { PsicologoCardDetalhes } from './PsicologoCardDetalhes';
 import { PsicologoCardAcoes } from './PsicologoCardAcoes';
 import { BannerSolicitacaoAlteracaoGestao } from './BannerSolicitacaoAlteracaoGestao';
 import { focoPsicologo } from '@/lib/focoNotificacao';
+import { PsicologoPosicaoRodizio } from './PsicologoPosicaoRodizio';
 
 export interface PsicologoCardProps {
   p: PsicologoItem;
@@ -52,6 +53,7 @@ export function PsicologoCard({
   const ativos = p.pacientesAtivosCount ?? 0;
   const perc = limite > 0 ? Math.min(100, Math.round((ativos / limite) * 100)) : 0;
   const pausado = Boolean(p.pausadoNoRodizio);
+  const foraDoRodizio = p.rodizio ? p.rodizio.posicao === null : pausado;
   // Ausência e pausa manual são estados diferentes com o mesmo efeito. Mantê-los
   // separados é o que permite ao botão "Retomar" continuar respondendo só pela
   // pausa da gestão: retomar quem está de férias não faria nada, e prometer o
@@ -138,14 +140,14 @@ export function PsicologoCard({
               ) : (
                 <span
                   className={`text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 ${
-                    pausado
+                    foraDoRodizio
                       ? 'bg-rose-50 text-rose-700 border border-rose-200'
                       : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                   }`}
-                  title={pausado ? 'Sem encaminhamentos e fora da vitrine' : 'No rodízio e na vitrine'}
+                  title={foraDoRodizio ? p.rodizio?.motivo ?? 'Pausado pela gestão' : 'Disponível para encaminhamentos compatíveis'}
                 >
-                  {pausado ? <PauseCircle className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
-                  {pausado ? 'Pausado' : 'No rodízio'}
+                  {foraDoRodizio ? <PauseCircle className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
+                  {foraDoRodizio ? (pausado ? 'Pausado' : 'Indisponível') : 'No rodízio'}
                 </span>
               )}
 
@@ -167,6 +169,7 @@ export function PsicologoCard({
             <h3 className="font-extrabold text-slate-900 text-sm leading-snug truncate mt-0.5">
               {nomeExibido(p)}
             </h3>
+            <PsicologoPosicaoRodizio rodizio={p.rodizio} />
           </div>
         </div>
 

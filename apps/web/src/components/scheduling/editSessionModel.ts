@@ -9,6 +9,12 @@ export interface SessionEditableData {
   status?: string;
   custeadoPelaEmpresa?: boolean;
   convenioNome?: string;
+  custeioCota?: number;
+  custeioCiclo?: 'mensal' | 'total';
+  pacoteSessoes?: number;
+  pacoteSessoesCiclo?: 'mensal' | 'total';
+  vencimentoCobrancaEm?: string;
+  pagamentoStatus?: string;
 }
 
 /** A gestão pode corrigir o histórico; para o psicólogo, um novo horário precisa estar no futuro. */

@@ -2,16 +2,19 @@
 
 import { useMemo, useState, type ReactNode } from 'react';
 import {
-  AlertCircle, CalendarCheck2, CalendarDays, Check, CheckCircle2, Clock3, Info, Laptop, Lightbulb, Plus, Timer, Trash2,
+  AlertCircle, CalendarCheck2, Check, CheckCircle2, Info, Lightbulb, Plus, Trash2,
 } from 'lucide-react';
+import { AvailabilityHeading } from './AvailabilityHeading';
+import { AvailabilityStep as Passo } from './AvailabilityStep';
+import { AvailabilitySummaryContent } from './AvailabilitySummaryContent';
 import { AvailabilityEditor } from './AvailabilityEditor';
 import { assinatura, DIAS, INTERVALOS, rotuloIntervalo, type JanelaEditavel } from './availabilityEditorModel';
 import { SessionDurationField } from './SessionDurationField';
 import {
-  configDaGrade, erroDaConfig, gradeDaConfig, horariosDoDia, ORDEM_SEMANA,
-  rotuloDias, rotuloDuracao, rotuloPeriodos, type ConfigDisponibilidade,
+  configDaGrade, erroDaConfig, gradeDaConfig, ORDEM_SEMANA,
+  rotuloDuracao, type ConfigDisponibilidade,
 } from './availabilityStepsModel';
-import { DURACOES_SESSAO } from '@/lib/duracaoSessao';
+import { DURACOES_SESSAO, duracaoDoRascunho } from '@/lib/duracaoSessao';
 
 interface Props {
   janelas: readonly JanelaEditavel[];
@@ -20,25 +23,6 @@ interface Props {
   bloqueios: ReactNode;
   duracoesFixas?: readonly number[];
   permiteDuracaoVariavel?: boolean;
-}
-
-function Passo({ id, numero, titulo, opcional, descricao, children }: {
-  id: string; numero: number; titulo: string; opcional?: boolean; descricao?: string; children: ReactNode;
-}) {
-  return (
-    <section id={id} className="flex flex-col gap-4 rounded-[20px] border border-line bg-surface p-4 shadow-card sm:p-6">
-      <div className="flex items-start gap-4">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#B597DA] text-[15px] font-black text-white">{numero}</span>
-        <div>
-          <h3 className="mt-1.5 text-base font-black text-psi-darkest">
-            {titulo} {opcional && <small className="text-[13px] font-semibold text-muted">(opcional)</small>}
-          </h3>
-          {descricao && <p className="mt-1 text-xs text-muted">{descricao}</p>}
-        </div>
-      </div>
-      {children}
-    </section>
-  );
 }
 
 const CAMPO = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-[13px] font-extrabold text-ink focus:border-psi-vibrant focus:outline-none focus:ring-2 focus:ring-psi-vibrant/20';
@@ -51,7 +35,12 @@ const CAMPO = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 te
  * aberto sozinho quando a grade salva já não cabe numa regra única.
  */
 export function AvailabilitySteps({ janelas, onSalvar, bloqueios, duracoesFixas = DURACOES_SESSAO, permiteDuracaoVariavel = false }: Props) {
-  const lida = useMemo(() => configDaGrade(janelas), [janelas]);
+  const lida = useMemo(() => {
+    const grade = configDaGrade(janelas);
+    return { ...grade, config: { ...grade.config,
+      duracaoMin: duracaoDoRascunho(janelas.length ? grade.config.duracaoMin : (duracoesFixas[0] ?? 50), duracoesFixas, permiteDuracaoVariavel),
+    } };
+  }, [janelas, duracoesFixas, permiteDuracaoVariavel]);
   const [config, setConfig] = useState<ConfigDisponibilidade>(lida.config);
   // Salvar pelo editor dia a dia troca a grade por fora; o rascunho dos passos
   // recomeça dela para não reapresentar a regra antiga.
@@ -67,7 +56,6 @@ export function AvailabilitySteps({ janelas, onSalvar, bloqueios, duracoesFixas 
   const grade = gradeDaConfig(config);
   const alterado = assinatura(grade) !== assinatura(janelas);
   const erro = erroDaConfig(config);
-  const horarios = horariosDoDia(config);
   const intervalos = INTERVALOS.includes(config.intervaloMin) ? INTERVALOS : [...INTERVALOS, config.intervaloMin].sort((a, b) => a - b);
 
   const mudar = (parcial: Partial<ConfigDisponibilidade>) => {
@@ -100,24 +88,10 @@ export function AvailabilitySteps({ janelas, onSalvar, bloqueios, duracoesFixas 
     }
   };
 
-  const cabecalho = (
-    <div id="agenda-disponibilidade" className="flex items-center gap-4">
-      <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-psi-soft">
-        <CalendarDays className="h-6 w-6 text-psi-deep" />
-      </span>
-      <div className="min-w-0 flex-1">
-        <h2 className="text-2xl font-black tracking-tight text-psi-darkest">Sua disponibilidade</h2>
-        <p className="mt-0.5 max-w-xl text-[13px] leading-relaxed text-psi-deep">
-          Configure seus dias e horários para que seus pacientes possam agendar os atendimentos pelo seu link.
-        </p>
-      </div>
-    </div>
-  );
-
   if (diaADia) {
     return (
       <>
-        {cabecalho}
+        <AvailabilityHeading />
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-psi-soft bg-white px-4 py-3 text-xs text-muted">
           <span>{lida.uniforme
             ? 'Você está ajustando cada dia separadamente.'
@@ -140,7 +114,7 @@ export function AvailabilitySteps({ janelas, onSalvar, bloqueios, duracoesFixas 
 
   return (
     <>
-      {cabecalho}
+      <AvailabilityHeading />
 
       <Passo id="agenda-passo-1" numero={1} titulo="Dias de atendimento" descricao="Selecione os dias da semana em que você está disponível.">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
@@ -238,31 +212,8 @@ export function AvailabilitySteps({ janelas, onSalvar, bloqueios, duracoesFixas 
         <div className="flex flex-col gap-3 sm:pl-14">{bloqueios}</div>
       </Passo>
 
-      <Passo id="agenda-passo-4" numero={4} titulo="Resumo da sua disponibilidade">
-        <div className="grid grid-cols-1 gap-y-4 rounded-2xl bg-[#F7F3FB] px-2 py-4 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            { icone: CalendarDays, rotulo: 'Dias de atendimento', valor: rotuloDias(config.dias) },
-            { icone: Clock3, rotulo: 'Horário', valor: rotuloPeriodos(config) },
-            { icone: Timer, rotulo: 'Duração da sessão', valor: rotuloDuracao(config.duracaoMin) + (config.intervaloMin > 0 ? ` + ${config.intervaloMin} min de intervalo` : '') },
-            { icone: Laptop, rotulo: 'Modalidade', valor: config.modalidade === 'online' ? 'Online' : 'Presencial' },
-          ].map(({ icone: Icone, rotulo, valor }, indice) => (
-            <div key={rotulo} className={`flex min-w-0 items-start gap-3 px-4 ${indice > 0 ? 'lg:border-l lg:border-[#E6DCF0]' : ''} ${indice % 2 === 1 ? 'sm:border-l sm:border-[#E6DCF0]' : ''}`}>
-              <Icone className="h-6 w-6 shrink-0 text-psi-deep" strokeWidth={1.8} />
-              <div className="min-w-0">
-                <small className="block text-[11px] font-semibold text-muted">{rotulo}</small>
-                <strong className="mt-0.5 block text-[12.5px] font-extrabold tabular-nums text-ink">{valor}</strong>
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold tabular-nums text-muted">
-          {config.dias.length === 0
-            ? 'Sem nenhum dia marcado, seu link não mostra horários.'
-            : horarios.length === 0
-              ? 'Com esse período não cabe nenhuma sessão. Aumente o horário de término.'
-              : <>O paciente vai ver, em cada dia marcado, {horarios.length} {horarios.length === 1 ? 'horário' : 'horários'}:
-                {horarios.map((hora) => <b key={hora} className="rounded-lg border border-psi-soft bg-white px-2 py-0.5 font-extrabold text-psi-darkest">{hora}</b>)}</>}
-        </div>
+      <Passo id="agenda-passo-4" numero={4} titulo="Prévia da disponibilidade">
+        <AvailabilitySummaryContent config={config} />
       </Passo>
 
       <div id="agenda-salvar" className="flex flex-wrap items-center justify-between gap-3.5">

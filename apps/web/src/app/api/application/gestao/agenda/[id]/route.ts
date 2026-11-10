@@ -1,5 +1,5 @@
 import { resolveRequestContext } from '@/server/application/context';
-import { editGestaoAppointment } from '@/server/application/gestaoAgendaService';
+import { editGestaoAppointment, updateGestaoChargeDue, updateGestaoMonthlyCoverage } from '@/server/application/gestaoAgendaService';
 import { ApplicationError, failure, readJson, success } from '@/server/application/http';
 import type { UpdateAppointmentInput } from '@/server/scheduling/agendaRepository';
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -7,7 +7,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const context = await resolveRequestContext(request);
     const { id } = await params;
     const body = await readJson(request);
-    if ((body.modalidade !== undefined && !['online', 'presencial', 'telefone'].includes(String(body.modalidade)))
+    if (body.action === 'update_charge_due') {
+      return success(await updateGestaoChargeDue(context, id, String(body.dueAt ?? '')));
+    }
+    if (body.action === 'update_monthly_coverage') {
+      if (typeof body.custeioCota !== 'number') throw new ApplicationError('INVALID_INPUT', 'Informe a quantidade de sessões.', 400);
+      return success(await updateGestaoMonthlyCoverage(context, id, body.custeioCota));
+    }
+    if ((body.modalidade !== undefined && !['online', 'presencial'].includes(String(body.modalidade)))
       || (body.status !== undefined && !['agendado', 'confirmado', 'realizado'].includes(String(body.status)))
       || (body.custeadoPelaEmpresa !== undefined && typeof body.custeadoPelaEmpresa !== 'boolean')) {
       throw new ApplicationError('INVALID_INPUT', 'Dados de edição inválidos.', 400);

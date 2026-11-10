@@ -9,6 +9,13 @@ const render = (canEditDuration: boolean) => renderToStaticMarkup(<EditSessionFi
   setModalidade={vi.fn()} setStatus={vi.fn()} />);
 
 describe('edição da duração', () => {
+  it('oferece somente online e presencial como modalidades', () => {
+    const markup = render(false);
+    expect(markup).toContain('Online');
+    expect(markup).toContain('Presencial');
+    expect(markup).not.toContain('Telefone');
+  });
+
   it('exibe a duração sem controle de alteração para outros serviços', () => {
     const markup = render(false);
     expect(markup).toContain('50 minutos');

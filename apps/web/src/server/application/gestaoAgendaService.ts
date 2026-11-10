@@ -1,8 +1,9 @@
 import 'server-only';
 import type { RequestContext } from './context';
 import { ApplicationError } from './http';
-import { editAgendaAppointment } from './agendaService';
-import { listarAgendaGestao, profissionalDoAgendamentoGestao } from '@/server/scheduling/gestaoAgendaRepository';
+import { editAgendaAppointment, updateAgendaAppointmentChargeDue } from './agendaService';
+import { updatePatientConvenio } from './convenioService';
+import { listarAgendaGestao, profissionalDoAgendamentoGestao, convenioDoAgendamentoGestao } from '@/server/scheduling/gestaoAgendaRepository';
 import type { UpdateAppointmentInput } from '@/server/scheduling/agendaRepository';
 
 function exigirAdmin(context: RequestContext) {
@@ -34,4 +35,29 @@ export async function editGestaoAppointment(context: RequestContext, id: string,
   await editAgendaAppointment({ ...context, actor: { ...context.actor, professionalProfileId: professionalId } },
     id, input, { somenteAgendadas: true, permitirHorarioPassado: true });
   return { updated: true };
+}
+
+export async function updateGestaoChargeDue(context: RequestContext, id: string, dueAt: string) {
+  exigirAdmin(context);
+  const professionalId = await profissionalDoAgendamentoGestao(context.actor.organizationId, id);
+  if (!professionalId) throw new ApplicationError('NOT_FOUND', 'Agendamento não encontrado.', 404);
+  await updateAgendaAppointmentChargeDue({ ...context,
+    actor: { ...context.actor, professionalProfileId: professionalId } }, id, dueAt);
+  return { updated: true };
+}
+
+export async function updateGestaoMonthlyCoverage(context: RequestContext, id: string, cota: number) {
+  exigirAdmin(context);
+  if (!Number.isInteger(cota) || cota < 1 || cota > 65535) {
+    throw new ApplicationError('INVALID_INPUT', 'Informe uma quantidade de sessões entre 1 e 65535.', 400);
+  }
+  const vinculo = await convenioDoAgendamentoGestao(context.actor.organizationId, id);
+  if (!vinculo) throw new ApplicationError('NOT_FOUND', 'Agendamento não encontrado.', 404);
+  if (!vinculo.convenioId) throw new ApplicationError('INVALID_INPUT', 'Vincule o paciente a um convênio antes de definir o limite mensal.', 400);
+  if (vinculo.pacoteSessoes) {
+    throw new ApplicationError('CONVENIO_PACKAGE_DEFINED', 'A quantidade de sessões é definida pelo pacote do convênio. Altere o pacote em Convênios.', 409);
+  }
+  return updatePatientConvenio(context, vinculo.pacienteId, {
+    convenioId: vinculo.convenioId, custeadoPelaEmpresa: true, custeioCota: cota, custeioCiclo: 'mensal',
+  });
 }

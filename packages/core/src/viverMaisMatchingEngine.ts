@@ -110,6 +110,11 @@ export function selecionarPsicologoRoundRobin(
     psicologoCompativel(p, turnoDesejado, modalidadeDesejada, criterios)
   );
 
+  return ordenarPsicologosRoundRobin(elegiveis)[0] ?? null;
+}
+
+/** Ordem geral do rodízio, compartilhada com a consulta da gestão. */
+export function ordenarPsicologosRoundRobin(psicologos: readonly PsicologoPerfil[]): PsicologoPerfil[] {
   // Ordena por menor data de último lead recebido (rodízio circular mais justo).
   //
   // Quem nunca recebeu ninguém vem primeiro — sem isso, o profissional recém
@@ -127,9 +132,7 @@ export function selecionarPsicologoRoundRobin(
   };
 
   // `sort` é estável, então empate preserva a ordem de cadastro.
-  elegiveis.sort((a, b) => ultimoRecebimentoMs(a) - ultimoRecebimentoMs(b));
-
-  return elegiveis[0] ?? null;
+  return [...psicologos].sort((a, b) => ultimoRecebimentoMs(a) - ultimoRecebimentoMs(b));
 }
 
 /**

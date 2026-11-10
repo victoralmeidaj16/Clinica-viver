@@ -11,6 +11,16 @@ export interface RegrasDuracaoSessao {
 
 const INDIVIDUAL: RegrasDuracaoSessao = { duracoesFixas: [50], permiteVariavel: false };
 
+export function duracaoPermitida(duracao: number, duracoesFixas: readonly number[], permiteVariavel: boolean): boolean {
+  return duracoesFixas.includes(duracao) || (permiteVariavel && Number.isInteger(duracao)
+    && duracao >= DURACAO_VARIAVEL_MIN && duracao <= DURACAO_VARIAVEL_MAX);
+}
+
+/** Ajusta somente o rascunho; a grade publicada muda quando o profissional salva. */
+export function duracaoDoRascunho(duracao: number, duracoesFixas: readonly number[], permiteVariavel: boolean): number {
+  return duracaoPermitida(duracao, duracoesFixas, permiteVariavel) ? duracao : (duracoesFixas[0] ?? 50);
+}
+
 function normalizar(valor: string): string {
   return valor.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
 }

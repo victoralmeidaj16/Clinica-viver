@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { AgendaBlocks } from './AgendaBlocks';
 import { AvailabilitySteps } from './AvailabilitySteps';
+import { AvailabilityEditor } from './AvailabilityEditor';
 import type { JanelaEditavel } from './availabilityEditorModel';
 
 const janela = (diaSemana: number, horaInicio: string, horaFim: string): JanelaEditavel => ({
@@ -9,6 +10,29 @@ const janela = (diaSemana: number, horaInicio: string, horaFim: string): JanelaE
 });
 
 describe('AvailabilitySteps', () => {
+  it.each([false, true])('inicia a grade vazia com o tempo cadastrado de 90 minutos (variável: %s)', (permiteDuracaoVariavel) => {
+    const html = renderToStaticMarkup(<AvailabilitySteps janelas={[]} duracoesFixas={[90]} permiteDuracaoVariavel={permiteDuracaoVariavel} onSalvar={vi.fn()} bloqueios={null} />);
+    expect(html).toMatch(/<option(?=[^>]*value="90")(?=[^>]*selected="")[^>]*>/);
+    expect(html).not.toContain('value="50"');
+    expect(html).toContain('sessões de 1h30min');
+  });
+
+  it.each([AvailabilitySteps, AvailabilityEditor])('corrige no rascunho a duração antiga incompatível com o cadastro', (Editor) => {
+    const html = renderToStaticMarkup(<Editor janelas={[janela(1, '08:00', '12:00')]} duracoesFixas={[90]} onSalvar={vi.fn()} bloqueios={null} />);
+    expect(html).toMatch(/<option(?=[^>]*value="90")(?=[^>]*selected="")[^>]*>/);
+    expect(html).not.toContain('value="50"');
+    expect(html).toContain('alterações');
+  });
+
+  it.each([AvailabilitySteps, AvailabilityEditor])('preserva uma duração variável permitida para avaliação', (Editor) => {
+    const html = renderToStaticMarkup(<Editor
+      janelas={[{ ...janela(1, '08:00', '12:00'), duracaoMin: 120 }]}
+      duracoesFixas={[50, 90]} permiteDuracaoVariavel onSalvar={vi.fn()} bloqueios={null}
+    />);
+    expect(html).toContain('value="120"');
+    expect(html).not.toContain('Você tem alterações');
+  });
+
   it('mostra os quatro passos com o resumo da grade salva', () => {
     const html = renderToStaticMarkup(
       <AvailabilitySteps

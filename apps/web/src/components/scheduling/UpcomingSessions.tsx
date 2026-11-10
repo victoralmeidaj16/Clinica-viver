@@ -6,7 +6,7 @@ import {
   CalendarClock, CalendarDays, CheckCircle2, Copy, CreditCard, FileText, Globe, Loader2, MapPin, Pencil, RefreshCw, UserX, XCircle,
 } from 'lucide-react';
 import { faltaCobrada, podeRegistrarFalta, possuiPagamento } from '@/lib/appointmentWorkflow';
-import { clinicDateTimeToIso } from '@/lib/manualAppointment';
+import { ChargeDueFields, chargeDueFieldValues, futureChargeDueIso } from './ChargeDueFields';
 import { focoSessao } from '@/lib/focoNotificacao';
 import { permiteNovoPagamento, rotuloFormaPagamento } from '@/lib/modalidadesPagamento';
 import { NoShowDialog } from './NoShowDialog';
@@ -79,13 +79,9 @@ export function UpcomingSessions({ agendamentos, filtroPaciente, onCancelar, onC
   }, []);
 
   const abrirVencimento = (item: AgendamentoResumo) => {
-    const iso = item.vencimentoCobrancaEm ?? item.inicio;
-    const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-    }).formatToParts(new Date(iso)).map((part) => [part.type, part.value]));
-    setVencimentoData(`${parts.year}-${parts.month}-${parts.day}`);
-    setVencimentoHora(`${parts.hour}:${parts.minute}`);
+    const atual = chargeDueFieldValues(item.vencimentoCobrancaEm ?? item.inicio);
+    setVencimentoData(atual.date);
+    setVencimentoHora(atual.time);
     setEditandoVencimento(item); setErro(undefined);
   };
 
@@ -93,7 +89,7 @@ export function UpcomingSessions({ agendamentos, filtroPaciente, onCancelar, onC
     event.preventDefault(); if (!editandoVencimento) return;
     setSalvandoVencimento(true); setErro(undefined);
     try {
-      await onAtualizarVencimento(editandoVencimento.id, clinicDateTimeToIso(vencimentoData, vencimentoHora));
+      await onAtualizarVencimento(editandoVencimento.id, futureChargeDueIso(vencimentoData, vencimentoHora));
       setEditandoVencimento(undefined);
     } catch (cause) { setErro(cause instanceof Error ? cause.message : 'Não foi possível alterar o vencimento.'); }
     finally { setSalvandoVencimento(false); }
@@ -170,7 +166,7 @@ export function UpcomingSessions({ agendamentos, filtroPaciente, onCancelar, onC
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
           <form onSubmit={salvarVencimento} className="w-full max-w-md space-y-4 rounded-3xl border border-line bg-surface p-6 shadow-2xl">
             <div><p className="text-[10px] font-black uppercase tracking-[.18em] text-amber-700">Cobrança da sessão</p><h2 className="text-lg font-black text-ink">Editar vencimento</h2><p className="mt-1 text-xs text-muted">{editandoVencimento.pacienteNome} · {FORMATO.format(new Date(editandoVencimento.inicio))}</p></div>
-            <div className="grid grid-cols-2 gap-3"><label className="text-xs font-bold text-ink">Data *<input required type="date" value={vencimentoData} onChange={(e) => setVencimentoData(e.target.value)} className="input mt-1" /></label><label className="text-xs font-bold text-ink">Horário *<input required type="time" value={vencimentoHora} onChange={(e) => setVencimentoHora(e.target.value)} className="input mt-1" /></label></div>
+            <ChargeDueFields date={vencimentoData} time={vencimentoHora} disabled={salvandoVencimento} onDateChange={setVencimentoData} onTimeChange={setVencimentoHora} />
             {erro && <p className="rounded-xl bg-rose-50 p-3 text-[11px] font-bold text-rose-700">{erro}</p>}
             <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] text-amber-900">Se já existir um Pix pendente, ele será invalidado e recriado no próximo acesso.</p>
             <div className="flex gap-2"><button type="button" onClick={() => { setEditandoVencimento(undefined); setErro(undefined); }} className="btn-outline flex-1 justify-center">Voltar</button><button type="submit" disabled={salvandoVencimento} className="btn-primary flex-1 justify-center">{salvandoVencimento ? 'Salvando…' : 'Salvar'}</button></div>

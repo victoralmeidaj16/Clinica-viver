@@ -397,17 +397,17 @@ export async function reserveAppointmentChargeBatch(input: {
   cpf: string;
 }): Promise<BatchCheckout> {
   const tokens = [...new Set(input.tokens)];
-  if (tokens.length < 2 || tokens.length > 10) throw new Error('Selecione entre 2 e 10 sessões.');
+  if (tokens.length < 2 || tokens.length > 10) throw new SessionChargeUnavailableError('Selecione entre 2 e 10 sessões.');
   const reservations: ReservedCheckout[] = [];
   for (const token of tokens) {
     const reservation = await reserveAppointmentCharge({ token, cpf: input.cpf }, true);
-    if (!reservation || isCompanyFundedReservation(reservation)) throw new Error('Uma das sessões não possui cobrança individual.');
-    if (isExpiredReservation(reservation)) throw new Error('O prazo de uma das cobranças selecionadas terminou.');
+    if (!reservation || isCompanyFundedReservation(reservation)) throw new SessionChargeUnavailableError('Uma das sessões não possui cobrança individual.');
+    if (isExpiredReservation(reservation)) throw new SessionChargeUnavailableError('O prazo de uma das cobranças selecionadas terminou.');
     reservations.push(reservation);
   }
   let first = reservations[0];
   if (reservations.some((item) => item.patientId !== first.patientId || item.organizationId !== first.organizationId)) {
-    throw new Error('As sessões precisam pertencer ao mesmo paciente e à mesma clínica.');
+    throw new SessionChargeUnavailableError('As sessões precisam pertencer ao mesmo paciente e à mesma clínica.');
   }
   let pricing = priceSessionBatch(reservations.map((item) => ({
     sessionStart: item.sessionStart!, amountCents: item.amountCents,
@@ -441,12 +441,12 @@ export async function reserveAppointmentChargeBatch(input: {
       const references = new Set(existingMappings.map((row) => String(row.referencia_externa)));
       const anchor = reservations.find((item) => references.has(item.externalReference));
       if (references.size !== 1 || !anchor) {
-        throw new Error('Uma das sessões já está incluída em outro pagamento agrupado. Utilize o grupo original.');
+        throw new SessionChargeUnavailableError('Uma das sessões já está incluída em outro pagamento agrupado. Utilize o grupo original.');
       }
       first = anchor;
     }
     if (reservations.some((item) => item !== first && (item.provider || item.providerPaymentId))) {
-      throw new Error('Uma das sessões já possui um pagamento iniciado.');
+      throw new SessionChargeUnavailableError('Uma das sessões já possui um pagamento iniciado.');
     }
     const [groupMappings] = await connection.query<RowDataPacket[]>(
       `SELECT cobranca_ref, valor_centavos FROM financeiro_checkout_cobrancas
@@ -456,7 +456,7 @@ export async function reserveAppointmentChargeBatch(input: {
     if (groupMappings.length) {
       if (groupMappings.length !== reservations.length || reservations.some((item) =>
         !groupMappings.some((row) => String(row.cobranca_ref) === item.chargeId))) {
-        throw new Error('Este pagamento agrupado já foi reservado com outra seleção. Utilize o grupo original.');
+        throw new SessionChargeUnavailableError('Este pagamento agrupado já foi reservado com outra seleção. Utilize o grupo original.');
       }
       // A retomada preserva o rateio original, inclusive com os tokens em outra ordem.
       const amounts = reservations.map((item) => Number(groupMappings.find((row) =>
@@ -464,7 +464,7 @@ export async function reserveAppointmentChargeBatch(input: {
       const amountCents = amounts.reduce((sum, value) => sum + value, 0);
       pricing = { ...pricing, amounts, amountCents, discountCents: pricing.subtotalCents - amountCents };
     } else if (first.provider || first.providerPaymentId) {
-      throw new Error('Uma das sessões já possui um pagamento individual iniciado.');
+      throw new SessionChargeUnavailableError('Uma das sessões já possui um pagamento individual iniciado.');
     }
     for (const [index, item] of reservations.entries()) {
       await connection.execute(
@@ -600,7 +600,7 @@ export async function claimCheckoutProvider(
       [instituicaoId(), externalReference]
     );
     if (!rows[0] || !['creating', 'pending'].includes(String(rows[0].status))) {
-      throw new Error('Este checkout não está mais disponível. Atualize a página.');
+      throw new SessionChargeUnavailableError('Este checkout não está mais disponível. Atualize a página.');
     }
     if (await hasPendingChargeDueReset(connection, [String(rows[0].cobranca_ref)])) {
       throw new SessionChargeUnavailableError('A cobrança está sendo atualizada após a remarcação.');

@@ -2,16 +2,15 @@
 
 import { useState, type FormEvent } from 'react';
 import { applicationRequest } from '@/lib/applicationApi';
-import { clinicDateTimeToIso, todayAtClinic } from '@/lib/manualAppointment';
-import { isFutureChargeDueAt } from '@/lib/chargeDue';
-import { camposIniciais, type SessionEditableData } from './editSessionModel';
+import { ChargeDueFields, chargeDueFieldValues, futureChargeDueIso } from './ChargeDueFields';
+import type { SessionEditableData } from './editSessionModel';
 
 export function SessionChargeDueModal({ session, onClose, onSaved }: {
   session: SessionEditableData; onClose: () => void; onSaved: () => void | Promise<void>;
 }) {
-  const [initial] = useState(() => camposIniciais({ ...session, inicio: session.vencimentoCobrancaEm ?? session.inicio }));
-  const [date, setDate] = useState(initial.data);
-  const [time, setTime] = useState(initial.hora);
+  const [initial] = useState(() => chargeDueFieldValues(session.vencimentoCobrancaEm ?? session.inicio));
+  const [date, setDate] = useState(initial.date);
+  const [time, setTime] = useState(initial.time);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -19,8 +18,7 @@ export function SessionChargeDueModal({ session, onClose, onSaved }: {
     event.preventDefault();
     setSaving(true); setError('');
     try {
-      const dueAt = clinicDateTimeToIso(date, time);
-      if (!isFutureChargeDueAt(dueAt)) throw new Error('O vencimento deve estar no futuro.');
+      const dueAt = futureChargeDueIso(date, time);
       await applicationRequest(`/gestao/agenda/${encodeURIComponent(session.id)}`, {
         method: 'PATCH', body: JSON.stringify({ action: 'update_charge_due', dueAt }),
       });
@@ -36,12 +34,7 @@ export function SessionChargeDueModal({ session, onClose, onSaved }: {
       <div><h2 id="titulo-vencimento" className="text-lg font-black text-ink">Editar vencimento</h2>
         <p className="mt-1 text-sm text-muted">{session.pacienteNome}</p></div>
       <p className="text-xs text-muted">Altere o prazo de pagamento desta sessão. Horários no fuso de Brasília.</p>
-      <fieldset disabled={saving} className="grid grid-cols-2 gap-3">
-        <label className="text-xs font-bold text-ink">Data do vencimento
-          <input required type="date" min={todayAtClinic()} value={date} onChange={(event) => setDate(event.target.value)} className="input mt-1 w-full" /></label>
-        <label className="text-xs font-bold text-ink">Horário do vencimento
-          <input required type="time" value={time} onChange={(event) => setTime(event.target.value)} className="input mt-1 w-full" /></label>
-      </fieldset>
+      <ChargeDueFields date={date} time={time} disabled={saving} onDateChange={setDate} onTimeChange={setTime} />
       {error && <p role="alert" className="text-xs font-semibold text-rose-700">{error}</p>}
       <div className="flex justify-end gap-2 border-t border-line pt-4">
         <button type="button" disabled={saving} onClick={onClose} className="btn-outline text-xs">Cancelar</button>

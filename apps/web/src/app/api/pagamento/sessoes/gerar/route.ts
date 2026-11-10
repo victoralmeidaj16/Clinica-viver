@@ -61,6 +61,7 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof SessionChargeUnavailableError) return NextResponse.json({ error: error.message }, { status: 409 });
     console.error('[pagamento-sessoes] Falha ao gerar cobrança agrupada:', error);
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Não foi possível gerar o pagamento.' }, { status: 400 });
+    // Só as recusas previstas chegam ao paciente; falha de banco ou provedor fica no log.
+    return NextResponse.json({ error: 'Não foi possível gerar o pagamento agora.' }, { status: 500 });
   }
 }

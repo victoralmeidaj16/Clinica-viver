@@ -74,3 +74,17 @@ describe('retomar pagamento agrupado sem nova emissão', () => {
     expect(asaas.createAsaasPayment).not.toHaveBeenCalled();
   });
 });
+
+describe('erros devolvidos ao paciente', () => {
+  it('mostra a recusa prevista e esconde a falha interna', async () => {
+    vi.mocked(repository.reserveAppointmentChargeBatch).mockRejectedValueOnce(
+      new repository.SessionChargeUnavailableError('Uma das sessões já possui um pagamento iniciado.'));
+    const refused = await POST(request('PIX'));
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toEqual({ error: 'Uma das sessões já possui um pagamento iniciado.' });
+    vi.mocked(repository.reserveAppointmentChargeBatch).mockRejectedValueOnce(new Error('ER_NO_SUCH_TABLE: financeiro_x'));
+    const failed = await POST(request('PIX'));
+    expect(failed.status).toBe(500);
+    expect(JSON.stringify(await failed.json())).not.toContain('ER_NO_SUCH_TABLE');
+  });
+});

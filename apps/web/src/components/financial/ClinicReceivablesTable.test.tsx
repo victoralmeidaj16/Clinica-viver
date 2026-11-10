@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it, vi } from 'vitest';
-import { chargeDueFields } from './ChargeDueButton';
+import { chargeDueFieldValues, futureChargeDueIso } from '@/components/scheduling/ChargeDueFields';
 import { ClinicReceivablesTable, type Atendimento } from './ClinicReceivablesTable';
 
 const base: Atendimento = { chargeId: 'charge-test', patientId: 'patient-test', sessionId: 'session-test',
@@ -29,6 +29,11 @@ it('não oferece a edição a quem não é da administração', () => {
 });
 
 it('abre o vencimento atual no fuso da clínica', () => {
-  expect(chargeDueFields('2099-01-02T22:30:00Z')).toEqual({ date: '2099-01-02', time: '19:30' });
-  expect(chargeDueFields('2099-01-03T02:10:00Z')).toEqual({ date: '2099-01-02', time: '23:10' });
+  expect(chargeDueFieldValues('2099-01-02T22:30:00Z')).toEqual({ date: '2099-01-02', time: '19:30' });
+  expect(chargeDueFieldValues('2099-01-03T02:10:00Z')).toEqual({ date: '2099-01-02', time: '23:10' });
+});
+
+it('recusa vencimento passado antes de enviar, igual nas três telas', () => {
+  expect(() => futureChargeDueIso('2000-01-01', '10:00')).toThrow('O vencimento deve estar no futuro.');
+  expect(futureChargeDueIso('2099-01-02', '19:30')).toBe('2099-01-02T22:30:00.000Z');
 });

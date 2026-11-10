@@ -5,9 +5,8 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Diagnóstico de infraestrutura. Separado de `/api/application/status`, que
- * responde sobre o estado da aplicação para um usuário autenticado — este
- * responde sobre os serviços, e é consumido por healthcheck e deploy.
+ * Diagnóstico de infraestrutura: responde sobre os serviços e é consumido por
+ * healthcheck e deploy.
  *
  * Exige `CRON_SECRET` e informa apenas estados. Nada de endpoint, credencial
  * ou mensagem do driver na resposta: um diagnóstico aberto é um mapa da rede.

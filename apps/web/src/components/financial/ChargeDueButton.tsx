@@ -2,23 +2,13 @@
 
 import { useRef, useState } from 'react';
 import { applicationRequest } from '@/lib/applicationApi';
-import { isFutureChargeDueAt } from '@/lib/chargeDue';
-import { clinicDateTimeToIso, todayAtClinic } from '@/lib/manualAppointment';
+import { ChargeDueFields, chargeDueFieldValues, futureChargeDueIso } from '@/components/scheduling/ChargeDueFields';
 
 interface Props {
   chargeId: string;
   patientName: string;
   dueAt: string;
   onSaved: () => void;
-}
-
-/** Data e hora do vencimento no fuso da clínica, no formato dos campos do formulário. */
-export function chargeDueFields(iso: string): { date: string; time: string } {
-  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-  }).formatToParts(new Date(iso)).map((part) => [part.type, part.value]));
-  return { date: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}` };
 }
 
 export function ChargeDueButton({ chargeId, patientName, dueAt, onSaved }: Props) {
@@ -29,7 +19,7 @@ export function ChargeDueButton({ chargeId, patientName, dueAt, onSaved }: Props
   const [error, setError] = useState('');
 
   function open() {
-    const current = chargeDueFields(dueAt);
+    const current = chargeDueFieldValues(dueAt);
     setDate(current.date); setTime(current.time); setError('');
     dialog.current?.showModal();
   }
@@ -39,8 +29,7 @@ export function ChargeDueButton({ chargeId, patientName, dueAt, onSaved }: Props
     if (busy) return;
     setBusy(true); setError('');
     try {
-      const next = clinicDateTimeToIso(date, time);
-      if (!isFutureChargeDueAt(next)) throw new Error('O vencimento deve estar no futuro.');
+      const next = futureChargeDueIso(date, time);
       await applicationRequest(`/financial/clinica/${encodeURIComponent(chargeId)}/due`, {
         method: 'PATCH', body: JSON.stringify({ dueAt: next }),
       });
@@ -65,16 +54,8 @@ export function ChargeDueButton({ chargeId, patientName, dueAt, onSaved }: Props
         <p className="text-sm">{patientName}</p>
         <p className="text-sm text-muted">Defina o novo prazo de pagamento desta sessão, no horário de Brasília.
           Um PIX ou boleto já emitido para esta sessão é cancelado; o próximo é gerado com o novo prazo.</p>
-        <div className="grid grid-cols-2 gap-3">
-          <label className="block text-sm font-semibold">Data
-            <input required type="date" min={todayAtClinic()} value={date} disabled={busy}
-              onChange={(event) => setDate(event.target.value)} className={field} />
-          </label>
-          <label className="block text-sm font-semibold">Horário
-            <input required type="time" value={time} disabled={busy}
-              onChange={(event) => setTime(event.target.value)} className={field} />
-          </label>
-        </div>
+        <ChargeDueFields date={date} time={time} disabled={busy} onDateChange={setDate} onTimeChange={setTime}
+          labelClassName="block text-sm font-semibold" inputClassName={field} />
         {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
         <div className="flex justify-end gap-3">
           <button type="button" disabled={busy} onClick={() => dialog.current?.close()} className="rounded-xl border border-line px-4 py-2">Cancelar</button>

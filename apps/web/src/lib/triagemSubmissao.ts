@@ -353,3 +353,19 @@ export function leadsNaUltimaHora(
     return !Number.isNaN(criadoEm) && criadoEm <= agora && agora - criadoEm <= JANELA_TETO_MS;
   }).length;
 }
+
+/**
+ * Protocolo `VM-` ainda não usado na fila. Precisa rodar dentro da transação
+ * que grava: o banco tem índice único no protocolo e a gravação é "insere ou
+ * atualiza", então um número repetido sobrescreveria o pedido de outra pessoa.
+ */
+export function protocoloLivre(
+  fila: ReadonlyArray<{ protocolo?: string }>,
+  sortear: () => number = Math.random
+): string {
+  const usados = new Set(fila.map((lead) => lead.protocolo));
+  for (;;) {
+    const protocolo = `VM-${Math.floor(100000 + sortear() * 900000)}`;
+    if (!usados.has(protocolo)) return protocolo;
+  }
+}

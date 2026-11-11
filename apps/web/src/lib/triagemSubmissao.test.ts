@@ -5,6 +5,7 @@ import {
   TETO_LEADS_POR_HORA,
   leadRecenteDoMesmoTelefone,
   leadsNaUltimaHora,
+  protocoloLivre,
   validarSubmissaoTriagem,
 } from './triagemSubmissao';
 
@@ -267,4 +268,9 @@ it('compara confirmação pelo número normalizado sem ignorar divergências', (
   expect(validarSubmissaoTriagem({ ...valido, whatsappConfirmacao: '+55 51 99999-9999' }).ok).toBe(true);
   expect(validarSubmissaoTriagem({ ...valido, whatsappConfirmacao: '(51) 99999-9998' }).ok).toBe(false);
   expect(validarSubmissaoTriagem({ ...valido, whatsappConfirmacao: '' }).ok).toBe(false);
+});
+
+it('sorteia outro protocolo quando o número já está na fila', () => {
+  const sorteios = [0, 0, 0.5];
+  expect(protocoloLivre([{ protocolo: 'VM-100000' }], () => sorteios.shift()!)).toBe('VM-550000');
 });

@@ -1,4 +1,5 @@
 import { receberTriagemWhatsApp, verificarWhatsApp } from '@/server/application/triagemWhatsApp';
+import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import type { CadastroPsicologoRecord, TriagemPacienteRecord } from '@/server/application/persistence';
 import {
@@ -19,6 +20,7 @@ import {
   TETO_LEADS_POR_HORA,
   leadRecenteDoMesmoTelefone,
   leadsNaUltimaHora,
+  protocoloLivre,
   validarSubmissaoTriagem,
 } from '@/lib/triagemSubmissao';
 
@@ -89,8 +91,10 @@ export async function POST(request: Request) {
     // fazia — deixava qualquer envio escolher o número que a pessoa leva embora
     // da tela de sucesso, inclusive um já usado por outro lead.
     const novaTriagem: TriagemPacienteRecord = {
-      id: `triagem-${Date.now()}`,
-      protocolo: `VM-${Math.floor(100000 + Math.random() * 900000)}`,
+      // Hora em milissegundos repetia entre dois envios simultâneos.
+      id: `triagem-${randomUUID()}`,
+      // Provisório: o definitivo é sorteado dentro da transação, contra a fila.
+      protocolo: '',
       nomePaciente: dados.nome,
       nomeSocial: dados.nomeSocial,
       telefone: dados.telefone,
@@ -142,6 +146,7 @@ export async function POST(request: Request) {
         return { next: state, result: { situacao: 'teto' } };
       }
 
+      novaTriagem.protocolo = protocoloLivre(fila);
       const comNovoLead = {
         ...snapshot,
         triagensPacientes: [...(snapshot.triagensPacientes ?? []), novaTriagem],

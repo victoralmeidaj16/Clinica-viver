@@ -17,7 +17,7 @@ vi.mock('@/server/application/persistence', async (original) => ({
   ...await original<typeof import('@/server/application/persistence')>(), readSnapshot: () => null,
 }));
 vi.mock('@/server/application/viverMaisWhatsApp', () => ({
-  enviarTexto: state.enviar, avisarConfirmacaoPaciente: vi.fn(), responderPsicologo: vi.fn(),
+  enviarTexto: state.enviar, avisarConfirmacaoPaciente: vi.fn(),
   avisarTransbordo: vi.fn(), avisarCoordenacao: vi.fn(),
 }));
 vi.mock('@/server/adapters/asaasAdapter', async (original) => ({

@@ -301,22 +301,6 @@ export async function avisarConfirmacaoPaciente(lead: TriagemPacienteRecord): Pr
   return enviarTexto(lead.telefone, textoParaPaciente(lead), 'confirmacao_triagem_paciente', `confirmacao-paciente:${lead.id}`);
 }
 
-/**
- * Resposta ao próprio profissional, no fio da conversa dele.
- *
- * Existe porque o WhatsApp virou canal de mão dupla: quem responde `CONFIRMAR` ou
- * `ENCAMINHAR` precisa saber se a clínica registrou. Silêncio depois de uma
- * resposta é o que faz a pessoa mandar de novo — e duplicar comando é como se
- * perde um paciente para o profissional errado.
- */
-export async function responderPsicologo(
-  psicologo: CadastroPsicologoRecord,
-  texto: string,
-  chaveDedupe: string
-): Promise<ResultadoEnvio> {
-  return enviarTexto(psicologo.whatsapp, texto, 'resposta_psicologo', `resposta:${chaveDedupe}`);
-}
-
 /** Aviso operacional para os números da coordenação, se houver algum configurado. */
 export async function avisarCoordenacao(texto: string, chaveDedupe: string): Promise<ResultadoEnvio[]> {
   const destinatarios = (process.env.WHATSAPP_COORDINATION_NUMBERS ?? '')

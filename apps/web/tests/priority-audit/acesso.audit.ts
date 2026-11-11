@@ -17,7 +17,7 @@ vi.mock('@/server/application/persistence', async (original) => ({
 }));
 vi.mock('@/server/application/viverMaisWhatsApp', () => ({
   enviarTexto: vi.fn().mockResolvedValue({ situacao: 'enviada' }), avisarConfirmacaoPaciente: vi.fn(),
-  responderPsicologo: vi.fn(), avisarTransbordo: vi.fn(), avisarCoordenacao: vi.fn(), avisarAlocacao: vi.fn(),
+  avisarTransbordo: vi.fn(), avisarCoordenacao: vi.fn(), avisarAlocacao: vi.fn(),
 }));
 
 import { SESSION_COOKIE, startSession } from '@/server/auth';

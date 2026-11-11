@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { POST } from '@/app/api/application/triagem/[id]/confirmar/route';
-import { processarRespostaDoPsicologo } from './viverMaisRespostaPsicologo';
 
 vi.mock('server-only', () => ({}));
 const mocks = vi.hoisted(() => ({
@@ -15,7 +14,7 @@ vi.mock('./patientPromotion', () => ({ reconciliarPacientes: vi.fn() }));
 vi.mock('./triagemEmail', () => ({ avisarAlocacaoPsicologoPorEmail: vi.fn() }));
 vi.mock('./viverMaisWhatsApp', () => ({
   avisarConfirmacaoPaciente: mocks.avisar,
-  avisarTransbordo: vi.fn(), avisarCoordenacao: vi.fn(), responderPsicologo: vi.fn(),
+  avisarTransbordo: vi.fn(), avisarCoordenacao: vi.fn(),
 }));
 
 const lead = {
@@ -32,10 +31,9 @@ beforeEach(() => {
   });
 });
 
-for (const canal of ['link', 'whatsapp'] as const) {
-  describe(`confirmação via ${canal}`, () => {
+{
+  describe('confirmação via link', () => {
     async function confirmar() {
-      if (canal === 'whatsapp') return processarRespostaDoPsicologo('11912345678', 'CONFIRMAR');
       return POST(new Request('http://localhost/confirmar?psi=psi-1&t=token', { method: 'POST' }), {
         params: Promise.resolve({ id: 'lead-1' }),
       });

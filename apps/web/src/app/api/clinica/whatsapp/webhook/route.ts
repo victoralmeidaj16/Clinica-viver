@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { processarRespostaDoPsicologo } from '@/server/application/viverMaisRespostaPsicologo';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -7,22 +6,19 @@ export const dynamic = 'force-dynamic';
 /**
  * Webhook da Evolution API.
  *
- * Hoje serve a um único fluxo: a resposta que o psicólogo manda depois de
- * receber um paciente — `CONFIRMAR` para confirmar que já falou com ele,
- * `ENCAMINHAR` para devolvê-lo à fila. Os dois caminhos passam exatamente pelas
- * funções que o link de confirmação e a varredura de SLA usam, para não existir
- * uma segunda regra de rodízio vivendo aqui dentro.
+ * O psicólogo decide sobre um paciente novo somente pelo link da mensagem de
+ * alocação (confirmar ou encaminhar). Texto recebido no WhatsApp da clínica não
+ * é interpretado nem respondido: saudação automática do WhatsApp Business,
+ * mensagem de ausência ou conversa comum não podem virar comando nem disparar
+ * resposta de robô.
  *
- * A rota responde `200` mesmo quando ignora o evento. Devolver erro para o que
- * não interessa faria a Evolution reentregar em laço uma mensagem que nunca
- * será processada.
+ * A rota continua existindo e responde `200` para a Evolution não reentregar o
+ * mesmo evento em laço.
  */
 
 function autorizado(request: Request): boolean {
   const esperado = process.env.EVOLUTION_WEBHOOK_TOKEN?.trim();
-  // Falha fechada: sem token configurado a rota não existe na prática. O
-  // contrário — aceitar tudo enquanto ninguém configurou — deixaria qualquer um
-  // que descobrisse a URL confirmar contato em nome de um profissional.
+  // Falha fechada: sem token configurado a rota não aceita nada.
   if (!esperado) return false;
 
   const recebido =
@@ -33,73 +29,9 @@ function autorizado(request: Request): boolean {
   return recebido.length === esperado.length && recebido === esperado;
 }
 
-interface MensagemRecebida {
-  id: string;
-  telefone: string;
-  texto: string;
-}
-
-/** Extrai o que interessa do envelope da Evolution, tolerando as variações da v2. */
-function lerMensagem(payload: unknown): MensagemRecebida | null {
-  const corpo = payload as {
-    event?: string;
-    data?: unknown;
-  };
-
-  const evento = String(corpo?.event ?? '').toLowerCase().replace(/_/g, '.');
-  if (evento && evento !== 'messages.upsert') return null;
-
-  const dados = Array.isArray(corpo?.data) ? corpo.data[0] : corpo?.data;
-  const item = dados as
-    | {
-        key?: { id?: string; remoteJid?: string; fromMe?: boolean };
-        message?: {
-          conversation?: string;
-          extendedTextMessage?: { text?: string };
-          ephemeralMessage?: { message?: { conversation?: string; extendedTextMessage?: { text?: string } } };
-        };
-      }
-    | undefined;
-
-  if (!item?.key || item.key.fromMe || typeof item.key.id !== 'string' || !item.key.id.trim()) return null;
-
-  const remoteJid = String(item.key.remoteJid ?? '');
-  // Grupo e status não são conversa com profissional; não há a quem responder.
-  if (!remoteJid || remoteJid.includes('@g.us') || remoteJid.startsWith('status@')) return null;
-
-  const interna = item.message?.ephemeralMessage?.message ?? item.message;
-  const texto = interna?.conversation ?? interna?.extendedTextMessage?.text ?? '';
-  if (!texto.trim()) return null;
-
-  return {
-    id: item.key.id,
-    telefone: remoteJid.split('@')[0]!.split(':')[0]!,
-    texto,
-  };
-}
-
 export async function POST(request: Request) {
   if (!autorizado(request)) {
     return NextResponse.json({ success: false, error: 'Token inválido.' }, { status: 401 });
   }
-
-  let payload: unknown;
-  try {
-    payload = await request.json();
-  } catch {
-    return NextResponse.json({ success: true, ignorado: 'corpo_invalido' });
-  }
-
-  const mensagem = lerMensagem(payload);
-  if (!mensagem) return NextResponse.json({ success: true, ignorado: 'evento_sem_uso' });
-
-  try {
-    const resultado = await processarRespostaDoPsicologo(mensagem.telefone, mensagem.texto, mensagem.id);
-    // O texto recebido nunca vai para o log: pode conter dado de paciente.
-    console.info(`[whatsapp] Resposta de psicólogo processada: ${resultado.situacao}.`);
-    return NextResponse.json({ success: true, situacao: resultado.situacao });
-  } catch {
-    console.error('[whatsapp] Falha ao processar resposta; o provedor pode repetir o mesmo evento.');
-    return NextResponse.json({ success: false, error: 'Falha ao processar a resposta.' }, { status: 500 });
-  }
+  return NextResponse.json({ success: true, ignorado: 'decisao_somente_pelo_link' });
 }

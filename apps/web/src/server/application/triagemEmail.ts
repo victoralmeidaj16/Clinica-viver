@@ -3,7 +3,6 @@ import 'server-only';
 
 import type { CadastroPsicologoRecord, TriagemPacienteRecord } from './persistence';
 import { gerarTokenConfirmacao } from '@/server/viverMaisConfirmToken';
-import { COMANDO_CONFIRMAR, COMANDO_ENCAMINHAR } from './viverMaisComandos';
 
 const RESEND_ENDPOINT = 'https://api.resend.com/emails';
 
@@ -283,9 +282,6 @@ export function conteudoAlocacaoPsicologo(
     'Ações Rápidas:',
     `1. Confirmar Primeiro Contato: ${linkConfirmar}`,
     `2. Encaminhar para o Próximo Colega: ${linkEncaminhar}`,
-    '3. Ou responda diretamente no WhatsApp da clínica com:',
-    `   ${COMANDO_CONFIRMAR} - quando já tiver falado com o paciente.`,
-    `   ${COMANDO_ENCAMINHAR} - se não for atender e desejar repassar para a fila.`,
     '',
     `Acesse Meus Pacientes para gerenciar seus atendimentos: ${linkCockpit}`,
     '',
@@ -368,15 +364,6 @@ export function conteudoAlocacaoPsicologo(
       <a href="${linkEncaminhar}" style="display: inline-block; background-color: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 12px 24px; border-radius: 8px; font-weight: bold; text-decoration: none; margin-bottom: 10px; font-size: 14px;">
         ⇄ Encaminhar para a Fila
       </a>
-    </div>
-
-    <!-- DICA DE WHATSAPP -->
-    <div style="background-color: #f1f5f9; border-radius: 8px; padding: 12px 16px; margin: 20px 0; font-size: 13px; color: #475569;">
-      💬 <strong>Atalho no WhatsApp da Clínica:</strong> Se preferir, responda diretamente na conversa com o número da clínica:
-      <ul style="margin: 6px 0 0 0; padding-left: 20px;">
-        <li>Digite <strong>${COMANDO_CONFIRMAR}</strong> após falar com o paciente para registrar a confirmação.</li>
-        <li>Digite <strong>${COMANDO_ENCAMINHAR}</strong> caso não tenha disponibilidade para atender.</li>
-      </ul>
     </div>
 
     <p style="text-align: center; margin-top: 24px;">

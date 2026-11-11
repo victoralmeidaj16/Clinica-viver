@@ -4,10 +4,13 @@ vi.mock('server-only', () => ({}));
 vi.mock('./clinicFinanceService', () => ({ exigirAdminFiscal: vi.fn() }));
 vi.mock('@/server/reports/convenioReportPdf', () => ({ gerarRelatorioConvenioPdf: vi.fn() }));
 vi.mock('@/server/adapters/asaasAdapter', () => ({}));
-vi.mock('@/server/payments/convenioChargeTransfer', () => ({ transferirCobrancasParaEmpresa: vi.fn() }));
+vi.mock('@/server/payments/convenioChargeTransfer', () => ({
+  transferirCobrancasParaEmpresa: vi.fn(async () => ({ transferidas: 0, mantidas: 0, pendentes: 0 })),
+}));
 vi.mock('@/server/persistence/mysql/convenioRepository', () => ({
   atualizarConvenio: vi.fn(),
   obterConvenio: vi.fn(),
+  pacientesComTransferenciaPendente: vi.fn(async () => []),
   pacientesDoConvenio: vi.fn(async () => [
     { id: 'pat-empresa', custeadoPelaEmpresa: true },
     { id: 'pat-proprio', custeadoPelaEmpresa: false },
@@ -15,7 +18,7 @@ vi.mock('@/server/persistence/mysql/convenioRepository', () => ({
 }));
 
 import { updateConvenio } from './convenioService';
-import { atualizarConvenio, obterConvenio } from '@/server/persistence/mysql/convenioRepository';
+import { atualizarConvenio, obterConvenio, pacientesComTransferenciaPendente } from '@/server/persistence/mysql/convenioRepository';
 import { transferirCobrancasParaEmpresa } from '@/server/payments/convenioChargeTransfer';
 import type { RequestContext } from './context';
 
@@ -60,4 +63,22 @@ it('devolve não encontrado sem mover nada', async () => {
   vi.mocked(atualizarConvenio).mockResolvedValueOnce(null);
   await expect(updateConvenio(context, 'outro', { empresaPagaSessoes: true })).rejects.toMatchObject({ status: 404 });
   expect(transferirCobrancasParaEmpresa).not.toHaveBeenCalled();
+});
+
+/** A gestão via "salvo" enquanto a cobrança continuava com o paciente. */
+it('informa quantas cobranças não puderam ser transferidas', async () => {
+  acordo({ empresaPagaSessoes: false }, {});
+  vi.mocked(transferirCobrancasParaEmpresa).mockResolvedValueOnce({ transferidas: 1, mantidas: 0, pendentes: 2 });
+  const salvo = await updateConvenio(context, 'conv-1', { empresaPagaSessoes: true });
+  expect(salvo).toMatchObject({ id: 'conv-1', cobrancasPendentes: 2 });
+});
+
+/** Na segunda gravação a cobertura já não "ampliou"; a retomada vem da marca deixada na sessão. */
+it('retoma transferências pendentes mesmo sem mudança no acordo', async () => {
+  acordo({}, {});
+  vi.mocked(pacientesComTransferenciaPendente).mockResolvedValueOnce(['pat-pendente']);
+  const salvo = await updateConvenio(context, 'conv-1', { empresaPagaSessoes: true, pacoteSessoes: 4 });
+  expect(transferirCobrancasParaEmpresa).toHaveBeenCalledOnce();
+  expect(transferirCobrancasParaEmpresa).toHaveBeenCalledWith('org-1', 'pat-pendente');
+  expect(salvo).toMatchObject({ cobrancasPendentes: 0 });
 });

@@ -6,6 +6,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import type { CadastroPsicologoRecord } from './persistence';
 import { getMysqlPool } from '@/server/oci/runtime';
+import { ApplicationError } from './http';
 import { hashPassword } from '@/server/auth';
 import { instituicaoId, rowId, toSqlTimestamp } from '@/server/persistence/mysql/mappers';
 import { normalizeBrazilPhone } from '@/lib/brazilPhone';
@@ -229,7 +230,7 @@ export async function provisionPsychologistAccess(
 
 export async function activatePsychologistAccount(token: string, password: string) {
   if (password.length < 10 || !/[A-Za-zÀ-ÿ]/.test(password) || !/\d/.test(password)) {
-    throw new Error('A senha deve ter pelo menos 10 caracteres, incluindo letra e número.');
+    throw new ApplicationError('WEAK_PASSWORD', 'A senha deve ter pelo menos 10 caracteres, incluindo letra e número.', 400);
   }
   const connection = await getMysqlPool().getConnection();
   try {
@@ -246,7 +247,7 @@ export async function activatePsychologistAccount(token: string, password: strin
       [instituicaoId(), invitationHash(token)]
     );
     const invite = rows[0];
-    if (!invite) throw new Error('Este link é inválido, já foi utilizado ou expirou.');
+    if (!invite) throw new ApplicationError('INVALID_INVITE', 'Este link é inválido, já foi utilizado ou expirou.', 400);
     const now = new Date().toISOString();
     await connection.execute(
       `UPDATE clinica_usuarios

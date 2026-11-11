@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   create: vi.fn(), buscar: vi.fn(), registrar: vi.fn(), cancelar: vi.fn(), remover: vi.fn(), fatura: { id: 'fat-1', status: 'aberta', valorCents: 10000, competencia: '2026-10', totalSessoes: 1, providerId: undefined as string | undefined },
-  lock: Promise.resolve(),
+  lock: Promise.resolve(), dia: undefined as number | undefined,
 }));
 vi.mock('server-only', () => ({}));
 vi.mock('./clinicFinanceService', () => ({ exigirAdminFiscal: () => {} }));
@@ -18,7 +18,7 @@ vi.mock('@/server/oci/runtime', () => ({ getMysqlPool: () => ({ getConnection: a
   };
 } }) }));
 vi.mock('@/server/persistence/mysql/convenioRepository', () => ({
-  obterConvenio: async () => ({ id: 'conv-1', nome: 'Empresa fictícia', cnpj: '12345678901234' }),
+  obterConvenio: async () => ({ id: 'conv-1', nome: 'Empresa fictícia', cnpj: '12345678901234', diaVencimento: mocks.dia }),
   obterFatura: async () => ({ ...mocks.fatura }),
   registrarBoleto: mocks.registrar,
   cancelarFatura: mocks.cancelar,
@@ -72,6 +72,31 @@ describe('geração de boleto empresarial', () => {
       await createConvenioBoleto(context, 'conv-1', 'fat-1');
       expect(mocks.create.mock.calls[0][0].dueDate).toBe('2026-11-05');
     } finally { vi.useRealTimers(); }
+  });
+
+  /** Hoje é 27/10 em Brasília. Vencer no dia 28 daria um dia para a empresa pagar. */
+  it.each([
+    [28, '2026-11-28', 'empurra para o mês seguinte quando o dia fixo cai amanhã'],
+    [1, '2026-11-01', 'mantém o próximo dia fixo quando ele respeita o prazo mínimo'],
+    [27, '2026-11-27', 'não vence no próprio dia da emissão'],
+    [10, '2026-11-10', 'usa o mês seguinte quando o dia já passou'],
+  ])('dia fixo %i vence em %s: %s', async (dia, esperado) => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-27T15:00:00Z'));
+    mocks.dia = dia;
+    try {
+      await createConvenioBoleto(context, 'conv-1', 'fat-1');
+      expect(mocks.create.mock.calls[0][0].dueDate).toBe(esperado);
+    } finally { vi.useRealTimers(); mocks.dia = undefined; }
+  });
+
+  it('respeita o prazo mínimo também na virada para um mês curto', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date('2027-02-26T15:00:00Z'));
+    mocks.dia = 1;
+    try {
+      await createConvenioBoleto(context, 'conv-1', 'fat-1');
+      // 1º de março fica a três dias de 26/02; o próximo dia 1 válido é em abril.
+      expect(mocks.create.mock.calls[0][0].dueDate).toBe('2027-04-01');
+    } finally { vi.useRealTimers(); mocks.dia = undefined; }
   });
 
   it('não vincula um boleto anterior com valor diferente da fatura', async () => {

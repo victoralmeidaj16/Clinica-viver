@@ -13,7 +13,27 @@ export function success<T>(data: T, status = 200) {
   return NextResponse.json({ ok: true, data, meta: { generatedAt: new Date().toISOString(), persistence } }, { status, headers: { 'Cache-Control': 'no-store' } });
 }
 
+/**
+ * Falha de infraestrutura: erro do driver do MySQL ou do sistema (rede, disco).
+ *
+ * As regras de negócio lançam `Error` simples com texto feito para a tela, e
+ * por isso o padrão é repassar a mensagem. Estes aqui carregam `errno`, que
+ * nenhum erro de regra tem — e a mensagem deles é SQL, nome de tabela e host.
+ */
+function falhaDeInfraestrutura(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null || error instanceof ApplicationError) return false;
+  const detalhe = error as { errno?: unknown; sqlState?: unknown; sqlMessage?: unknown };
+  return typeof detalhe.errno === 'number' || typeof detalhe.sqlState === 'string' || typeof detalhe.sqlMessage === 'string';
+}
+
 export function failure(error: unknown) {
+  if (falhaDeInfraestrutura(error)) {
+    console.error('[api] Falha de infraestrutura ao atender a requisição.');
+    return NextResponse.json(
+      { ok: false, error: { code: 'INTERNAL_ERROR', message: 'Não foi possível concluir a operação agora. Tente novamente em instantes.' } },
+      { status: 500, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
   const message = error instanceof Error ? error.message : 'Erro interno.';
   const known = error instanceof ApplicationError
     ? error

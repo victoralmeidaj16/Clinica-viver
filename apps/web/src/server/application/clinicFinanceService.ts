@@ -346,10 +346,13 @@ async function leadFiscalDoPaciente(organizationId: string, patientId: string): 
 }
 
 /** Emissão fiscal é uma atribuição da administração, não de billing em geral. */
-export function exigirAdminFiscal(context: RequestContext) {
+export function exigirAdminFiscal(
+  context: RequestContext,
+  mensagem = 'A emissão de NFS-e é exclusiva do perfil administrador.'
+) {
   const eAdmin = context.actor.roles.some((role) => role === 'owner' || role === 'admin');
   if (!eAdmin) {
-    throw new ApplicationError('FORBIDDEN', 'A emissão de NFS-e é exclusiva do perfil administrador.', 403);
+    throw new ApplicationError('FORBIDDEN', mensagem, 403);
   }
 }
 

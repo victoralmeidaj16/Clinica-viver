@@ -320,3 +320,42 @@ describe('provisionamento empresarial', () => {
     expect(sql).toContain('ag.organizacao_id = p.organizacao_id');
   });
 });
+
+describe('notificações após a decisão de revisão', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it.each(['paga', 'cancelada'])('não reaplica pagamento atrasado à fatura %s', async (status) => {
+    connection.query.mockResolvedValueOnce([[{
+      ref_core: 'invoice-1', organizacao_ref: 'org-1', status, valor_centavos: 5000,
+    }], []] as never);
+    await expect(reconcileConvenioInvoicePayment({
+      eventId: 'late-payment', eventType: 'PAYMENT_RECEIVED', paymentId: 'pay-1',
+      amountCents: 10000, receivedAt: '2026-11-10T12:00:00Z',
+    })).resolves.toBe('duplicate');
+    expect(connection.execute).not.toHaveBeenCalled();
+  });
+
+  it('concilia o estorno acumulado sem perder pagamentos de sessões já refaturadas', async () => {
+    connection.query
+      .mockResolvedValueOnce([[{ ref_core: 'invoice-1', organizacao_ref: 'org-1' }], []] as never)
+      .mockResolvedValueOnce([[], []])
+      .mockImplementationOnce(async (sql?: string) => {
+        // Um filtro pela fatura atual perderia o primeiro pagamento após refaturar.
+        const pagamentos = [
+          { ref_core: 'p1', cobranca_ref: 'c1', valor_centavos: 100, fatura_convenio_ref: 'invoice-2' },
+          { ref_core: 'p2', cobranca_ref: 'c2', valor_centavos: 100, fatura_convenio_ref: 'invoice-1' },
+        ];
+        return [String(sql).includes('AND c.fatura_convenio_ref = ?') ? pagamentos.slice(1) : pagamentos, []] as never;
+      });
+    await expect(reconcileConvenioInvoiceRefund({
+      eventId: 'refund-later', eventType: 'PAYMENT_REFUNDED', paymentId: 'pay-1',
+      refundCents: 200, receivedAt: '2026-11-10T12:00:00Z',
+    })).resolves.toBe('processed');
+    const writes = connection.execute.mock.calls as unknown as Array<[string, unknown[]]>;
+    expect(writes.filter(([sql]) => sql.includes('INSERT INTO financeiro_estornos')).map(([, values]) => values[5])).toEqual([100, 100]);
+    for (const [sql, values] of writes.filter(([sql]) => sql.includes('UPDATE financeiro_cobrancas'))) {
+      expect(sql).toContain('AND fatura_convenio_ref = ?');
+      expect(values.at(-1)).toBe('invoice-1');
+    }
+  });
+});

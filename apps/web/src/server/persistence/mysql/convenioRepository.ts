@@ -535,6 +535,175 @@ export async function vincularPacienteConvenio(
   finally { connection.release(); }
 }
 
+/** Registra o valor recebido, rateado entre as sessões da fatura, e dá baixa nas cobranças. */
+async function baixarCobrancasDaFatura(
+  connection: PoolConnection,
+  fatura: FaturaRow,
+  paymentId: string,
+  amountCents: number,
+  receivedAt: string
+): Promise<void> {
+  const [charges] = await connection.query<RowDataPacket[]>(
+    `SELECT ref_core, valor_centavos FROM financeiro_cobrancas
+      WHERE instituicao_id = ? AND organizacao_ref = ? AND fatura_convenio_ref = ?
+      ORDER BY emitida_em, ref_core FOR UPDATE`,
+    [instituicaoId(), fatura.organizacao_ref, fatura.ref_core]
+  );
+  if (charges.length === 0) throw new Error('A fatura do convênio não possui cobranças vinculadas.');
+  const rateio = ratearFatura(amountCents, charges.map((row) => Number(row.valor_centavos)));
+  for (const [indice, charge] of charges.entries()) {
+    const paymentRef = `asaas-convenio-${paymentId}-${indice + 1}`;
+    await connection.execute(
+      `INSERT INTO financeiro_pagamentos
+        (id, instituicao_id, organizacao_ref, ref_core, cobranca_ref, recebido_em,
+         valor_centavos, forma, status, provedor, provedor_transacao_ref)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'boleto', 'confirmed', 'asaas', ?)
+       ON DUPLICATE KEY UPDATE status = 'confirmed', recebido_em = VALUES(recebido_em)`,
+      [rowId('pagamento', paymentRef), instituicaoId(), fatura.organizacao_ref, paymentRef,
+        charge.ref_core, receivedAt, rateio[indice], `${paymentId}:${charge.ref_core}`]
+    );
+  }
+  await connection.execute(
+    `UPDATE financeiro_cobrancas SET status = 'paid', forma_pagamento = 'boleto', atualizado_em = CURRENT_TIMESTAMP(3)
+      WHERE instituicao_id = ? AND organizacao_ref = ? AND fatura_convenio_ref = ?`,
+    [instituicaoId(), fatura.organizacao_ref, fatura.ref_core]
+  );
+}
+
+export type AcaoRevisaoFatura = 'aceitar_recebido' | 'encerrar' | 'refaturar';
+
+export interface ResultadoRevisaoFatura {
+  id: string;
+  status: StatusFaturaConvenio;
+  valorCents: number;
+  sessoesLiberadas: number;
+}
+
+/**
+ * Encerra a revisão de uma fatura conforme a decisão da gestão.
+ *
+ * - `aceitar_recebido` (pagamento divergente): o valor que entrou no Asaas vira
+ *   a quitação. A fatura passa a valer esse valor, para que a NFS-e saia pelo
+ *   que foi recebido de fato, e as sessões recebem a baixa rateada.
+ * - `encerrar` (estorno): nada é cobrado de novo. Sobrando valor líquido, a
+ *   fatura volta a "paga" por ele; estornada por inteiro, fica "cancelada".
+ * - `refaturar` (estorno): as sessões estornadas por inteiro deixam a fatura e
+ *   voltam a "a faturar". O restante segue a regra de `encerrar`.
+ *
+ * A fatura nunca é apagada aqui: ela tem pagamento, estorno e possivelmente
+ * NFS-e apontando para ela.
+ */
+export async function resolverRevisaoFatura(
+  organizationId: string,
+  convenioId: string,
+  faturaId: string,
+  acao: AcaoRevisaoFatura
+): Promise<ResultadoRevisaoFatura> {
+  const connection = await getMysqlPool().getConnection();
+  try {
+    await connection.beginTransaction();
+    const [faturas] = await connection.query<FaturaRow[]>(
+      `${FATURA_SELECT} WHERE instituicao_id = ? AND organizacao_ref = ? AND convenio_ref = ? AND ref_core = ? LIMIT 1 FOR UPDATE`,
+      [instituicaoId(), organizationId, convenioId, faturaId]
+    );
+    const fatura = faturas[0];
+    if (!fatura) throw new Error('Fatura não encontrada.');
+
+    if (acao === 'aceitar_recebido') {
+      if (fatura.status !== 'revisao_pagamento') throw new Error('Esta fatura não está com pagamento em revisão.');
+      const recebido = Number(fatura.valor_recebido_divergente_centavos);
+      if (!fatura.provedor_ref || !Number.isSafeInteger(recebido) || recebido <= 0) {
+        throw new Error('O valor recebido não está registrado nesta fatura. Confira o pagamento no Asaas.');
+      }
+      // A data da baixa é a do aviso do provedor, não a do clique da gestão.
+      const [eventos] = await connection.query<RowDataPacket[]>(
+        `SELECT processado_em FROM financeiro_webhooks_asaas
+          WHERE instituicao_id = ? AND provedor_pagamento_ref = ? ORDER BY processado_em DESC LIMIT 1`,
+        [instituicaoId(), fatura.provedor_ref]
+      );
+      const receivedAt = toSqlTimestamp(fromSqlTimestamp(eventos[0]?.processado_em) ?? new Date().toISOString());
+      await baixarCobrancasDaFatura(connection, fatura, fatura.provedor_ref, recebido, receivedAt);
+      await connection.execute(
+        `UPDATE financeiro_faturas_convenio SET status = 'paga', pago_em = ?, valor_centavos = ?,
+                valor_recebido_divergente_centavos = NULL, atualizado_em = CURRENT_TIMESTAMP(3)
+          WHERE instituicao_id = ? AND organizacao_ref = ? AND ref_core = ?`,
+        [receivedAt, recebido, instituicaoId(), organizationId, faturaId]
+      );
+      await connection.commit();
+      return { id: faturaId, status: 'paga', valorCents: recebido, sessoesLiberadas: 0 };
+    }
+
+    if (fatura.status !== 'revisao_estorno') throw new Error('Esta fatura não está com estorno em revisão.');
+    // O pagamento pertence ao boleto original mesmo após a cobrança ser refaturada.
+    const [pagamentos] = await connection.query<RowDataPacket[]>(
+      `SELECT p.ref_core, p.cobranca_ref, p.valor_centavos, c.fatura_convenio_ref FROM financeiro_pagamentos p
+       JOIN financeiro_cobrancas c ON c.instituicao_id = p.instituicao_id
+        AND c.organizacao_ref = p.organizacao_ref AND c.ref_core = p.cobranca_ref
+       WHERE p.instituicao_id = ? AND p.organizacao_ref = ?
+        AND p.provedor = 'asaas' AND p.status = 'confirmed'
+        AND p.provedor_transacao_ref = CONCAT(?, ':', p.cobranca_ref)
+       ORDER BY c.emitida_em, c.ref_core FOR UPDATE`,
+      [instituicaoId(), organizationId, fatura.provedor_ref]
+    );
+    if (!pagamentos.length) throw new Error('Não há pagamento registrado nesta fatura para concluir a revisão do estorno.');
+    const [estornos] = await connection.query<RowDataPacket[]>(
+      `SELECT pagamento_ref, COALESCE(SUM(valor_centavos), 0) AS estornado FROM financeiro_estornos
+        WHERE instituicao_id = ? AND organizacao_ref = ? AND pagamento_ref IN (?) GROUP BY pagamento_ref`,
+      [instituicaoId(), organizationId, pagamentos.map((row) => row.ref_core)]
+    );
+    const estornadoPorPagamento = new Map(estornos.map((row) => [String(row.pagamento_ref), Number(row.estornado)]));
+    let liquidoCents = 0;
+    const estornadasPorInteiro: string[] = [];
+    for (const pagamento of pagamentos) {
+      const pago = Number(pagamento.valor_centavos);
+      const estornado = Math.min(pago, estornadoPorPagamento.get(String(pagamento.ref_core)) ?? 0);
+      liquidoCents += pago - estornado;
+      if (pago > 0 && estornado >= pago && pagamento.fatura_convenio_ref === faturaId) estornadasPorInteiro.push(String(pagamento.cobranca_ref));
+    }
+
+    let sessoesLiberadas = 0;
+    if (acao === 'refaturar') {
+      if (!estornadasPorInteiro.length) {
+        throw new Error('Nenhuma sessão desta fatura foi estornada por inteiro, então não há o que faturar de novo. Encerre a revisão mantendo o valor recebido.');
+      }
+      await connection.query(
+        `UPDATE financeiro_cobrancas
+            SET status = 'pending', forma_pagamento = NULL, fatura_convenio_ref = NULL, atualizado_em = CURRENT_TIMESTAMP(3)
+          WHERE instituicao_id = ? AND organizacao_ref = ? AND fatura_convenio_ref = ? AND ref_core IN (?)`,
+        [instituicaoId(), organizationId, faturaId, estornadasPorInteiro]
+      );
+      sessoesLiberadas = estornadasPorInteiro.length;
+    }
+
+    const status: StatusFaturaConvenio = liquidoCents > 0 ? 'paga' : 'cancelada';
+    // Estornada por inteiro, a fatura guarda o valor original como histórico.
+    const valorCents = liquidoCents > 0 ? liquidoCents : Number(fatura.valor_centavos);
+    await connection.execute(
+      `UPDATE financeiro_faturas_convenio SET status = ?, valor_centavos = ?, total_sessoes = ?, atualizado_em = CURRENT_TIMESTAMP(3)
+        WHERE instituicao_id = ? AND organizacao_ref = ? AND ref_core = ?`,
+      [status, valorCents, Math.max(0, Number(fatura.total_sessoes) - sessoesLiberadas),
+        instituicaoId(), organizationId, faturaId]
+    );
+    await connection.commit();
+    return { id: faturaId, status, valorCents, sessoesLiberadas };
+  } catch (error) { await connection.rollback(); throw error; }
+  finally { connection.release(); }
+}
+
+/** Pacientes do convênio com sessão marcada para transferência que não chegou ao fim. */
+export async function pacientesComTransferenciaPendente(organizationId: string, convenioId: string): Promise<string[]> {
+  const [rows] = await getMysqlPool().query<RowDataPacket[]>(
+    `SELECT DISTINCT p.ref_core
+       FROM clinica_agendamentos a
+       JOIN clinica_pacientes p ON p.id = a.paciente_id AND p.instituicao_id = a.instituicao_id
+       JOIN clinica_organizacoes o ON o.id = p.organizacao_id
+      WHERE a.instituicao_id = ? AND o.ref_core = ? AND p.convenio_ref = ?
+        AND a.transferencia_convenio_ref IS NOT NULL`,
+    [instituicaoId(), organizationId, convenioId]
+  );
+  return rows.map((row) => String(row.ref_core));
+}
+
 export async function reconcileConvenioInvoicePayment(input: { eventId: string; eventType: string; paymentId: string; amountCents: number; receivedAt: string }): Promise<'processed' | 'duplicate' | 'unknown'> {
   const connection = await getMysqlPool().getConnection();
   try {
@@ -545,7 +714,7 @@ export async function reconcileConvenioInvoicePayment(input: { eventId: string; 
     );
     const fatura = faturas[0];
     if (!fatura) { await connection.rollback(); return 'unknown'; }
-    if (fatura.status === 'revisao_estorno') { await connection.rollback(); return 'duplicate'; }
+    if (['paga', 'revisao_estorno', 'cancelada'].includes(fatura.status)) { await connection.rollback(); return 'duplicate'; }
     const [eventos] = await connection.query<RowDataPacket[]>(
       'SELECT id FROM financeiro_webhooks_asaas WHERE instituicao_id = ? AND evento_ref = ? LIMIT 1',
       [instituicaoId(), input.eventId]
@@ -566,32 +735,8 @@ export async function reconcileConvenioInvoicePayment(input: { eventId: string; 
        (id, instituicao_id, evento_ref, evento_tipo, provedor_pagamento_ref) VALUES (?, ?, ?, ?, ?)`,
       [rowId('asaas_event', input.eventId), instituicaoId(), input.eventId, input.eventType, input.paymentId]
     );
-    const [charges] = await connection.query<RowDataPacket[]>(
-      `SELECT ref_core, valor_centavos FROM financeiro_cobrancas
-        WHERE instituicao_id = ? AND organizacao_ref = ? AND fatura_convenio_ref = ?
-        ORDER BY emitida_em, ref_core FOR UPDATE`,
-      [instituicaoId(), fatura.organizacao_ref, fatura.ref_core]
-    );
-    if (charges.length === 0) throw new Error('A fatura do convênio não possui cobranças vinculadas.');
     const receivedAt = toSqlTimestamp(input.receivedAt);
-    const rateio = ratearFatura(input.amountCents, charges.map((row) => Number(row.valor_centavos)));
-    for (const [indice, charge] of charges.entries()) {
-      const paymentRef = `asaas-convenio-${input.paymentId}-${indice + 1}`;
-      await connection.execute(
-        `INSERT INTO financeiro_pagamentos
-          (id, instituicao_id, organizacao_ref, ref_core, cobranca_ref, recebido_em,
-           valor_centavos, forma, status, provedor, provedor_transacao_ref)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'boleto', 'confirmed', 'asaas', ?)
-         ON DUPLICATE KEY UPDATE status = 'confirmed', recebido_em = VALUES(recebido_em)`,
-        [rowId('pagamento', paymentRef), instituicaoId(), fatura.organizacao_ref, paymentRef,
-          charge.ref_core, receivedAt, rateio[indice], `${input.paymentId}:${charge.ref_core}`]
-      );
-    }
-    await connection.execute(
-      `UPDATE financeiro_cobrancas SET status = 'paid', forma_pagamento = 'boleto', atualizado_em = CURRENT_TIMESTAMP(3)
-        WHERE instituicao_id = ? AND organizacao_ref = ? AND fatura_convenio_ref = ?`,
-      [instituicaoId(), fatura.organizacao_ref, fatura.ref_core]
-    );
+    await baixarCobrancasDaFatura(connection, fatura, input.paymentId, input.amountCents, receivedAt);
     await connection.execute(
       `UPDATE financeiro_faturas_convenio SET status = 'paga', pago_em = ?, valor_recebido_divergente_centavos = NULL, atualizado_em = CURRENT_TIMESTAMP(3)
         WHERE instituicao_id = ? AND ref_core = ?`,
@@ -620,15 +765,16 @@ export async function reconcileConvenioInvoiceRefund(input: {
       [instituicaoId(), input.eventId]
     );
     if (eventos[0]) { await connection.rollback(); return 'duplicate'; }
+    // O pagamento pertence ao boleto original mesmo após a cobrança ser refaturada.
     const [pagamentos] = await connection.query<RowDataPacket[]>(
-      `SELECT p.ref_core, p.cobranca_ref, p.valor_centavos FROM financeiro_pagamentos p
+      `SELECT p.ref_core, p.cobranca_ref, p.valor_centavos, c.fatura_convenio_ref FROM financeiro_pagamentos p
        JOIN financeiro_cobrancas c ON c.instituicao_id = p.instituicao_id
         AND c.organizacao_ref = p.organizacao_ref AND c.ref_core = p.cobranca_ref
-       WHERE p.instituicao_id = ? AND p.organizacao_ref = ? AND c.fatura_convenio_ref = ?
+       WHERE p.instituicao_id = ? AND p.organizacao_ref = ?
         AND p.provedor = 'asaas' AND p.status = 'confirmed'
         AND p.provedor_transacao_ref = CONCAT(?, ':', p.cobranca_ref)
        ORDER BY c.emitida_em, c.ref_core FOR UPDATE`,
-      [instituicaoId(), fatura.organizacao_ref, fatura.ref_core, input.paymentId]
+      [instituicaoId(), fatura.organizacao_ref, input.paymentId]
     );
     const valores = pagamentos.map((row) => Number(row.valor_centavos));
     if (!pagamentos.length || !Number.isSafeInteger(input.refundCents) || input.refundCents <= 0
@@ -657,9 +803,9 @@ export async function reconcileConvenioInvoiceRefund(input: {
           (SELECT COALESCE(SUM(e.valor_centavos), 0) FROM financeiro_estornos e
             WHERE e.instituicao_id = ? AND e.organizacao_ref = ? AND e.pagamento_ref = ?) >= ?
           THEN 'refunded' ELSE 'partially_paid' END, atualizado_em = CURRENT_TIMESTAMP(3)
-          WHERE instituicao_id = ? AND organizacao_ref = ? AND ref_core = ?`,
+          WHERE instituicao_id = ? AND organizacao_ref = ? AND ref_core = ? AND fatura_convenio_ref = ?`,
         [instituicaoId(), fatura.organizacao_ref, pagamento.ref_core, valores[indice],
-          instituicaoId(), fatura.organizacao_ref, pagamento.cobranca_ref]
+          instituicaoId(), fatura.organizacao_ref, pagamento.cobranca_ref, fatura.ref_core]
       );
     }
     await connection.execute(
@@ -684,7 +830,7 @@ export async function cancelarFatura(organizationId: string, convenioId: string,
     );
     const fatura = faturas[0];
     if (!fatura) throw new Error('Fatura não encontrada.');
-    if (['paga', 'revisao_estorno', 'revisao_pagamento'].includes(fatura.status)) throw new Error('Não é possível cancelar uma fatura paga ou em revisão.');
+    if (['paga', 'cancelada', 'revisao_estorno', 'revisao_pagamento'].includes(fatura.status)) throw new Error('Não é possível cancelar uma fatura paga, encerrada ou em revisão.');
 
     // Desvincula as cobranças associadas para que voltem a ficar disponíveis para faturamento
     await connection.execute(

@@ -81,9 +81,15 @@ export default function ConveniosPage() {
   const close = () => { selectedConvenio.current = undefined; detailRequest.current += 1; setSelectedId(undefined); setDetail(undefined); setDetailError(''); setLoadingDetail(false); };
   const save = async (payload: ConvenioPayload) => {
     const path = editing ? `/convenios/${encodeURIComponent(editing.id)}` : '/convenios';
-    await applicationRequest(path, { method: editing ? 'PATCH' : 'POST', headers: commandHeaders(), body: JSON.stringify(payload) });
+    const salvo = await applicationRequest<{ cobrancasPendentes?: number }>(path, { method: editing ? 'PATCH' : 'POST', headers: commandHeaders(), body: JSON.stringify(payload) });
     await load();
     if (editing) await loadDetail(editing.id, periodo);
+    // O cadastro foi gravado; o que falhou foi levar para a empresa cobranças já
+    // emitidas ao paciente. Fechar o formulário em silêncio esconderia isso.
+    const pendentes = salvo?.cobrancasPendentes ?? 0;
+    if (pendentes > 0) {
+      throw new Error(`Convênio salvo, mas ${pendentes === 1 ? '1 cobrança não pôde ser transferida' : `${pendentes} cobranças não puderam ser transferidas`} para a empresa e ${pendentes === 1 ? 'continua' : 'continuam'} com o paciente. Salve novamente para tentar de novo.`);
+    }
   };
 
   return (

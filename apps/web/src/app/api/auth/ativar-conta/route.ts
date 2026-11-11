@@ -15,7 +15,10 @@ export async function POST(request: Request) {
     await startSession(account);
     return success({ activated: true, destination: '/meu-cadastro' });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Não foi possível ativar a conta.';
-    return failure(new ApplicationError('ACTIVATION_FAILED', message, 400));
+    // Só as recusas previstas (senha fraca, link vencido) chegam ao navegador;
+    // falha de banco ou de sessão fica no log, sem expor detalhe interno.
+    if (error instanceof ApplicationError) return failure(error);
+    console.error('[ativar-conta] Falha ao ativar a conta.');
+    return failure(new ApplicationError('ACTIVATION_FAILED', 'Não foi possível ativar a conta agora. Tente novamente em instantes.', 500));
   }
 }

@@ -6,7 +6,25 @@ import { applicationRequest, commandHeaders } from '@/lib/applicationApi';
 import type { FaturaConvenioView } from './types';
 
 const money = (cents: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
-const statusLabel = { aberta: 'Aberta', boleto_gerado: 'Boleto gerado', paga: 'Paga por boleto', cancelada: 'Cancelada', revisao_estorno: 'Estorno em revisão', revisao_pagamento: 'Pagamento em revisão' } as const;
+const statusLabel = { aberta: 'Aberta', boleto_gerado: 'Boleto gerado', paga: 'Paga por boleto', cancelada: 'Encerrada por estorno', revisao_estorno: 'Estorno em revisão', revisao_pagamento: 'Pagamento em revisão' } as const;
+
+type AcaoRevisao = 'aceitar_recebido' | 'encerrar' | 'refaturar';
+
+/** O que cada saída da revisão faz, dito antes do clique: nenhuma delas tem desfazer na tela. */
+const ACOES_REVISAO: Record<AcaoRevisao, { rotulo: string; consequencia: string }> = {
+  aceitar_recebido: {
+    rotulo: 'Aceitar valor recebido',
+    consequencia: 'O valor que entrou no Asaas passa a ser o valor desta fatura. As sessões recebem baixa como pagas e a NFS-e sairá por esse valor.',
+  },
+  encerrar: {
+    rotulo: 'Encerrar sem cobrar de novo',
+    consequencia: 'A revisão é encerrada e nada volta a ser cobrado. Se sobrou valor recebido, a fatura fica paga por ele; se o estorno foi total, fica encerrada.',
+  },
+  refaturar: {
+    rotulo: 'Liberar sessões estornadas',
+    consequencia: 'As sessões estornadas por inteiro saem desta fatura e voltam para "A faturar", para entrarem em uma nova fatura.',
+  },
+};
 
 interface FiscalData {
   preview: { camposPendentes: string[]; integracaoConfigurada: boolean; statusFatura: string; ambiente: 'producao' | 'producao_restrita'; tomadorExigeConferencia: boolean; convenio: { nome: string; cnpj?: string } };
@@ -14,7 +32,8 @@ interface FiscalData {
 }
 
 export function FaturaNfsePanel({ convenioId, fatura, onRefresh }: { convenioId: string; fatura: FaturaConvenioView; onRefresh: () => Promise<void> }) {
-  const [working, setWorking] = useState<'boleto' | 'nfse' | 'cancelar_fatura'>();
+  const [working, setWorking] = useState<'boleto' | 'nfse' | 'cancelar_fatura' | 'revisao'>();
+  const [acaoRevisao, setAcaoRevisao] = useState<AcaoRevisao>();
   const [fiscal, setFiscal] = useState<FiscalData>();
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
@@ -71,6 +90,22 @@ export function FaturaNfsePanel({ convenioId, fatura, onRefresh }: { convenioId:
     finally { setWorking(undefined); }
   };
 
+  const resolverRevisao = async () => {
+    if (!acaoRevisao) return;
+    setWorking('revisao'); setError('');
+    try {
+      await applicationRequest(`${base}/revisao`, {
+        method: 'POST', headers: commandHeaders(), body: JSON.stringify({ acao: acaoRevisao, confirmar: true }),
+      });
+      setAcaoRevisao(undefined);
+      await onRefresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Não foi possível encerrar a revisão.');
+    } finally {
+      setWorking(undefined);
+    }
+  };
+
   const cancelFatura = async () => {
     setWorking('cancelar_fatura'); setError('');
     try {
@@ -102,6 +137,19 @@ export function FaturaNfsePanel({ convenioId, fatura, onRefresh }: { convenioId:
       {error && <p className="mt-3 rounded-xl bg-rose-50 p-3 text-xs font-bold text-rose-700">{error}</p>}
       {fatura.status === 'revisao_pagamento' && <p role="alert" className="mt-3 rounded-xl bg-amber-50 p-3 text-xs font-bold text-amber-900">O valor informado pelo provedor{fatura.valorRecebidoDivergenteCents !== undefined ? ` (${money(fatura.valorRecebidoDivergenteCents)})` : ''} diverge da fatura. Confira o pagamento antes de emitir a NFS-e.</p>}
       
+      {fatura.status === 'revisao_estorno' && <p role="alert" className="mt-3 rounded-xl bg-amber-50 p-3 text-xs font-bold text-amber-900">O Asaas confirmou um estorno nesta fatura. Decida abaixo se as sessões estornadas serão cobradas de novo ou se a fatura será encerrada.</p>}
+      {acaoRevisao && (
+        <div className="mt-3 flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
+          <p className="text-xs font-bold text-amber-900">{ACOES_REVISAO[acaoRevisao].consequencia} Esta decisão não pode ser desfeita pela tela.</p>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setAcaoRevisao(undefined)} className="btn-outline bg-white px-3 py-2 text-[11px]">Voltar</button>
+            <button type="button" onClick={() => void resolverRevisao()} disabled={working === 'revisao'} className="flex items-center gap-1.5 rounded-xl bg-amber-700 px-3 py-2 text-[11px] font-black text-white transition hover:bg-amber-800 disabled:opacity-50">
+              {working === 'revisao' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Confirmar: {ACOES_REVISAO[acaoRevisao].rotulo.toLocaleLowerCase('pt-BR')}
+            </button>
+          </div>
+        </div>
+      )}
+
       {confirmingCancelFatura && (
         <div className="mt-3 flex flex-col gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3">
           <p className="text-xs font-bold text-rose-900">
@@ -134,10 +182,12 @@ export function FaturaNfsePanel({ convenioId, fatura, onRefresh }: { convenioId:
         {fatura.status === 'aberta' && <button type="button" onClick={() => void boleto()} disabled={Boolean(working)} className="btn-accent px-3 py-2 text-[11px] disabled:opacity-50">{working === 'boleto' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Banknote className="h-3.5 w-3.5" />} Gerar boleto</button>}
         {fatura.boletoUrl && <a href={fatura.boletoUrl} target="_blank" rel="noreferrer" className="btn-outline px-3 py-2 text-[11px]"><ExternalLink className="h-3.5 w-3.5" /> Abrir boleto</a>}
         {['revisao_estorno', 'revisao_pagamento'].includes(fatura.status) && !fiscal && <button type="button" onClick={() => void loadFiscal()} className="btn-outline px-3 py-2 text-[11px]">Consultar NFS-e</button>}
+        {!acaoRevisao && fatura.status === 'revisao_pagamento' && fatura.valorRecebidoDivergenteCents !== undefined && <button type="button" onClick={() => setAcaoRevisao('aceitar_recebido')} disabled={Boolean(working)} className="btn-accent px-3 py-2 text-[11px] disabled:opacity-50">{ACOES_REVISAO.aceitar_recebido.rotulo}</button>}
+        {!acaoRevisao && fatura.status === 'revisao_estorno' && (['refaturar', 'encerrar'] as const).map((acao) => <button key={acao} type="button" onClick={() => setAcaoRevisao(acao)} disabled={Boolean(working)} className="btn-outline px-3 py-2 text-[11px] disabled:opacity-50">{ACOES_REVISAO[acao].rotulo}</button>)}
         {fatura.status === 'paga' && fiscal?.emission.status !== 'issued' && <button type="button" onClick={() => void (fiscal ? nfse() : loadFiscal())} disabled={Boolean(working) || Boolean(fiscal?.preview.tomadorExigeConferencia && !tomadorConferido)} className="btn-accent px-3 py-2 text-[11px] disabled:opacity-50">{working === 'nfse' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileCheck2 className="h-3.5 w-3.5" />} {fiscal ? 'Emitir NFS-e PJ' : 'Preparar NFS-e'}</button>}
         {fiscal?.emission.status === 'issued' && <><a href={`/api/application${base}/nfse/pdf`} target="_blank" className="btn-outline px-3 py-2 text-[11px]">DANFSe</a><a href={`/api/application${base}/nfse/xml`} className="btn-outline px-3 py-2 text-[11px]">XML</a><button type="button" onClick={() => setCancelling(true)} className="rounded-xl border border-rose-200 px-3 py-2 text-[11px] font-black text-rose-700">Cancelar NFS-e</button></>}
         
-        {fatura.status !== 'paga' && fatura.status !== 'revisao_estorno' && fatura.status !== 'revisao_pagamento' && !confirmingCancelFatura && (
+        {(fatura.status === 'aberta' || fatura.status === 'boleto_gerado') && !confirmingCancelFatura && (
           <button
             type="button"
             onClick={() => setConfirmingCancelFatura(true)}

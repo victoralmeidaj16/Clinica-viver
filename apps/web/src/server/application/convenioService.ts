@@ -5,8 +5,9 @@ import { ApplicationError } from './http';
 import { exigirAdminFiscal } from './clinicFinanceService';
 import {
   atualizarConvenio, cancelarFatura, criarConvenio, fecharFatura, listarConvenios, listarFaturas,
-  obterConvenio, obterFatura, pacientesDoConvenio, registrarBoleto, sessoesDoConvenio,
-  vincularPacienteConvenio,
+  obterConvenio, obterFatura, pacientesComTransferenciaPendente, pacientesDoConvenio, registrarBoleto,
+  resolverRevisaoFatura, sessoesDoConvenio, vincularPacienteConvenio,
+  type AcaoRevisaoFatura,
 } from '@/server/persistence/mysql/convenioRepository';
 import {
   createAsaasPayment, deleteAsaasPayment, findAsaasPaymentByExternalReference, getAsaasBoletoIdentificationField,
@@ -19,7 +20,7 @@ import { getMysqlPool } from '@/server/oci/runtime';
 import { instituicaoId } from '@/server/persistence/mysql/mappers';
 
 function admin(context: RequestContext) {
-  exigirAdminFiscal(context);
+  exigirAdminFiscal(context, 'A gestão de convênios é exclusiva do perfil administrador.');
   return context.actor.organizationId;
 }
 
@@ -135,13 +136,26 @@ export async function updateConvenio(context: RequestContext, id: string, body: 
   if (!updated) throw new ApplicationError('NOT_FOUND', 'Convênio não encontrado.', 404);
   // O formulário sempre reenvia o acordo inteiro: corrigir um e-mail não pode
   // cancelar a cobrança de uma sessão que a gestão decidiu deixar com o paciente.
+  const alvos = new Set<string>();
   if (anterior && coberturaDoConvenioAmpliou(anterior, updated)) {
     const pacientes = await pacientesDoConvenio(organizationId, id);
-    for (const paciente of pacientes) {
-      if (paciente.custeadoPelaEmpresa) await transferirCobrancasParaEmpresa(organizationId, paciente.id);
-    }
+    for (const paciente of pacientes) if (paciente.custeadoPelaEmpresa) alvos.add(paciente.id);
   }
-  return updated;
+  // Uma transferência que falhou deixa a sessão marcada. Sem retomá-la aqui,
+  // salvar de novo não a refazia: a cobertura já não "ampliou" na segunda vez.
+  for (const pacienteId of await pacientesComTransferenciaPendente(organizationId, id)) alvos.add(pacienteId);
+  let cobrancasPendentes = 0;
+  for (const pacienteId of alvos) {
+    cobrancasPendentes += (await transferirCobrancasParaEmpresa(organizationId, pacienteId)).pendentes ?? 0;
+  }
+  return { ...updated, cobrancasPendentes };
+}
+
+/** `2026-02-31` tem formato de data e não é data: o MySQL devolveria NULL e a tela diria "nenhum atendimento". */
+function dataReal(valor: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(valor)) return false;
+  const data = new Date(`${valor}T12:00:00Z`);
+  return !Number.isNaN(data.getTime()) && data.toISOString().slice(0, 10) === valor;
 }
 
 function periodo(body: Record<string, unknown>) {
@@ -152,8 +166,14 @@ function periodo(body: Record<string, unknown>) {
     ? body.cobrancaRefs.map(String).filter(Boolean)
     : undefined;
 
-  if (!/^\d{4}-\d{2}$/.test(competencia) || !/^\d{4}-\d{2}-\d{2}$/.test(periodoInicio) || !/^\d{4}-\d{2}-\d{2}$/.test(periodoFim) || periodoFim < periodoInicio) {
-    throw new ApplicationError('INVALID_INPUT', 'Informe competência e período válidos.', 400);
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(competencia)) {
+    throw new ApplicationError('INVALID_INPUT', 'Informe uma competência válida (ano e mês).', 400);
+  }
+  if (!dataReal(periodoInicio) || !dataReal(periodoFim)) {
+    throw new ApplicationError('INVALID_INPUT', 'Uma das datas do período não existe no calendário. Confira o dia e o mês.', 400);
+  }
+  if (periodoFim < periodoInicio) {
+    throw new ApplicationError('INVALID_INPUT', 'O fim do período não pode ser anterior ao início.', 400);
   }
   return { competencia, periodoInicio, periodoFim, cobrancaRefs };
 }
@@ -164,14 +184,22 @@ export async function closeConvenioInvoice(context: RequestContext, convenioId: 
   return fecharFatura(organizationId, convenioId, periodo(body));
 }
 
+/**
+ * Prazo mínimo entre a emissão e o vencimento no dia fixo. Sem ele, um boleto
+ * gerado no dia 27 para o dia 28 vencia no dia seguinte, antes de a empresa
+ * conseguir encaminhá-lo ao financeiro.
+ */
+const ANTECEDENCIA_MINIMA_DIAS = 5;
+
 function dueDate(day: number | undefined): string {
   const now = new Date();
   const local = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
   const [year, month, today] = local.split('-').map(Number);
   if (day === undefined) return new Date(Date.UTC(year, month - 1, today + 7, 12)).toISOString().slice(0, 10);
-  const selectedDay = day;
-  let due = new Date(Date.UTC(year, month - 1, selectedDay, 12));
-  if (selectedDay <= today) due = new Date(Date.UTC(year, month, selectedDay, 12));
+  const minimo = Date.UTC(year, month - 1, today + ANTECEDENCIA_MINIMA_DIAS, 12);
+  let due = new Date(Date.UTC(year, month - 1, day, 12));
+  // O dia fixo vai até 28, então somar meses nunca transborda para o mês seguinte.
+  for (let meses = 1; due.getTime() < minimo; meses += 1) due = new Date(Date.UTC(year, month - 1 + meses, day, 12));
   return due.toISOString().slice(0, 10);
 }
 
@@ -189,7 +217,7 @@ export async function createConvenioBoleto(context: RequestContext, convenioId: 
   ]);
   if (!convenio || !fatura) throw new ApplicationError('NOT_FOUND', 'Convênio ou fatura não encontrado.', 404);
   if (!convenio.cnpj) throw new ApplicationError('CNPJ_REQUIRED', 'Cadastre o CNPJ real da empresa antes de gerar o boleto.', 422);
-  if (['paga', 'revisao_estorno', 'revisao_pagamento'].includes(fatura.status)) throw new ApplicationError('INVALID_INVOICE_STATE', 'Esta fatura está paga ou em revisão.', 409);
+  if (['paga', 'cancelada', 'revisao_estorno', 'revisao_pagamento'].includes(fatura.status)) throw new ApplicationError('INVALID_INVOICE_STATE', 'Esta fatura está paga, encerrada ou em revisão.', 409);
   if (fatura.providerId) { await connection.commit(); return fatura; }
 
   const externalReference = `VMPJ-${fatura.id}`;
@@ -287,7 +315,7 @@ export async function cancelConvenioInvoice(context: RequestContext, convenioId:
     obterFatura(organizationId, convenioId, faturaId, connection),
   ]);
   if (!convenio || !fatura) throw new ApplicationError('NOT_FOUND', 'Convênio ou fatura não encontrado.', 404);
-  if (['paga', 'revisao_estorno', 'revisao_pagamento'].includes(fatura.status)) throw new ApplicationError('INVALID_INVOICE_STATE', 'Esta fatura está paga ou em revisão e não pode ser cancelada.', 409);
+  if (['paga', 'cancelada', 'revisao_estorno', 'revisao_pagamento'].includes(fatura.status)) throw new ApplicationError('INVALID_INVOICE_STATE', 'Esta fatura está paga, encerrada ou em revisão e não pode ser cancelada.', 409);
 
   // O cancelamento local só pode acontecer depois que o provedor confirmar a
   // remoção: o adaptador já trata 404 como sucesso, então qualquer erro aqui é
@@ -319,4 +347,22 @@ export async function cancelConvenioInvoice(context: RequestContext, convenioId:
   return { cancelled: true, id: faturaId };
   } catch (error) { await connection.rollback(); throw error; }
   finally { connection.release(); }
+}
+
+const ACOES_REVISAO: readonly AcaoRevisaoFatura[] = ['aceitar_recebido', 'encerrar', 'refaturar'];
+
+/**
+ * Saída da revisão de uma fatura.
+ *
+ * O webhook põe a fatura em revisão quando o valor pago diverge ou quando chega
+ * um estorno, e para aí de propósito: quem decide o que aquilo significa é a
+ * gestão. Sem esta ação a decisão não tinha onde ser registrada, e a fatura
+ * ficava presa — com as sessões junto — até alguém corrigir o banco à mão.
+ */
+export async function resolveConvenioInvoiceReview(context: RequestContext, convenioId: string, faturaId: string, body: Record<string, unknown>) {
+  const organizationId = admin(context);
+  const acao = String(body.acao ?? '') as AcaoRevisaoFatura;
+  if (!ACOES_REVISAO.includes(acao)) throw new ApplicationError('INVALID_INPUT', 'Escolha como encerrar a revisão desta fatura.', 400);
+  if (body.confirmar !== true) throw new ApplicationError('CONFIRMATION_REQUIRED', 'Confirme a decisão antes de encerrar a revisão.', 400);
+  return resolverRevisaoFatura(organizationId, convenioId, faturaId, acao);
 }

@@ -18,6 +18,22 @@ describe('ManualAppointmentDialog', () => {
     expect(markup).not.toContain('type="number"');
   });
 
+  it('oferece só os serviços homologados e já abre num deles', () => {
+    const markup = renderToStaticMarkup(
+      <ManualAppointmentDialog
+        patients={[{ id: 'pac-1', displayName: 'Paciente', status: 'active' }]}
+        servicosHabilitados={['AVALIACAO']}
+        initialPatientId="pac-1"
+        onClose={() => undefined}
+      />
+    );
+
+    expect(markup).toContain('Avaliação Psicológica e Neuropsicológica');
+    expect(markup).not.toContain('Psicoterapia Individual');
+    expect(markup).not.toContain('Psicoterapia de Casal');
+    expect(markup).not.toContain('Orientação Parental');
+  });
+
   describe('vencimento da cobrança', () => {
     const abrir = (paciente: Partial<ManualAppointmentPatient>) => renderToStaticMarkup(
       <ManualAppointmentDialog

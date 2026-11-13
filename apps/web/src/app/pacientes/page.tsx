@@ -13,6 +13,7 @@ export default function PacientesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [agendaToken, setAgendaToken] = useState<string>();
+  const [servicosHabilitados, setServicosHabilitados] = useState<readonly string[]>();
   const [canRegisterDropout, setCanRegisterDropout] = useState(false);
 
   // Cadeia de promessa em vez de `await` no corpo: todo `setState` acontece
@@ -34,8 +35,13 @@ export default function PacientesPage() {
 
   useEffect(() => {
     void load();
-    applicationRequest<{ agendaToken: string }>('/agenda')
-      .then((res) => setAgendaToken(res.agendaToken))
+    // A mesma resposta da Agenda: sem os serviços homologados, o agendamento
+    // pelo card do paciente oferecia todos e abria em Psicoterapia.
+    applicationRequest<{ agendaToken: string; servicosHabilitados?: string[] }>('/agenda')
+      .then((res) => {
+        setAgendaToken(res.agendaToken);
+        setServicosHabilitados(res.servicosHabilitados);
+      })
       .catch(() => {});
     fetch('/api/auth/me', { cache: 'no-store' })
       .then((response) => response.json())
@@ -77,6 +83,7 @@ export default function PacientesPage() {
         <PatientList
           patients={patients}
           agendaToken={agendaToken}
+          servicosHabilitados={servicosHabilitados}
           onOpenNewPatientModal={() => setIsModalOpen(true)}
           onPatientUpdated={load}
           canRegisterDropout={canRegisterDropout}

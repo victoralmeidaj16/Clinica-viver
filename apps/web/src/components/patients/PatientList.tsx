@@ -14,6 +14,8 @@ import { FOCO_SECAO } from '@/lib/focoNotificacao';
 interface PatientListProps {
   patients: readonly PatientDirectoryEntry[];
   agendaToken?: string;
+  /** Serviços homologados do psicólogo; restringem o agendamento pelo card. */
+  servicosHabilitados?: readonly string[];
   onOpenNewPatientModal: () => void;
   onPatientUpdated?: () => void;
   canRegisterDropout?: boolean;
@@ -22,6 +24,7 @@ interface PatientListProps {
 export default function PatientList({
   patients,
   agendaToken,
+  servicosHabilitados,
   onOpenNewPatientModal,
   onPatientUpdated,
   canRegisterDropout = false,
@@ -115,6 +118,7 @@ export default function PatientList({
       {patientForSchedule && (
         <ManualAppointmentDialog
           patients={patients}
+          servicosHabilitados={servicosHabilitados}
           initialPatientId={patientForSchedule.id}
           onClose={() => setPatientForSchedule(null)}
           onScheduled={() => onPatientUpdated?.()}

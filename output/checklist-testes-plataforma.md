@@ -22,13 +22,13 @@ Este checklist junta três registros: a rodada de 28/10 ([testes-plataforma-2026
 
 | Área | ✅ | ❌ | 🔁 | ⏳ | 📝 |
 | --- | --- | --- | --- | --- | --- |
-| Painel do psicólogo | 12 | 5 | 1 | 2 | 0 |
+| Painel do psicólogo | 13 | 5 | 0 | 2 | 0 |
 | Painel da gestão | 9 | 1 | 1 | 2 | 0 |
 | Site e cadastros públicos | 8 | 2 | 0 | 0 | 0 |
 | Fluxos e WhatsApp | 0 | 1 | 0 | 2 | 3 |
 | Contrato | 0 | 0 | 0 | 0 | 1 |
-| Testes automatizados e infraestrutura | 6 | 0 | 0 | 1 | 0 |
-| **Total** | **35** | **9** | **2** | **7** | **4** |
+| Testes automatizados e infraestrutura | 7 | 0 | 0 | 0 | 0 |
+| **Total** | **37** | **9** | **1** | **6** | **4** |
 
 ---
 
@@ -65,7 +65,7 @@ Este checklist junta três registros: a rodada de 28/10 ([testes-plataforma-2026
 | PSI-14 | Disponibilidade: grade e resumo carregam; bloqueio sem datas é impedido | 28/10 | ✅ OK | |
 | PSI-15 | Psicólogo registra falta na sessão e decide se cobra ou não | Equipe | ✅ OK | 13/11: "Registrar falta" pergunta "Esta sessão será cobrada do paciente?" e oferece "Cobrar a sessão" e "Não cobrar". O diálogo foi aberto, mas não confirmado. |
 | PSI-16 | Reagendamento pela interface | 28/10 | ⏳ Pendente | Existe uma sessão de teste (03/11). Para testar é preciso salvar, e isso pode disparar WhatsApp. |
-| PSI-19 | Sessão de paciente conveniado mostra ao mesmo tempo "Custeado por Alvet, sem cobrança" e "PAGAMENTO: PAGO · PIX" | 13/11 | 🔁 Retestar | **Causa:** a sessão foi marcada pelo link em 29/10 e gerou uma cobrança particular de R$ 75, paga por Pix. Depois o paciente passou a ser do convênio. A regra de custeio usada antes da confirmação ignorava a cobrança individual já existente (a confirmação já a respeitava). Isso também podia incluir a sessão na fatura da empresa. **Correção** em `custeioSql.ts`: cobrança individual ativa decide que o paciente paga. Testes: 1602 de 1602. Na produção só essa sessão de teste muda. **Falta** o deploy na VPS e conferir na tela. |
+| PSI-19 | Sessão de paciente conveniado mostra ao mesmo tempo "Custeado por Alvet, sem cobrança" e "PAGAMENTO: PAGO · PIX" | 13/11 | ✅ Corrigido | **Publicado** em `7149c84` (Vercel e VPS) em 13/11 e conferido na tela: o psicólogo vê só "PAGO · PIX" e a gestão vê "Pago pelo paciente". **Causa:** a sessão foi marcada pelo link em 29/10 e gerou uma cobrança particular de R$ 75, paga por Pix. Depois o paciente passou a ser do convênio. A regra de custeio usada antes da confirmação ignorava a cobrança individual já existente (a confirmação já a respeitava). Isso também podia incluir a sessão na fatura da empresa. **Correção** em `custeioSql.ts`: cobrança individual ativa decide que o paciente paga. Testes: 1602 de 1602. Na produção só essa sessão de teste muda. **Falta** o deploy na VPS e conferir na tela. |
 
 ### Meu financeiro, Relatórios e outros
 
@@ -134,14 +134,13 @@ Este checklist junta três registros: a rodada de 28/10 ([testes-plataforma-2026
 | AUTO-04 | Testes do web: 1637 de 1637 | 11/11 | ✅ OK | |
 | AUTO-05 | Build de produção | 11/11 | ✅ OK | |
 | AUTO-06 | Domínios respondem e rotas protegidas redirecionam para o login | 11/11 | ✅ OK | 13/11: 17 telas abertas nos dois perfis. Só `/relatorios` do psicólogo deu erro (PSI-20). |
-| AUTO-07 | Confirmar o commit publicado na VPS (triagem e WhatsApp dependem de deploy manual) | 11/11 | ⏳ Pendente | |
+| AUTO-07 | Confirmar o commit publicado na VPS (triagem e WhatsApp dependem de deploy manual) | 11/11 | ✅ OK | 13/11: a VPS estava em `72e731c`, o que inclui a triagem `ab7897b` e o WhatsApp `72e731c`. Depois foi atualizada para `7149c84`. |
 
 ---
 
 ## Próximos passos
 
 1. **Corrigir os erros confirmados**, nesta ordem:
-   - PSI-19: corrigido no código, falta o deploy na VPS;
    - SITE-10: decidir qual dos dois cadastros duplicados fica;
    - PSI-18, serviços no agendamento;
    - SITE-03, acessibilidade no agendamento pelo site;

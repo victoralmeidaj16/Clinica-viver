@@ -95,10 +95,29 @@ export function custeioDoAgendamentoSql(alias: {
   paciente: string;
   convenio: string;
 }): string {
-  return `COALESCE(${alias.agendamento}.custeado_pela_empresa, ${custeioEfetivoSql({
+  const a = alias.agendamento;
+  return `COALESCE(${a}.custeado_pela_empresa, CASE WHEN ${cobrancaIndividualAtivaSql(a)} THEN 0 ELSE ${custeioEfetivoSql({
     paciente: alias.paciente,
     convenio: alias.convenio,
-    agendamento: alias.agendamento,
-    referencia: `${alias.agendamento}.inicio`,
-  })})`;
+    agendamento: a,
+    referencia: `${a}.inicio`,
+  })} END)`;
+}
+
+/**
+ * A sessão já tem cobrança individual viva (não cancelada e fora do convênio).
+ *
+ * É a mesma regra da confirmação de realização: a cobrança emitida ao paciente
+ * decide sozinha que ele paga. Sem ela aqui, um paciente vinculado ao convênio
+ * depois de pagar pelo link aparecia como "custeado pela empresa" e "pago"
+ * ao mesmo tempo, e a sessão podia entrar também na fatura da empresa.
+ * Cobranças ainda não pagas são canceladas pela transferência ao convênio e
+ * deixam de contar.
+ */
+function cobrancaIndividualAtivaSql(agendamento: string): string {
+  return `EXISTS (SELECT 1 FROM financeiro_cobrancas ind_fc
+               WHERE ind_fc.instituicao_id = ${agendamento}.instituicao_id
+                 AND ind_fc.sessao_ref = ${agendamento}.ref_core
+                 AND ind_fc.status <> 'cancelled'
+                 AND ind_fc.convenio_ref IS NULL)`;
 }

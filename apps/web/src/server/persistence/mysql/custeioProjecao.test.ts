@@ -33,7 +33,7 @@ describe.skipIf(!sqlite)('projeção da cota por agendamento', () => {
         status TEXT, custeado_pela_empresa INTEGER
       );
       CREATE TABLE financeiro_cobrancas (
-        instituicao_id TEXT, sessao_ref TEXT, status TEXT
+        instituicao_id TEXT, sessao_ref TEXT, status TEXT, convenio_ref TEXT
       );
       INSERT INTO clinica_pacientes VALUES ('p', 'i', 'c', 1, 2, 'total');
       INSERT INTO clinica_convenios VALUES (1, NULL, NULL);
@@ -147,9 +147,34 @@ describe.skipIf(!sqlite)('projeção da cota por agendamento', () => {
   });
 
   it('não reserva cota para cobrança individual ou decisão de paciente pagante', () => {
-    db.exec(`INSERT INTO financeiro_cobrancas VALUES ('i', '1', 'pending');
+    db.exec(`INSERT INTO financeiro_cobrancas (instituicao_id, sessao_ref, status) VALUES ('i', '1', 'pending');
       UPDATE clinica_agendamentos SET custeado_pela_empresa = 0 WHERE id = '2';`);
     expect(custeios().slice(2)).toEqual([1, 1]);
+  });
+
+  describe('cobrança individual já emitida', () => {
+    const semCota = 'UPDATE clinica_pacientes SET custeio_sessoes_cota = NULL, custeio_sessoes_ciclo = NULL';
+
+    it('decide que o paciente paga, mesmo com convênio vinculado depois', () => {
+      db.exec(`${semCota}; INSERT INTO financeiro_cobrancas VALUES ('i', '2', 'paid', NULL)`);
+      expect(custeios()).toEqual([1, 0, 1, 1]);
+    });
+
+    it('cancelada (transferida para a empresa), deixa de decidir', () => {
+      db.exec(`${semCota}; INSERT INTO financeiro_cobrancas VALUES ('i', '2', 'cancelled', NULL)`);
+      expect(custeios()).toEqual([1, 1, 1, 1]);
+    });
+
+    it('cobrança da própria empresa não vira pagamento individual', () => {
+      db.exec(`${semCota}; INSERT INTO financeiro_cobrancas VALUES ('i', '2', 'pending', 'c')`);
+      expect(custeios()).toEqual([1, 1, 1, 1]);
+    });
+
+    it('a decisão gravada na realização continua valendo', () => {
+      db.exec(`${semCota}; INSERT INTO financeiro_cobrancas VALUES ('i', '2', 'paid', NULL);
+        UPDATE clinica_agendamentos SET custeado_pela_empresa = 1 WHERE id = '2'`);
+      expect(custeios()).toEqual([1, 1, 1, 1]);
+    });
   });
 
   it('mantém custeio ilimitado e opção de paciente pagante', () => {

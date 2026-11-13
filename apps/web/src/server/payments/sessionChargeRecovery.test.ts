@@ -78,7 +78,7 @@ it.skipIf(!sqlite)('a consulta real seleciona portal e vencimento passado sem in
     CREATE TABLE clinica_organizacoes (id TEXT, ref_core TEXT);
     CREATE TABLE clinica_pacientes (id TEXT, instituicao_id TEXT, convenio_ref TEXT, custeado_pela_empresa INT, custeio_sessoes_cota INT, custeio_sessoes_ciclo TEXT);
     CREATE TABLE clinica_convenios (instituicao_id TEXT, organizacao_ref TEXT, ref_core TEXT, empresa_paga_sessoes INT, pacote_sessoes INT, pacote_sessoes_ciclo TEXT);
-    CREATE TABLE financeiro_cobrancas (instituicao_id TEXT, organizacao_ref TEXT, sessao_ref TEXT, status TEXT);
+    CREATE TABLE financeiro_cobrancas (instituicao_id TEXT, organizacao_ref TEXT, sessao_ref TEXT, status TEXT, convenio_ref TEXT);
     INSERT INTO clinica_organizacoes VALUES ('org-row', 'org');`);
   db.prepare('INSERT INTO clinica_pacientes (id, instituicao_id) VALUES (?, ?)').run('patient-row', inst);
   for (const [id, due, status] of [['portal', null, 'agendado'], ['expired', '2020-01-01 12:00:00.000', 'confirmado'],
@@ -86,7 +86,7 @@ it.skipIf(!sqlite)('a consulta real seleciona portal e vencimento passado sem in
     db.prepare('INSERT INTO clinica_agendamentos (id, instituicao_id, organizacao_id, paciente_id, ref_core, status, cobranca_vence_em, inicio) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
       .run(id, inst, 'org-row', 'patient-row', id, status, due, '2099-01-01 12:00:00.000');
   }
-  db.prepare("INSERT INTO financeiro_cobrancas VALUES (?, 'org', 'existing', 'pending')").run(inst);
+  db.prepare("INSERT INTO financeiro_cobrancas (instituicao_id, organizacao_ref, sessao_ref, status) VALUES (?, 'org', 'existing', 'pending')").run(inst);
   mocks.query.mockImplementation(async (sql, params) => [db.prepare(sql).all(...params), []]);
   mocks.guarantee.mockResolvedValue('created');
   try {

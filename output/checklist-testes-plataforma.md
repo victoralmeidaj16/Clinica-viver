@@ -22,13 +22,13 @@ Este checklist junta três registros: a rodada de 28/10 ([testes-plataforma-2026
 
 | Área | ✅ | ❌ | 🔁 | ⏳ | 📝 |
 | --- | --- | --- | --- | --- | --- |
-| Painel do psicólogo | 13 | 5 | 0 | 2 | 0 |
+| Painel do psicólogo | 14 | 4 | 0 | 2 | 0 |
 | Painel da gestão | 9 | 1 | 1 | 2 | 0 |
 | Site e cadastros públicos | 8 | 2 | 0 | 0 | 0 |
 | Fluxos e WhatsApp | 0 | 1 | 0 | 2 | 3 |
 | Contrato | 0 | 0 | 0 | 0 | 1 |
 | Testes automatizados e infraestrutura | 7 | 0 | 0 | 0 | 0 |
-| **Total** | **37** | **9** | **1** | **6** | **4** |
+| **Total** | **38** | **8** | **1** | **6** | **4** |
 
 ---
 
@@ -38,7 +38,7 @@ Este checklist junta três registros: a rodada de 28/10 ([testes-plataforma-2026
 
 | ID | Item | Origem | Status | Observação / próximo passo |
 | --- | --- | --- | --- | --- |
-| PSI-01 | Psicólogo recebe notificação quando a gestão aceita a alteração do perfil | Equipe | ❌ Erro | O commit `6633e15` avisa a **gestão** sobre a solicitação. Nada indica que o psicólogo passou a ser avisado do aceite. |
+| PSI-01 | Psicólogo recebe notificação quando a gestão aceita a alteração do perfil | Equipe | ✅ OK | 13/11: já estava corrigido no commit `69d3beb` (04/11), em `notificacoesDaSolicitacaoDePerfil`. O sino do psicólogo de teste mostra "Alteração de perfil aprovada". A recusa também avisa, com o motivo. O aviso fica só na plataforma, sem e-mail nem WhatsApp. |
 | PSI-02 | Na edição do perfil aparecem as durações de 50 min e 1h30 | Equipe | ✅ OK | 13/11: a edição do perfil não mostra nenhuma opção de duração. Conferido com um psicólogo com pós em Avaliação. |
 | PSI-03 | Troca de pós-graduação exige novas escolhas e gera aviso à gestão | 11/11 | ⏳ Pendente | Para testar é preciso salvar uma troca de pós. |
 
@@ -54,7 +54,7 @@ Este checklist junta três registros: a rodada de 28/10 ([testes-plataforma-2026
 | PSI-09 | Agendamento manual de paciente **conveniado** mostra data de vencimento, mas quem paga é a empresa | Equipe | ✅ OK | 13/11: não aparece vencimento. A tela mostra "Custeado por Alvet Hospital Veterinário, sem cobrança ao paciente". |
 | PSI-10 | Paciente encaminhado para outro psicólogo: o novo psicólogo recebe "primeiro contato há 15 dias", dado que pertence ao psicólogo anterior | Equipe | ❌ Erro | A contagem deve reiniciar no encaminhamento. |
 | PSI-11 | Psicólogo não consegue registrar no prontuário | Equipe | ✅ OK | 13/11: registro salvo no Paciente Teste (HTTP 201) e exibido no histórico. O título é "TESTE PLATAFORMA 13/11 (PSI-11), pode apagar". |
-| PSI-18 | No "Agendar" do paciente aparecem os 5 serviços (inclusive Psicoterapia de Casal), mas o psicólogo só tem Avaliação Psicológica homologada | 13/11 | ❌ Erro | Encontrado em 13/11. O cadastro de paciente já restringe. O agendamento precisa da mesma restrição. |
+| PSI-18 | No "Agendar" do paciente aparecem os 5 serviços (inclusive Psicoterapia de Casal), mas o psicólogo só tem Avaliação Psicológica homologada | 13/11 | ❌ Erro | Encontrado em 13/11. Só acontece pelo **Agendar de Meus Pacientes**: `PatientList.tsx` não envia `servicosHabilitados` ao modal, que sem a lista mostra todos e já abre com Psicoterapia Individual selecionada. Pela Agenda a lista vem certa. O servidor recusa o serviço não homologado (`appointmentService.ts:63`), então não grava dado errado: é erro de tela, prioridade média. Correção: enviar a lista também em Meus Pacientes. |
 
 ### Agenda e horários
 

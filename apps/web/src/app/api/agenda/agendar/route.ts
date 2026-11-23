@@ -71,7 +71,8 @@ export async function POST(request: Request) {
     let pagamentoIndisponivel = false;
     for (const agendamento of resultado.agendamentos) {
       try {
-        await garantirCobrancaDaSessao(agendamento.agendamentoId);
+        const cobranca = await garantirCobrancaDaSessao(agendamento.agendamentoId);
+        if (cobranca === 'failed') pagamentoIndisponivel = true;
       } catch {
         // A reserva já foi gravada; uma falha financeira não pode desfazê-la.
         pagamentoIndisponivel = true;

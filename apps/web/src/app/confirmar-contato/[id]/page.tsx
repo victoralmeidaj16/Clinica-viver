@@ -69,7 +69,7 @@ export default function ConfirmarContatoPage() {
         {estado === 'DECISAO' && <>
           <HeartHandshake className="mx-auto h-12 w-12 text-purple-700" />
           <h1 className="text-xl font-black text-slate-900">Deseja atender este paciente?</h1>
-          <p className="text-sm leading-relaxed text-slate-600">Registre sua decisão para que a clínica dê continuidade ao encaminhamento.</p>
+          <p className="text-sm leading-relaxed text-slate-600">Registre sua decisão para que a clínica dê continuidade ao encaminhamento. Ao aceitar, o paciente passa a ocupar uma vaga sua e recebe da clínica as orientações sobre os próximos passos.</p>
           <div className="flex flex-col gap-3 pt-2">
             <button type="button" onClick={() => void executar('decisao')} className="w-full rounded-xl bg-purple-700 px-4 py-3 text-sm font-extrabold text-white transition-colors hover:bg-purple-800">QUERO O PACIENTE</button>
             <button type="button" onClick={() => void executar('encaminhar')} className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 py-3 text-sm font-extrabold text-slate-700 transition-colors hover:bg-slate-50"><ArrowRightLeft className="h-4 w-4" /> ENCAMINHAR PARA COLEGA</button>
@@ -79,7 +79,7 @@ export default function ConfirmarContatoPage() {
         {estado === 'PERGUNTA_CONTATO' && <>
           <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-600" />
           <h1 className="text-xl font-black text-slate-900">Você já chamou este paciente?</h1>
-          <p className="text-sm leading-relaxed text-slate-600">O paciente já está vinculado a você como responsável.</p>
+          <p className="text-sm leading-relaxed text-slate-600">O paciente já está vinculado a você como responsável e recebe da clínica as orientações sobre os próximos passos. Agora é com você: entre em contato para combinar o primeiro horário.</p>
           <div className="grid grid-cols-2 gap-3 pt-2">
             <button type="button" onClick={() => void executar('confirmar')} className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-extrabold text-white hover:bg-emerald-700">SIM</button>
             <button type="button" onClick={() => setEstado('AVISO_24H')} className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-extrabold text-slate-700 hover:bg-slate-50">NÃO</button>
@@ -89,7 +89,7 @@ export default function ConfirmarContatoPage() {
         {estado === 'AVISO_24H' && <>
           <Clock3 className="mx-auto h-12 w-12 text-amber-500" />
           <h1 className="text-xl font-black text-slate-900">Entre em contato em até 24 horas</h1>
-          <p className="text-sm leading-relaxed text-slate-600">O prazo continua contando desde o encaminhamento original. Assim que falar com o paciente, abra este mesmo link novamente e marque <strong>SIM</strong>.</p>
+          <p className="text-sm leading-relaxed text-slate-600">O paciente é informado de que você entrará em contato em até 24 horas. Em <strong>Meus Pacientes</strong>, use <strong>Enviar Agenda</strong> para ele escolher o horário ou <strong>Agendar</strong> para marcar diretamente. Quando falar com o paciente, abra este mesmo link e marque <strong>SIM</strong>.</p>
         </>}
 
         {estado === 'CONFIRMADO' && <>

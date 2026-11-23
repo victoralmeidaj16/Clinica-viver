@@ -80,7 +80,7 @@ const PASSOS_AGENDAMENTO: PassoJornada[] = [
     titulo: 'Serviço',
     resumo: 'Escolha a modalidade',
     detalhes: [
-      'Selecione entre Psicoterapia Individual, Psicoterapia de Casal, Avaliação Psicológica e Neuropsicológica, Orientação Profissional/Vocacional ou Orientação Parental.',
+      'Selecione entre Psicoterapia Individual, Psicoterapia de Casal, Avaliação Psicológica e Neuropsicológica, Orientação Vocacional, Orientação Profissional ou Orientação Parental.',
       'Depois escolha entre o agendamento Acessível/Social ou Particular — os valores de cada serviço aparecem logo abaixo.',
     ],
   },
@@ -321,9 +321,19 @@ export default function ViverMaisLandingPage() {
         { tipo: 'PARTICULAR', label: 'Agendamento Particular', preco: attendancePriceLabel('AVALIACAO', 'PARTICULAR') }
       ]
     },
+    ORIENTACAO_VOCACIONAL: {
+      titulo: 'Orientação Vocacional',
+      descricao: 'Apoia a escolha de uma profissão ou de um curso, considerando interesses, habilidades e valores de quem está decidindo o próprio caminho.',
+      duracao: '50min',
+      imagem: '/orientacao_profissional.jpg',
+      opcoes: [
+        { tipo: 'SOCIAL', label: 'Agendamento Acessível/Social', preco: attendancePriceLabel('ORIENTACAO_VOCACIONAL', 'SOCIAL') },
+        { tipo: 'PARTICULAR', label: 'Agendamento Particular', preco: attendancePriceLabel('ORIENTACAO_VOCACIONAL', 'PARTICULAR') }
+      ]
+    },
     ORIENTACAO_PROFISSIONAL: {
-      titulo: 'Orientação Profissional/Vocacional',
-      descricao: 'Auxilia na escolha ou replanejamento da carreira, considerando interesses, habilidades e objetivos profissionais.',
+      titulo: 'Orientação Profissional',
+      descricao: 'Auxilia no replanejamento ou na transição de carreira, considerando experiências, habilidades e objetivos profissionais.',
       duracao: '50min',
       imagem: '/orientacao_profissional.jpg',
       opcoes: [
@@ -514,15 +524,6 @@ export default function ViverMaisLandingPage() {
         setRecebimento({ protocolo: data.protocolo, whatsappEnviado: data.whatsappRecebimento === 'enviada' });
         setStep('SUCESSO');
       } else {
-        if (resp.status === 409) {
-          setPsicologoEscolhido(null);
-          setStep('PROFISSIONAIS');
-          // Mantém os dados preenchidos e atualiza a disponibilidade antes da nova escolha.
-          setPsicologosCredenciados([]);
-          const atualizacao = await fetch('/api/application/credenciamento-psicologo/public', { cache: 'no-store' });
-          const catalogo = await atualizacao.json();
-          if (catalogo.success && Array.isArray(catalogo.data)) setPsicologosCredenciados(catalogo.data);
-        }
         alert(data.error || 'Erro ao enviar solicitação. Tente novamente.');
       }
     } catch (err) {

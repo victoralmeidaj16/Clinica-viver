@@ -1,6 +1,6 @@
 import { createAppointmentEvent, evolveAppointment, type AppointmentCommandMetadata } from './eventFactory';
 import type { Appointment, AppointmentReminder, AppointmentTransitionResult } from './types';
-import { requireSchedulingIsoDate, requireSchedulingText, validateTimeRange } from './validation';
+import { isValidAppointmentDuration, requireSchedulingIsoDate, requireSchedulingText, validateTimeRange } from './validation';
 
 export interface ScheduleAppointmentInput {
   id: string;
@@ -78,6 +78,9 @@ export function rescheduleAppointment(
   const nextStart = requireSchedulingIsoDate(startsAt, 'startsAt');
   const nextEnd = requireSchedulingIsoDate(endsAt, 'endsAt');
   validateTimeRange(nextStart, nextEnd, 'agendamento');
+  if (appointment.serviceKey === 'AVALIACAO' && !isValidAppointmentDuration((Date.parse(nextEnd) - Date.parse(nextStart)) / 60_000)) {
+    throw new Error('A duração da avaliação deve ser um número inteiro entre 15 e 240 minutos.');
+  }
   const next = evolveAppointment(appointment, { startsAt: nextStart, endsAt: nextEnd, status: 'scheduled' }, metadata.occurredAt);
   return { appointment: next, events: [createAppointmentEvent(next, 'appointment.rescheduled', metadata)] };
 }

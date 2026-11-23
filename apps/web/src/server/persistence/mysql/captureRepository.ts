@@ -82,6 +82,7 @@ interface TriagemRow extends RowDataPacket {
   transbordos: number;
   psicologos_ja_tentados: unknown;
   tipo_alocacao?: string | null;
+  projeto_acolhe?: number | null;
   criado_em: string;
 }
 
@@ -247,6 +248,7 @@ function toLead(row: TriagemRow): TriagemPacienteRecord {
     transbordos: row.transbordos,
     psicologosJaTentados: asStringArray(row.psicologos_ja_tentados),
     tipoAlocacao: tipoAlocacaoLido(row.tipo_alocacao),
+    ...(row.projeto_acolhe ? { projetoAcolhe: true } : {}),
   };
 }
 
@@ -432,6 +434,18 @@ export class MysqlCaptureRepository {
   private static hasNascimentoAlocacaoColumns = false;
   private static hasAcessibilidadeColumn = false;
   private static hasReconfiguracaoColumn = false;
+  private static hasProjetoAcolheColumn = false;
+
+  /** Só o "sim" fica em cache, como nas demais colunas novas. */
+  private async supportsProjetoAcolheColumn(connection: Pool | PoolConnection): Promise<boolean> {
+    if (MysqlCaptureRepository.hasProjetoAcolheColumn) return true;
+    const [rows] = await connection.query<RowDataPacket[]>(
+      `SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE()
+        AND table_name = 'clinica_triagens_pacientes' AND column_name = 'projeto_acolhe' LIMIT 1`
+    );
+    MysqlCaptureRepository.hasProjetoAcolheColumn = rows.length > 0;
+    return MysqlCaptureRepository.hasProjetoAcolheColumn;
+  }
 
   private async supportsReconfiguracaoColumn(connection: Pool | PoolConnection): Promise<boolean> {
     if (MysqlCaptureRepository.hasReconfiguracaoColumn) return true;
@@ -521,6 +535,7 @@ export class MysqlCaptureRepository {
     const temAceiteTermo = await this.supportsAceiteTermoColumn(connection);
     const temAcessibilidade = await this.supportsAcessibilidadeColumn(connection);
     const temReconfiguracao = await this.supportsReconfiguracaoColumn(connection);
+    const temProjetoAcolhe = await this.supportsProjetoAcolheColumn(connection);
     const campoNomeSocial = temNomeSocial ? 'nome_social' : 'NULL AS nome_social';
     const [leadRows] = await connection.query<TriagemRow[]>(
       `SELECT ref_core, protocolo, nome_paciente, ${campoNomeSocial}, telefone,${temNascimentoAlocacao ? ' data_nascimento,' : ''} idade, email, cpf, cep,
@@ -531,7 +546,7 @@ export class MysqlCaptureRepository {
               necessidades_paciente, necessidades_outro, opcao_avaliacao_psicologica,
               genero, genero_outro, status, psicologo_alocado_id,
               psicologo_nome, paciente_ref, alocado_em, aceito_em, confirmado_em, sla_expirado,
-              transbordos, psicologos_ja_tentados,${temNascimentoAlocacao ? ' tipo_alocacao,' : ''} criado_em
+              transbordos, psicologos_ja_tentados,${temNascimentoAlocacao ? ' tipo_alocacao,' : ''}${temProjetoAcolhe ? ' projeto_acolhe,' : ''} criado_em
          FROM clinica_triagens_pacientes
         WHERE instituicao_id = ? AND organizacao_ref = ?
         ORDER BY criado_em${lock}`,
@@ -707,7 +722,8 @@ export class MysqlCaptureRepository {
   private static leadEntries(
     lead: TriagemPacienteRecord,
     temNomeSocial: boolean,
-    temNascimentoAlocacao: boolean
+    temNascimentoAlocacao: boolean,
+    temProjetoAcolhe: boolean
   ): Array<[string, string | number | null, boolean]> {
     const entries: Array<[string, string | number | null, boolean]> = [
       ['id', rowId('triagem', lead.id), false],
@@ -758,6 +774,7 @@ export class MysqlCaptureRepository {
       ['psicologos_ja_tentados', asJson(lead.psicologosJaTentados), true]
     );
     if (temNascimentoAlocacao) entries.push(['tipo_alocacao', lead.tipoAlocacao ?? null, true]);
+    if (temProjetoAcolhe) entries.push(['projeto_acolhe', lead.projetoAcolhe ? 1 : 0, true]);
     entries.push(['criado_em', toSqlTimestamp(lead.criadoEm), false]);
     return entries;
   }
@@ -865,16 +882,22 @@ export class MysqlCaptureRepository {
 
     const temNomeSocial = await this.supportsNomeSocialColumn(connection);
     const temNascimentoAlocacao = await this.supportsNascimentoAlocacaoColumns(connection);
+    const temProjetoAcolhe = await this.supportsProjetoAcolheColumn(connection);
+    // Sem a coluna, o paciente do Acolhe seria relido como vaga comum e tiraria
+    // o profissional do rodízio. Melhor recusar o cadastro com a causa.
+    if (!temProjetoAcolhe && state.triagensPacientes.some((lead) => lead.projetoAcolhe)) {
+      throw new Error('O Projeto Acolhe requer a migration 083_triagem_projeto_acolhe.sql.');
+    }
     const prevLeads = previous
       ? new Map(previous.triagensPacientes.map((item) => [item.id, item]))
       : null;
     for (const lead of state.triagensPacientes) {
-      const entries = MysqlCaptureRepository.leadEntries(lead, temNomeSocial, temNascimentoAlocacao);
+      const entries = MysqlCaptureRepository.leadEntries(lead, temNomeSocial, temNascimentoAlocacao, temProjetoAcolhe);
       const before = prevLeads?.get(lead.id);
       if (
         before &&
         JSON.stringify(entries) ===
-          JSON.stringify(MysqlCaptureRepository.leadEntries(before, temNomeSocial, temNascimentoAlocacao))
+          JSON.stringify(MysqlCaptureRepository.leadEntries(before, temNomeSocial, temNascimentoAlocacao, temProjetoAcolhe))
       ) {
         continue;
       }

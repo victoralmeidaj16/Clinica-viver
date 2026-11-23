@@ -247,12 +247,14 @@ describe('reconcileConvenioInvoiceRefund', () => {
 describe('alteração do vínculo de convênio', () => {
   it('guarda o pagador das cobranças antigas antes de remover o vínculo', async () => {
     vi.clearAllMocks();
-    connection.query.mockResolvedValueOnce([[{ id: 'patient-1' }], []] as never).mockResolvedValueOnce([[], []]);
+    connection.query.mockResolvedValueOnce([[{ id: 'patient-1', convenio_ref: 'anterior' }], []] as never).mockResolvedValueOnce([[], []]);
     connection.execute.mockResolvedValue([{ affectedRows: 1 }, []] as never);
     await vincularPacienteConvenio('org-1', 'patient-1', null, null);
     const calls = connection.execute.mock.calls as unknown as Array<[string, unknown[]]>;
     expect(calls[0][0]).toContain('SET c.convenio_ref = p.convenio_ref');
-    expect(calls[1][0]).toContain('SET p.convenio_ref = ?');
+    expect(calls[1][0]).toContain('custeio_convenio_ref = NULL');
+    expect(calls[1][0]).toContain("status IN ('agendado', 'confirmado')");
+    expect(calls[2][0]).toContain('SET p.convenio_ref = ?');
     expect(connection.commit).toHaveBeenCalled();
   });
 });

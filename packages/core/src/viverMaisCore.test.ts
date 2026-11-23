@@ -4,6 +4,7 @@ import {
   PsicologoPerfil,
   processarTriagemLead,
   selecionarPsicologoRoundRobin,
+  ordenarPsicologosRoundRobin,
   checarEExecutarTransbordoSla,
   calcularSplit7030,
   gerarLinkCobrancaAsaas,
@@ -214,6 +215,49 @@ describe('Domínio Clínica Viver Mais Psicologia (Core Engine & Regras Giuliana
         .toBe('psi-estreante');
       expect(selecionarPsicologoRoundRobin([estreante, veterano], 'TARDE', 'ACESSIVEL_SOCIAL')?.id)
         .toBe('psi-estreante');
+    });
+
+    describe('ordem do rodízio (especificação 5.01)', () => {
+      it('prioriza quem tem menos pacientes ativos antes do tempo sem receber', () => {
+        const comUm = perfilBase({ id: 'psi-um', pacientesAtivosCount: 1, ultimoLeadRecebidoEm: '2026-01-01T10:00:00.000Z' });
+        const semNenhum = perfilBase({ id: 'psi-zero', pacientesAtivosCount: 0, ultimoLeadRecebidoEm: '2026-08-01T10:00:00.000Z' });
+        const comDois = perfilBase({ id: 'psi-dois', pacientesAtivosCount: 2, ultimoLeadRecebidoEm: undefined });
+
+        expect(selecionarPsicologoRoundRobin([comDois, comUm, semNenhum], 'TARDE', 'ACESSIVEL_SOCIAL')?.id)
+          .toBe('psi-zero');
+        expect(ordenarPsicologosRoundRobin([comDois, comUm, semNenhum]).map((p) => p.id))
+          .toEqual(['psi-zero', 'psi-um', 'psi-dois']);
+      });
+
+      it('no empate de ativos, escolhe quem está há mais tempo sem receber', () => {
+        const recente = perfilBase({ id: 'psi-recente', pacientesAtivosCount: 1, ultimoLeadRecebidoEm: '2026-08-01T10:00:00.000Z' });
+        const antigo = perfilBase({ id: 'psi-antigo', pacientesAtivosCount: 1, ultimoLeadRecebidoEm: '2026-07-01T10:00:00.000Z' });
+
+        expect(selecionarPsicologoRoundRobin([recente, antigo], 'TARDE', 'ACESSIVEL_SOCIAL')?.id)
+          .toBe('psi-antigo');
+      });
+
+      it('sorteia somente entre os empatados em todos os critérios', () => {
+        const data = '2026-07-01T10:00:00.000Z';
+        const a = perfilBase({ id: 'psi-a', pacientesAtivosCount: 1, ultimoLeadRecebidoEm: data });
+        const b = perfilBase({ id: 'psi-b', pacientesAtivosCount: 1, ultimoLeadRecebidoEm: data });
+        const fora = perfilBase({ id: 'psi-fora', pacientesAtivosCount: 2, ultimoLeadRecebidoEm: undefined });
+        const sorteios: number[] = [];
+        const sortear = (quantidade: number) => { sorteios.push(quantidade); return quantidade - 1; };
+
+        expect(selecionarPsicologoRoundRobin([a, b, fora], 'TARDE', 'ACESSIVEL_SOCIAL', { sortear })?.id)
+          .toBe('psi-b');
+        expect(sorteios).toEqual([2]);
+      });
+
+      it('não sorteia quando só um profissional lidera a ordem', () => {
+        const sortear = () => { throw new Error('não deveria sortear'); };
+        const unico = perfilBase({ id: 'psi-unico', pacientesAtivosCount: 0 });
+        const outro = perfilBase({ id: 'psi-outro', pacientesAtivosCount: 3 });
+
+        expect(selecionarPsicologoRoundRobin([outro, unico], 'TARDE', 'ACESSIVEL_SOCIAL', { sortear })?.id)
+          .toBe('psi-unico');
+      });
     });
 
     /**

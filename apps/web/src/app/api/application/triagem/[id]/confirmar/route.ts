@@ -55,11 +55,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         { status: 409 }
       );
     }
+    if (resultado.kind === 'expired') {
+      return NextResponse.json({ success: false, error: 'O prazo de 24h para responder a esta solicitação terminou. Ela seguiu para outro profissional ou para a coordenação da clínica.' }, { status: 409 });
+    }
     if (resultado.kind === 'capacity_reallocated' || resultado.kind === 'capacity_pending') {
       if (resultado.psicologo) void avisarTransbordo(resultado.lead, resultado.psicologo);
       return NextResponse.json({ success: false, realocado: resultado.kind === 'capacity_reallocated', error: resultado.kind === 'capacity_reallocated' ? 'Seu limite de 5 pacientes ativos foi atingido. O atendimento foi encaminhado ao próximo profissional.' : 'Seu limite de 5 pacientes ativos foi atingido. O atendimento retornou para a fila da gestão.' }, { status: 409 });
     }
 
+    // As orientações saem no aceite (rota `decisao`). Aqui o envio é só rede
+    // de segurança para quem foi aceito antes dessa mudança ou cujo envio no
+    // aceite não chegou a ser reservado: a chave é a mesma, então quem já
+    // recebeu não recebe de novo.
     if (resultado.kind === 'confirmed') {
       await avisarConfirmacaoPaciente(resultado.lead);
     }

@@ -67,6 +67,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       );
     }
 
+    if (resultado.situacao === 'devolvido_gestao') {
+      const protocolo = resultado.lead?.protocolo || id;
+      void avisarCoordenacao(
+        [
+          'Alerta operacional — pedido para profissional específico recusado.',
+          `Protocolo: ${protocolo}`,
+          'O paciente escolheu este profissional na vitrine, e ele recusou pelo link.',
+          'O caso não foi redistribuído: aguarda a coordenação encaminhar ou devolver ao rodízio.',
+        ].join('\n'),
+        `escolha-direta-recusada:${id}`
+      );
+      return NextResponse.json({
+        success: true,
+        situacao: 'devolvido_gestao',
+        message: 'Recusa registrada. Como o paciente escolheu você, a coordenação da clínica vai decidir o encaminhamento.',
+      });
+    }
+
     if (resultado.situacao === 'sem_candidato') {
       const protocolo = resultado.lead?.protocolo || id;
       void avisarCoordenacao(

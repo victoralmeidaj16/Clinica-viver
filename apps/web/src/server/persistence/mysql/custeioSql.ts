@@ -62,21 +62,24 @@ export function custeioEfetivoSql(alias: {
   const padrao = alias.ignorarPadrao
     ? ''
     : `\n    WHEN COALESCE(${p}.custeado_pela_empresa, ${c}.empresa_paga_sessoes, 1) = 0 THEN 0`;
+  const excluirProprio = a ? `AND (${a}.id IS NULL OR cota_ag.id <> ${a}.id)` : '';
   const reservaAnterior = a ? `OR (cota_ag.custeado_pela_empresa IS NULL
                AND NOT EXISTS (SELECT 1 FROM financeiro_cobrancas cota_fc
                                 WHERE cota_fc.instituicao_id = cota_ag.instituicao_id
                                   AND cota_fc.sessao_ref IN (cota_ag.ref_core, cota_ag.id)
                                   AND cota_fc.status <> 'cancelled')
                AND cota_ag.status IN ('agendado', 'confirmado', 'realizado')
-               AND (cota_ag.inicio < ${a}.inicio
-                    OR (cota_ag.inicio = ${a}.inicio AND cota_ag.id < ${a}.id)))` : '';
+               AND (cota_ag.inicio < ${referencia}
+                    OR (cota_ag.inicio = ${referencia} AND cota_ag.id < ${a}.id)))` : '';
   return `CASE
     WHEN ${p}.convenio_ref IS NULL THEN 0${padrao}
     WHEN ${cotaDeCusteioSql(p, c)} IS NULL THEN 1
     WHEN (SELECT COUNT(*) FROM clinica_agendamentos cota_ag
            WHERE cota_ag.instituicao_id = ${p}.instituicao_id
              AND cota_ag.paciente_id = ${p}.id
-             AND ((cota_ag.custeado_pela_empresa = 1 AND cota_ag.status <> 'cancelado') ${reservaAnterior})
+             ${excluirProprio}
+             AND ((cota_ag.custeado_pela_empresa = 1 AND cota_ag.status <> 'cancelado'
+                   AND cota_ag.custeio_convenio_ref = ${p}.convenio_ref) ${reservaAnterior})
              AND ${dentroDoCicloSql(p, c, 'cota_ag.inicio', referencia)})
          < ${cotaDeCusteioSql(p, c)} THEN 1
     ELSE 0 END`;

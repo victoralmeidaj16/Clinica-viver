@@ -10,6 +10,7 @@ import type {
   CommitAppointmentInput,
 } from '@thats-life/core';
 import { getMysqlPool } from '@/server/oci/runtime';
+import { assertRescheduledFundingQuota } from '@/server/persistence/mysql/appointmentFundingQuota';
 import { resetAppointmentChargeDue } from '@/server/payments/sessionChargeDue';
 import { freezeAppointmentSessionAmount } from './patientSessionPricing';
 import {
@@ -152,8 +153,10 @@ export class MysqlAppointmentRepository implements AppointmentRepository {
 
       await this.assertVersion(connection, id, input.expectedVersion);
       await this.assertNoConflict(connection, id, appointment);
+      const rescheduled = input.events.some((event) => event.type === 'appointment.rescheduled');
+      if (rescheduled) await assertRescheduledFundingQuota(connection, id, new Date(appointment.startsAt));
       await this.upsertAppointment(connection, id, appointment);
-      if (input.events.some((event) => event.type === 'appointment.rescheduled')) {
+      if (rescheduled) {
         await resetAppointmentChargeDue(connection, id, appointment.startsAt);
       }
       await this.replaceReminders(connection, id, appointment);

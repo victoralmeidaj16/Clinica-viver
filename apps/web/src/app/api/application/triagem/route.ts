@@ -31,7 +31,6 @@ export const dynamic = 'force-dynamic';
 type EntradaDeLead =
   | { situacao: 'criado'; lead: TriagemPacienteRecord; psicologo?: CadastroPsicologoRecord }
   | { situacao: 'reenvio'; lead: TriagemPacienteRecord }
-  | { situacao: 'escolha_indisponivel' }
   | { situacao: 'teto' };
 
 /**
@@ -155,10 +154,9 @@ export async function POST(request: Request) {
         ? alocarLeadEscolhido(comNovoLead, novaTriagem, dados.psicologoPreferidoId)
         : alocarLead(comNovoLead, novaTriagem);
 
-      if (dados.psicologoPreferidoId && !alocado.psicologo) {
-        return { next: state, result: { situacao: 'escolha_indisponivel' } };
-      }
-
+      // Psicólogo escolhido que deixou de estar apto não devolve o paciente ao
+      // catálogo: o pedido fica registrado e vai para a Gestão decidir
+      // (especificação final, 4.05).
       return {
         next: {
           triagensPacientes: alocado.snapshot.triagensPacientes ?? [],
@@ -177,13 +175,6 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { success: false, error: 'Estamos recebendo solicitações acima do normal. Tente novamente em alguns minutos ou chame a clínica no WhatsApp.' },
         { status: 429, headers: { 'Retry-After': '900' } }
-      );
-    }
-
-    if (resultado.situacao === 'escolha_indisponivel') {
-      return NextResponse.json(
-        { success: false, error: 'Este profissional não está mais disponível para os critérios escolhidos. Selecione outro profissional.' },
-        { status: 409 }
       );
     }
 

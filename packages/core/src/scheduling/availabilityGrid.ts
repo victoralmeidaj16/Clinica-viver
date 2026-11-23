@@ -164,12 +164,22 @@ export function gerarSlots(
   ate: Date,
   agora: Date = new Date()
 ): Slot[] {
-  if (janelas.length === 0) return [];
-
   const limiteInferior = Math.max(
     de.getTime(),
     agora.getTime() + ANTECEDENCIA_MINIMA_MIN * 60_000
   );
+  return slotsDaGrade(janelas, new Date(limiteInferior), ate, ocupados);
+}
+
+/** Grade vigente no intervalo. O prazo mínimo se aplica quando o paciente faz o pedido. */
+export function slotsDaGrade(
+  janelas: readonly JanelaDisponibilidade[],
+  de: Date,
+  ate: Date,
+  ocupados: readonly IntervaloOcupado[] = []
+): Slot[] {
+  if (janelas.length === 0) return [];
+  const limiteInferior = de.getTime();
   const limiteSuperior = ate.getTime();
   if (limiteInferior >= limiteSuperior) return [];
 

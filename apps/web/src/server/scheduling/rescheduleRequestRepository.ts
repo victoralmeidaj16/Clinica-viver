@@ -2,10 +2,12 @@ import 'server-only';
 
 import { randomUUID } from 'node:crypto';
 import type { RowDataPacket } from 'mysql2';
+import { slotsDaGrade } from '@thats-life/core';
 import { getMysqlPool } from '@/server/oci/runtime';
-import { instituicaoId } from '@/server/persistence/mysql/mappers';
+import { fromSqlTimestamp, instituicaoId } from '@/server/persistence/mysql/mappers';
+import { assertRescheduledFundingQuota } from '@/server/persistence/mysql/appointmentFundingQuota';
 import { resetAppointmentChargeDue } from '@/server/payments/sessionChargeDue';
-import { listAvailableSlots, type PacienteIdentificado } from './agendaRepository';
+import { janelasDoProfissional, listAvailableSlots, type PacienteIdentificado } from './agendaRepository';
 
 export interface RescheduleRequestSummary {
   id: string;
@@ -33,12 +35,12 @@ function summary(row: RowDataPacket): RescheduleRequestSummary {
     id: String(row.id),
     sequence: Number(row.numero),
     appointmentId: String(row.agendamento_id),
-    currentStartsAt: new Date(row.inicio_atual).toISOString(),
-    currentEndsAt: new Date(row.fim_atual).toISOString(),
-    requestedStartsAt: new Date(row.inicio_solicitado).toISOString(),
-    requestedEndsAt: new Date(row.fim_solicitado).toISOString(),
+    currentStartsAt: fromSqlTimestamp(row.inicio_atual)!,
+    currentEndsAt: fromSqlTimestamp(row.fim_atual)!,
+    requestedStartsAt: fromSqlTimestamp(row.inicio_solicitado)!,
+    requestedEndsAt: fromSqlTimestamp(row.fim_solicitado)!,
     requestedModality: row.modalidade_solicitada,
-    requestedAt: new Date(row.solicitado_em).toISOString(),
+    requestedAt: fromSqlTimestamp(row.solicitado_em)!,
   };
 }
 
@@ -70,7 +72,8 @@ export async function requestPatientReschedule(
     );
     const appointment = appointments[0];
     if (!appointment) { await connection.rollback(); return { ok: false, reason: 'NOT_FOUND' }; }
-    const currentStart = new Date(appointment.inicio);
+    const currentStart = new Date(fromSqlTimestamp(appointment.inicio)!);
+    const currentEnd = new Date(fromSqlTimestamp(appointment.fim)!);
     if ((currentStart.getTime() - now.getTime()) / 3_600_000 < 2) {
       await connection.rollback(); return { ok: false, reason: 'TOO_LATE' };
     }
@@ -91,7 +94,7 @@ export async function requestPatientReschedule(
     const sequence = Number(sequences[0]?.proximo ?? 1);
     const requestedEnd = new Date(slot.fim);
     if (requestedEnd.getTime() - requestedStart.getTime()
-      !== new Date(appointment.fim).getTime() - currentStart.getTime()) {
+      !== currentEnd.getTime() - currentStart.getTime()) {
       await connection.rollback(); return { ok: false, reason: 'UNAVAILABLE' };
     }
     await connection.execute(
@@ -100,11 +103,11 @@ export async function requestPatientReschedule(
          inicio_atual, fim_atual, inicio_solicitado, fim_solicitado, modalidade_solicitada)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [id, instituicaoId(), appointment.id, patient.patientRowId, patient.professionalRowId, sequence,
-        currentStart, new Date(appointment.fim), requestedStart, requestedEnd, slot.modalidade]
+        currentStart, currentEnd, requestedStart, requestedEnd, slot.modalidade]
     );
     await connection.commit();
     return { ok: true, request: { id, sequence, appointmentId: String(appointment.id),
-      currentStartsAt: currentStart.toISOString(), currentEndsAt: new Date(appointment.fim).toISOString(),
+      currentStartsAt: currentStart.toISOString(), currentEndsAt: currentEnd.toISOString(),
       requestedStartsAt: requestedStart.toISOString(), requestedEndsAt: requestedEnd.toISOString(),
       requestedModality: slot.modalidade, requestedAt: now.toISOString() } };
   } catch (error) {
@@ -158,6 +161,7 @@ export async function decidePatientRescheduleRequest(
     if (!appointment) {
       await connection.rollback(); return { ok: false, reason: 'APPOINTMENT_CHANGED' };
     }
+    const currentStart = fromSqlTimestamp(appointment.inicio)!;
     if (decision === 'reject') {
       await connection.execute(
         `UPDATE clinica_solicitacoes_reagendamento SET status = 'recusada', respondido_em = CURRENT_TIMESTAMP(3)
@@ -166,26 +170,31 @@ export async function decidePatientRescheduleRequest(
       );
       await connection.commit();
       return { ok: true, decision: 'rejected', appointmentId: String(appointment.id),
-        startsAt: new Date(appointment.inicio).toISOString(), requestSequence: Number(request.numero),
+        startsAt: currentStart, requestSequence: Number(request.numero),
         notifyPatient: ['agendado', 'confirmado'].includes(String(appointment.status))
-          && new Date(appointment.inicio).getTime() > now.getTime() };
+          && Date.parse(currentStart) > now.getTime() };
     }
     // Só o aceite depende de a sessão continuar no estado e horário originais.
     // A recusa precisa liberar a pendência mesmo depois de uma edição direta.
     if (!['agendado', 'confirmado'].includes(String(appointment.status))
-        || new Date(appointment.inicio).getTime() !== new Date(request.inicio_atual).getTime()
-        || new Date(appointment.fim).getTime() !== new Date(request.fim_atual).getTime()) {
+        || Date.parse(currentStart) !== Date.parse(fromSqlTimestamp(request.inicio_atual)!)
+        || Date.parse(fromSqlTimestamp(appointment.fim)!) !== Date.parse(fromSqlTimestamp(request.fim_atual)!)) {
       await connection.rollback(); return { ok: false, reason: 'APPOINTMENT_CHANGED' };
     }
-    if (new Date(appointment.inicio).getTime() <= now.getTime()) {
+    if (Date.parse(currentStart) <= now.getTime()) {
       await connection.rollback(); return { ok: false, reason: 'ORIGINAL_STARTED' };
     }
-    const requestedStart = new Date(request.inicio_solicitado);
-    const requestedEnd = new Date(request.fim_solicitado);
+    const requestedStart = new Date(fromSqlTimestamp(request.inicio_solicitado)!);
+    const requestedEnd = new Date(fromSqlTimestamp(request.fim_solicitado)!);
     // A solicitação pode ficar pendente até depois do horário pedido.
     if (requestedStart.getTime() <= now.getTime()) {
       await connection.rollback(); return { ok: false, reason: 'EXPIRED' };
     }
+    const grade = await janelasDoProfissional(request.profissional_row_id, professionalId, connection);
+    const slotVigente = slotsDaGrade(grade, requestedStart, requestedEnd).some((slot) =>
+      slot.inicio === requestedStart.toISOString() && slot.fim === requestedEnd.toISOString()
+      && slot.modalidade === request.modalidade_solicitada);
+    if (!slotVigente) { await connection.rollback(); return { ok: false, reason: 'UNAVAILABLE' }; }
     const [conflicts] = await connection.query<RowDataPacket[]>(
       `SELECT id FROM clinica_agendamentos WHERE instituicao_id = ? AND profissional_id = ?
         AND status <> 'cancelado' AND id <> ? AND inicio < ?
@@ -198,6 +207,7 @@ export async function decidePatientRescheduleRequest(
       [instituicaoId(), request.profissional_row_id, requestedEnd, requestedStart]
     );
     if (conflicts.length || blocks.length) { await connection.rollback(); return { ok: false, reason: 'UNAVAILABLE' }; }
+    await assertRescheduledFundingQuota(connection, String(appointment.id), requestedStart);
     const duration = Math.round((requestedEnd.getTime() - requestedStart.getTime()) / 60_000);
     await connection.execute(
       `UPDATE clinica_agendamentos SET inicio = ?, fim = ?, duracao_min = ?, modalidade = ?,
@@ -213,7 +223,7 @@ export async function decidePatientRescheduleRequest(
     );
     await connection.commit();
     return { ok: true, decision: 'accepted', appointmentId: String(appointment.id),
-      previousStartsAt: new Date(appointment.inicio).toISOString(), startsAt: requestedStart.toISOString(),
+      previousStartsAt: currentStart, startsAt: requestedStart.toISOString(),
       endsAt: requestedEnd.toISOString(), version: Number(appointment.versao ?? 0) + 1 };
   } catch (error) { await connection.rollback(); throw error; }
   finally { connection.release(); }

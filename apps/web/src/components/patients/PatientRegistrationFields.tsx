@@ -209,5 +209,9 @@ export function PatientRegistrationFields({ form, setForm, convenios, conveniosC
       <TurnoPreferenceField required={false} value={form.turno} onChange={(value) => update('turno', value)}
         description="Preferência de horário para combinar as sessões. O paciente será atendido por você." />
     </div>
+    <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-line p-3 font-semibold text-ink">
+      <input type="checkbox" checked={form.projetoAcolhe} onChange={(e) => update('projetoAcolhe', e.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" />
+      <span>Paciente do Projeto Acolhe<span className="mt-0.5 block font-normal text-muted">Não ocupa vaga no seu limite de pacientes ativos.</span></span>
+    </label>
   </div>;
 }

@@ -13,7 +13,7 @@ beforeEach(() => vi.resetAllMocks());
 function database(version = 0, priced = true) {
   const connection = { beginTransaction: vi.fn(), commit: vi.fn(), rollback: vi.fn(), release: vi.fn(),
     execute: vi.fn(async () => [{ affectedRows: 1 }, []]),
-    query: vi.fn(async (sql: string) => [sql.includes('SELECT versao') ? [{ versao: version }]
+    query: vi.fn<(sql: string) => Promise<[Record<string, unknown>[], unknown[]]>>(async (sql) => [sql.includes('SELECT versao') ? [{ versao: version }]
       : sql.includes('categoria_valor_sessao') ? [{ categoria_valor_sessao: priced ? 'personalizado' : null, valor_sessao_personalizado_centavos: priced ? 6800 : null,
         valor_social_centavos: priced ? 7500 : null, valor_sessao_centavos: priced ? 13000 : null, modalidade_triagem: 'PARTICULAR' }] : [], []]) };
   return { connection, repository: new MysqlAppointmentRepository({ getConnection: async () => connection } as unknown as Pool) };
@@ -44,4 +44,19 @@ it('reverte agenda e comando quando a intenção financeira não pode ser salva'
   await expect(repository.commit({ ...result, expectedVersion: 1, commandId: 'reschedule' })).rejects.toThrow('em emissão');
   expect(connection.rollback).toHaveBeenCalledOnce();
   expect(connection.commit).not.toHaveBeenCalled();
+});
+
+it('reverte o comando de remarcação antes de alterar a sessão quando faltar cota', async () => {
+  const { connection, repository } = database(1);
+  const query = connection.query.getMockImplementation()!;
+  connection.query.mockImplementation(async (sql) => {
+    if (sql.includes('AS mesmo_ciclo')) return [[{ convenio_ref: 'empresa', custeado_pela_empresa: 1, mesmo_ciclo: 0 }], []];
+    if (sql.includes('AS disponivel')) return [[{ disponivel: 0 }], []];
+    return query(sql);
+  });
+  const result = rescheduleAppointment(original, '2099-02-11T14:00:00Z', '2099-02-11T14:50:00Z', metadata);
+  await expect(repository.commit({ ...result, expectedVersion: 1, commandId: 'move' }))
+    .rejects.toMatchObject({ code: 'APPOINTMENT_FUNDING_QUOTA_EXCEEDED' });
+  expect(connection.rollback).toHaveBeenCalledOnce();
+  expect(reset).not.toHaveBeenCalled();
 });

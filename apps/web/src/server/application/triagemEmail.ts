@@ -202,6 +202,10 @@ function rotuloModalidade(modalidade?: string): string {
   }
 }
 
+/** O aceite dispara as orientações ao paciente (especificação final, 5.03 e 7.02). */
+const ORIENTACOES_NO_ACEITE =
+  'Ao aceitar, o paciente recebe as orientações da clínica e você assume o contato para combinar o primeiro horário.';
+
 export function conteudoAlocacaoPsicologo(
   lead: TriagemPacienteRecord,
   psicologo: CadastroPsicologoRecord,
@@ -257,10 +261,15 @@ export function conteudoAlocacaoPsicologo(
       ? 'Você recebeu uma nova solicitação de atendimento por ESCOLHA DIRETA na Vitrine da Clínica Viver Mais Psicologia.'
       : 'Você foi selecionado no RODÍZIO INTELIGENTE de atendimentos da Clínica Viver Mais Psicologia.',
     '',
-    '⏰ ATENÇÃO AO PRAZO PARA CONTATO (24 HORAS):',
-    '• Você tem o prazo de até 24 horas para realizar o primeiro contato com o paciente via WhatsApp ou ligação.',
-    '• Caso não possa atender esta solicitação no momento, encaminhe-a imediatamente para que o paciente seja direcionado ao próximo psicólogo da fila.',
-    '• Se o prazo de 24 horas expirar sem confirmação, o paciente será encaminhado automaticamente a outro profissional credenciado.',
+    '⏰ ATENÇÃO AO PRAZO PARA RESPOSTA (24 HORAS):',
+    '• Você tem até 24 horas para aceitar ou recusar esta solicitação pelo link abaixo.',
+    `• ${ORIENTACOES_NO_ACEITE}`,
+    isEscolhaDireta
+      ? '• Se não puder atender, recuse pelo link: a coordenação da clínica decidirá o encaminhamento.'
+      : '• Caso não possa atender esta solicitação no momento, encaminhe-a imediatamente para que o paciente seja direcionado ao próximo psicólogo da fila.',
+    isEscolhaDireta
+      ? '• Sem resposta em 24 horas, a solicitação seguirá para a coordenação da clínica.'
+      : '• Se o prazo de 24 horas expirar sem resposta, o paciente será encaminhado automaticamente a outro profissional credenciado.',
     '',
     'Dados da Solicitação:',
     `• Paciente: ${nomePaciente}`,
@@ -280,8 +289,10 @@ export function conteudoAlocacaoPsicologo(
     `• Protocolo: ${lead.protocolo}`,
     '',
     'Ações Rápidas:',
-    `1. Confirmar Primeiro Contato: ${linkConfirmar}`,
-    `2. Encaminhar para o Próximo Colega: ${linkEncaminhar}`,
+    `1. Aceitar o paciente: ${linkConfirmar}`,
+    isEscolhaDireta
+      ? `2. Recusar e devolver à coordenação: ${linkEncaminhar}`
+      : `2. Encaminhar para o Próximo Colega: ${linkEncaminhar}`,
     '',
     `Acesse Meus Pacientes para gerenciar seus atendimentos: ${linkCockpit}`,
     '',
@@ -306,10 +317,12 @@ export function conteudoAlocacaoPsicologo(
     <div style="background-color: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; padding: 16px; margin: 20px 0;">
       <strong style="color: #b45309; font-size: 15px; display: block; margin-bottom: 6px;">⏰ Prazo de Ação: até 24 Horas</strong>
       <p style="margin: 0 0 8px 0; font-size: 13.5px; color: #92400e;">
-        Você tem <strong>até 24 horas</strong> para realizar o primeiro contato com o paciente e <strong>confirmar o atendimento</strong> ou <strong>encaminhar para outro profissional</strong>.
+        Você tem <strong>até 24 horas</strong> para <strong>aceitar</strong> ou <strong>recusar</strong> esta solicitação. ${ORIENTACOES_NO_ACEITE}
       </p>
       <p style="margin: 0; font-size: 12.5px; color: #b45309; font-style: italic;">
-        *Caso não haja confirmação em 24h, o sistema efetuará o transbordo automático para o próximo psicólogo da fila, garantindo agilidade no acolhimento.
+        ${isEscolhaDireta
+          ? '*Sem resposta em 24h, a solicitação seguirá para a coordenação da clínica, que decidirá o encaminhamento.'
+          : '*Caso não haja resposta em 24h, o sistema efetuará o transbordo automático para o próximo psicólogo da fila, garantindo agilidade no acolhimento.'}
       </p>
     </div>
 
@@ -359,10 +372,10 @@ export function conteudoAlocacaoPsicologo(
     <!-- BOTÕES DE AÇÃO -->
     <div style="margin: 28px 0; text-align: center;">
       <a href="${linkConfirmar}" style="display: inline-block; background-color: #059669; color: #ffffff; padding: 12px 24px; border-radius: 8px; font-weight: bold; text-decoration: none; margin-right: 10px; margin-bottom: 10px; font-size: 14px;">
-        ✓ Confirmar Primeiro Contato
+        ✓ Aceitar o paciente
       </a>
       <a href="${linkEncaminhar}" style="display: inline-block; background-color: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 12px 24px; border-radius: 8px; font-weight: bold; text-decoration: none; margin-bottom: 10px; font-size: 14px;">
-        ⇄ Encaminhar para a Fila
+        ⇄ ${isEscolhaDireta ? 'Recusar e devolver à coordenação' : 'Encaminhar para a Fila'}
       </a>
     </div>
 

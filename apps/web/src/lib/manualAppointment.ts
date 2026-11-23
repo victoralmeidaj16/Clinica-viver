@@ -1,3 +1,4 @@
+import { isValidAppointmentDuration } from '@thats-life/core/src/scheduling/validation';
 import { FUSO_CLINICA } from './sessionReference';
 
 export type ManualAppointmentMode = 'video' | 'in_person' | 'phone';
@@ -52,8 +53,13 @@ export const CLINICAL_SERVICES: readonly ClinicalServiceOption[] = [
     durationMinutes: 50,
   },
   {
+    key: 'ORIENTACAO_VOCACIONAL',
+    label: 'Orientação Vocacional',
+    durationMinutes: 50,
+  },
+  {
     key: 'ORIENTACAO_PROFISSIONAL',
-    label: 'Orientação Profissional / Vocacional',
+    label: 'Orientação Profissional',
     durationMinutes: 50,
   },
   {
@@ -74,9 +80,8 @@ export function hasVariableDuration(serviceKey: string): boolean {
 
 export function validServiceDuration(serviceKey: string, durationMinutes: number): boolean {
   if (!CLINICAL_SERVICES.some((item) => item.key === serviceKey)) return false;
-  if (!Number.isInteger(durationMinutes)) return false;
   return hasVariableDuration(serviceKey)
-    ? durationMinutes >= 15 && durationMinutes <= 240
+    ? isValidAppointmentDuration(durationMinutes)
     : durationMinutes === getServiceDuration(serviceKey);
 }
 
@@ -127,7 +132,7 @@ export function manualAppointmentTimes(input: {
   time: string;
   durationMinutes: number;
 }): { startsAt: string; endsAt: string } {
-  if (!Number.isInteger(input.durationMinutes) || input.durationMinutes < 15 || input.durationMinutes > 240) {
+  if (!isValidAppointmentDuration(input.durationMinutes)) {
     throw new Error('A duração deve ficar entre 15 e 240 minutos.');
   }
   const startsAt = clinicDateTimeToIso(input.date, input.time);

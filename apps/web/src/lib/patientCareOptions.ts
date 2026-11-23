@@ -25,7 +25,8 @@ export const PATIENT_SERVICES = [
   ['PSICOTERAPIA', 'Psicoterapia Individual'],
   ['PSICOTERAPIA_CASAL', 'Psicoterapia de Casal'],
   ['AVALIACAO', 'Avaliação Psicológica e Neuropsicológica'],
-  ['ORIENTACAO_PROFISSIONAL', 'Orientação Profissional/Vocacional'],
+  ['ORIENTACAO_VOCACIONAL', 'Orientação Vocacional'],
+  ['ORIENTACAO_PROFISSIONAL', 'Orientação Profissional'],
   ['ORIENTACAO_PARENTAL', 'Orientação Parental'],
 ] as const;
 export const PATIENT_MODALITIES = [

@@ -183,6 +183,14 @@ describe('completeAppointment', () => {
     expect(connection.commit).toHaveBeenCalled();
   });
 
+  it('conclui como particular quando uma decisão antiga de empresa ficou sem convênio', async () => {
+    comLinhas({ ...PARA_CONCLUIR, custeado_pela_empresa: 1, convenio_ref: null });
+    expect(await completeAppointment('org-1', 'pro-1', 'apt-1', AGORA)).toBe('completed');
+    const writes = connection.execute.mock.calls;
+    expect(writes.some(([sql]) => sql.includes('INSERT INTO financeiro_cobrancas'))).toBe(false);
+    expect(writes.find(([sql]) => sql.includes('custeio_convenio_ref = ?'))?.[1]?.slice(2, 4)).toEqual([0, null]);
+  });
+
   it('reconhece como concluído o atendimento que já tem sessão clínica', async () => {
     comLinhas({ ...PARA_CONCLUIR, status: 'realizado', sessao_clinica_ref: 'session-apt-ref-1' });
 

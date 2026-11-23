@@ -154,8 +154,16 @@ describe('e-mails de confirmação de agendamento/triagem', () => {
       expect(conteudo.html).toContain('Paciente escolheu você diretamente');
       expect(conteudo.html).toContain('Prazo de Ação: até 24 Horas');
       expect(conteudo.html).toContain('João &amp; Maria');
-      expect(conteudo.html).toContain('Confirmar Primeiro Contato');
-      expect(conteudo.html).toContain('Encaminhar para a Fila');
+      expect(conteudo.html).toContain('Aceitar o paciente');
+      // Pedido direcionado: recusa e silêncio vão para a coordenação (4.05 e 5.04).
+      expect(conteudo.html).toContain('Recusar e devolver à coordenação');
+      expect(conteudo.text).toContain('seguirá para a coordenação da clínica');
+      expect(conteudo.html).toContain('seguirá para a coordenação da clínica');
+      expect(conteudo.text).not.toContain('próximo psicólogo da fila');
+      expect(conteudo.html).not.toContain('transbordo automático');
+      // O aceite dispara as orientações ao paciente (5.03 e 7.02).
+      expect(conteudo.text).toContain('Ao aceitar, o paciente recebe as orientações da clínica');
+      expect(conteudo.html).toContain('Ao aceitar, o paciente recebe as orientações da clínica');
       expect(conteudo.html).toContain('wa.me/5548988887777');
       expect(conteudo.html).not.toContain('Atalho no WhatsApp');
     });
@@ -168,6 +176,9 @@ describe('e-mails de confirmação de agendamento/triagem', () => {
       expect(conteudo.text).toContain('24 horas');
       expect(conteudo.html).toContain('Selecionado pelo Rodízio Inteligente');
       expect(conteudo.html).toContain('transbordo automático');
+      expect(conteudo.html).toContain('Encaminhar para a Fila');
+      expect(conteudo.text).toContain('Ao aceitar, o paciente recebe as orientações da clínica');
+      expect(conteudo.text).not.toContain('Confirmar Primeiro Contato');
     });
 
     it('envia e-mail ao psicólogo com idempotência e endereço correto', async () => {

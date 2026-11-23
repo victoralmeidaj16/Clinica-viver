@@ -50,6 +50,8 @@ function comAgendamento(overrides: Linha = {}) {
   connection.query.mockImplementation(async (sql: string) =>
     sql.includes('FROM clinica_agendamentos a\n         JOIN clinica_profissionais')
       ? [[{ ...AGENDAMENTO, ...overrides }], []]
+      : sql.includes('AS mesmo_ciclo') ? [[{ convenio_ref: 'empresa', ...overrides }], []]
+      : sql.includes('AS disponivel') ? [[{ disponivel: overrides.custeio_disponivel ?? 1 }], []]
       : [[], []]
   );
 }

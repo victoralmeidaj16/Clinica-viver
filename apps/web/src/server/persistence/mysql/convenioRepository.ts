@@ -488,7 +488,7 @@ export async function vincularPacienteConvenio(
   try {
   await connection.beginTransaction();
   const [pacientes] = await connection.query<RowDataPacket[]>(
-    `SELECT p.id FROM clinica_pacientes p JOIN clinica_organizacoes o ON o.id = p.organizacao_id
+    `SELECT p.id, p.convenio_ref FROM clinica_pacientes p JOIN clinica_organizacoes o ON o.id = p.organizacao_id
       WHERE p.instituicao_id = ? AND o.ref_core = ? AND p.ref_core = ? FOR UPDATE`,
     [instituicaoId(), organizationId, patientId]
   );
@@ -517,6 +517,15 @@ export async function vincularPacienteConvenio(
         AND a.custeado_pela_empresa = 1 AND p.convenio_ref IS NOT NULL`,
     [instituicaoId(), organizationId, patientId]
   );
+  if (pacientes[0].convenio_ref !== convenioId) {
+    await connection.execute(
+      `UPDATE clinica_agendamentos
+          SET custeado_pela_empresa = NULL, custeio_convenio_ref = NULL, versao = versao + 1
+        WHERE instituicao_id = ? AND paciente_id = ?
+          AND status IN ('agendado', 'confirmado') AND custeado_pela_empresa = 1`,
+      [instituicaoId(), pacientes[0].id]
+    );
+  }
   // As sessões já realizadas guardam a própria decisão, então mexer na cota
   // daqui vale da próxima em diante. É o que permite à gestão corrigir um
   // acordo sem reabrir cobrança encerrada.

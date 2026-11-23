@@ -5,7 +5,7 @@ export function PsicologoPosicaoRodizio({ rodizio }: { rodizio?: PosicaoRodizio 
   return (
     <div className="mt-2 space-y-0.5">
       <p className={`text-xs font-extrabold ${naFila ? 'text-purple-800' : 'text-slate-500'}`}>
-        {naFila ? `Rodízio geral: ${rodizio.posicao}º de ${rodizio.total}`
+        {naFila ? `Rodízio geral: ${rodizio.posicao}º de ${rodizio.total}${rodizio.empate ? ' (empate, decidido por sorteio)' : ''}`
           : rodizio ? `Fora do rodízio: ${rodizio.motivo ?? 'Indisponível'}` : 'Posição no rodízio indisponível'}
       </p>
       {naFila && <p className="text-[10px] leading-relaxed text-slate-500">A indicação depende da compatibilidade com o paciente.</p>}

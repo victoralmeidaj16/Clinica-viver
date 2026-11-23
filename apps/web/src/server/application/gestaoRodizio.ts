@@ -1,5 +1,5 @@
 import 'server-only';
-import { ordenarPsicologosRoundRobin, type PsicologoPerfil } from '@thats-life/core';
+import { compararOrdemRodizio, ordenarPsicologosRoundRobin, type PsicologoPerfil } from '@thats-life/core';
 import type { PosicaoRodizio } from '@/lib/posicaoRodizio';
 import type { CadastroPsicologoRecord } from './persistence';
 import { ausenciaVigente, paraPsicologoPerfil } from './viverMaisRodizio';
@@ -25,10 +25,27 @@ export function posicoesDoRodizio(
     return { perfil, motivo: motivoForaDaFila(cadastro, perfil, agora) };
   });
   const fila = ordenarPsicologosRoundRobin(avaliados.filter((item) => !item.motivo).map((item) => item.perfil));
-  const posicoes = new Map(fila.map((perfil, indice) => [perfil.id, indice + 1]));
-  return new Map(avaliados.map(({ perfil, motivo }) => [perfil.id, {
-    posicao: posicoes.get(perfil.id) ?? null,
-    total: fila.length,
-    ...(motivo ? { motivo } : {}),
-  }]));
+  // Empatados em todos os critérios dividem a posição: a alocação sorteia
+  // entre eles (especificação final, 5.01), então nenhuma ordem fixa seria
+  // verdadeira na tela.
+  const posicoes = new Map<string, { posicao: number; empate: boolean }>();
+  fila.forEach((perfil, indice) => {
+    const anterior = fila[indice - 1];
+    const empataComAnterior = anterior !== undefined && compararOrdemRodizio(anterior, perfil) === 0;
+    const proximo = fila[indice + 1];
+    const empataComProximo = proximo !== undefined && compararOrdemRodizio(perfil, proximo) === 0;
+    posicoes.set(perfil.id, {
+      posicao: empataComAnterior ? posicoes.get(anterior.id)!.posicao : indice + 1,
+      empate: empataComAnterior || empataComProximo,
+    });
+  });
+  return new Map(avaliados.map(({ perfil, motivo }) => {
+    const lugar = posicoes.get(perfil.id);
+    return [perfil.id, {
+      posicao: lugar?.posicao ?? null,
+      total: fila.length,
+      ...(lugar?.empate ? { empate: true } : {}),
+      ...(motivo ? { motivo } : {}),
+    }];
+  }));
 }

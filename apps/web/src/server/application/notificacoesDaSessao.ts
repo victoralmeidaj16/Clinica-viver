@@ -4,6 +4,7 @@ import type { AuthSession } from '@/server/auth';
 import { getCaptureRepository } from '@/server/persistence/captureRepository';
 import { cadastroDaSessao } from '@/server/application/psychologistSelf';
 import {
+  notificacoesDeAceiteSemAgendamento,
   notificacoesDeAgendamentos,
   notificacoesDaGestao,
   notificacoesDePagamento,
@@ -16,6 +17,8 @@ import { listRecentConfirmedPayments } from '@/server/payments/paymentLinkReposi
 import { getPerfilAlteracoesRepository } from '@/server/persistence/perfilAlteracoes';
 import { isMysqlConfigured } from '@/server/oci/runtime';
 import { listAppointments } from '@/server/scheduling/agendaRepository';
+import { agendamentosDosPacientes } from '@/server/persistence/mysql/primeiroAgendamento';
+import type { CaptureState } from '@/server/persistence/captureRepository';
 
 /**
  * A lista de notificações de quem está logado, antes da marca de leitura.
@@ -101,6 +104,29 @@ async function alteracoesDePerfil(): Promise<NotificacaoDerivada[]> {
 }
 
 /**
+ * Aviso de 48h sem primeiro agendamento (especificação 7.03). Falha em
+ * silêncio, como os demais complementos: sem a agenda não há como afirmar que
+ * falta agendamento, e um aviso falso é pior que a ausência dele.
+ */
+async function aceitesSemAgendamento(
+  organizationId: string,
+  state: CaptureState,
+  agora: Date
+): Promise<NotificacaoDerivada[]> {
+  if (!isMysqlConfigured()) return [];
+  try {
+    const pacienteRefs = state.triagensPacientes
+      .filter((lead) => lead.aceitoEm && lead.pacienteRef)
+      .map((lead) => lead.pacienteRef!);
+    const agendamentos = await agendamentosDosPacientes(organizationId, pacienteRefs);
+    return notificacoesDeAceiteSemAgendamento(state, agendamentos, agora);
+  } catch (error) {
+    console.error('Erro ao ler agendamentos para o aviso de 48h:', error);
+    return [];
+  }
+}
+
+/**
  * O papel da sessão decide qual lista é montada: a da gestão nomeia pacientes
  * de toda a clínica, e a do profissional só os que estão — ou estiveram — na
  * fila dele. Um psicólogo sem cadastro vinculado recebe lista vazia.
@@ -111,7 +137,11 @@ export async function notificacoesDaSessao(
 ): Promise<NotificacaoDerivada[]> {
   const state = await getCaptureRepository().read();
   if (session.role === 'admin') {
-    return [...notificacoesDaGestao(state, agora), ...(await alteracoesDePerfil())];
+    return [
+      ...notificacoesDaGestao(state, agora),
+      ...(await aceitesSemAgendamento(session.organizationId, state, agora)),
+      ...(await alteracoesDePerfil()),
+    ];
   }
   const cadastro = await cadastroDaSessao(session);
   if (!cadastro) return [];

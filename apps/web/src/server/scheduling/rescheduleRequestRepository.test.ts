@@ -6,9 +6,12 @@ const state = vi.hoisted(() => ({
   connection: { beginTransaction: vi.fn(), commit: vi.fn(), rollback: vi.fn(), release: vi.fn(), query: vi.fn(), execute: vi.fn() },
 }));
 vi.mock('@/server/oci/runtime', () => ({ getMysqlPool: () => ({ getConnection: async () => state.connection, query: state.connection.query }) }));
-vi.mock('@/server/persistence/mysql/mappers', () => ({ instituicaoId: () => 'inst' }));
+vi.mock('@/server/persistence/mysql/mappers', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/server/persistence/mysql/mappers')>(), instituicaoId: () => 'inst',
+}));
 vi.mock('@/server/payments/sessionChargeDue', () => ({ resetAppointmentChargeDue: state.resetCharge }));
-vi.mock('./agendaRepository', () => ({
+vi.mock('./agendaRepository', async (importOriginal) => ({
+  ...await importOriginal<typeof import('./agendaRepository')>(),
   listAvailableSlots: vi.fn(async () => [{ inicio: '2026-10-22T15:00:00.000Z', fim: '2026-10-22T15:50:00.000Z', modalidade: 'online' }]),
 }));
 import { decidePatientRescheduleRequest, requestPatientReschedule } from './rescheduleRequestRepository';
@@ -16,11 +19,14 @@ import { listAvailableSlots } from './agendaRepository';
 
 const patient = { patientRef: 'p-ref', patientRowId: 'p-row', nome: 'Paciente', organizationId: 'org',
   professionalId: 'pro-ref', professionalRowId: 'pro-row', professionalName: 'Psi', sessionAmountCents: 10000 };
+const janela = { dia_semana: 4, hora_inicio: '12:00:00', hora_fim: '14:00:00', duracao_min: 50, modalidade: 'online' };
 
 beforeEach(() => {
   vi.clearAllMocks(); state.conflict = false;
   state.connection.execute.mockResolvedValue([{ affectedRows: 1 }, []]);
   state.connection.query.mockImplementation(async (sql: string) => {
+    if (sql.includes('FROM clinica_disponibilidades')) return [[janela], []];
+    if (sql.includes('disponibilidade_configurada')) return [[{ disponibilidade_configurada: 1 }], []];
     if (sql.includes('FROM clinica_agendamentos') && sql.includes('paciente_id')) return [[{
       id: 'appointment-1', inicio: '2026-10-23T15:00:00.000Z', fim: '2026-10-23T15:50:00.000Z',
     }], []];
@@ -29,7 +35,7 @@ beforeEach(() => {
     if (sql.includes('FROM clinica_solicitacoes_reagendamento sr')) return [[{
       id: 'request-1', agendamento_id: 'appointment-1', profissional_row_id: 'pro-row', numero: 1,
       status: 'pendente', inicio_atual: '2026-10-23T15:00:00.000Z', fim_atual: '2026-10-23T15:50:00.000Z',
-      inicio_solicitado: '2026-10-22T15:00:00.000Z', fim_solicitado: '2026-10-22T15:50:00.000Z',
+      inicio_solicitado: '2026-10-22 15:00:00.000', fim_solicitado: '2026-10-22 15:50:00.000',
       modalidade_solicitada: 'online',
     }], []];
     if (sql.includes('FROM clinica_agendamentos') && sql.includes('status <>')) return [state.conflict ? [{ id: 'other' }] : [], []];
@@ -74,6 +80,43 @@ describe('solicitação pública de reagendamento', () => {
 const ANTES = new Date('2026-10-20T12:00:00Z');
 
 describe('decisão do psicólogo', () => {
+  it.each([
+    ['removida', []],
+    ['com início deslocado', [{ ...janela, hora_inicio: '11:50:00' }]],
+    ['com nova duração', [{ ...janela, duracao_min: 60 }]],
+    ['com nova modalidade', [{ ...janela, modalidade: 'presencial' }]],
+    ['fora da vigência', [{ ...janela, vigencia_fim: '2026-10-21' }]],
+  ] as const)('mantém sessão, cobrança e pedido quando a janela está %s', async (_, janelas) => {
+    const query = state.connection.query.getMockImplementation()!;
+    state.connection.query.mockImplementation(async (sql: string) =>
+      sql.includes('FROM clinica_disponibilidades') ? [janelas, []] : query(sql));
+    expect(await decidePatientRescheduleRequest('org', 'pro-ref', 'request-1', 'accept', ANTES))
+      .toEqual({ ok: false, reason: 'UNAVAILABLE' });
+    expect(state.connection.execute).not.toHaveBeenCalled();
+    expect(state.resetCharge).not.toHaveBeenCalled();
+    expect(state.connection.rollback).toHaveBeenCalledOnce();
+  });
+
+  it('aceita um horário ainda vigente até o início quando o paciente já pediu no prazo', async () => {
+    const pertoDaSessao = new Date('2026-10-22T14:59:00Z');
+    expect(await decidePatientRescheduleRequest('org', 'pro-ref', 'request-1', 'accept', pertoDaSessao))
+      .toMatchObject({ ok: true, startsAt: '2026-10-22T15:00:00.000Z' });
+  });
+
+  it('mantém o pedido pendente e o vencimento quando o mês de destino está sem cota', async () => {
+    const query = state.connection.query.getMockImplementation()!;
+    state.connection.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('AS mesmo_ciclo')) return [[{ convenio_ref: 'empresa', custeado_pela_empresa: 1, mesmo_ciclo: 0 }], []];
+      if (sql.includes('AS disponivel')) return [[{ disponivel: 0 }], []];
+      return query(sql);
+    });
+    await expect(decidePatientRescheduleRequest('org', 'pro-ref', 'request-1', 'accept', ANTES))
+      .rejects.toMatchObject({ status: 409, code: 'APPOINTMENT_FUNDING_QUOTA_EXCEEDED' });
+    expect(state.connection.execute).not.toHaveBeenCalled();
+    expect(state.connection.rollback).toHaveBeenCalledOnce();
+    expect(state.resetCharge).not.toHaveBeenCalled();
+  });
+
   it('não aceita pedido após o início da sessão original', async () => {
     const query = state.connection.query.getMockImplementation()!;
     state.connection.query.mockImplementation(async (sql: string) => {

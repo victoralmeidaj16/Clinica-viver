@@ -19,13 +19,27 @@ describe('posição geral do rodízio na gestão', () => {
       cadastro('novo'), cadastro('antigo', { ultimoLeadRecebidoEm: '2026-10-01T12:00:00Z' }), cadastro('outro-novo')];
     const posicoes = posicoesDoRodizio(lista, agora);
     expect(lista.map((p) => p.id)).toEqual(['recente', 'novo', 'antigo', 'outro-novo']);
-    expect([...posicoes.values()].map((p) => p.posicao)).toEqual([4, 1, 3, 2]);
+    // "novo" e "outro-novo" empatam em tudo: dividem a 1ª posição, e o motor
+    // sorteia entre eles (especificação final, 5.01).
+    expect([...posicoes.values()].map((p) => p.posicao)).toEqual([4, 1, 3, 1]);
+    expect(posicoes.get('novo')).toEqual({ posicao: 1, total: 4, empate: true });
+    expect(posicoes.get('antigo')).toEqual({ posicao: 3, total: 4 });
     let perfis = lista.map((p) => paraPsicologoPerfil(p, agora));
-    for (let posicao = 1; posicao <= lista.length; posicao++) {
+    while (perfis.length) {
       const proximo = selecionarPsicologoRoundRobin(perfis, 'MANHA', 'PARTICULAR')!;
-      expect(posicoes.get(proximo.id)).toEqual({ posicao, total: 4 });
+      const menorPosicao = Math.min(...perfis.map((p) => posicoes.get(p.id)!.posicao!));
+      expect(posicoes.get(proximo.id)?.posicao).toBe(menorPosicao);
       perfis = perfis.filter((p) => p.id !== proximo.id);
     }
+  });
+
+  it('põe quem tem menos pacientes ativos à frente de quem está há mais tempo sem receber', () => {
+    const posicoes = posicoesDoRodizio([
+      cadastro('antigo-com-ativo', { ultimoLeadRecebidoEm: '2026-01-01T12:00:00Z', pacientesAtivosCount: 1 }),
+      cadastro('recente-sem-ativo', { ultimoLeadRecebidoEm: '2026-11-09T12:00:00Z' }),
+    ], agora);
+    expect(posicoes.get('recente-sem-ativo')?.posicao).toBe(1);
+    expect(posicoes.get('antigo-com-ativo')?.posicao).toBe(2);
   });
 
   it.each([
@@ -58,10 +72,11 @@ describe('posição geral do rodízio na gestão', () => {
     expect(posicoesDoRodizio([cadastro('oculto', { exibirNaVitrine: false })], agora).get('oculto')?.posicao).toBe(1);
   });
 
-  it('trata data ilegível como ausência e preserva empates na ordem recebida', () => {
+  it('trata data ilegível como ausência e mostra empates na mesma posição', () => {
     const posicoes = posicoesDoRodizio([cadastro('ilegivel', { ultimoLeadRecebidoEm: 'inválida' }),
       cadastro('novo'), cadastro('a', { ultimoLeadRecebidoEm: '2026-11-01T00:00:00Z' }),
       cadastro('b', { ultimoLeadRecebidoEm: '2026-11-01T00:00:00Z' })], agora);
-    expect([...posicoes.values()].map((p) => p.posicao)).toEqual([1, 2, 3, 4]);
+    expect([...posicoes.values()].map((p) => p.posicao)).toEqual([1, 1, 3, 3]);
+    expect([...posicoes.values()].every((p) => p.empate)).toBe(true);
   });
 });

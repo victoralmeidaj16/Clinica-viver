@@ -83,6 +83,22 @@ describe('appointment aggregate', () => {
     expect(appointment.serviceKey).toBe('AVALIACAO');
   });
 
+  it.each([14, 45.5, 241])('recusa reagendar avaliação com %s minutos', (minutes) => {
+    const meta = metadata('2026-08-01T10:00:00.000Z');
+    const { appointment } = scheduleAppointment(input({ serviceKey: 'AVALIACAO' }), meta);
+    const start = '2026-08-04T12:00:00Z';
+    const end = new Date(Date.parse(start) + minutes * 60_000).toISOString();
+    expect(() => rescheduleAppointment(appointment, start, end, meta)).toThrow('15 e 240 minutos');
+  });
+
+  it.each([15, 240])('permite reagendar avaliação no limite de %s minutos', (minutes) => {
+    const meta = metadata('2026-08-01T10:00:00.000Z');
+    const { appointment } = scheduleAppointment(input({ serviceKey: 'AVALIACAO' }), meta);
+    const start = '2026-08-04T12:00:00Z';
+    const end = new Date(Date.parse(start) + minutes * 60_000).toISOString();
+    expect(rescheduleAppointment(appointment, start, end, meta).appointment).toMatchObject({ startsAt: start, endsAt: end });
+  });
+
   it('agenda, confirma, reagenda e cancela preservando o ciclo válido', () => {
     let appointment = scheduleAppointment(input(), metadata('2026-08-01T10:00:00.000Z')).appointment;
     appointment = confirmAppointment(appointment, metadata('2026-08-01T10:01:00.000Z')).appointment;

@@ -98,3 +98,31 @@ it('não envia nada quando o commit da transação falha', async () => {
   await expect(createPatient(context, body)).rejects.toThrow('commit falhou');
   expect(state.welcome).not.toHaveBeenCalled();
 });
+
+it('marca o vínculo do Projeto Acolhe para não ocupar vaga', async () => {
+  let gravado: { triagensPacientes: Array<{ projetoAcolhe?: boolean }>; cadastrosPsicologos: Array<{ pacientesAtivosCount?: number }> } | undefined;
+  state.mutate.mockImplementation(async (callback) => {
+    const saida = await callback(captura(), { query: state.query });
+    gravado = saida.next;
+    return saida.result;
+  });
+
+  await createPatient(context, { ...body, projetoAcolhe: true });
+
+  expect(gravado?.triagensPacientes[0].projetoAcolhe).toBe(true);
+  expect(gravado?.cadastrosPsicologos[0].pacientesAtivosCount).toBe(0);
+});
+
+it('cadastro manual comum ocupa vaga e não aceita marcação que não seja booleana', async () => {
+  let gravado: { triagensPacientes: Array<{ projetoAcolhe?: boolean }>; cadastrosPsicologos: Array<{ pacientesAtivosCount?: number }> } | undefined;
+  state.mutate.mockImplementation(async (callback) => {
+    const saida = await callback(captura(), { query: state.query });
+    gravado = saida.next;
+    return saida.result;
+  });
+
+  await createPatient(context, { ...body, projetoAcolhe: 'sim' });
+
+  expect(gravado?.triagensPacientes[0].projetoAcolhe).toBeUndefined();
+  expect(gravado?.cadastrosPsicologos[0].pacientesAtivosCount).toBe(1);
+});

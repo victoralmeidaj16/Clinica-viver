@@ -127,6 +127,11 @@ export interface TriagemPacienteRecord {
   psicologosJaTentados?: readonly string[];
   /** Como o psicólogo foi selecionado: escolha direta na vitrine ou rodízio inteligente. */
   tipoAlocacao?: 'ESCOLHA_DIRETA' | 'RODIZIO';
+  /**
+   * Paciente vindo do Projeto Acolhe, marcado no cadastro manual. Não ocupa
+   * vaga no limite de pacientes ativos (especificação final, 6.02 e seção 15).
+   */
+  projetoAcolhe?: boolean;
 }
 
 /** Situação do psicólogo no credenciamento. `APROVADO` significa "no rodízio". */

@@ -44,6 +44,7 @@ import {
   rotuloTurnoPreferencia,
 } from '@/lib/turnos';
 import { formatarTempoDecorrido } from '@/lib/tempoDecorrido';
+import { DevolverAoRodizioBotao } from '@/components/gestao/DevolverAoRodizioBotao';
 
 /** Linha da fila, como o `GET /api/application/triagem` a devolve. */
 interface LeadFila {
@@ -58,6 +59,8 @@ interface LeadFila {
   psicologoAlocadoId?: string;
   psicologoNome?: string;
   alocadoEm?: string;
+  /** Aceite do psicólogo: a oferta foi respondida e o prazo de 24h deixa de valer. */
+  aceitoEm?: string;
   confirmadoEm?: string;
   slaExpirado?: boolean;
   transbordos?: number;
@@ -151,6 +154,13 @@ function BadgeSla({ item }: { item: LeadFila }) {
     return (
       <span className="bg-sky-100 text-sky-800 border border-sky-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full whitespace-nowrap">
         Contato confirmado
+      </span>
+    );
+  }
+  if (item.aceitoEm) {
+    return (
+      <span className="bg-sky-100 text-sky-800 border border-sky-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full whitespace-nowrap">
+        Aceito
       </span>
     );
   }
@@ -336,6 +346,11 @@ export default function GestaoCockpitPage() {
     await recarregar();
   };
 
+  const aposDevolverAoRodizio = async (aviso?: string) => {
+    await recarregar();
+    if (aviso) setErroCarga(aviso);
+  };
+
   const pacientePorLead = useMemo(
     () => new Map(pacientesGestao.filter((paciente) => paciente.leadId).map((paciente) => [paciente.leadId!, paciente])),
     [pacientesGestao],
@@ -374,7 +389,7 @@ export default function GestaoCockpitPage() {
     await recarregar();
   };
 
-  const aguardandoContato = leads.filter((item) => item.status === 'AGUARDANDO_CONTATO');
+  const aguardandoContato = leads.filter((item) => item.status === 'AGUARDANDO_CONTATO' && !item.aceitoEm);
   const slasEstourados = aguardandoContato.filter((item) => item.slaStatus === 'VERMELHO').length;
   const semProfissional = leads.filter((item) => item.status === 'PENDENTE_ATRIBUICAO').length;
 
@@ -669,7 +684,11 @@ export default function GestaoCockpitPage() {
                     {item.psicologoAlocadoId ? 'Detalhes e trocar psicólogo' : 'Detalhes e encaminhar'}
                   </button>
 
-                  {!item.confirmadoEm && item.psicologoAlocadoId && (
+                  {item.status === 'PENDENTE_ATRIBUICAO' && (
+                    <DevolverAoRodizioBotao leadId={item.id} onConcluido={aposDevolverAoRodizio} />
+                  )}
+
+                  {!item.confirmadoEm && !item.aceitoEm && item.psicologoAlocadoId && (
                     <button
                       type="button"
                       onClick={() => handleForcarTransbordo(item.id)}
@@ -753,35 +772,18 @@ export default function GestaoCockpitPage() {
                           <UserRoundCog className="h-3 w-3" />
                           {item.psicologoAlocadoId ? 'Trocar psicólogo' : 'Encaminhar'}
                         </button>
+                        {item.status === 'PENDENTE_ATRIBUICAO' && (
+                          <DevolverAoRodizioBotao leadId={item.id} compacto onConcluido={aposDevolverAoRodizio} />
+                        )}
                       </td>
                       <td className="px-6 py-4 font-bold text-ink whitespace-nowrap">
                         {formatarTempoDecorrido(item.horasDecorridas)}
                       </td>
                       <td className="px-6 py-4">
-                        {item.confirmadoEm ? (
-                          <span className="bg-sky-100 text-sky-800 border border-sky-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full">
-                            Contato confirmado
-                          </span>
-                        ) : !item.psicologoAlocadoId ? (
-                          <span className="bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full">
-                            Aguardando alocação
-                          </span>
-                        ) : item.slaStatus === 'VERDE' ? (
-                          <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full">
-                            Normal (&lt; 12h)
-                          </span>
-                        ) : item.slaStatus === 'AMARELO' ? (
-                          <span className="bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full">
-                            Atenção (&gt; 12h)
-                          </span>
-                        ) : (
-                          <span className="bg-rose-100 text-rose-800 border border-rose-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full">
-                            Estourado (&gt; 24h)
-                          </span>
-                        )}
+                        <BadgeSla item={item} />
                       </td>
                       <td className="px-6 py-4 text-right">
-                        {!item.confirmadoEm && item.psicologoAlocadoId && (
+                        {!item.confirmadoEm && !item.aceitoEm && item.psicologoAlocadoId && (
                           <button
                             type="button"
                             onClick={(event) => { event.stopPropagation(); void handleForcarTransbordo(item.id); }}

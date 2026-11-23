@@ -2,6 +2,9 @@ import type { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
+import type { PoolConnection } from 'mysql2/promise';
+import { instituicaoId } from './mappers';
+import { appointmentFundingQuotaAvailable } from './appointmentFundingQuota';
 import { custeioDoAgendamentoSql } from './custeioSql';
 
 // Node 20 não possui SQLite nativo; os testes estruturais rodam em todas as versões.
@@ -30,7 +33,7 @@ describe.skipIf(!sqlite)('projeção da cota por agendamento', () => {
       CREATE TABLE clinica_convenios (empresa_paga_sessoes INTEGER, pacote_sessoes INTEGER, pacote_sessoes_ciclo TEXT);
       CREATE TABLE clinica_agendamentos (
         id TEXT, ref_core TEXT, instituicao_id TEXT, paciente_id TEXT, inicio TEXT,
-        status TEXT, custeado_pela_empresa INTEGER
+        status TEXT, custeado_pela_empresa INTEGER, custeio_convenio_ref TEXT
       );
       CREATE TABLE financeiro_cobrancas (
         instituicao_id TEXT, sessao_ref TEXT, status TEXT, convenio_ref TEXT
@@ -39,7 +42,7 @@ describe.skipIf(!sqlite)('projeção da cota por agendamento', () => {
       INSERT INTO clinica_convenios VALUES (1, NULL, NULL);
     `);
     const insert = db.prepare(`INSERT INTO clinica_agendamentos
-      VALUES (?, ?, 'i', 'p', ?, 'agendado', NULL)`);
+      VALUES (?, ?, 'i', 'p', ?, 'agendado', NULL, NULL)`);
     for (let n = 1; n <= 4; n++) insert.run(String(n), String(n), `2026-10-${String(n * 7).padStart(2, '0')} 10:00:00`);
   });
 
@@ -105,6 +108,40 @@ describe.skipIf(!sqlite)('projeção da cota por agendamento', () => {
     });
   });
 
+  it('a empresa nova começa com sua própria cota e a anterior conserva o consumo', () => {
+    db.exec(`UPDATE clinica_agendamentos SET status = 'realizado', custeado_pela_empresa = 1,
+      custeio_convenio_ref = 'anterior' WHERE id = '1';
+      UPDATE clinica_pacientes SET custeio_sessoes_cota = 1;`);
+    expect(custeios()).toEqual([1, 1, 0, 0]);
+    db.exec("UPDATE clinica_pacientes SET convenio_ref = 'anterior'");
+    expect(custeios()).toEqual([1, 0, 0, 0]);
+  });
+
+  it('valida a data proposta no mês civil da clínica e exclui a própria sessão', async () => {
+    db.exec(`CREATE TABLE clinica_organizacoes (id TEXT, ref_core TEXT);
+      INSERT INTO clinica_organizacoes VALUES ('org', 'org');
+      ALTER TABLE clinica_agendamentos ADD COLUMN organizacao_id TEXT DEFAULT 'org';
+      ALTER TABLE clinica_pacientes ADD COLUMN organizacao_id TEXT DEFAULT 'org';
+      ALTER TABLE clinica_convenios ADD COLUMN organizacao_ref TEXT DEFAULT 'org';
+      ALTER TABLE clinica_convenios ADD COLUMN instituicao_id TEXT;
+      ALTER TABLE clinica_convenios ADD COLUMN ref_core TEXT DEFAULT 'c';
+      UPDATE clinica_pacientes SET custeio_sessoes_cota = 1, custeio_sessoes_ciclo = 'mensal';
+      UPDATE clinica_agendamentos SET custeado_pela_empresa = 1, custeio_convenio_ref = 'c' WHERE id IN ('1', '2');
+      UPDATE clinica_agendamentos SET inicio = '2026-12-10 15:00:00' WHERE id = '2';
+      UPDATE clinica_agendamentos SET status = 'cancelado' WHERE id IN ('3', '4');`);
+    for (const tabela of ['clinica_agendamentos', 'clinica_pacientes', 'clinica_convenios']) {
+      db.prepare(`UPDATE ${tabela} SET instituicao_id = ?`).run(instituicaoId());
+    }
+    const connection = { query: async (sql: string, params: (string | Date)[]) => [
+      db.prepare(sql.replace('FOR UPDATE', '').replace('CAST(? AS DATETIME(3))', '?'))
+        .all(...params.map(value => value instanceof Date ? value.toISOString().slice(0, 19).replace('T', ' ') : value)),
+    ] } as unknown as PoolConnection;
+    const permite = (iso: string) => appointmentFundingQuotaAvailable(connection, '2', new Date(iso));
+    expect(await permite('2026-11-01T02:59:00Z')).toBe(false);
+    expect(await permite('2026-11-01T03:00:00Z')).toBe(true);
+    expect(await permite('2026-12-11T15:00:00Z')).toBe(true);
+  });
+
   it('empresa paga somente as duas primeiras das quatro sessões futuras', () => {
     expect(custeios()).toEqual([1, 1, 0, 0]);
   });
@@ -115,12 +152,12 @@ describe.skipIf(!sqlite)('projeção da cota por agendamento', () => {
   });
 
   it('não desconta duas vezes a sessão que foi realizada', () => {
-    db.exec("UPDATE clinica_agendamentos SET status = 'realizado', custeado_pela_empresa = 1 WHERE id = '1'");
+    db.exec("UPDATE clinica_agendamentos SET status = 'realizado', custeado_pela_empresa = 1, custeio_convenio_ref = 'c' WHERE id = '1'");
     expect(custeios()).toEqual([1, 1, 0, 0]);
   });
 
   it('preserva decisões gravadas quando a cota muda', () => {
-    db.exec(`UPDATE clinica_agendamentos SET custeado_pela_empresa = 1 WHERE id = '1';
+    db.exec(`UPDATE clinica_agendamentos SET custeado_pela_empresa = 1, custeio_convenio_ref = 'c' WHERE id = '1';
       UPDATE clinica_agendamentos SET custeado_pela_empresa = 0 WHERE id = '4';
       UPDATE clinica_pacientes SET custeio_sessoes_cota = 0;`);
     expect(custeios()).toEqual([1, 0, 0, 0]);
@@ -135,7 +172,7 @@ describe.skipIf(!sqlite)('projeção da cota por agendamento', () => {
 
   it('considera o mês de São Paulo para sessões noturnas', () => {
     db.exec(`UPDATE clinica_pacientes SET custeio_sessoes_cota = 1, custeio_sessoes_ciclo = 'mensal';
-      UPDATE clinica_agendamentos SET inicio = '2026-11-01 00:00:00', custeado_pela_empresa = 1, status = 'realizado' WHERE id = '1';
+      UPDATE clinica_agendamentos SET inicio = '2026-11-01 00:00:00', custeado_pela_empresa = 1, custeio_convenio_ref = 'c', status = 'realizado' WHERE id = '1';
       UPDATE clinica_agendamentos SET inicio = '2026-11-01 15:00:00' WHERE id = '2';
       UPDATE clinica_agendamentos SET status = 'cancelado' WHERE id IN ('3', '4');`);
     expect(custeios()).toEqual([1, 1]);
@@ -172,7 +209,7 @@ describe.skipIf(!sqlite)('projeção da cota por agendamento', () => {
 
     it('a decisão gravada na realização continua valendo', () => {
       db.exec(`${semCota}; INSERT INTO financeiro_cobrancas VALUES ('i', '2', 'paid', NULL);
-        UPDATE clinica_agendamentos SET custeado_pela_empresa = 1 WHERE id = '2'`);
+        UPDATE clinica_agendamentos SET custeado_pela_empresa = 1, custeio_convenio_ref = 'c' WHERE id = '2'`);
       expect(custeios()).toEqual([1, 1, 1, 1]);
     });
   });

@@ -12,7 +12,7 @@ describe('transferência de cobrança para empresa', () => {
     mocks.query.mockResolvedValueOnce([[{ id: 'a1' }], []]).mockResolvedValueOnce([[{ custeado: 1 }], []]).mockResolvedValueOnce([[{ id: 'a1' }], []]);
     mocks.execute.mockResolvedValue([{ affectedRows: 1 }, []]);
     mocks.cancel.mockResolvedValue('cancelled');
-    mocks.connectionQuery.mockResolvedValue([[{ status: 'realizado', sessao_clinica_ref: 's1', valor_centavos: 10000, inicio: '2026-10-01T12:00:00Z' }], []]);
+    mocks.connectionQuery.mockResolvedValueOnce([[{ status: 'realizado', convenio_ref: 'empresa', sessao_clinica_ref: 's1', valor_centavos: 10000, inicio: '2026-10-01T12:00:00Z' }], []]).mockResolvedValueOnce([[{ custeado: 1 }], []]);
     mocks.connectionExecute.mockRejectedValue(new Error('falha fictícia'));
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
@@ -32,6 +32,18 @@ describe('transferência de cobrança para empresa', () => {
     mocks.connectionExecute.mockResolvedValue([{ affectedRows: 1 }, []]);
     expect(await transferirCobrancasParaEmpresa('org-1', 'patient-1')).toEqual({ transferidas: 1, mantidas: 0, pendentes: 0 });
     expect(mocks.connectionExecute.mock.calls[0][0]).toContain('custeado_pela_empresa = NULL');
+  });
+
+  it('preserva o pagador individual se a cota acabou durante o cancelamento', async () => {
+    vi.clearAllMocks();
+    mocks.lockQuery.mockImplementation(async (sql: string) => sql.includes('GET_LOCK') ? [[{ acquired: 1 }], []] : [[], []]);
+    mocks.query.mockResolvedValueOnce([[{ id: 'a' }], []]).mockResolvedValueOnce([[{ custeado: 1 }], []]).mockResolvedValueOnce([[{ id: 'a' }], []]);
+    mocks.cancel.mockResolvedValue('cancelled');
+    mocks.connectionQuery.mockResolvedValueOnce([[{ status: 'realizado', convenio_ref: 'empresa', sessao_clinica_ref: 's' }], []])
+      .mockResolvedValueOnce([[{ custeado: 0 }], []]);
+    mocks.connectionExecute.mockResolvedValue([{ affectedRows: 1 }, []]);
+    expect(await transferirCobrancasParaEmpresa('org-1', 'patient-1')).toEqual({ transferidas: 0, mantidas: 1, pendentes: 0 });
+    expect(mocks.connectionExecute).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('custeado_pela_empresa = 0'), ['inst-1','a']);
   });
 
   it('não cancela nem cria outra cobrança quando a sessão já foi transferida', async () => {
@@ -62,7 +74,7 @@ describe('transferência de cobrança para empresa', () => {
       ? [[{ id: 'a4' }], []] : sql.includes('AS custeado') ? [[{ custeado: 1 }], []] : [[{ id: 'a4' }], []]);
     mocks.execute.mockResolvedValue([{ affectedRows: 1 }, []]);
     mocks.cancel.mockResolvedValue('cancelled');
-    mocks.connectionQuery.mockResolvedValue([[{ status: 'realizado', sessao_clinica_ref: 's1', valor_centavos: 10000, inicio: '2026-10-01T12:00:00Z' }], []]);
+    mocks.connectionQuery.mockResolvedValueOnce([[{ status: 'realizado', convenio_ref: 'empresa', sessao_clinica_ref: 's1', valor_centavos: 10000, inicio: '2026-10-01T12:00:00Z' }], []]).mockResolvedValueOnce([[{ custeado: 1 }], []]);
     mocks.connectionExecute.mockImplementation(async (sql: string) => {
       if (sql.includes('SET custeado_pela_empresa = 1')) transferred = true;
       return [{ affectedRows: 1 }, []];

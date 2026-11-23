@@ -1,3 +1,7 @@
+export function isValidAppointmentDuration(minutes: number): boolean {
+  return Number.isInteger(minutes) && minutes >= 15 && minutes <= 240;
+}
+
 export function requireSchedulingText(value: string, field: string): string {
   const normalized = value.replace(/\s+/g, ' ').trim();
   if (!normalized) throw new Error(`${field} é obrigatório.`);

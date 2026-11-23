@@ -38,6 +38,14 @@ vi.mock('@/server/application/viverMaisRodizio', () => ({
     if (leadId === 'lead-conflito') {
       return { snapshot: {}, situacao: 'nao_aplicavel', lead: { id: leadId } };
     }
+    if (leadId === 'lead-direto') {
+      return {
+        snapshot: {},
+        situacao: 'devolvido_gestao',
+        lead: { id: leadId, protocolo: 'VM-777777', status: 'PENDENTE_ATRIBUICAO' },
+        psicologoAnteriorNome: 'Dr. Indicado',
+      };
+    }
     if (leadId === 'lead-sem-candidato') {
       return {
         snapshot: {},
@@ -119,5 +127,22 @@ describe('POST /api/application/triagem/[id]/encaminhar', () => {
       expect.objectContaining({ id: 'psi-2' }),
       'RODIZIO'
     );
+  });
+
+  it('recusa de pedido direcionado avisa a coordenação e não aciona outro psicólogo', async () => {
+    const request = new Request('http://localhost/api/application/triagem/lead-direto/encaminhar?psi=psi-1&t=token-valido', {
+      method: 'POST',
+    });
+    const response = await POST(request, { params: Promise.resolve({ id: 'lead-direto' }) });
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json).toMatchObject({ success: true, situacao: 'devolvido_gestao' });
+    expect(avisarCoordenacaoMock).toHaveBeenCalledWith(
+      expect.stringContaining('VM-777777'),
+      'escolha-direta-recusada:lead-direto'
+    );
+    expect(avisarTransbordoMock).not.toHaveBeenCalled();
+    expect(avisarAlocacaoPsicologoPorEmailMock).not.toHaveBeenCalled();
   });
 });

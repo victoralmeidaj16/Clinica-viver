@@ -426,11 +426,8 @@ export async function editAgendaAppointment(
     );
   }
   if (outcome === 'funding_quota_exceeded') {
-    throw new ApplicationError(
-      'APPOINTMENT_FUNDING_QUOTA_EXCEEDED',
-      'Esta sessão não cabe na cota da empresa. Altere primeiro outra sessão coberta para pagamento da paciente.',
-      409
-    );
+    throw new ApplicationError('APPOINTMENT_FUNDING_QUOTA_EXCEEDED',
+      'Esta sessão não cabe na cota da empresa para a data escolhida. Confira o vínculo e o saldo do convênio.', 409);
   }
   if (outcome === 'requires_completion') {
     throw new ApplicationError(

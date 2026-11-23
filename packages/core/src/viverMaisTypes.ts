@@ -101,7 +101,7 @@ export interface PsicologoPerfil {
   genero?: GeneroProfissional;
   turnosDisponiveis: TurnoAtendimento[];
   modalidadesAtendidas: ModalidadeAtendimento[];
-  servicosHabilitados?: string[]; // Ex: ['PSICOTERAPIA', 'AVALIACAO', 'ORIENTACAO_PROFISSIONAL', 'ORIENTACAO_PARENTAL']
+  servicosHabilitados?: string[]; // Ex: ['PSICOTERAPIA', 'AVALIACAO', 'ORIENTACAO_VOCACIONAL', 'ORIENTACAO_PROFISSIONAL', 'ORIENTACAO_PARENTAL']
   publicoAlvo?: string[];
   especificarNecessidades?: boolean;
   necessidadesAtendidas?: string[];

@@ -254,10 +254,21 @@ function registrarRecebimento(
  * A capacidade é derivada dos contatos confirmados, nunca de um acumulador.
  * Assim transbordo e tentativas sem confirmação não consomem vaga.
  */
+/**
+ * Vínculo ativo ocupa vaga desde o aceite ou o cadastro manual (especificação
+ * final, 3.11 e 6.02). Desistência e alta liberam na hora (6.05 e 6.06), e o
+ * paciente do Projeto Acolhe fica fora do limite (seção 15).
+ */
+function ocupaVaga(lead: TriagemPacienteRecord): boolean {
+  if (!lead.psicologoAlocadoId || lead.projetoAcolhe) return false;
+  if (lead.status === 'CONTATO_CONFIRMADO') return true;
+  return lead.status === 'AGUARDANDO_CONTATO' && Boolean(lead.aceitoEm);
+}
+
 export function recalcularPacientesAtivos(snapshot: PersistedSnapshot): PersistedSnapshot {
   const contagem = new Map<string, number>();
   for (const lead of snapshot.triagensPacientes ?? []) {
-    if ((!lead.aceitoEm && lead.status !== 'CONTATO_CONFIRMADO') || !lead.psicologoAlocadoId) continue;
+    if (!ocupaVaga(lead) || !lead.psicologoAlocadoId) continue;
     contagem.set(lead.psicologoAlocadoId, (contagem.get(lead.psicologoAlocadoId) ?? 0) + 1);
   }
   return {
@@ -278,7 +289,20 @@ export type AceitePacienteResult =
   | { kind: 'conflict' }
   | { kind: 'already_confirmed'; lead: TriagemPacienteRecord }
   | { kind: 'already_accepted'; lead: TriagemPacienteRecord }
+  | { kind: 'expired'; lead: TriagemPacienteRecord }
   | { kind: 'accepted'; lead: TriagemPacienteRecord };
+
+/**
+ * Oferta não respondida no prazo expira e não pode mais ser aceita
+ * (especificação final, 5.05). O `sla-sweeper` move o caso, mas roda em
+ * intervalos: sem esta checagem, um clique entre o vencimento e a próxima
+ * varredura ainda prenderia o paciente a quem não respondeu a tempo.
+ */
+export function ofertaExpirada(lead: TriagemPacienteRecord, agora: Date = new Date()): boolean {
+  if (lead.aceitoEm || lead.confirmadoEm || lead.status !== 'AGUARDANDO_CONTATO') return false;
+  const horas = horasDesdeAlocacao(lead.alocadoEm, agora);
+  return horas !== null && horas >= SLA_CONTATO_HORAS;
+}
 
 /** Registra o aceite sem confundi-lo com a confirmação do primeiro contato. */
 export function aceitarPaciente(
@@ -299,6 +323,7 @@ export function aceitarPaciente(
   if (lead.status !== 'AGUARDANDO_CONTATO') {
     return { next: snapshot, result: { kind: 'conflict' } };
   }
+  if (ofertaExpirada(lead, agora)) return { next: snapshot, result: { kind: 'expired', lead } };
 
   const aceito: TriagemPacienteRecord = { ...lead, aceitoEm: agora.toISOString() };
   const next = recalcularPacientesAtivos({
@@ -363,13 +388,50 @@ export function alocarLead(
   };
 }
 
+/** Por que um pedido direcionado a um psicólogo específico aguarda a Gestão. */
+export type MotivoEscolhaDiretaPendente = 'INDISPONIVEL' | 'RECUSOU' | 'SEM_RESPOSTA';
+
+/**
+ * Pedido para um psicólogo específico que não pode seguir com ele vai para a
+ * Gestão decidir (especificação final, 4.05, 5.04, 5.05 e seção 15) — nunca
+ * para o rodízio automático. O indicado fica em `psicologosJaTentados`, e o
+ * motivo é derivado do próprio registro em `motivoEscolhaDiretaPendente`:
+ * sem `alocadoEm`, ele não estava apto na entrada; com `slaExpirado`, não
+ * respondeu no prazo; do contrário, recusou.
+ */
+function devolverEscolhaDiretaAGestao(
+  lead: TriagemPacienteRecord,
+  psicologoIndicadoId: string,
+  slaExpirado: boolean
+): TriagemPacienteRecord {
+  return {
+    ...lead,
+    status: 'PENDENTE_ATRIBUICAO',
+    psicologoAlocadoId: undefined,
+    psicologoNome: undefined,
+    aceitoEm: undefined,
+    tipoAlocacao: 'ESCOLHA_DIRETA',
+    slaExpirado,
+    psicologosJaTentados: [...new Set([...(lead.psicologosJaTentados ?? []), psicologoIndicadoId])],
+  };
+}
+
+export function motivoEscolhaDiretaPendente(
+  lead: Pick<TriagemPacienteRecord, 'status' | 'tipoAlocacao' | 'alocadoEm' | 'slaExpirado'>
+): MotivoEscolhaDiretaPendente | undefined {
+  if (lead.status !== 'PENDENTE_ATRIBUICAO' || lead.tipoAlocacao !== 'ESCOLHA_DIRETA') return undefined;
+  if (!lead.alocadoEm) return 'INDISPONIVEL';
+  return lead.slaExpirado ? 'SEM_RESPOSTA' : 'RECUSOU';
+}
+
 /**
  * Respeita a escolha explícita feita no catálogo público.
  *
  * A pessoa escolhida ainda passa pelas mesmas regras do rodízio (aprovação,
  * pausa, capacidade, serviço, modalidade e turno). A diferença é só que não
  * procuramos um substituto silenciosamente: se ela deixou de estar elegível
- * entre a abertura do catálogo e o envio, o chamador pede uma nova escolha.
+ * entre a abertura do catálogo e o envio, a solicitação fica registrada para a
+ * Gestão decidir o destino.
  */
 export function alocarLeadEscolhido(
   snapshot: PersistedSnapshot,
@@ -380,7 +442,10 @@ export function alocarLeadEscolhido(
   const atual = recalcularPacientesAtivos(snapshot);
   const escolhido = listarPsicologosCompativeis(atual, leadRecord, agora)
     .find((item) => item.id === psicologoId);
-  if (!escolhido) return { snapshot: atual, lead: leadRecord };
+  if (!escolhido) {
+    const pendente = devolverEscolhaDiretaAGestao(leadRecord, psicologoId, false);
+    return { snapshot: substituirLead(atual, pendente), lead: pendente };
+  }
 
   const alocadoEm = agora.toISOString();
   const atualizado: TriagemPacienteRecord = {
@@ -431,6 +496,59 @@ export function listarPsicologosCompativeis(
       leadRecord.servicoKey
     ).sucesso
   );
+}
+
+export type ResultadoDevolucaoRodizio =
+  | { situacao: 'alocado'; snapshot: PersistedSnapshot; lead: TriagemPacienteRecord; psicologo: CadastroPsicologoRecord }
+  | { situacao: 'sem_candidato' | 'nao_aplicavel' | 'nao_encontrado'; snapshot: PersistedSnapshot; lead?: TriagemPacienteRecord; psicologo?: undefined };
+
+/**
+ * "Devolver à fila" da Gestão (especificação final, 4.05 e 6.07): um caso que
+ * aguarda decisão volta ao rodízio automático pelas mesmas regras da entrada,
+ * sem ser oferecido de novo a quem já teve a chance neste pedido (5.04). Sem
+ * outro compatível, continua com a Gestão.
+ */
+export function devolverAoRodizio(
+  snapshot: PersistedSnapshot,
+  leadId: string,
+  agora: Date = new Date()
+): ResultadoDevolucaoRodizio {
+  const atual = recalcularPacientesAtivos(snapshot);
+  const leadRecord = atual.triagensPacientes?.find((item) => item.id === leadId);
+  if (!leadRecord) return { situacao: 'nao_encontrado', snapshot: atual };
+  if (leadRecord.status !== 'PENDENTE_ATRIBUICAO') {
+    return { situacao: 'nao_aplicavel', snapshot: atual, lead: leadRecord };
+  }
+
+  const lead = paraLeadTriagem(leadRecord);
+  const jaTentados = leadRecord.psicologosJaTentados ?? [];
+  const candidatos = rosterAtivo(atual).filter((psi) => !jaTentados.includes(psi.id));
+  const resultado = lead && candidatos.length
+    ? processarTriagemLead(lead, candidatos.map((psi) => paraPsicologoPerfil(psi, agora)), leadRecord.servicoKey)
+    : null;
+  const escolhido = resultado?.sucesso
+    ? candidatos.find((psi) => psi.id === resultado.psicologoAlocado?.id)
+    : undefined;
+  if (!escolhido) return { situacao: 'sem_candidato', snapshot: atual, lead: leadRecord };
+
+  const alocadoEm = agora.toISOString();
+  const atualizado: TriagemPacienteRecord = {
+    ...leadRecord,
+    status: 'AGUARDANDO_CONTATO',
+    psicologoAlocadoId: escolhido.id,
+    psicologoNome: nomeDeExibicao(escolhido),
+    alocadoEm,
+    aceitoEm: undefined,
+    tipoAlocacao: 'RODIZIO',
+    slaExpirado: false,
+    psicologosJaTentados: [...jaTentados, escolhido.id],
+  };
+  return {
+    situacao: 'alocado',
+    snapshot: recalcularPacientesAtivos(registrarRecebimento(substituirLead(atual, atualizado), escolhido.id, alocadoEm)),
+    lead: atualizado,
+    psicologo: escolhido,
+  };
 }
 
 /** Alocação manual validada, usada pela gestão após uma desistência. */
@@ -561,14 +679,29 @@ export function varrerSla(
   // não há para quem passá-lo também muda o estado, e precisa ser gravado.
   let alterado = false;
 
+  // O prazo vale para a oferta, não para o vínculo: depois do aceite o
+  // paciente já é do profissional (especificação 5.03) e a falta de primeiro
+  // agendamento vira aviso à Gestão em 48h, nunca redistribuição (7.03).
   const pendentes = (atual.triagensPacientes ?? []).filter(
     (lead) =>
       lead.status === 'AGUARDANDO_CONTATO' &&
+      !lead.aceitoEm &&
       Boolean(lead.alocadoEm) &&
       (!apenasLeadId || lead.id === apenasLeadId)
   );
 
   for (const leadRecord of pendentes) {
+    // Pedido direcionado sem resposta no prazo expira e vai para a Gestão: a
+    // regra validada para ele não inclui seguir pelo rodízio.
+    if (leadRecord.tipoAlocacao === 'ESCOLHA_DIRETA' && leadRecord.psicologoAlocadoId) {
+      const horas = horasDesdeAlocacao(leadRecord.alocadoEm, agora);
+      if (horas !== null && horas >= SLA_CONTATO_HORAS) {
+        atual = substituirLead(atual, devolverEscolhaDiretaAGestao(leadRecord, leadRecord.psicologoAlocadoId, true));
+        alterado = true;
+      }
+      continue;
+    }
+
     const lead = paraLeadTriagem(leadRecord);
     if (!lead) continue;
 
@@ -639,13 +772,15 @@ export type ConfirmacaoResult =
   | { kind: 'conflict' }
   | { kind: 'capacity_reallocated'; lead: TriagemPacienteRecord; psicologo: CadastroPsicologoRecord }
   | { kind: 'capacity_pending'; lead: TriagemPacienteRecord; psicologo?: undefined }
+  | { kind: 'expired'; lead: TriagemPacienteRecord }
   | { kind: 'already_confirmed'; data: { nomePaciente: string; telefone: string; confirmadoEm: string } }
   | { kind: 'confirmed'; lead: TriagemPacienteRecord; data: { nomePaciente: string; telefone: string; confirmadoEm: string } };
 
 export function confirmarContato(
   snapshot: PersistedSnapshot,
   id: string,
-  psicologoId: string
+  psicologoId: string,
+  agora: Date = new Date()
 ): { next: PersistedSnapshot; result: ConfirmacaoResult } {
   const atual = recalcularPacientesAtivos(snapshot);
   const lead = atual.triagensPacientes?.find((item) => item.id === id);
@@ -661,6 +796,8 @@ export function confirmarContato(
       },
     };
   }
+
+  if (ofertaExpirada(lead, agora)) return { next: atual, result: { kind: 'expired', lead } };
 
   const psicologo = atual.cadastrosPsicologos?.find((item) => item.id === psicologoId);
   if (!lead.aceitoEm && psicologo && (psicologo.pacientesAtivosCount ?? 0) >= (psicologo.limitePacientesAtivos ?? LIMITE_PACIENTES_PADRAO)) {
@@ -687,7 +824,7 @@ export function confirmarContato(
       : { next: realocado.snapshot, result: { kind: 'capacity_pending', lead: realocado.lead } };
   }
 
-  const confirmadoEm = new Date().toISOString();
+  const confirmadoEm = agora.toISOString();
   const confirmado: TriagemPacienteRecord = { ...lead, status: 'CONTATO_CONFIRMADO', confirmadoEm };
   const next = recalcularPacientesAtivos({
     ...atual,
@@ -705,7 +842,7 @@ export function confirmarContato(
 
 export interface ResultadoEncaminhamento {
   snapshot: PersistedSnapshot;
-  situacao: 'encaminhado' | 'sem_candidato' | 'nao_encontrado' | 'nao_aplicavel' | 'ja_aceito';
+  situacao: 'encaminhado' | 'devolvido_gestao' | 'sem_candidato' | 'nao_encontrado' | 'nao_aplicavel' | 'ja_aceito';
   lead?: TriagemPacienteRecord;
   psicologoNovo?: CadastroPsicologoRecord;
   psicologoAnteriorNome?: string;
@@ -748,6 +885,17 @@ export function encaminharParaProximo(
   // o WhatsApp deixam de encaminhar: a troca passa a ser decisão da clínica.
   if (leadRecord.aceitoEm) {
     return { snapshot: atual, situacao: 'ja_aceito', lead: leadRecord };
+  }
+
+  // O paciente escolheu esta pessoa: a recusa leva o caso à Gestão.
+  if (leadRecord.tipoAlocacao === 'ESCOLHA_DIRETA') {
+    const pendente = devolverEscolhaDiretaAGestao(leadRecord, psicologoAtualId, false);
+    return {
+      snapshot: recalcularPacientesAtivos(substituirLead(atual, pendente)),
+      situacao: 'devolvido_gestao',
+      lead: pendente,
+      psicologoAnteriorNome: leadRecord.psicologoNome,
+    };
   }
 
   const lead = paraLeadTriagem(leadRecord);

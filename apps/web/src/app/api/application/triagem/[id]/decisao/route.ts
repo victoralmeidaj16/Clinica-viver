@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import { captureStateAsSnapshot, getCaptureRepository } from '@/server/persistence/captureRepository';
-import { aceitarPaciente, type AceitePacienteResult } from '@/server/application/viverMaisRodizio';
+import { aceitarPaciente, ofertaExpirada, type AceitePacienteResult } from '@/server/application/viverMaisRodizio';
+
+const PRAZO_ENCERRADO = 'O prazo de 24h para responder a esta solicitação terminou. Ela seguiu para outro profissional ou para a coordenação da clínica.';
 import { reconciliarPacientes } from '@/server/application/patientPromotion';
+import { avisarConfirmacaoPaciente } from '@/server/application/viverMaisWhatsApp';
 import { validarTokenConfirmacao } from '@/server/viverMaisConfirmToken';
 
 export const runtime = 'nodejs';
@@ -30,6 +33,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (lead.psicologoAlocadoId !== psicologoId) {
     return NextResponse.json({ success: false, error: 'Este paciente já foi encaminhado a outro profissional.' }, { status: 409 });
   }
+  if (ofertaExpirada(lead)) return NextResponse.json({ success: false, error: PRAZO_ENCERRADO }, { status: 409 });
   const estado = lead.confirmadoEm || lead.status === 'CONTATO_CONFIRMADO'
     ? 'CONFIRMADO'
     : lead.aceitoEm
@@ -64,7 +68,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (resultado.kind === 'conflict') {
       return NextResponse.json({ success: false, error: 'Este paciente já foi encaminhado a outro profissional.' }, { status: 409 });
     }
-    if (resultado.kind === 'accepted') await reconciliarPacientes(repositorio);
+    if (resultado.kind === 'expired') {
+      return NextResponse.json({ success: false, error: PRAZO_ENCERRADO }, { status: 409 });
+    }
+    if (resultado.kind === 'accepted') {
+      // O aceite conclui a decisão: o paciente recebe as orientações sobre os
+      // próximos passos neste momento, e o psicólogo assume o contato
+      // (especificação final, 5.03, 7.02 e 12.01). A chave de envio é a mesma
+      // da confirmação de contato, então a mensagem não sai duas vezes. Uma
+      // falha de WhatsApp não desfaz o aceite já gravado.
+      const [promocao] = await Promise.allSettled([
+        reconciliarPacientes(repositorio),
+        avisarConfirmacaoPaciente(resultado.lead).catch((erro: unknown) => {
+          // Só a mensagem do erro: valor cru poderia carregar contato do paciente.
+          console.error('[triagem] Aceite registrado; orientações ao paciente não enviadas:', erro instanceof Error ? erro.message : 'erro desconhecido');
+        }),
+      ]);
+      if (promocao.status === 'rejected') throw promocao.reason;
+    }
     return NextResponse.json({
       success: true,
       estado: resultado.kind === 'already_confirmed' ? 'CONFIRMADO' : 'ACEITO',

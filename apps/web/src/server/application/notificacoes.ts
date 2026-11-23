@@ -26,6 +26,7 @@ import {
   horasDesdeAlocacao,
   nomeDeExibicao,
   SLA_CONTATO_HORAS,
+  motivoEscolhaDiretaPendente,
 } from './viverMaisRodizio';
 
 /**
@@ -187,9 +188,12 @@ export function notificacoesDoPsicologo(
         chave: `paciente-atribuido:${lead.id}:${lead.alocadoEm}`,
         tipo: 'paciente-atribuido',
         titulo: repassado ? 'Paciente repassado para você' : 'Novo paciente para contatar',
-        descricao: `${lead.nomePaciente} — ${resumoDoLead(lead)}. Primeiro contato em até ${SLA_CONTATO_HORAS} h (${prazoRestante(lead.alocadoEm, agora)}).`,
+        // Depois do aceite a oferta está respondida: o prazo de 24h deixa de valer.
+        descricao: lead.aceitoEm
+          ? `${lead.nomePaciente} — ${resumoDoLead(lead)}. Você aceitou: combine o primeiro horário com o paciente.`
+          : `${lead.nomePaciente} — ${resumoDoLead(lead)}. Primeiro contato em até ${SLA_CONTATO_HORAS} h (${prazoRestante(lead.alocadoEm, agora)}).`,
         ocorridoEm: lead.alocadoEm,
-        severidade: severidadePorSla(lead.alocadoEm, agora),
+        severidade: lead.aceitoEm ? 'INFO' : severidadePorSla(lead.alocadoEm, agora),
         // Sem `foco`: o portal do profissional não tem uma fila de leads para
         // apontar. O primeiro contato é feito pelo link que chega no WhatsApp,
         // e inventar aqui uma âncora para uma seção que não existe daria um
@@ -511,6 +515,57 @@ function notificacoesDoCadastro(cadastro: CadastroPsicologoRecord): NotificacaoD
 // Gestão
 // ---------------------------------------------------------------------------
 
+/** Agendamento mínimo para saber se o vínculo já teve o primeiro horário. */
+export interface AgendamentoDoVinculo {
+  pacienteRef: string;
+  profissionalRef: string;
+  criadoEm: string;
+}
+
+/** Especificação final, 7.03: prazo entre o aceite e o primeiro agendamento. */
+export const HORAS_ACEITE_SEM_AGENDAMENTO = 48;
+
+/**
+ * Paciente aceito há 48h sem primeiro agendamento do profissional do vínculo.
+ * É só um aviso: o paciente continua ativo e não é redistribuído. Conta apenas
+ * agendamento criado depois do aceite e pelo mesmo profissional, para que um
+ * atendimento antigo do mesmo CPF não esconda o caso.
+ */
+export function notificacoesDeAceiteSemAgendamento(
+  state: CaptureState,
+  agendamentos: readonly AgendamentoDoVinculo[],
+  agora: Date = new Date()
+): NotificacaoDerivada[] {
+  const itens: NotificacaoDerivada[] = [];
+  for (const lead of state.triagensPacientes) {
+    if (!lead.aceitoEm || !lead.psicologoAlocadoId) continue;
+    if (lead.status !== 'AGUARDANDO_CONTATO' && lead.status !== 'CONTATO_CONFIRMADO') continue;
+    const aceitoMs = Date.parse(lead.aceitoEm);
+    if (!Number.isFinite(aceitoMs)) continue;
+    if (agora.getTime() - aceitoMs < HORAS_ACEITE_SEM_AGENDAMENTO * 60 * 60 * 1000) continue;
+
+    const profissionalRef = state.cadastrosPsicologos
+      .find((psi) => psi.id === lead.psicologoAlocadoId)?.profissionalRef;
+    const agendou = Boolean(lead.pacienteRef && profissionalRef) && agendamentos.some((item) =>
+      item.pacienteRef === lead.pacienteRef
+      && item.profissionalRef === profissionalRef
+      && Date.parse(item.criadoEm) >= aceitoMs);
+    if (agendou) continue;
+
+    itens.push({
+      chave: `aceite-sem-agendamento:${lead.id}:${lead.aceitoEm}`,
+      tipo: 'aceite-sem-agendamento',
+      titulo: 'Paciente aceito sem primeiro agendamento',
+      descricao: `${lead.nomePaciente} (${lead.protocolo}) foi aceito por ${lead.psicologoNome ?? 'profissional não identificado'} há mais de ${HORAS_ACEITE_SEM_AGENDAMENTO} h e ainda não tem sessão marcada. O paciente continua ativo com esse profissional.`,
+      ocorridoEm: new Date(aceitoMs + HORAS_ACEITE_SEM_AGENDAMENTO * 60 * 60 * 1000).toISOString(),
+      severidade: 'ATENCAO',
+      href: naFilaDaGestao(lead.id),
+      pendente: true,
+    });
+  }
+  return itens;
+}
+
 /** O que a coordenação precisa ver: a fila inteira e o credenciamento. */
 export function notificacoesDaGestao(
   state: CaptureState,
@@ -520,6 +575,28 @@ export function notificacoesDaGestao(
 
   for (const lead of state.triagensPacientes) {
     if (lead.status === 'PENDENTE_ATRIBUICAO') {
+      const motivoDireto = motivoEscolhaDiretaPendente(lead);
+      if (motivoDireto) {
+        const indicadoId = lead.psicologosJaTentados?.[lead.psicologosJaTentados.length - 1];
+        const indicado = state.cadastrosPsicologos.find((psi) => psi.id === indicadoId);
+        const quem = indicado ? nomeDeExibicao(indicado) : 'o profissional indicado';
+        const oQueHouve = motivoDireto === 'RECUSOU'
+          ? 'recusou a solicitação'
+          : motivoDireto === 'SEM_RESPOSTA'
+            ? 'não respondeu dentro do prazo'
+            : 'não estava apto a receber o pedido';
+        itens.push({
+          chave: `lead-sem-profissional:${lead.id}`,
+          tipo: 'lead-sem-profissional',
+          titulo: 'Pedido para profissional específico aguarda decisão',
+          descricao: `${lead.nomePaciente} (${lead.protocolo}) pediu atendimento com ${quem}, que ${oQueHouve}. Encaminhe a outro psicólogo ou devolva ao rodízio.`,
+          ocorridoEm: lead.alocadoEm ?? lead.criadoEm,
+          severidade: 'CRITICO',
+          href: naFilaDaGestao(lead.id),
+          pendente: true,
+        });
+        continue;
+      }
       itens.push({
         chave: `lead-sem-profissional:${lead.id}`,
         tipo: 'lead-sem-profissional',
@@ -533,7 +610,9 @@ export function notificacoesDaGestao(
       continue;
     }
 
-    if (lead.status === 'AGUARDANDO_CONTATO' && lead.alocadoEm) {
+    // Depois do aceite o prazo da oferta já foi cumprido; o acompanhamento
+    // passa a ser o aviso de 48h sem primeiro agendamento.
+    if (lead.status === 'AGUARDANDO_CONTATO' && lead.alocadoEm && !lead.aceitoEm) {
       const sla = classificarSla(lead.alocadoEm, agora);
 
       if (sla === 'VERMELHO') {

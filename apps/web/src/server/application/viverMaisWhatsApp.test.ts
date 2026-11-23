@@ -65,6 +65,20 @@ describe('mensagens de WhatsApp para o psicólogo', () => {
     expect(texto).not.toContain('Vitrine Principal');
   });
 
+  it('no rodízio, avisa que a recusa ou o silêncio passam o paciente ao próximo da fila', () => {
+    const texto = textoParaPsicologo({ ...leadStub, tipoAlocacao: 'RODIZIO' }, psicologoStub);
+    expect(texto).toContain('o paciente será encaminhado automaticamente ao próximo profissional da fila');
+    expect(texto).toContain('Ao aceitar, o paciente recebe da clínica as orientações sobre os próximos passos');
+  });
+
+  it('no pedido para profissional específico, avisa que recusa e silêncio vão para a coordenação', () => {
+    const texto = textoParaPsicologo({ ...leadStub, tipoAlocacao: 'ESCOLHA_DIRETA' }, psicologoStub);
+    expect(texto).toContain('O paciente escolheu você na vitrine.');
+    expect(texto).toContain('a solicitação seguirá para a coordenação da clínica');
+    expect(texto).not.toContain('próximo profissional da fila');
+    expect(texto).toContain('Ao aceitar, o paciente recebe da clínica as orientações sobre os próximos passos');
+  });
+
   it('separa nome social e nome civil quando o paciente informou ambos', () => {
     const texto = textoParaPsicologo({ ...leadStub, nomeSocial: 'Joaquina' }, psicologoStub);
     expect(texto).toContain('- *Nome social:* Joaquina');

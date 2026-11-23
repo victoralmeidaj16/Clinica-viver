@@ -3,6 +3,7 @@ import { savePatientAccessibility } from '@/server/persistence/mysql/patientAcce
 import 'server-only';
 import { concluirReagendamento } from './agendaReagendamentoEffects';
 
+import { appointmentFundingQuotaAvailable, assertRescheduledFundingQuota } from '@/server/persistence/mysql/appointmentFundingQuota';
 import { resetAppointmentChargeDue } from '@/server/payments/sessionChargeDue';
 import { expireUnstartedChargeCheckouts, hasReservedChargePayment } from '@/server/payments/chargeCheckoutGuard';
 
@@ -12,12 +13,13 @@ import type { RowDataPacket } from 'mysql2';
 import type { Pool, PoolConnection } from 'mysql2/promise';
 import { getMysqlPool, isMysqlConfigured } from '@/server/oci/runtime';
 import { instituicaoId, rowId } from '@/server/persistence/mysql/mappers';
-import { custeioDoAgendamentoSql, custeioEfetivoSql } from '@/server/persistence/mysql/custeioSql';
+import { custeioDoAgendamentoSql } from '@/server/persistence/mysql/custeioSql';
 import { patientSessionPricingFromRow, resolvePatientSessionAmountCents } from '@/server/persistence/mysql/patientSessionPricing';
 import {
   disponibilidadePadraoDoCadastro,
   FUSO_CLINICA,
   gerarSlots,
+  isValidAppointmentDuration,
   type IntervaloOcupado,
   type JanelaDisponibilidade,
   type Slot,
@@ -209,8 +211,8 @@ function listaJson(valor: unknown): string[] {
     : [];
 }
 
-async function disponibilidadePadrao(professionalId: string): Promise<JanelaEditavel[]> {
-  const [rows] = await getMysqlPool().query<PreferenciasAgendaRow[]>(
+async function disponibilidadePadrao(professionalId: string, connection: Pool | PoolConnection = getMysqlPool()): Promise<JanelaEditavel[]> {
+  const [rows] = await connection.query<PreferenciasAgendaRow[]>(
     `SELECT turnos_disponiveis, modalidade_atendimento
        FROM clinica_cadastros_psicologos
       WHERE instituicao_id = ? AND profissional_ref = ?
@@ -644,18 +646,17 @@ export async function completeAppointment(
     // Uma cobrança individual já emitida decide sozinha: ela nasceu no
     // agendamento, quando a cota ainda comportava outra sessão, e mandar a
     // mesma sessão para o boleto da empresa cobraria o atendimento duas vezes.
-    const custeadoPelaEmpresa = appointment.cobranca_ref
-      ? false
-      : Boolean(appointment.custeado_pela_empresa);
+    const custeadoPelaEmpresa = Boolean(appointment.convenio_ref && appointment.custeado_pela_empresa)
+      && !appointment.cobranca_ref;
     await connection.execute(
       `UPDATE clinica_agendamentos
           SET status = 'realizado', realizado_em = ?, sessao_clinica_ref = ?,
-              custeado_pela_empresa = ?,
+              custeado_pela_empresa = ?, custeio_convenio_ref = ?,
               versao = versao + 1, atualizado_em = ?
         WHERE instituicao_id = ? AND id = ?`,
-      [agora, sessionRef, custeadoPelaEmpresa ? 1 : 0, agora, instituicaoId(), appointmentId]
+      [agora, sessionRef, custeadoPelaEmpresa ? 1 : 0, custeadoPelaEmpresa ? appointment.convenio_ref : null, agora, instituicaoId(), appointmentId]
     );
-    if (custeadoPelaEmpresa && !appointment.cobranca_ref) {
+    if (custeadoPelaEmpresa) {
       const amountCents = Number(appointment.valor_centavos ?? appointment.valor_sessao_centavos);
       if (!Number.isSafeInteger(amountCents) || amountCents <= 0) {
         throw new Error('O valor da sessão custeada não está configurado no perfil profissional.');
@@ -670,7 +671,7 @@ export async function completeAppointment(
         [rowId('cobranca', chargeRef), instituicaoId(), appointment.organizacao_ref,
           chargeRef, sessionRef, appointment.paciente_ref, appointment.profissional_ref,
           agora, agora, amountCents, descricaoFiscalDaSessao(new Date(appointment.inicio).toISOString()),
-          appointment.convenio_ref ?? null, agora, agora]
+          appointment.convenio_ref, agora, agora]
       );
       await connection.execute(
         `UPDATE clinica_sessoes SET cobranca_ref = ?, atualizado_em = ?
@@ -810,6 +811,7 @@ export async function rescheduleAppointmentProfessional(
       return 'conflict';
     }
 
+    await assertRescheduledFundingQuota(connection, String(agendamento.id), novoInicio);
     await connection.execute(
       `UPDATE clinica_agendamentos
           SET inicio = ?, fim = ?, status = 'agendado', versao = versao + 1, atualizado_em = CURRENT_TIMESTAMP(3)
@@ -861,7 +863,6 @@ export type ResultadoEdicaoAgendamento =
   | 'completed_locked'
   /** Cobrança já paga ou iniciada não pode mudar de responsável. */
   | 'funding_locked'
-  /** A sessão não cabe na cota da empresa deste ciclo. */
   | 'funding_quota_exceeded'
   /** A conclusão pedida junto da edição não vale antes do fim do atendimento. */
   | 'not_finished'
@@ -913,16 +914,11 @@ export async function updateAppointmentDetails(
 
     const [rows] = await connection.query<RowDataPacket[]>(
       `SELECT a.id, a.ref_core, a.profissional_id, a.status, a.inicio, a.fim, a.duracao_min, a.versao,
-              a.modalidade, a.servico_key, a.sessao_clinica_ref, a.custeado_pela_empresa,
-              ${custeioEfetivoSql({ paciente: 'pa', convenio: 'conv', agendamento: 'a', referencia: 'a.inicio', ignorarPadrao: true })}
-                AS custeio_disponivel
+              a.modalidade, a.servico_key, a.sessao_clinica_ref, pa.convenio_ref
          FROM clinica_agendamentos a
          JOIN clinica_profissionais p ON p.id = a.profissional_id
          JOIN clinica_organizacoes o ON o.id = p.organizacao_id
          JOIN clinica_pacientes pa ON pa.id = a.paciente_id
-         LEFT JOIN clinica_convenios conv
-           ON conv.instituicao_id = pa.instituicao_id AND conv.organizacao_ref = o.ref_core
-          AND conv.ref_core = pa.convenio_ref
         WHERE a.instituicao_id = ? AND o.ref_core = ? AND p.ref_core = ?
           AND (a.id = ? OR a.ref_core = ?)
         LIMIT 1 FOR UPDATE`,
@@ -979,12 +975,15 @@ export async function updateAppointmentDetails(
       return 'completed_locked';
     }
 
-    if (input.custeadoPelaEmpresa === true) {
-      if (!Boolean(agendamento.custeado_pela_empresa)
-          && !Boolean(agendamento.custeio_disponivel)) {
+    if (input.custeadoPelaEmpresa !== false && (input.startsAt || input.custeadoPelaEmpresa)) {
+      const available = await appointmentFundingQuotaAvailable(connection, String(agendamento.id),
+        input.startsAt ? new Date(input.startsAt) : null, input.custeadoPelaEmpresa);
+      if (!available) {
         await connection.rollback();
         return 'funding_quota_exceeded';
       }
+    }
+    if (input.custeadoPelaEmpresa === true) {
       const [charges] = await connection.query<RowDataPacket[]>(
         `SELECT c.ref_core, c.status, c.provedor_ref, x.provedor_pagamento_ref,
                 EXISTS(SELECT 1 FROM financeiro_pagamentos pg
@@ -1032,7 +1031,7 @@ export async function updateAppointmentDetails(
       if (input.endsAt) {
         novoFim = new Date(input.endsAt);
         const duracao = (novoFim.getTime() - novoInicio.getTime()) / 60_000;
-        if (!Number.isInteger(duracao) || duracao < 15 || duracao > 240) {
+        if (!isValidAppointmentDuration(duracao)) {
           await connection.rollback();
           return 'invalid_duration';
         }
@@ -1122,8 +1121,8 @@ export async function updateAppointmentDetails(
     }
 
     if (input.custeadoPelaEmpresa !== undefined) {
-      updates.push('custeado_pela_empresa = ?');
-      values.push(input.custeadoPelaEmpresa ? 1 : 0);
+      updates.push('custeado_pela_empresa = ?', 'custeio_convenio_ref = ?');
+      values.push(input.custeadoPelaEmpresa ? 1 : 0, input.custeadoPelaEmpresa ? agendamento.convenio_ref : null);
     }
 
     values.push(instituicaoId(), agendamento.id);
@@ -1329,7 +1328,7 @@ async function ocupacao(
   }));
 }
 
-async function janelas(
+export async function janelasDoProfissional(
   profissionalRowId: string,
   professionalId: string,
   connection: Pool | PoolConnection = getMysqlPool()
@@ -1347,7 +1346,7 @@ async function janelas(
       [instituicaoId(), profissionalRowId]
     );
     if (Number(profiles[0]?.disponibilidade_configurada) === 1) return [];
-    return disponibilidadePadrao(professionalId);
+    return disponibilidadePadrao(professionalId, connection);
   }
   return rows.map((row) => ({
     diaSemana: Number(row.dia_semana),
@@ -1369,7 +1368,7 @@ export async function listAvailableSlots(
   agora: Date = new Date()
 ): Promise<Slot[]> {
   const [grade, ocupados] = await Promise.all([
-    janelas(paciente.professionalRowId, paciente.professionalId),
+    janelasDoProfissional(paciente.professionalRowId, paciente.professionalId),
     ocupacao(paciente.professionalRowId, de, ate),
   ]);
   return gerarSlots(grade, ocupados, de, ate, agora);
@@ -1428,7 +1427,7 @@ export async function bookAppointments(
       [instituicaoId(), paciente.professionalRowId]
     );
 
-    const currentSlots = gerarSlots(await janelas(paciente.professionalRowId, paciente.professionalId, connection), [], inicio, janelaFim, agora);
+    const currentSlots = gerarSlots(await janelasDoProfissional(paciente.professionalRowId, paciente.professionalId, connection), [], inicio, janelaFim, agora);
     if (selectedSlots.some((slot) => !currentSlots.some((current) => current.inicio === slot.inicio
       && current.fim === slot.fim && current.modalidade === slot.modalidade))) {
       await connection.rollback();

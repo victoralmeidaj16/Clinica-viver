@@ -74,8 +74,9 @@ export default function EncaminharContatoPage() {
             </div>
             <h1 className="text-xl font-black text-slate-900">Encaminhar Atendimento?</h1>
             <p className="text-sm text-slate-600 leading-relaxed">
-              Caso você não tenha disponibilidade de horários no momento, confirme abaixo para repassar este paciente
-              imediatamente ao próximo profissional compatível da fila.
+              Caso você não tenha disponibilidade de horários no momento, confirme abaixo para devolver este paciente.
+              Ele segue imediatamente ao próximo profissional compatível da fila; se o paciente escolheu você na
+              vitrine, a coordenação da clínica decide o encaminhamento.
             </p>
             <div className="pt-2 flex flex-col gap-2">
               <button
@@ -83,7 +84,7 @@ export default function EncaminharContatoPage() {
                 onClick={executarEncaminhamento}
                 className="w-full py-3 px-4 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-sm transition-colors shadow-sm"
               >
-                Sim, Encaminhar para a Fila
+                Sim, encaminhar
               </button>
               <Link
                 href="/pacientes"

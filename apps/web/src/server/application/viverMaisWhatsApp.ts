@@ -14,7 +14,7 @@ import { formatGender } from '@/lib/gender';
 import { nomeDeExibicao, SLA_CONTATO_HORAS } from './viverMaisRodizio';
 
 /**
- * Avisos da triagem: acolhimento na solicitação, orientações na confirmação.
+ * Avisos da triagem: acolhimento na solicitação, orientações no aceite.
  * Alocações e encaminhamentos avisam somente profissionais e coordenação.
  * Falhas de envio não desfazem operações já persistidas.
  */
@@ -196,8 +196,12 @@ export function textoParaPsicologo(
   lead: TriagemPacienteRecord,
   psicologo: CadastroPsicologoRecord
 ): string {
+  // Pedido para profissional específico: recusa e silêncio vão para a
+  // coordenação, nunca para o rodízio (especificação final, 4.05 e 5.04).
+  const direto = lead.tipoAlocacao === 'ESCOLHA_DIRETA';
   const linhas = [
     `Olá, ${nomeDeExibicao(psicologo)}! 💜 Você recebeu um novo paciente pela Viver Mais.`,
+    ...(direto ? ['O paciente escolheu você na vitrine.'] : []),
     '',
     '*Dados do paciente*',
     '',
@@ -206,11 +210,14 @@ export function textoParaPsicologo(
     '*📌 O que você precisa fazer?*',
     '',
     'Acesse o link abaixo para informar se deseja atender esse paciente.',
-    '➡️ Se não desejar atender, poderá selecionar a opção de encaminhar o paciente ao próximo profissional da fila que atenda aos critérios.',
+    '✅ Ao aceitar, o paciente recebe da clínica as orientações sobre os próximos passos, e você assume o contato para combinar o primeiro horário.',
+    direto
+      ? '➡️ Se não desejar atender, poderá recusar pelo mesmo link, e a coordenação da clínica decidirá o encaminhamento.'
+      : '➡️ Se não desejar atender, poderá selecionar a opção de encaminhar o paciente ao próximo profissional da fila que atenda aos critérios.',
     '',
     linkConfirmacao(lead, psicologo.id),
     '',
-    `🚨 *Atenção:* é importante acessar o link e registrar sua decisão. Caso não haja uma resposta em até ${SLA_CONTATO_HORAS} horas, o paciente será encaminhado automaticamente ao próximo profissional da fila.`,
+    `🚨 *Atenção:* é importante acessar o link e registrar sua decisão. Caso não haja uma resposta em até ${SLA_CONTATO_HORAS} horas, ${direto ? 'a solicitação seguirá para a coordenação da clínica' : 'o paciente será encaminhado automaticamente ao próximo profissional da fila'}.`,
     '',
     'Entre em contato o quanto antes! Quanto mais rápido o paciente receber seu contato, maiores são as chances de conseguir agendar o atendimento. 💜',
   ];
@@ -246,7 +253,11 @@ export function textoRecebimentoPaciente(): string {
   ].join('\n');
 }
 
-/** Orientações enviadas somente depois da confirmação do psicólogo. */
+/**
+ * Orientações enviadas quando o psicólogo aceita o paciente (especificação
+ * final, 5.03 e 7.02): próximos passos e prazo para o contato do psicólogo.
+ * Não anuncia sessão marcada — o horário ainda será combinado (12.01).
+ */
 export function textoParaPaciente(lead: TriagemPacienteRecord): string {
   const nomePaciente = lead.nomeSocial?.trim() || lead.nomePaciente?.trim() || 'Paciente';
   const { servico, modalidadeRotulo, valor } = resolverPrecoEModalidade(lead);

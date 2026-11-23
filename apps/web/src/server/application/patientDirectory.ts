@@ -469,6 +469,8 @@ export async function createPatient(
         slaExpirado: false,
         transbordos: 0,
         psicologosJaTentados: cadastro ? [cadastro.id] : [],
+        // Projeto Acolhe fica fora do limite de vagas (especificação, seção 15).
+        ...(body.projetoAcolhe === true ? { projetoAcolhe: true } : {}),
         criadoEm: now,
       }],
     });

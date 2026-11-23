@@ -23,11 +23,25 @@ describe('confirmação do agendamento público', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mocks.book.mockResolvedValue({ ok: true, agendamentos: [{ agendamentoId: 'a1', inicio: '2026-11-04T00:00:00.000Z', fim: '2026-11-04T00:50:00.000Z', modalidade: 'online', linkPagamento: '/pagar/sessao/teste' }] });
-    mocks.charge.mockResolvedValue(undefined);
+    mocks.charge.mockResolvedValue('skipped');
     mocks.profile.mockResolvedValue({ fundedByCompany: true, companyName: 'Empresa fictícia' });
   });
 
   const request = () => new Request('http://localhost/api/agenda/agendar', { method: 'POST', body: JSON.stringify({ token: 'a'.repeat(32), cpf: '12345678901', inicio: '2026-11-04T00:00:00.000Z' }) });
+
+  it('confirma todas as datas e sinaliza falha de emissão mesmo com perfil de pagamento disponível', async () => {
+    const sessions = ['04', '11'].map((day) => ({ agendamentoId: day, inicio: `2026-11-${day}T12:00:00.000Z`,
+      fim: `2026-11-${day}T12:50:00.000Z`, modalidade: 'online', linkPagamento: `/pagar/sessao/${day}` }));
+    mocks.book.mockResolvedValue({ ok: true, agendamentos: sessions });
+    mocks.charge.mockResolvedValueOnce('failed').mockResolvedValueOnce('created');
+    mocks.profile.mockResolvedValue({ fundedByCompany: false });
+    const response = await POST(new Request('http://localhost/api/agenda/agendar', { method: 'POST',
+      body: JSON.stringify({ token: 'a'.repeat(32), cpf: '12345678901', inicios: sessions.map((s) => s.inicio) }) }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ success: true, pagamentoIndisponivel: true, sessoes: sessions });
+    expect(mocks.book).toHaveBeenCalledOnce();
+    expect(mocks.charge.mock.calls).toEqual([['04'], ['11']]);
+  });
 
   it('mantém a reserva confirmada quando os dados de pagamento falham', async () => {
     mocks.profile.mockRejectedValue(new Error('indisponível'));

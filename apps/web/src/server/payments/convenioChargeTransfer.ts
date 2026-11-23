@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { randomUUID } from 'node:crypto';
+import type { Pool, PoolConnection } from 'mysql2/promise';
 import type { RowDataPacket } from 'mysql2';
 import { descricaoFiscalDaSessao } from '@/lib/sessionReference';
 import { getMysqlPool } from '@/server/oci/runtime';
@@ -127,11 +128,21 @@ async function transferirSessaoBloqueada(agendamentoId: string): Promise<boolean
     // emite a cobrança da empresa. A decisão "paciente paga" gravada antes do
     // vínculo sai junto, senão a realização a leria e cobraria o paciente.
     if (!agendamento || agendamento.status !== 'realizado' || !agendamento.sessao_clinica_ref) {
-      await connection.execute('UPDATE clinica_agendamentos SET transferencia_convenio_ref = NULL, custeado_pela_empresa = NULL WHERE instituicao_id = ? AND id = ?', [instituicaoId(), agendamentoId]);
+      await connection.execute('UPDATE clinica_agendamentos SET transferencia_convenio_ref = NULL, custeado_pela_empresa = NULL, custeio_convenio_ref = NULL WHERE instituicao_id = ? AND id = ?', [instituicaoId(), agendamentoId]);
       await connection.commit();
       return true;
     }
 
+    // Uma remarcação pode consumir a última vaga enquanto o provedor cancela a cobrança.
+    // Sem cobertura, a cobrança individual ausente volta pela recuperação financeira.
+    if (!agendamento.convenio_ref || !await empresaCobre(agendamentoId, connection)) {
+      await connection.execute(
+        `UPDATE clinica_agendamentos SET transferencia_convenio_ref = NULL,
+           custeado_pela_empresa = 0, custeio_convenio_ref = NULL, versao = versao + 1
+          WHERE instituicao_id = ? AND id = ?`, [instituicaoId(), agendamentoId]);
+      await connection.commit();
+      return false;
+    }
     const valorCents = Number(agendamento.valor_centavos ?? agendamento.valor_sessao_centavos);
     if (!Number.isSafeInteger(valorCents) || valorCents <= 0) {
       throw new Error('O valor da sessão custeada não está configurado no perfil profissional.');
@@ -140,9 +151,9 @@ async function transferirSessaoBloqueada(agendamentoId: string): Promise<boolean
     const sessionRef = String(agendamento.sessao_clinica_ref);
     const chargeRef = `charge-company-session-${randomUUID()}`;
     await connection.execute(
-      `UPDATE clinica_agendamentos SET custeado_pela_empresa = 1, transferencia_convenio_ref = NULL, versao = versao + 1, atualizado_em = ?
+      `UPDATE clinica_agendamentos SET custeado_pela_empresa = 1, custeio_convenio_ref = ?, transferencia_convenio_ref = NULL, versao = versao + 1, atualizado_em = ?
         WHERE instituicao_id = ? AND id = ?`,
-      [agora, instituicaoId(), agendamentoId]
+      [agendamento.convenio_ref, agora, instituicaoId(), agendamentoId]
     );
     await connection.execute(
       `INSERT INTO financeiro_cobrancas
@@ -153,7 +164,7 @@ async function transferirSessaoBloqueada(agendamentoId: string): Promise<boolean
       [rowId('cobranca', chargeRef), instituicaoId(), agendamento.organizacao_ref,
         chargeRef, sessionRef, agendamento.paciente_ref, agendamento.profissional_ref,
         agora, agora, valorCents, descricaoFiscalDaSessao(new Date(agendamento.inicio).toISOString()),
-        agendamento.convenio_ref ?? null, agora, agora]
+        agendamento.convenio_ref, agora, agora]
     );
     await connection.execute(
       `UPDATE clinica_sessoes SET cobranca_ref = ?, atualizado_em = ?
@@ -170,8 +181,8 @@ async function transferirSessaoBloqueada(agendamentoId: string): Promise<boolean
   }
 }
 
-async function empresaCobre(agendamentoId: string): Promise<boolean> {
-  const [rows] = await getMysqlPool().query<RowDataPacket[]>(
+async function empresaCobre(agendamentoId: string, database: Pool | PoolConnection = getMysqlPool()): Promise<boolean> {
+  const [rows] = await database.query<RowDataPacket[]>(
     `SELECT ${custeioEfetivoSql({ paciente: 'pa', convenio: 'conv', agendamento: 'a', referencia: 'a.inicio' })}
               AS custeado
        FROM clinica_agendamentos a

@@ -13,6 +13,8 @@ export type PatientRegistrationForm = {
   opcaoAvaliacaoPsicologica: string;
   especificarNecessidades: boolean; necessidadesPaciente: string[];
   emergencyContactName: string; emergencyContactPhone: string; registrationNotes: string;
+  /** Paciente do Projeto Acolhe: não ocupa vaga no limite de pacientes ativos. */
+  projetoAcolhe: boolean;
 };
 
 export const EMPTY_PATIENT_REGISTRATION: PatientRegistrationForm = {
@@ -23,6 +25,7 @@ export const EMPTY_PATIENT_REGISTRATION: PatientRegistrationForm = {
   servicoKey: '', modalidade: '', opcaoAvaliacaoPsicologica: '',
   especificarNecessidades: false, necessidadesPaciente: [],
   emergencyContactName: '', emergencyContactPhone: '', registrationNotes: '',
+  projetoAcolhe: false,
 };
 
 /** O que o ViaCEP devolve e a tela mostra para conferência. */

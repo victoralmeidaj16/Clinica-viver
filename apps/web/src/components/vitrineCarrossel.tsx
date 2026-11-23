@@ -114,6 +114,7 @@ const PRINCIPAIS_DEMANDAS = [
 const ROTULOS_SERVICO: Record<string, string> = {
   PSICOTERAPIA: 'Psicoterapia',
   AVALIACAO: 'Avaliação Psicológica',
+  ORIENTACAO_VOCACIONAL: 'Orientação Vocacional',
   ORIENTACAO_PROFISSIONAL: 'Orientação Profissional',
   ORIENTACAO_PARENTAL: 'Orientação Parental',
 };
@@ -382,13 +383,7 @@ function CardPsicologo({
                 key={idx}
                 className="bg-slate-100 text-slate-700 text-[10px] font-extrabold px-2.5 py-1 rounded-lg border border-slate-200"
               >
-                {s === 'PSICOTERAPIA'
-                  ? 'Psicoterapia'
-                  : s === 'AVALIACAO'
-                  ? 'Avaliação Psicológica'
-                  : s === 'ORIENTACAO_PROFISSIONAL'
-                  ? 'Orientação Profissional'
-                  : 'Orientação Parental'}
+                {ROTULOS_SERVICO[s] ?? s}
               </span>
             ))}
           </div>

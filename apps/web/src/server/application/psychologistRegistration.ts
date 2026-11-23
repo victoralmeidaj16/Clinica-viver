@@ -62,9 +62,10 @@ export const CAMPOS_DO_PROPRIO_PSICOLOGO = new Set([
 
 /**
  * Traduz os rótulos que o profissional marca no formulário para as chaves que o
- * rodízio compara (`viverMaisMatchingEngine`). Orientação vocacional e
- * profissional caem na mesma chave de propósito: são o mesmo serviço com dois
- * nomes de mercado.
+ * rodízio compara (`viverMaisMatchingEngine`). Orientação Vocacional e
+ * Orientação Profissional são modalidades diferentes (especificação final,
+ * seção 15); o rótulo combinado do curso, "Orientação Vocacional e
+ * Profissional", habilita as duas.
  */
 export function derivarServicosHabilitados(servicosPrestados: readonly string[]): string[] {
   return Array.from(
@@ -72,9 +73,8 @@ export function derivarServicosHabilitados(servicosPrestados: readonly string[])
       [
         servicosPrestados.includes('Atendimento Psicológico') ? 'PSICOTERAPIA' : '',
         servicosPrestados.includes('Avaliação Psicológica') ? 'AVALIACAO' : '',
-        servicosPrestados.some((s) => s.includes('Vocacional') || s.includes('Profissional'))
-          ? 'ORIENTACAO_PROFISSIONAL'
-          : '',
+        servicosPrestados.some((s) => s.includes('Vocacional')) ? 'ORIENTACAO_VOCACIONAL' : '',
+        servicosPrestados.some((s) => s.includes('Profissional')) ? 'ORIENTACAO_PROFISSIONAL' : '',
         servicosPrestados.includes('Orientação Parental') ? 'ORIENTACAO_PARENTAL' : '',
       ].filter(Boolean)
     )

@@ -27,6 +27,11 @@ export interface CriteriosSelecao {
    * inteira.
    */
   preferenciaGeneroPsicologo?: PreferenciaGeneroPsicologo;
+  /**
+   * Sorteio do desempate absoluto: recebe a quantidade de empatados e devolve
+   * o índice escolhido. Injetável para teste; o padrão é `Math.random`.
+   */
+  sortear?: (quantidade: number) => number;
 }
 
 /** Regra pura compartilhada pela vitrine e pela alocação. */
@@ -110,29 +115,48 @@ export function selecionarPsicologoRoundRobin(
     psicologoCompativel(p, turnoDesejado, modalidadeDesejada, criterios)
   );
 
-  return ordenarPsicologosRoundRobin(elegiveis)[0] ?? null;
+  const ordem = ordenarPsicologosRoundRobin(elegiveis);
+  const primeiro = ordem[0];
+  if (!primeiro) return null;
+  // Sorteio só no empate absoluto (especificação 5.01): mesmos ativos e mesmo
+  // tempo sem receber. Fora disso, a ordem decide sozinha.
+  const empatados = ordem.filter((p) => compararOrdemRodizio(p, primeiro) === 0);
+  if (empatados.length === 1) return primeiro;
+  const sortear = criterios.sortear ?? ((quantidade: number) => Math.floor(Math.random() * quantidade));
+  const indice = sortear(empatados.length);
+  return empatados[Number.isInteger(indice) && indice >= 0 && indice < empatados.length ? indice : 0];
 }
 
-/** Ordem geral do rodízio, compartilhada com a consulta da gestão. */
-export function ordenarPsicologosRoundRobin(psicologos: readonly PsicologoPerfil[]): PsicologoPerfil[] {
-  // Ordena por menor data de último lead recebido (rodízio circular mais justo).
-  //
-  // Quem nunca recebeu ninguém vem primeiro — sem isso, o profissional recém
-  // aprovado nunca entraria na roda. A ausência de data vira `0` (epoch), que
-  // é anterior a qualquer recebimento real, em vez de um retorno direto de
-  // -1/1: um comparador que responde "a vem antes de b" e "b vem antes de a"
-  // para o mesmo par (o caso de ambos sem data) não é consistente, e a ordem
-  // final passa a depender do algoritmo de ordenação em vez da regra.
-  const ultimoRecebimentoMs = (psicologo: PsicologoPerfil): number => {
-    if (!psicologo.ultimoLeadRecebidoEm) return 0;
-    const ms = new Date(psicologo.ultimoLeadRecebidoEm).getTime();
-    // Data ilegível é tratada como ausente: `NaN` no comparador embaralharia a
-    // fila inteira, não só a linha com o defeito.
-    return Number.isFinite(ms) ? ms : 0;
-  };
+/**
+ * Quem está há mais tempo sem receber. Quem nunca recebeu ninguém vale `0`
+ * (epoch), anterior a qualquer recebimento real — sem isso, o profissional
+ * recém-aprovado nunca entraria na roda. Data ilegível é tratada como ausente:
+ * `NaN` no comparador embaralharia a fila inteira, não só a linha com defeito.
+ */
+function ultimoRecebimentoMs(psicologo: PsicologoPerfil): number {
+  if (!psicologo.ultimoLeadRecebidoEm) return 0;
+  const ms = new Date(psicologo.ultimoLeadRecebidoEm).getTime();
+  return Number.isFinite(ms) ? ms : 0;
+}
 
-  // `sort` é estável, então empate preserva a ordem de cadastro.
-  return [...psicologos].sort((a, b) => ultimoRecebimentoMs(a) - ultimoRecebimentoMs(b));
+/**
+ * Ordem do rodízio (especificação 5.01): menos pacientes ativos primeiro — o
+ * que põe quem tem zero à frente —, e no empate quem está há mais tempo sem
+ * receber encaminhamento.
+ */
+export function compararOrdemRodizio(a: PsicologoPerfil, b: PsicologoPerfil): number {
+  return (a.pacientesAtivosCount - b.pacientesAtivosCount)
+    || (ultimoRecebimentoMs(a) - ultimoRecebimentoMs(b));
+}
+
+/**
+ * Ordem geral do rodízio, compartilhada com a consulta da gestão. É
+ * determinística (`sort` estável: empate absoluto preserva a ordem de
+ * cadastro) para a posição exibida não mudar a cada leitura; o sorteio do
+ * empate absoluto acontece só na alocação, em `selecionarPsicologoRoundRobin`.
+ */
+export function ordenarPsicologosRoundRobin(psicologos: readonly PsicologoPerfil[]): PsicologoPerfil[] {
+  return [...psicologos].sort(compararOrdemRodizio);
 }
 
 /**

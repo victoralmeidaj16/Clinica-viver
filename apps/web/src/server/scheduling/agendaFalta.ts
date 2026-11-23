@@ -126,7 +126,7 @@ export async function registrarFaltaDoAgendamento(
     }
 
     if (!jaRegistrada) {
-      campos.push("status = 'faltou'", 'custeado_pela_empresa = 0', 'sessao_clinica_ref = ?', 'versao = versao + 1');
+      campos.push("status = 'faltou'", 'custeado_pela_empresa = 0', 'custeio_convenio_ref = NULL', 'sessao_clinica_ref = ?', 'versao = versao + 1');
       valores.push(sessionRef);
       // Sem conteúdo clínico: é o fato da ausência, contado nos indicadores mensais.
       const step = { status: 'skipped', attemptCount: 0, updatedAt: agora.toISOString() };

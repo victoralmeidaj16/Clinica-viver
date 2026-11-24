@@ -55,10 +55,10 @@ export default function PatientConvenioPanel({ patient, convenios, onConvenioCha
   };
 
   return <>
-          <section className="rounded-2xl border border-psi-soft bg-surface p-4 shadow-card sm:p-5">
+          <section className="py-6">
             <div className="mb-4 flex items-center gap-2">
               <Building2 aria-hidden className="h-4 w-4 text-psi-vibrant" />
-              <h3 className="text-sm font-black text-ink">Vínculo com convênio</h3>
+              <h3 className="text-base font-black text-psi-darkest">Vínculo com convênio</h3>
             </div>
             {!patient.patientId ? <p className="text-xs text-muted">O vínculo fica disponível depois que a triagem vira paciente.</p> : (
               <div className="space-y-3">

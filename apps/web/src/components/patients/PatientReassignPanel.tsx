@@ -59,10 +59,10 @@ export default function PatientReassignPanel({ patient, psychologists, onReassig
   };
 
   return (
-    <section className="rounded-2xl border border-psi-soft bg-surface p-4 shadow-card sm:p-5">
+    <section className="py-6">
       <div className="mb-4 flex items-center gap-2">
         <UserRoundCog className="h-4 w-4 text-psi-vibrant" />
-        <h3 className="text-sm font-black text-ink">Encaminhar para psicólogo</h3>
+        <h3 className="text-base font-black text-psi-darkest">Encaminhar para psicólogo</h3>
       </div>
       {!patient.patientId && !patient.leadId ? (
         <p className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-xs font-semibold text-amber-800">

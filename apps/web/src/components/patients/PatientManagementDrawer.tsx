@@ -143,72 +143,67 @@ export default function PatientManagementDrawer({ patient, psychologists, conven
           )}
         </header>
 
-        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain p-5 sm:p-8">
-          {!patient.patientId && (
-            <p className="rounded-xl border border-psi-soft bg-surface p-3 text-sm text-muted">
-              A edição cadastral fica disponível depois que a triagem vira paciente.
-            </p>
-          )}
-
-          <section aria-label="Contato e cadastro" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <Info label="WhatsApp" value={patient.whatsapp} />
-            <Info label="E-mail" value={patient.email} />
-            <Info label="CPF" value={patient.cpf || (patient.identificadoPeloResponsavel
-              ? `Sem CPF próprio — pelo responsável (${patient.responsavelFinanceiro?.cpf ?? ''})`
-              : patient.vinculoColetivo ? 'No responsável e nos participantes' : undefined)} />
-            <Info label="Idade" value={patient.idade} />
-            <Info label="CEP / número" value={[patient.cep, patient.numeroResidencia].filter(Boolean).join(' · ')} />
-            <Info label="Convênio informado" value={patient.convenioSelecionado} />
-          </section>
-
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
-            <PatientConvenioPanel patient={patient} convenios={convenios} onConvenioChange={onConvenioChange} />
-            <PatientSessionPricingPanel patient={patient} onChange={onSessionPricingChange} />
-          </div>
-
-          {/* O que a pessoa pediu na triagem, do jeito que pediu. */}
-          <section aria-label="Pedido na triagem" className="grid grid-cols-1 gap-3 border-t border-psi-soft pt-6 sm:grid-cols-2 lg:grid-cols-3">
-            <Info label="Serviço" value={patient.servicoNome ?? patient.servicoKey} />
-            <Info
-              label="Modalidade / turno"
-              value={[patient.modalidade, patient.turno && rotuloTurnoPreferencia(patient.turno)].filter(Boolean).join(' · ')}
-            />
-            <Info label="Público" value={patient.paraQuemE} />
-            <Info label="Opção de avaliação" value={patient.opcaoAvaliacaoPsicologica} />
-            <Info label="Necessidades" value={[...(patient.necessidadesPaciente ?? []), patient.necessidadesOutro].filter(Boolean).join(', ')} />
-            <Info
-              label="Entrada / confirmação"
-              value={[
-                patient.criadoEm && `entrou ${new Date(patient.criadoEm).toLocaleDateString('pt-BR')}`,
-                patient.confirmadoEm && `confirmou ${new Date(patient.confirmadoEm).toLocaleDateString('pt-BR')}`,
-              ].filter(Boolean).join(' · ')}
-            />
-          </section>
-
-          <PatientPreferencesPanel key={`pref-${patient.id}`} patient={patient} onChange={onRegistrationChange} />
-
-          {patient.patientId
-            ? <PatientBondForm key={`vinculo-${patient.patientId}`} patientId={patient.patientId} onSaved={onRegistrationChange} />
-            : patient.responsavelFinanceiro && (
-              <Info label="Responsável financeiro" value={`${patient.responsavelFinanceiro.nome} · CPF ${patient.responsavelFinanceiro.cpf}`} />
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-surface px-5 sm:px-8">
+          {/* Formulário contínuo: seções com título e linha fina, sem cards. */}
+          <div className="mx-auto max-w-3xl divide-y divide-psi-soft">
+            {!patient.patientId && (
+              <p className="py-6 text-sm text-muted">A edição cadastral fica disponível depois que a triagem vira paciente.</p>
             )}
 
-          <PatientAdministrativeHistoryPanel patient={patient} />
+            <Secao titulo="Contato e cadastro">
+              <Info label="WhatsApp" value={patient.whatsapp} />
+              <Info label="E-mail" value={patient.email} />
+              <Info label="CPF" value={patient.cpf || (patient.identificadoPeloResponsavel
+                ? `Sem CPF próprio — pelo responsável (${patient.responsavelFinanceiro?.cpf ?? ''})`
+                : patient.vinculoColetivo ? 'No responsável e nos participantes' : undefined)} />
+              <Info label="Idade" value={patient.idade} />
+              <Info label="CEP / número" value={[patient.cep, patient.numeroResidencia].filter(Boolean).join(' · ')} />
+              <Info label="Convênio informado" value={patient.convenioSelecionado} />
+            </Secao>
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
+            <PatientConvenioPanel patient={patient} convenios={convenios} onConvenioChange={onConvenioChange} />
+            <PatientSessionPricingPanel patient={patient} onChange={onSessionPricingChange} />
+
+            {/* O que a pessoa pediu na triagem, do jeito que pediu. */}
+            <Secao titulo="Pedido na triagem">
+              <Info label="Serviço" value={patient.servicoNome ?? patient.servicoKey} />
+              <Info
+                label="Modalidade / turno"
+                value={[patient.modalidade, patient.turno && rotuloTurnoPreferencia(patient.turno)].filter(Boolean).join(' · ')}
+              />
+              <Info label="Público" value={patient.paraQuemE} />
+              <Info label="Opção de avaliação" value={patient.opcaoAvaliacaoPsicologica} />
+              <Info label="Necessidades" value={[...(patient.necessidadesPaciente ?? []), patient.necessidadesOutro].filter(Boolean).join(', ')} />
+              <Info
+                label="Entrada / confirmação"
+                value={[
+                  patient.criadoEm && `entrou ${new Date(patient.criadoEm).toLocaleDateString('pt-BR')}`,
+                  patient.confirmadoEm && `confirmou ${new Date(patient.confirmadoEm).toLocaleDateString('pt-BR')}`,
+                ].filter(Boolean).join(' · ')}
+              />
+            </Secao>
+
+            <PatientPreferencesPanel key={`pref-${patient.id}`} patient={patient} onChange={onRegistrationChange} />
+
+            {patient.patientId
+              ? <PatientBondForm key={`vinculo-${patient.patientId}`} patientId={patient.patientId} onSaved={onRegistrationChange} />
+              : patient.responsavelFinanceiro && (
+                <Secao titulo="Responsável financeiro">
+                  <Info label="Nome e CPF" value={`${patient.responsavelFinanceiro.nome} · CPF ${patient.responsavelFinanceiro.cpf}`} />
+                </Secao>
+              )}
+
+            <PatientAdministrativeHistoryPanel patient={patient} />
             <PatientReassignPanel key={patient.id} patient={patient} psychologists={psychologists} onReassign={onReassign} />
             <PatientWaitlistPanel key={`espera-${patient.id}`} patient={patient} onChange={onRegistrationChange} />
-          </div>
-
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
             <PatientInactivationPanel key={`inativo-${patient.id}`} patient={patient} onChange={onRegistrationChange} />
             <PatientDropoutPanel patient={patient} onChange={onDropoutChange} />
-          </div>
 
-          <p className="flex items-start gap-2 rounded-2xl border border-psi-soft bg-psi-soft/40 p-4 text-xs leading-relaxed text-psi-darkest">
-            <ShieldCheck aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-psi-vibrant" />
-            Esta área mostra apenas dados operacionais. Conteúdo de sessões e prontuário clínico não é exposto à gestão.
-          </p>
+            <p className="flex items-start gap-2 py-6 text-xs leading-relaxed text-muted">
+              <ShieldCheck aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-psi-vibrant" />
+              Esta área mostra apenas dados operacionais. Conteúdo de sessões e prontuário clínico não é exposto à gestão.
+            </p>
+          </div>
         </div>
       </div>
     </div>
@@ -222,11 +217,20 @@ export default function PatientManagementDrawer({ patient, psychologists, conven
   );
 }
 
+function Secao({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+  return (
+    <section className="py-6">
+      <h3 className="mb-4 text-base font-black text-psi-darkest">{titulo}</h3>
+      <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">{children}</dl>
+    </section>
+  );
+}
+
 function Info({ label, value }: { label: string; value?: string }) {
   return (
-    <div className="rounded-2xl border border-psi-soft bg-surface p-4">
-      <p className="text-[11px] font-black uppercase tracking-wider text-muted">{label}</p>
-      <p className="mt-1 break-words text-sm font-bold text-ink">{value || 'Não informado'}</p>
+    <div className="min-w-0">
+      <dt className="text-[11px] font-black uppercase tracking-wider text-muted">{label}</dt>
+      <dd className="mt-1 break-words text-sm font-bold text-ink">{value || 'Não informado'}</dd>
     </div>
   );
 }

@@ -68,9 +68,9 @@ export default function PatientPreferencesPanel({ patient, onChange }: {
   };
 
   return (
-    <section className="space-y-3 border-t border-psi-soft/60 pt-4">
+    <section className="space-y-3 py-6">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-ink">
+        <h3 className="flex items-center gap-2 text-base font-black text-psi-darkest">
           <SlidersHorizontal className="h-4 w-4 text-psi-vibrant" /> Preferências do pedido
         </h3>
         <button type="button" onClick={() => setEditando((atual) => !atual)} className="text-[11px] font-bold text-psi-deep">

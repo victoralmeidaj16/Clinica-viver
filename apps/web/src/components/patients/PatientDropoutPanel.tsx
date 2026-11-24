@@ -53,10 +53,10 @@ export default function PatientDropoutPanel({ patient, onChange }: Props) {
   };
 
   return (
-    <section className="rounded-2xl border border-psi-soft bg-surface p-4 shadow-card sm:p-5">
+    <section className="py-6">
       <div className="mb-4 flex items-center gap-2">
         <UserX className="h-4 w-4 text-rose-600" />
-        <h3 className="text-sm font-black text-ink">Desistência & nova alocação</h3>
+        <h3 className="text-base font-black text-psi-darkest">Desistência & nova alocação</h3>
       </div>
 
       {error && <p className="mb-3 rounded-xl border border-rose-200 bg-white p-3 text-xs font-semibold text-rose-700">{error}</p>}

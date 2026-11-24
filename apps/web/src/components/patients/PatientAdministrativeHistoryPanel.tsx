@@ -31,13 +31,13 @@ export default function PatientAdministrativeHistoryPanel({ patient }: { patient
   if (!temHistoricoCpf && recusas.length === 0) return null;
 
   return (
-    <div className="space-y-4">
+    <div className="divide-y divide-psi-soft">
       {temHistoricoCpf && (
-        <section className="rounded-2xl border border-psi-soft bg-surface p-4 shadow-card sm:p-5">
+        <section className="py-6">
           <div className="mb-3 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <History className="h-4 w-4 text-psi-vibrant" />
-              <h3 className="text-sm font-black text-ink">Histórico administrativo deste CPF</h3>
+              <h3 className="text-base font-black text-psi-darkest">Histórico administrativo deste CPF</h3>
             </div>
             <span className="rounded-full bg-psi-soft px-2.5 py-0.5 text-[11px] font-black text-psi-deep">
               {historico.length} solicitações
@@ -72,10 +72,10 @@ export default function PatientAdministrativeHistoryPanel({ patient }: { patient
       )}
 
       {recusas.length > 0 && (
-        <section className="rounded-2xl border border-psi-soft bg-surface p-4 shadow-card sm:p-5">
+        <section className="py-6">
           <div className="mb-3 flex items-center gap-2">
             <ArrowRightLeft aria-hidden className="h-4 w-4 text-psi-vibrant" />
-            <h3 className="text-sm font-black text-ink">Recusas registradas no encaminhamento</h3>
+            <h3 className="text-base font-black text-psi-darkest">Recusas registradas no encaminhamento</h3>
           </div>
           <ul className="space-y-2 text-xs">
             {recusas.map((recusa, index) => (

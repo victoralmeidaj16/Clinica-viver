@@ -50,8 +50,8 @@ export default function PatientInactivationPanel({ patient, onChange }: {
   };
 
   return (
-    <section className="space-y-3 rounded-2xl border border-psi-soft bg-surface p-4 shadow-card">
-      <h3 className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-ink">
+    <section className="space-y-3 py-6">
+      <h3 className="flex items-center gap-2 text-base font-black text-psi-darkest">
         <PowerOff aria-hidden className="h-4 w-4 text-psi-vibrant" /> Inativação do vínculo
       </h3>
 

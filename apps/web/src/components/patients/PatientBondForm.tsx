@@ -94,8 +94,8 @@ export default function PatientBondForm({ patientId, onSaved }: { patientId: str
   };
 
   return (
-    <section className="space-y-3 rounded-2xl border border-psi-soft bg-surface p-4 shadow-card sm:p-5">
-      <h3 className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-ink">
+    <section className="space-y-3 py-6">
+      <h3 className="flex items-center gap-2 text-base font-black text-psi-darkest">
         <Users className="h-4 w-4 text-psi-vibrant" />
         {coletivo ? `Atendimento de ${ROTULO_TIPO_COLETIVO[tipo!].toLowerCase()}` : 'Responsável financeiro'}
       </h3>

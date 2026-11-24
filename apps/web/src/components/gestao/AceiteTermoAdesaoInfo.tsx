@@ -29,26 +29,28 @@ export function AceiteTermoAdesaoInfo({ psicologo }: { psicologo: PsicologoItem 
 
   if (!aceite) {
     return (
-      <div className="flex items-start gap-2 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2.5 text-[11px] text-amber-900">
-        <FileWarning className="w-4 h-4 shrink-0 mt-0.5" />
-        <span>
-          <strong className="font-extrabold">Sem prova de aceite do Termo de Adesão.</strong>{' '}
-          Este cadastro foi enviado antes de o aceite passar a ser registrado pelo servidor
-          {psicologo.versaoTermos ? ` (o formulário informou a versão ${psicologo.versaoTermos})` : ''}.
-        </span>
+      <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+        <FileWarning aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+        <div className="min-w-0 space-y-0.5">
+          <p className="text-xs font-bold text-ink">Sem prova de aceite do Termo de Adesão</p>
+          <p className="text-[11px] leading-relaxed text-muted">
+            O cadastro foi enviado antes de o servidor passar a registrar o aceite
+            {psicologo.versaoTermos ? `; o formulário informou a versão ${psicologo.versaoTermos}` : ''}.
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
-    <details className="group rounded-2xl border border-emerald-100 bg-emerald-50/50 text-xs text-slate-600">
-      <summary className="flex cursor-pointer list-none items-center gap-2 rounded-2xl p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 [&::-webkit-details-marker]:hidden">
-        <FileCheck2 className="w-4 h-4 shrink-0 text-emerald-800" />
-        <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-800">Aceite do Termo de Adesão</span>
+    <details className="group rounded-2xl border border-slate-200 bg-white text-xs text-slate-600">
+      <summary className="flex cursor-pointer list-none items-center gap-2 rounded-2xl px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-psi-vibrant/40 [&::-webkit-details-marker]:hidden">
+        <FileCheck2 aria-hidden className="w-4 h-4 shrink-0 text-emerald-600" />
+        <span className="text-xs font-bold text-ink">Aceite do Termo de Adesão</span>
         <span className="ml-auto text-[10px] font-semibold text-slate-500">
           v{aceite.versao} · {DATA_HORA.format(new Date(aceite.aceitoEm))}
         </span>
-        <ChevronDown className="w-4 h-4 shrink-0 text-emerald-800 transition-transform group-open:rotate-180" />
+        <ChevronDown aria-hidden className="w-4 h-4 shrink-0 text-slate-400 transition-transform group-open:rotate-180" />
       </summary>
       <div className="space-y-2 px-4 pb-4">
         <Linha rotulo="Versão aceita">{aceite.versao}</Linha>

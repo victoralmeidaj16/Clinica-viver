@@ -107,8 +107,20 @@ export function PsicologoCard({
         className={`cursor-pointer align-top transition-colors hover:bg-psi-soft/30 ${expanded ? 'bg-psi-soft/20' : ''}`}
       >
         <td className="p-4">
-          <p className="font-black text-ink">{nomeExibido(p)}</p>
-          <PsicologoPosicaoRodizio rodizio={p.rodizio} />
+          <div className="flex items-start gap-3">
+            {p.fotoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={p.fotoUrl} alt="" className="h-10 w-10 shrink-0 rounded-xl border border-psi-soft object-cover" />
+            ) : (
+              <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-psi-soft bg-psi-soft/60 text-sm font-black text-psi-deep">
+                {nomeExibido(p).charAt(0)}
+              </span>
+            )}
+            <div className="min-w-0">
+              <p className="font-black text-ink">{nomeExibido(p)}</p>
+              <PsicologoPosicaoRodizio rodizio={p.rodizio} />
+            </div>
+          </div>
         </td>
         <td className="p-4">
         <div className="flex items-center gap-1.5 flex-wrap">

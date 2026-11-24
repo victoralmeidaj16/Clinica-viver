@@ -50,13 +50,13 @@ export default function PatientInactivationPanel({ patient, onChange }: {
   };
 
   return (
-    <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <section className="space-y-3 rounded-2xl border border-psi-soft bg-surface p-4 shadow-card">
       <h3 className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-ink">
-        <PowerOff className="h-4 w-4 text-slate-600" /> Inativação do vínculo
+        <PowerOff aria-hidden className="h-4 w-4 text-psi-vibrant" /> Inativação do vínculo
       </h3>
 
       {inativo && patient.inativacao && (
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-ink">
+        <div className="rounded-xl border border-psi-soft bg-psi-light p-3 text-xs text-ink">
           <p><strong>Inativo</strong> desde {dataHoraBr(patient.inativacao.inativadoEm)}</p>
           <p className="mt-1">Motivo: {patient.inativacao.motivo}</p>
           <p className="mt-1 text-muted">
@@ -74,7 +74,7 @@ export default function PatientInactivationPanel({ patient, onChange }: {
             onChange={(event) => setMotivo(event.target.value)}
             rows={2}
             placeholder="Motivo da inativação (obrigatório)"
-            className="w-full rounded-xl border border-line bg-slate-50 px-3 py-2 text-xs text-ink focus:border-psi-vibrant focus:outline-none"
+            className="w-full rounded-xl border border-line bg-psi-light px-3 py-2 text-xs text-ink focus:border-psi-vibrant focus:outline-none"
           />
           <button
             type="button"
@@ -100,7 +100,7 @@ export default function PatientInactivationPanel({ patient, onChange }: {
             value={justificativa}
             onChange={(event) => setJustificativa(event.target.value)}
             placeholder={pedirExcesso ? 'Justificativa da exceção (obrigatória)' : 'Justificativa da reativação (opcional)'}
-            className="w-full rounded-xl border border-line bg-slate-50 px-3 py-2 text-xs text-ink focus:border-psi-vibrant focus:outline-none"
+            className="w-full rounded-xl border border-line bg-psi-light px-3 py-2 text-xs text-ink focus:border-psi-vibrant focus:outline-none"
           />
           <button type="button" disabled={enviando} onClick={() => void enviar('REATIVAR')} className="btn-primary min-h-10 justify-center disabled:opacity-50">
             <RotateCcw className="h-4 w-4" /> {enviando ? 'Salvando…' : 'Reativar vínculo'}
@@ -111,7 +111,7 @@ export default function PatientInactivationPanel({ patient, onChange }: {
       {erro && <p className="text-xs font-semibold text-rose-700">{erro}</p>}
 
       {Boolean(patient.inativacoes?.length) && (
-        <ul className="space-y-1 border-t border-slate-100 pt-2 text-[11px] text-muted">
+        <ul className="space-y-1 border-t border-psi-soft pt-2 text-[11px] text-muted">
           {[...patient.inativacoes!].reverse().map((item) => (
             <li key={item.inativadoEm}>
               {dataHoraBr(item.inativadoEm)} — inativado por {item.porNome ?? ROTULO_PERFIL_INATIVACAO[item.perfil]}: {item.motivo}

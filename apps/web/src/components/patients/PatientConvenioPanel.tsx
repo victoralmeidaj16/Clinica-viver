@@ -55,21 +55,21 @@ export default function PatientConvenioPanel({ patient, convenios, onConvenioCha
   };
 
   return <>
-          <section className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 sm:p-5">
+          <section className="rounded-2xl border border-psi-soft bg-surface p-4 shadow-card sm:p-5">
             <div className="mb-4 flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-emerald-700" />
+              <Building2 aria-hidden className="h-4 w-4 text-psi-vibrant" />
               <h3 className="text-sm font-black text-ink">Vínculo com convênio</h3>
             </div>
             {!patient.patientId ? <p className="text-xs text-muted">O vínculo fica disponível depois que a triagem vira paciente.</p> : (
               <div className="space-y-3">
-                <select value={convenioId} onChange={(event) => { setConvenioId(event.target.value); setCusteio('herdar'); setCota(''); setCiclo('total'); }} className="w-full rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-xs font-medium text-ink">
+                <select value={convenioId} onChange={(event) => { setConvenioId(event.target.value); setCusteio('herdar'); setCota(''); setCiclo('total'); }} className="w-full rounded-xl border border-psi-soft bg-white px-3 py-2.5 text-sm font-medium text-ink focus:border-psi-vibrant focus:outline-none focus:ring-2 focus:ring-psi-vibrant/20">
                   <option value="">Sem convênio</option>
                   {convenios.map((item) => <option key={item.id} value={item.id}>{item.nome}</option>)}
                 </select>
                 {convenioId && (
                   <label className="block text-xs font-bold text-ink">
                     Quem paga as sessões
-                    <select value={custeio} onChange={(event) => setCusteio(event.target.value as typeof custeio)} className="mt-1 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-xs font-medium text-ink">
+                    <select value={custeio} onChange={(event) => setCusteio(event.target.value as typeof custeio)} className="mt-1 w-full rounded-xl border border-psi-soft bg-white px-3 py-2.5 text-sm font-medium text-ink focus:border-psi-vibrant focus:outline-none focus:ring-2 focus:ring-psi-vibrant/20">
                       <option value="herdar">Padrão do convênio ({selectedConvenio?.empresaPagaSessoes ? 'empresa paga' : 'paciente paga'})</option>
                       <option value="sim">Empresa paga (exceção)</option>
                       <option value="nao">Paciente paga (exceção)</option>
@@ -78,7 +78,7 @@ export default function PatientConvenioPanel({ patient, convenios, onConvenioCha
                   </label>
                 )}
                 {pacote && custeio !== 'nao' && (selectedConvenio?.empresaPagaSessoes || custeio === 'sim') && (
-                  <p className="rounded-xl border border-emerald-200 bg-white p-3 text-[11px] font-bold text-emerald-900">
+                  <p className="rounded-xl border border-psi-soft bg-psi-light p-3 text-xs font-bold text-psi-darkest">
                     Pacote do convênio: {pacote} {pacote === 1 ? 'sessão' : 'sessões'} {selectedConvenio?.pacoteSessoesCiclo === 'mensal' ? 'por mês' : 'no total'}
                     {convenioId === patient.convenioId && typeof patient.custeioConsumidas === 'number' && (
                       <> · Já usadas {patient.custeioConsumidas} de {pacote}{selectedConvenio?.pacoteSessoesCiclo === 'mensal' ? ' neste mês' : ''} · {Math.max(0, pacote - patient.custeioConsumidas)} restantes</>
@@ -86,7 +86,7 @@ export default function PatientConvenioPanel({ patient, convenios, onConvenioCha
                   </p>
                 )}
                 {convenioId && custeio === 'personalizado' && (
-                  <div className="space-y-3 rounded-xl border border-emerald-200 bg-white p-3">
+                  <div className="space-y-3 rounded-xl border border-psi-soft bg-psi-light p-3">
                     <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2">
                       <label className="block text-xs font-bold text-ink">
                         Sessões por conta da empresa
@@ -97,7 +97,7 @@ export default function PatientConvenioPanel({ patient, convenios, onConvenioCha
                           value={cota}
                           onChange={(event) => setCota(event.target.value)}
                           placeholder="Ex.: 10"
-                          className="mt-1 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-xs font-medium text-ink"
+                          className="mt-1 w-full rounded-xl border border-psi-soft bg-white px-3 py-2.5 text-sm font-medium text-ink focus:border-psi-vibrant focus:outline-none focus:ring-2 focus:ring-psi-vibrant/20"
                         />
                       </label>
                       <label className="block text-xs font-bold text-ink">
@@ -105,7 +105,7 @@ export default function PatientConvenioPanel({ patient, convenios, onConvenioCha
                         <select
                           value={ciclo}
                           onChange={(event) => setCiclo(event.target.value === 'mensal' ? 'mensal' : 'total')}
-                          className="mt-1 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-xs font-medium text-ink"
+                          className="mt-1 w-full rounded-xl border border-psi-soft bg-white px-3 py-2.5 text-sm font-medium text-ink focus:border-psi-vibrant focus:outline-none focus:ring-2 focus:ring-psi-vibrant/20"
                         >
                           <option value="total">No total do vínculo</option>
                           <option value="mensal">Por mês, renovando</option>
@@ -122,7 +122,7 @@ export default function PatientConvenioPanel({ patient, convenios, onConvenioCha
                     {/* O consumo é o que a gestão precisa ver antes de mexer na
                         cota: sessão já realizada mantém o pagador que teve. */}
                     {typeof patient.custeioConsumidas === 'number' && patient.custeioCota !== undefined && (
-                      <p className="text-[11px] font-bold text-emerald-900">
+                      <p className="text-xs font-bold text-psi-darkest">
                         Já usadas {patient.custeioConsumidas} de {patient.custeioCota}
                         {patient.custeioCiclo === 'mensal' ? ' neste mês' : ''}
                         {' · '}
@@ -131,7 +131,7 @@ export default function PatientConvenioPanel({ patient, convenios, onConvenioCha
                     )}
                   </div>
                 )}
-                <button type="button" onClick={() => void saveConvenio()} disabled={savingConvenio} className="w-full rounded-xl bg-emerald-700 px-4 py-3 text-xs font-black text-white disabled:opacity-50">
+                <button type="button" onClick={() => void saveConvenio()} disabled={savingConvenio} className="btn-primary w-full text-sm">
                   {savingConvenio ? 'Salvando…' : 'Salvar vínculo'}
                 </button>
               </div>

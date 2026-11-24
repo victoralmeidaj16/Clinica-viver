@@ -53,7 +53,7 @@ export default function PatientWaitlistPanel({ patient, onChange }: {
   const mudou = naLista && lista && (modo !== lista.modo || prioritario !== Boolean(lista.prioritario));
 
   return (
-    <section className="space-y-3 rounded-2xl border border-psi-soft/60 bg-white p-4 shadow-sm">
+    <section className="space-y-3 rounded-2xl border border-psi-soft bg-surface p-4 shadow-card sm:p-5">
       <h3 className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-ink">
         <ListOrdered className="h-4 w-4 text-psi-vibrant" /> Lista de espera
       </h3>
@@ -96,7 +96,7 @@ export default function PatientWaitlistPanel({ patient, onChange }: {
               value={motivo}
               onChange={(event) => setMotivo(event.target.value)}
               placeholder={prioritario ? 'Motivo da prioridade (obrigatório)' : naLista ? 'Motivo da retirada (opcional)' : 'Observação (opcional)'}
-              className="w-full rounded-xl border border-line bg-slate-50 px-3 py-2 text-xs text-ink focus:border-psi-vibrant focus:outline-none"
+              className="w-full rounded-xl border border-line bg-psi-light px-3 py-2 text-xs text-ink focus:border-psi-vibrant focus:outline-none"
             />
           ) : null}
           <div className="flex flex-wrap gap-2">

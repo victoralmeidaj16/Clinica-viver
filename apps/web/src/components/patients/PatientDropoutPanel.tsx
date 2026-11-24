@@ -53,7 +53,7 @@ export default function PatientDropoutPanel({ patient, onChange }: Props) {
   };
 
   return (
-    <section className="rounded-2xl border border-rose-200/70 bg-rose-50/40 p-4 sm:p-5">
+    <section className="rounded-2xl border border-psi-soft bg-surface p-4 shadow-card sm:p-5">
       <div className="mb-4 flex items-center gap-2">
         <UserX className="h-4 w-4 text-rose-600" />
         <h3 className="text-sm font-black text-ink">Desistência & nova alocação</h3>
@@ -111,7 +111,7 @@ export default function PatientDropoutPanel({ patient, onChange }: Props) {
             <select
               value={motivo}
               onChange={(event) => setMotivo(event.target.value as MotivoDesistencia)}
-              className="mt-1.5 w-full rounded-xl border border-psi-soft bg-white px-3 py-2.5 text-xs font-medium text-ink focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+              className="mt-1.5 w-full rounded-xl border border-psi-soft bg-white px-3 py-2.5 text-xs font-medium text-ink focus:border-psi-vibrant focus:outline-none focus:ring-2 focus:ring-psi-vibrant/20"
             >
               {MOTIVOS_DESISTENCIA.map(([valor, rotulo]) => <option key={valor} value={valor}>{rotulo}</option>)}
             </select>
@@ -125,7 +125,7 @@ export default function PatientDropoutPanel({ patient, onChange }: Props) {
               value={descricaoDetalhada}
               onChange={(event) => setDescricao(event.target.value)}
               placeholder="Registre apenas o necessário para a auditoria, sem conteúdo do prontuário."
-              className="mt-1.5 w-full resize-none rounded-xl border border-psi-soft bg-white px-3 py-2.5 text-xs font-medium text-ink focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+              className="mt-1.5 w-full resize-none rounded-xl border border-psi-soft bg-white px-3 py-2.5 text-xs font-medium text-ink focus:border-psi-vibrant focus:outline-none focus:ring-2 focus:ring-psi-vibrant/20"
             />
           </label>
 
@@ -136,7 +136,7 @@ export default function PatientDropoutPanel({ patient, onChange }: Props) {
               value={acaoSugestao}
               onChange={(event) => setAcao(event.target.value)}
               placeholder="Ex.: ofertar modalidade social ou novo horário"
-              className="mt-1.5 w-full rounded-xl border border-psi-soft bg-white px-3 py-2.5 text-xs font-medium text-ink focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+              className="mt-1.5 w-full rounded-xl border border-psi-soft bg-white px-3 py-2.5 text-xs font-medium text-ink focus:border-psi-vibrant focus:outline-none focus:ring-2 focus:ring-psi-vibrant/20"
             />
           </label>
 

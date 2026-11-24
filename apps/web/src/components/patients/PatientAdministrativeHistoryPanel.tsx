@@ -33,7 +33,7 @@ export default function PatientAdministrativeHistoryPanel({ patient }: { patient
   return (
     <div className="space-y-4">
       {temHistoricoCpf && (
-        <section className="rounded-2xl border border-psi-soft/70 bg-white p-4">
+        <section className="rounded-2xl border border-psi-soft bg-surface p-4 shadow-card sm:p-5">
           <div className="mb-3 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <History className="h-4 w-4 text-psi-vibrant" />
@@ -72,16 +72,16 @@ export default function PatientAdministrativeHistoryPanel({ patient }: { patient
       )}
 
       {recusas.length > 0 && (
-        <section className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+        <section className="rounded-2xl border border-psi-soft bg-surface p-4 shadow-card sm:p-5">
           <div className="mb-3 flex items-center gap-2">
-            <ArrowRightLeft className="h-4 w-4 text-amber-700" />
+            <ArrowRightLeft aria-hidden className="h-4 w-4 text-psi-vibrant" />
             <h3 className="text-sm font-black text-ink">Recusas registradas no encaminhamento</h3>
           </div>
           <ul className="space-y-2 text-xs">
             {recusas.map((recusa, index) => (
               <li
                 key={`${recusa.psicologoId}-${recusa.recusadoEm}-${index}`}
-                className="rounded-xl border border-amber-200/80 bg-white px-3 py-2"
+                className="rounded-xl border border-psi-soft bg-psi-light px-3 py-2"
               >
                 <p className="font-bold text-ink">
                   {recusa.psicologoNome ?? recusa.psicologoId} · {dataBr(recusa.recusadoEm)}

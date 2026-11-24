@@ -59,7 +59,7 @@ export default function PatientReassignPanel({ patient, psychologists, onReassig
   };
 
   return (
-    <section className="rounded-2xl border border-psi-soft/60 bg-psi-soft/20 p-4 sm:p-5">
+    <section className="rounded-2xl border border-psi-soft bg-surface p-4 shadow-card sm:p-5">
       <div className="mb-4 flex items-center gap-2">
         <UserRoundCog className="h-4 w-4 text-psi-vibrant" />
         <h3 className="text-sm font-black text-ink">Encaminhar para psicólogo</h3>

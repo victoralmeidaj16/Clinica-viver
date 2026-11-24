@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { UserRoundPen, CalendarDays, CircleDollarSign, Clock3, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { ShieldCheck, UserRoundPen, X } from 'lucide-react';
 import { rotuloTurnoPreferencia } from '@/lib/turnos';
 import EditPatientModal from './EditPatientModal';
 import PatientConvenioPanel from './PatientConvenioPanel';
@@ -44,38 +44,113 @@ const money = (cents: number) => new Intl.NumberFormat('pt-BR', {
   style: 'currency', currency: 'BRL',
 }).format(cents / 100);
 
+/**
+ * Visão administrativa do paciente, em modal central.
+ *
+ * O cabeçalho repete o bloco roxo das páginas de gestão (título grande sobre
+ * `psi-darkest`, números ao lado), para a janela parecer parte da plataforma e
+ * não um painel genérico por cima dela.
+ */
 export default function PatientManagementDrawer({ patient, psychologists, convenios, onClose, onReassign, onDropoutChange, onConvenioChange, onSessionPricingChange, onRegistrationChange }: Props) {
   const [editing, setEditing] = useState(false);
+  const fechar = useRef<HTMLButtonElement>(null);
+  const aberto = Boolean(patient);
+  // Quem abre costuma passar uma função nova a cada render; o efeito abaixo
+  // não pode reagir a isso, ou o foco voltaria ao "fechar" a cada atualização.
+  const aoFechar = useRef(onClose);
+  useEffect(() => { aoFechar.current = onClose; }, [onClose]);
+  const editando = useRef(editing);
+  useEffect(() => { editando.current = editing; }, [editing]);
+
+  // Modal de verdade: o foco entra nele, o Esc fecha, a página de trás não
+  // rola, e ao fechar o foco volta para onde estava.
+  useEffect(() => {
+    if (!aberto) return;
+    const anterior = document.activeElement as HTMLElement | null;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    fechar.current?.focus();
+    const aoTeclar = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !editando.current) aoFechar.current();
+    };
+    document.addEventListener('keydown', aoTeclar);
+    return () => {
+      document.removeEventListener('keydown', aoTeclar);
+      document.body.style.overflow = overflow;
+      anterior?.focus?.();
+    };
+  }, [aberto]);
 
   if (!patient) return null;
 
+  const metricas = [
+    { label: 'Espera', value: patient.horasEspera ? `${patient.horasEspera}h` : 'Concluída' },
+    { label: 'Sessões', value: `${patient.agenda.realizadas}/${patient.agenda.total}` },
+    { label: 'Em aberto', value: money(patient.financeiro.emAbertoCentavos) },
+  ];
+
   return (
     <>
-    <div className="fixed inset-0 z-50 flex justify-end bg-psi-darkest/60 backdrop-blur-[2px]" onMouseDown={onClose}>
-      <aside className="h-full w-full max-w-xl overflow-y-auto border-l border-psi-soft bg-surface shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
-        <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-psi-soft bg-surface/95 p-4 backdrop-blur sm:p-6">
-          <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-psi-vibrant">Visão administrativa</p>
-            <h2 className="mt-1 break-words text-xl font-extrabold text-ink sm:text-2xl">{patient.nome}</h2>
-            <p className="mt-0.5 text-xs text-muted font-medium">{patient.protocolo ?? patient.id}</p>
-          </div>
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-psi-darkest/60 backdrop-blur-sm sm:items-center sm:p-6"
+      onMouseDown={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="titulo-visao-administrativa"
+        className="flex max-h-[94dvh] w-full max-w-4xl flex-col overflow-hidden rounded-t-3xl bg-canvas shadow-contrast sm:max-h-[90dvh] sm:rounded-3xl"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <header className="relative shrink-0 bg-psi-darkest px-5 pb-6 pt-5 text-white sm:px-8 sm:pb-8 sm:pt-7">
           <button
+            ref={fechar}
             type="button"
-            aria-label="Fechar detalhes"
+            aria-label="Fechar visão administrativa"
             onClick={onClose}
-            className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full border border-psi-soft p-2 text-muted transition-colors hover:bg-psi-soft/50 hover:text-ink"
+            className="absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-white/5 text-psi-soft transition-colors hover:bg-white/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-psi-vibrant sm:right-6 sm:top-6"
           >
-            <X className="h-5 w-5" />
+            <X aria-hidden className="h-5 w-5" />
           </button>
-        </div>
 
-        <div className="space-y-5 p-4 sm:space-y-6 sm:p-6">
-          {patient.patientId ? (
-            <button type="button" className="btn-primary w-full justify-center" onClick={() => setEditing(true)}>
-              <UserRoundPen className="h-4 w-4" /> Editar dados
+          <p className="flex items-center gap-2 pr-14 text-xs font-black uppercase tracking-[0.2em] text-psi-vibrant">
+            <ShieldCheck aria-hidden className="h-4 w-4" /> Visão administrativa
+          </p>
+          <div className="mt-3 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div className="min-w-0">
+              <h2 id="titulo-visao-administrativa" className="break-words text-3xl font-black tracking-tight text-white sm:text-4xl">
+                {patient.nome}
+              </h2>
+              <p className="mt-1 text-sm tabular-nums text-psi-soft/80">{patient.protocolo ?? patient.id}</p>
+            </div>
+            <dl className="grid shrink-0 grid-cols-3 gap-2">
+              {metricas.map((item) => (
+                <div key={item.label} className="min-w-24 rounded-2xl border border-white/10 bg-white/5 px-3.5 py-3">
+                  <dt className="text-[11px] font-bold uppercase tracking-wider text-psi-soft/70">{item.label}</dt>
+                  <dd className="mt-1 text-base font-black tabular-nums text-white">{item.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+          {patient.patientId && (
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-white px-5 text-sm font-bold text-psi-darkest transition-colors hover:bg-psi-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-psi-vibrant"
+            >
+              <UserRoundPen aria-hidden className="h-4 w-4" /> Editar dados
             </button>
-          ) : <p className="text-xs text-muted">A edição cadastral fica disponível depois que a triagem vira paciente.</p>}
-          <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          )}
+        </header>
+
+        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain p-5 sm:p-8">
+          {!patient.patientId && (
+            <p className="rounded-xl border border-psi-soft bg-surface p-3 text-sm text-muted">
+              A edição cadastral fica disponível depois que a triagem vira paciente.
+            </p>
+          )}
+
+          <section aria-label="Contato e cadastro" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <Info label="WhatsApp" value={patient.whatsapp} />
             <Info label="E-mail" value={patient.email} />
             <Info label="CPF" value={patient.cpf || (patient.identificadoPeloResponsavel
@@ -86,11 +161,13 @@ export default function PatientManagementDrawer({ patient, psychologists, conven
             <Info label="Convênio informado" value={patient.convenioSelecionado} />
           </section>
 
-          <PatientConvenioPanel patient={patient} convenios={convenios} onConvenioChange={onConvenioChange} />
-          <PatientSessionPricingPanel patient={patient} onChange={onSessionPricingChange} />
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
+            <PatientConvenioPanel patient={patient} convenios={convenios} onConvenioChange={onConvenioChange} />
+            <PatientSessionPricingPanel patient={patient} onChange={onSessionPricingChange} />
+          </div>
 
           {/* O que a pessoa pediu na triagem, do jeito que pediu. */}
-          <section className="grid grid-cols-1 gap-3 border-t border-psi-soft/60 pt-4 sm:grid-cols-2">
+          <section aria-label="Pedido na triagem" className="grid grid-cols-1 gap-3 border-t border-psi-soft pt-6 sm:grid-cols-2 lg:grid-cols-3">
             <Info label="Serviço" value={patient.servicoNome ?? patient.servicoKey} />
             <Info
               label="Modalidade / turno"
@@ -118,30 +195,22 @@ export default function PatientManagementDrawer({ patient, psychologists, conven
 
           <PatientAdministrativeHistoryPanel patient={patient} />
 
-          <section className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-3">
-            <Metric icon={Clock3} label="Espera" value={patient.horasEspera ? `${patient.horasEspera}h` : 'Concluída'} />
-            <Metric icon={CalendarDays} label="Sessões" value={`${patient.agenda.realizadas}/${patient.agenda.total}`} />
-            <Metric icon={CircleDollarSign} label="Em aberto" value={money(patient.financeiro.emAbertoCentavos)} />
-          </section>
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
+            <PatientReassignPanel key={patient.id} patient={patient} psychologists={psychologists} onReassign={onReassign} />
+            <PatientWaitlistPanel key={`espera-${patient.id}`} patient={patient} onChange={onRegistrationChange} />
+          </div>
 
-          <PatientReassignPanel
-            key={patient.id}
-            patient={patient}
-            psychologists={psychologists}
-            onReassign={onReassign}
-          />
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
+            <PatientInactivationPanel key={`inativo-${patient.id}`} patient={patient} onChange={onRegistrationChange} />
+            <PatientDropoutPanel patient={patient} onChange={onDropoutChange} />
+          </div>
 
-          <PatientWaitlistPanel key={`espera-${patient.id}`} patient={patient} onChange={onRegistrationChange} />
-
-          <PatientInactivationPanel key={`inativo-${patient.id}`} patient={patient} onChange={onRegistrationChange} />
-
-          <PatientDropoutPanel patient={patient} onChange={onDropoutChange} />
-
-          <p className="rounded-xl border border-psi-soft/60 bg-psi-soft/30 p-3 text-[11px] leading-relaxed text-muted">
+          <p className="flex items-start gap-2 rounded-2xl border border-psi-soft bg-psi-soft/40 p-4 text-xs leading-relaxed text-psi-darkest">
+            <ShieldCheck aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-psi-vibrant" />
             Esta área mostra apenas dados operacionais. Conteúdo de sessões e prontuário clínico não é exposto à gestão.
           </p>
         </div>
-      </aside>
+      </div>
     </div>
     {editing && patient.patientId && <EditPatientModal
       patientId={patient.patientId}
@@ -155,19 +224,9 @@ export default function PatientManagementDrawer({ patient, psychologists, conven
 
 function Info({ label, value }: { label: string; value?: string }) {
   return (
-    <div className="rounded-xl border border-psi-soft/60 bg-white p-3 shadow-sm">
-      <p className="text-[10px] font-black uppercase tracking-wider text-muted">{label}</p>
-      <p className="mt-1 text-xs font-bold text-ink">{value || 'Não informado'}</p>
-    </div>
-  );
-}
-
-function Metric({ icon: Icon, label, value }: { icon: typeof Clock3; label: string; value: string }) {
-  return (
-    <div className="rounded-xl bg-psi-darkest p-3 text-white border border-white/10 shadow-sm">
-      <Icon className="mb-2 h-4 w-4 text-psi-vibrant" />
-      <p className="text-[9px] font-bold uppercase tracking-wider text-psi-soft/70">{label}</p>
-      <p className="mt-1 text-sm font-black text-white">{value}</p>
+    <div className="rounded-2xl border border-psi-soft bg-surface p-4">
+      <p className="text-[11px] font-black uppercase tracking-wider text-muted">{label}</p>
+      <p className="mt-1 break-words text-sm font-bold text-ink">{value || 'Não informado'}</p>
     </div>
   );
 }

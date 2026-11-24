@@ -114,8 +114,6 @@ export function PsicologoCard({
 
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <TagStatus>Turma {p.turmaViverMais || '—'}</TagStatus>
-
               {emSaida?.saidaEm && (
                 <TagStatus
                   icone={CalendarClock}

@@ -58,7 +58,7 @@ Cores fora do roxo só servem para dizer **em que situação algo está**, nunca
 
 ### Tags e indicadores de status: base neutra, cor só no ícone
 
-Tags ("Turma 25A") e indicadores de status ("Indisponível", "Conta ativada", "Folga") usam **a mesma base neutra do botão "Pausar"**:
+Tags e indicadores de status ("Indisponível", "Conta ativada", "Folga") usam **a mesma base neutra do botão "Pausar"**:
 - fundo branco;
 - borda cinza discreta;
 - texto escuro.
@@ -70,7 +70,6 @@ const TAG_NEUTRA = 'border border-slate-200 bg-white text-slate-700';
 
 <TagStatus icone={PauseCircle} cor="negativo">Indisponível</TagStatus>
 <TagStatus icone={CheckCircle2} cor="positivo">No rodízio</TagStatus>
-<TagStatus>Turma 25A</TagStatus>   // sem ícone: etiqueta informativa
 ```
 
 | `cor` do ícone | Classe | Quando |

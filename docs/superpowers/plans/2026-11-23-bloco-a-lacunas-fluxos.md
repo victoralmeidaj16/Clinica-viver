@@ -49,7 +49,7 @@
   - `publicoDaSessao(input: { serviceKey?: string; duracaoMin: number; publicoDoVinculo?: string }): string | undefined`
   - `duracaoCompativelComPublico(serviceKey: string, duracaoMin: number, publicoDoVinculo: string | undefined, origem: 'link' | 'manual'): boolean`
 
-- [ ] **Passo 1: escrever os testes que falham**
+- [x] **Passo 1: escrever os testes que falham**
 
 ```ts
 describe('publicoColetivo', () => {
@@ -80,14 +80,14 @@ describe('duracaoCompativelComPublico (§ 14)', () => {
 });
 ```
 
-- [ ] **Passo 2:** rodar `cd apps/web && npx vitest run src/lib/publicoDuracaoSessao.test.ts`. Esperado: FAIL, módulo inexistente.
+- [x] **Passo 2:** rodar `cd apps/web && npx vitest run src/lib/publicoDuracaoSessao.test.ts`. Esperado: FAIL, módulo inexistente.
 
-- [ ] **Passo 3: implementar as três funções em `publicoDuracaoSessao.ts`**
+- [x] **Passo 3: implementar as três funções em `publicoDuracaoSessao.ts`**
   - A Avaliação usa `isValidAppointmentDuration` de `@thats-life/core/src/scheduling/validation`.
   - Serviços fora de `CLINICAL_SERVICES` (`lib/manualAppointment.ts`) devolvem `false`.
   - A tabela de durações é a do spec, seção 1, com uma exceção: com `origem: 'link'` e público desconhecido, Psicoterapia, Orientação Vocacional e Orientação Profissional aceitam só 50 minutos, como o link faz hoje. A dupla opção de 50 ou 90 minutos vale só para a agenda manual, onde o profissional escolhe.
 
-- [ ] **Passo 4:** rodar o mesmo comando. Esperado: PASS.
+- [x] **Passo 4:** rodar o mesmo comando. Esperado: PASS.
 
 ---
 
@@ -100,20 +100,20 @@ describe('duracaoCompativelComPublico (§ 14)', () => {
 **Interfaces**
 - Consome: `duracaoCompativelComPublico` e `publicoDaSessao` da Tarefa 1.
 
-- [ ] **Passo 1: acrescentar os testes que falham**
+- [x] **Passo 1: acrescentar os testes que falham**
   - `janelasCompativeisComPaciente` com `serviceKey: 'PSICOTERAPIA'`, `publico: 'Grupo'` e grade de janelas de 50 e 90 minutos devolve só a de 90.
   - Com `publico: 'Adulto'`, devolve só a de 50.
   - `bookAppointments` com `{ ...patient, serviceKey: 'PSICOTERAPIA', publico: 'Adulto' }` faz o `INSERT INTO clinica_agendamentos` com a coluna `publico_atendimento` e o parâmetro `'Adulto'`. Use `connection.execute.mock.calls`.
   - Com `publico` ausente, o parâmetro é `null`.
 
-- [ ] **Passo 2:** rodar `cd apps/web && npx vitest run src/server/scheduling/publicBooking.test.ts`. Esperado: FAIL nos novos casos.
+- [x] **Passo 2:** rodar `cd apps/web && npx vitest run src/server/scheduling/publicBooking.test.ts`. Esperado: FAIL nos novos casos.
 
-- [ ] **Passo 3: implementar**
+- [x] **Passo 3: implementar**
   - O corpo do `filter` em `janelasCompativeisComPaciente` passa a ser `duracaoCompativelComPublico(serviceKey, janela.duracaoMin, publicoDoLink, 'link')`, com `publicoDoLink = publicoColetivo(paciente.triageMode) ? paciente.triageMode : paciente.publico`.
   - Sem `serviceKey`, a grade continua inteira.
   - No `INSERT`, acrescentar `publico_atendimento` com o valor `publicoDaSessao({ serviceKey: paciente.serviceKey, duracaoMin, publicoDoVinculo: paciente.publico }) ?? null`.
 
-- [ ] **Passo 4:** rodar o mesmo arquivo e também `src/server/scheduling/patientCpfAccess.test.ts`. Esperado: PASS nos dois, incluindo os casos antigos de Orientação Parental.
+- [x] **Passo 4:** rodar o mesmo arquivo e também `src/server/scheduling/patientCpfAccess.test.ts`. Esperado: PASS nos dois, incluindo os casos antigos de Orientação Parental.
 
 ---
 
@@ -138,7 +138,7 @@ describe('duracaoCompativelComPublico (§ 14)', () => {
 - Consome: Tarefa 1.
 - Produz: `publicoDoVinculo(organizationId: string, patientId: string): Promise<string | undefined>`. É o `para_quem_e` da triagem mais recente com `paciente_ref = patientId` na organização, com `ORDER BY atualizado_em DESC LIMIT 1`. Sem MySQL, lê `getCaptureRepository().read()` e usa o `paraQuemE` da triagem com `pacienteRef === patientId`.
 
-- [ ] **Passo 1: escrever os testes que falham**
+- [x] **Passo 1: escrever os testes que falham**
   - Core: `scheduleAppointment(input({ serviceKey: 'PSICOTERAPIA', audience: 'Grupo' }), meta).appointment.audience === 'Grupo'`.
   - `manualAppointment.test.ts`:
     - `validServiceDuration('PSICOTERAPIA', 90) === true`;
@@ -153,9 +153,9 @@ describe('duracaoCompativelComPublico (§ 14)', () => {
     - o trecho `ON DUPLICATE KEY UPDATE` do SQL não contém `publico_atendimento`.
   - `ManualAppointmentDialog.test.tsx`: paciente com `status: 'paused'` não aparece no seletor, e paciente `active` aparece.
 
-- [ ] **Passo 2:** rodar os cinco arquivos. Esperado: FAIL nos casos novos.
+- [x] **Passo 2:** rodar os cinco arquivos. Esperado: FAIL nos casos novos.
 
-- [ ] **Passo 3: implementar**
+- [x] **Passo 3: implementar**
   - Em `createAppointmentFlow`, depois de `validServiceDuration`:
     1. obter `const publico = await publicoDoVinculo(context.actor.organizationId, input.patientId)`. Vale também quando é a Gestão que agenda;
     2. se `!duracaoCompativelComPublico(serviceKey, durationMinutes, publico, 'manual')`, lançar `ApplicationError('INVALID_INPUT', \`Pelo público cadastrado (${publico}), este atendimento é de ${publicoColetivo(publico) ? '1h30' : '50 minutos'}.\`, 400)`;
@@ -163,7 +163,7 @@ describe('duracaoCompativelComPublico (§ 14)', () => {
   - Em `upsertAppointment`, `publico_atendimento` entra só nas colunas e nos valores do `INSERT`.
   - No diálogo, o filtro fica `patient.status !== 'discharged' && patient.status !== 'paused'`.
 
-- [ ] **Passo 4:** rodar os cinco arquivos, mais `src/lib/manualAppointment.test.ts`, `src/components/scheduling/ManualAppointmentDialog.test.tsx` e `src/server/application/agendaEdicaoConclusao.test.ts`. Esperado: PASS.
+- [x] **Passo 4:** rodar os cinco arquivos, mais `src/lib/manualAppointment.test.ts`, `src/components/scheduling/ManualAppointmentDialog.test.tsx` e `src/server/application/agendaEdicaoConclusao.test.ts`. Esperado: PASS.
 
 ---
 
@@ -177,7 +177,7 @@ describe('duracaoCompativelComPublico (§ 14)', () => {
 **Interfaces**
 - Consome (código existente): `registrarCobrancaContratual(connection, dados, valorCentavos)`, `precificarSessoesPendentes(connection, organizacao, convenio, centavos)`, `completeAppointment(...)` e `listEducationalCreditLines`.
 
-- [ ] **Passo 1: escrever os testes**
+- [x] **Passo 1: escrever os testes**
   - `registrarCobrancaContratual` com `10000`:
     - executa `INSERT INTO financeiro_cobrancas` com `valor_centavos` igual a `10000` e `emitida_em` igual a `confirmadaEm`;
     - atualiza `clinica_sessoes.cobranca_ref`.
@@ -187,7 +187,7 @@ describe('duracaoCompativelComPublico (§ 14)', () => {
   - `completeAppointment` com agendamento custeado, `valor_sessao_contrato_centavos: 10000` e `valor_sessao_centavos: 12000`: o `INSERT` da cobrança empresarial usa `10000`.
   - Core: `listEducationalCreditLines` com cobrança empresarial de 10.000 centavos confirmada em 10/11/2026 devolve crédito de 7.000 na competência `2026-11`. Uma quitação em dezembro não acrescenta linha.
 
-- [ ] **Passo 2:** rodar os três arquivos.
+- [x] **Passo 2:** rodar os três arquivos.
   - Esperado: PASS, porque o código já existe.
   - Se algum teste falhar, aplicar superpowers:systematic-debugging, corrigir o defeito no código de produção e registrar a correção no resumo da tarefa.
 
@@ -231,7 +231,7 @@ describe('duracaoCompativelComPublico (§ 14)', () => {
 - Pagador: `true` → `Empresa (convênio)`, `false` → `Paciente`.
 - Horário: `${dataHoraSessao(inicio)} – ${HH:mm do fim no fuso da clínica}`.
 
-- [ ] **Passo 1: escrever os testes que falham**
+- [x] **Passo 1: escrever os testes que falham**
   - Diferença:
     - mudança só de formato gera um único item, `{ campo: 'formato', rotulo: 'Formato', de: 'On-line', para: 'Presencial' }`;
     - o mesmo início e término gera `[]`;
@@ -249,9 +249,9 @@ describe('duracaoCompativelComPublico (§ 14)', () => {
     - `updateGestaoChargeDue`, com sucesso, grava uma linha `vencimento` com o `de` vindo de `vencimentoDoAgendamentoGestao`;
     - quando `updateAgendaAppointmentChargeDue` rejeita, nenhuma linha é gravada.
 
-- [ ] **Passo 2:** rodar os quatro arquivos. Esperado: FAIL.
+- [x] **Passo 2:** rodar os quatro arquivos. Esperado: FAIL.
 
-- [ ] **Passo 3: implementar**
+- [x] **Passo 3: implementar**
   - A tabela segue o spec, seção 3.
   - Em `updateAppointmentDetails`, logo antes do `commit`:
     - `depois` contém só os campos presentes em `input`;
@@ -260,7 +260,7 @@ describe('duracaoCompativelComPublico (§ 14)', () => {
     - capturar só `tabelaDeAlteracoesAusente`, com `console.warn('[agenda] Trilha de alterações indisponível: aplique a migration 090.')`.
   - Em `updateGestaoChargeDue`, a gravação é feita depois do sucesso, com `getMysqlPool()` como executor e falha só no log.
 
-- [ ] **Passo 4:** rodar os quatro arquivos e também `src/server/application/agendaEdicaoConclusao.test.ts` e `src/server/scheduling/agendaReagendamento.test.ts`. Esperado: PASS.
+- [x] **Passo 4:** rodar os quatro arquivos e também `src/server/application/agendaEdicaoConclusao.test.ts` e `src/server/scheduling/agendaReagendamento.test.ts`. Esperado: PASS.
 
 ---
 
@@ -280,7 +280,7 @@ describe('duracaoCompativelComPublico (§ 14)', () => {
 - Consome: `alteracoesDoAgendamento` (Tarefa 5) e `profissionalDoAgendamentoGestao`, já existente.
 - Produz: `historicoGestaoAppointment(context: RequestContext, id: string): Promise<{ alteracoes: AlteracaoAgendamento[] }>`.
 
-- [ ] **Passo 1: escrever os testes que falham**
+- [x] **Passo 1: escrever os testes que falham**
   - O serviço nega `professional` e `billing` com 403.
   - Agendamento fora da organização, com `profissionalDoAgendamentoGestao` devolvendo `null`, recebe 404.
   - O caso de sucesso devolve as linhas do repositório.
@@ -289,12 +289,12 @@ describe('duracaoCompativelComPublico (§ 14)', () => {
     - com duas alterações, mostra autor, data e "Formato: On-line → Presencial";
     - com lista vazia, mostra "Nenhuma alteração registrada pela Gestão.".
 
-- [ ] **Passo 2:** rodar os três arquivos. Esperado: FAIL.
+- [x] **Passo 2:** rodar os três arquivos. Esperado: FAIL.
 
-- [ ] **Passo 3: implementar**
+- [x] **Passo 3: implementar**
   - O componente busca `/gestao/agenda/${id}/alteracoes` via `applicationRequest`, como em `app/gestao/agenda/page.tsx`.
 
-- [ ] **Passo 4:** rodar os três arquivos e também `src/components/scheduling/EditSessionModal*.test.tsx`, se existirem. Esperado: PASS.
+- [x] **Passo 4:** rodar os três arquivos e também `src/components/scheduling/EditSessionModal*.test.tsx`, se existirem. Esperado: PASS.
 
 ---
 
@@ -319,7 +319,7 @@ describe('duracaoCompativelComPublico (§ 14)', () => {
 - `href`: `comFoco('/agenda', focoSessao(agendamentoId))`
 - `pendente`: `false`
 
-- [ ] **Passo 1: escrever os testes que falham**
+- [x] **Passo 1: escrever os testes que falham**
   - Uma alteração com duas mudanças gera um item com o texto acima. As duas mudanças vêm separadas por `; `.
   - Duas alterações do mesmo atendimento em horários diferentes geram duas chaves distintas.
   - A lista vazia gera `[]`.
@@ -327,13 +327,13 @@ describe('duracaoCompativelComPublico (§ 14)', () => {
   - Sem MySQL, a lista é `[]`.
   - Falha na consulta devolve `[]` sem derrubar os demais avisos.
 
-- [ ] **Passo 2:** rodar o arquivo. Esperado: FAIL.
+- [x] **Passo 2:** rodar o arquivo. Esperado: FAIL.
 
-- [ ] **Passo 3: implementar**
+- [x] **Passo 3: implementar**
   - Em `notificacoesDaSessao.ts`, acrescentar `...(await correcoesDaGestao(session.organizationId, session.userId))` ao retorno do psicólogo.
   - `correcoesDaGestao` segue o mesmo padrão de `agendamentosDoPsicologo`: MySQL obrigatório, `profissionalDaSessao`, janela `inicioDaJanela()` e `console.error` sem dados pessoais.
 
-- [ ] **Passo 4:** rodar o arquivo e também `src/server/application/notificacoesDestino.test.ts`. Esperado: PASS.
+- [x] **Passo 4:** rodar o arquivo e também `src/server/application/notificacoesDestino.test.ts`. Esperado: PASS.
 
 ---
 
@@ -342,19 +342,23 @@ describe('duracaoCompativelComPublico (§ 14)', () => {
 **Arquivos:**
 - Modificar: `output/comparacao-fluxos-viver-mais-2026-11-23.md`, só nas linhas dos itens de público na sessão (≈136), correção administrativa (≈137) e valor contratual (≈142). As linhas 127–132 são da sessão 63.
 
-- [ ] **Passo 1:** rodar `npm run check` na raiz.
+- [x] **Passo 1:** rodar `npm run check` na raiz.
   - Esperado: `lint` com 0 erros, `typecheck` com 0 erros, todas as suítes e `web:build` passando.
   - Falha em arquivo da sessão 63 deve ser registrada como alheia, com o nome do teste, sem correção.
 
-- [ ] **Passo 2: atualizar o relatório**
+- [x] **Passo 2: atualizar o relatório**
   - Os três itens vão da seção 3 para a seção 2, "Na cópia local, ainda sem commit", com links para os testes.
   - A correção de valor e pagador continua na seção 3.
   - Antes de salvar, reler o arquivo para não sobrescrever a edição da sessão 63.
 
-- [ ] **Passo 3:** `git diff --check` e conferência dos links novos do relatório.
+- [x] **Passo 3:** `git diff --check` e conferência dos links novos do relatório.
 
-- [ ] **Passo 4:** informar ao usuário:
+- [x] **Passo 4:** informar ao usuário:
   - o resultado do `check`, com números;
   - a lista de arquivos alterados;
   - que a migration 090 aguarda autorização para ser aplicada na VPS;
   - que nada foi commitado.
+
+## Verificação final em 24/11/2026
+
+O comando `npm run check` passou com 230 testes do domínio e 1.889 da aplicação. O lint registrou 43 avisos e zero erros. Tipos e build passaram. O Turbopack emitiu um aviso de rastreamento de arquivos. Os dez links dos três itens do relatório foram conferidos. O histórico do repositório já continha o Bloco A em `ab3e4ea`. O ajuste da edição com conclusão permanece na cópia local. A aplicação da migration 090 na VPS aguarda autorização.

@@ -8,11 +8,11 @@ type Props = Pick<PsicologoCardProps, 'p' | 'onEditar' | 'onAprovar' | 'onRecusa
   expanded: boolean;
   onToggleExpanded: () => void;
 };
-const botao = 'text-[11px] font-extrabold px-3 py-1.5 rounded-xl border transition-all disabled:opacity-50 flex items-center gap-1.5 whitespace-nowrap';
+const botao = 'text-[13px] font-extrabold px-3 py-1.5 rounded-xl border transition-all disabled:opacity-50 flex items-center gap-1.5 whitespace-nowrap';
 
 export function PsicologoCardAcoes({ p, onEditar, onAprovar, onRecusar, onAlternarRodizio, onPriorizar, trabalhando, pausado, expanded, onToggleExpanded }: Props) {
   return (
-        <div className="flex items-center justify-end gap-2 flex-wrap shrink-0">
+        <div className="flex items-center justify-end gap-2 shrink-0">
           <button
             disabled={trabalhando}
             onClick={() => onEditar(p)}

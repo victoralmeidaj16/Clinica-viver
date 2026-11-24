@@ -104,26 +104,26 @@ export function PsicologoCard({
       <tr
         data-foco={focoPsicologo(p.id)}
         onClick={alternar}
-        className={`cursor-pointer align-top transition-colors hover:bg-psi-soft/30 ${expanded ? 'bg-psi-soft/20' : ''}`}
+        className={`h-[84px] cursor-pointer align-middle transition-colors hover:bg-psi-soft/30 ${expanded ? 'bg-psi-soft/20' : ''}`}
       >
-        <td className="p-4">
-          <div className="flex items-start gap-3">
+        <td className="px-4 py-3">
+          <div className="flex items-center gap-3">
             {p.fotoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={p.fotoUrl} alt="" className="h-10 w-10 shrink-0 rounded-xl border border-psi-soft object-cover" />
+              <img src={p.fotoUrl} alt="" className="h-12 w-12 shrink-0 rounded-2xl border border-psi-soft object-cover" />
             ) : (
-              <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-psi-soft bg-psi-soft/60 text-sm font-black text-psi-deep">
+              <span aria-hidden className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-psi-soft bg-psi-soft/60 text-base font-black text-psi-deep">
                 {nomeExibido(p).charAt(0)}
               </span>
             )}
-            <div className="min-w-0">
-              <p className="font-black text-ink">{nomeExibido(p)}</p>
+            <div className="min-w-0 max-w-[18rem]">
+              <p className="truncate text-[15px] font-black text-ink">{nomeExibido(p)}</p>
               <PsicologoPosicaoRodizio rodizio={p.rodizio} />
             </div>
           </div>
         </td>
-        <td className="p-4">
-        <div className="flex items-center gap-1.5 flex-wrap">
+        <td className="px-4 py-3">
+        <div className="flex items-center gap-1.5">
           {emSaida?.saidaEm && (
             <TagStatus
               icone={CalendarClock}
@@ -180,15 +180,15 @@ export function PsicologoCard({
           )}
         </div>
         </td>
-        <td className="p-4 font-semibold text-ink">
+        <td className="whitespace-nowrap px-4 py-3 font-semibold text-ink">
           {p.turnosDisponiveis?.length ? p.turnosDisponiveis.map(rotuloTurno).join(', ') : 'Nenhum'}
         </td>
-        <td className="p-4">
+        <td className="px-4 py-3">
           <div className="min-w-[120px] space-y-1.5">
             <button
               type="button"
               onClick={(event) => { event.stopPropagation(); void onAjustarLimite(p); }}
-              className="font-bold text-ink hover:underline"
+              className="whitespace-nowrap font-bold text-ink hover:underline"
               title="Ajustar limite de pacientes ativos"
             >
               {ativos}/{limite} pacientes
@@ -201,7 +201,7 @@ export function PsicologoCard({
             </div>
           </div>
         </td>
-        <td className="p-4" onClick={(event) => event.stopPropagation()}>
+        <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
           <PsicologoCardAcoes p={p} trabalhando={trabalhando} pausado={pausado} expanded={expanded}
             onToggleExpanded={alternar} onEditar={onEditar} onAprovar={onAprovar}
             onRecusar={onRecusar} onAlternarRodizio={onAlternarRodizio} onPriorizar={onPriorizar} />

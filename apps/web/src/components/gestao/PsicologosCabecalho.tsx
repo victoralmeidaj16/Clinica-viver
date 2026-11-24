@@ -24,10 +24,10 @@ export function PsicologosCabecalho({
   onCadastrar: () => void;
 }) {
   return (
-    <header className="flex flex-col justify-between gap-4 rounded-[20px] border border-line bg-surface p-6 shadow-card lg:flex-row lg:items-end">
-      <div>
+    <header className="flex flex-col justify-between gap-4 rounded-[20px] border border-line bg-surface p-6 shadow-card xl:flex-row xl:items-center">
+      <div className="min-w-0">
         <span className="chip-accent mb-1 text-[11px]">Gestão da equipe clínica</span>
-        <h1 className="flex items-center gap-2 text-2xl font-black text-ink">
+        <h1 className="flex items-center gap-2 whitespace-nowrap text-2xl font-black text-ink">
           <UserCheck aria-hidden className="h-6 w-6 text-psi-vibrant" /> Psicólogos credenciados
         </h1>
         <p className="mt-0.5 max-w-xl text-sm text-muted">
@@ -35,7 +35,7 @@ export function PsicologosCabecalho({
         </p>
       </div>
 
-      <div className="flex shrink-0 flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 xl:shrink-0 xl:justify-end">
         {/* O relatório de estágio fica junto do corpo clínico: quem presta contas
             das horas é o psicólogo, e é nesta tela que a gestão cuida de cada um. */}
         <a href="/relatorios/declaracao" className={botaoSecundario}>

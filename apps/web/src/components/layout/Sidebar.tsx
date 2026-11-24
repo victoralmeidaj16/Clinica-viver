@@ -91,7 +91,11 @@ export default function Sidebar({
     >
       <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
         {/* Header do Menu com Branding Viver Mais */}
-        <div className="h-16 sm:h-20 px-4 flex items-center justify-between border-b border-white/10 relative">
+        {/* Minimizado, o menu tem 80px: logo e botão de expandir não cabem lado a
+            lado, então o botão desce para baixo da logo em vez de cobri-la. */}
+        <div className={`h-16 sm:h-20 px-4 flex items-center justify-between border-b border-white/10 relative ${
+          colapsado ? 'lg:h-auto lg:flex-col lg:justify-center lg:gap-2 lg:px-0 lg:py-4' : ''
+        }`}>
           <div className="flex items-center gap-3 overflow-hidden">
             <div className="w-10 h-10 rounded-xl bg-psi-vibrant text-white flex items-center justify-center shrink-0 shadow-md">
               <Brain className="w-6 h-6" />
@@ -117,7 +121,8 @@ export default function Sidebar({
             type="button"
             onClick={onToggleCollapse}
             className="hidden lg:block p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
-            title={colapsado ? 'Expandir Menu' : 'Minimizar Menu'}
+            title={colapsado ? 'Expandir menu' : 'Minimizar menu'}
+            aria-label={colapsado ? 'Expandir menu' : 'Minimizar menu'}
           >
             {colapsado ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>

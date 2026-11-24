@@ -116,14 +116,14 @@ export function PsicologoCard({
                 {nomeExibido(p).charAt(0)}
               </span>
             )}
-            <div className="min-w-0 max-w-[14rem]">
+            <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-black text-ink">{nomeExibido(p)}</p>
               <PsicologoPosicaoRodizio rodizio={p.rodizio} />
             </div>
           </div>
         </td>
         <td className="px-3 py-3">
-        <div className="flex max-w-[15rem] flex-wrap items-center gap-1">
+        <div className="flex flex-wrap items-center gap-1">
           {emSaida?.saidaEm && (
             <TagStatus
               icone={CalendarClock}

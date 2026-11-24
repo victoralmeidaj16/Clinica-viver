@@ -424,7 +424,16 @@ export default function GestaoPsicologosPage() {
             {`${filtered.length} de ${psicologos.length} registros`}
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[920px] text-left text-[13px]">
+            <table className="w-full min-w-[920px] table-fixed text-left text-[13px]">
+              {/* Larguras fixas: sem elas, abrir os detalhes de uma linha
+                  redistribuía as colunas e o cabeçalho "pulava". */}
+              <colgroup>
+                <col className="w-[27%]" />
+                <col className="w-[18%]" />
+                <col className="w-[14%]" />
+                <col className="w-[13%]" />
+                <col className="w-[28%]" />
+              </colgroup>
               <thead className="border-b border-psi-soft/60 bg-psi-soft/30 text-[11px] font-black uppercase tracking-[0.14em] text-muted">
                 <tr>
                   <th className="px-3 py-3">Psicólogo</th>

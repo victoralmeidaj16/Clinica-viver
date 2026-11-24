@@ -4,13 +4,14 @@ import 'server-only';
 import { formatarDataCurta } from '@/lib/turmaEncerrada';
 import type { CadastroPsicologoRecord, TriagemPacienteRecord } from './persistence';
 import type { CaptureState } from '@/server/persistence/captureRepository';
-import type { PagamentoRecebido } from '@/server/payments/paymentLinkRepository';
+import type { CobrancaVencida, PagamentoRecebido } from '@/server/payments/paymentLinkRepository';
 import type { AgendamentoResumo } from '@/server/scheduling/agendaRepository';
 import type { AlteracaoPerfil } from '@/server/persistence/perfilAlteracoes';
 import { descreverMudancas } from '@/lib/perfilPsicologoDiff';
 import {
   comFoco,
   FOCO_SECAO,
+  focoCobranca,
   focoCredenciamento,
   focoLead,
   focoPaciente,
@@ -21,11 +22,11 @@ import {
 } from '@/lib/focoNotificacao';
 import { diasDeAusencia, periodoAusencia } from '@/lib/ausenciaAgenda';
 import { dataHoraSessao } from '@/lib/sessionReference';
+import { prazoDaOferta } from '@/lib/prazoOferta';
 import {
   classificarSla,
   horasDesdeAlocacao,
   nomeDeExibicao,
-  SLA_CONTATO_HORAS,
   motivoEscolhaDiretaPendente,
 } from './viverMaisRodizio';
 
@@ -93,18 +94,18 @@ function rotuloTurno(turno: string | undefined): string {
 }
 
 /** Quanto ainda resta do prazo de primeiro contato, em texto curto. */
-function prazoRestante(alocadoEm: string | undefined, agora: Date): string {
-  const horas = horasDesdeAlocacao(alocadoEm, agora);
+function prazoRestante(lead: { alocadoEm?: string; prazoRespostaHoras?: number }, agora: Date): string {
+  const horas = horasDesdeAlocacao(lead.alocadoEm, agora);
   if (horas === null) return 'sem prazo registrado';
-  const restantes = SLA_CONTATO_HORAS - horas;
+  const restantes = prazoDaOferta(lead) - horas;
   if (restantes <= -1) return `prazo vencido há ${Math.floor(-restantes)} h`;
   if (restantes <= 0) return 'prazo vencido';
   if (restantes < 1) return `restam ${Math.max(1, Math.round(restantes * 60))} min`;
   return `restam ${Math.floor(restantes)} h`;
 }
 
-function severidadePorSla(alocadoEm: string | undefined, agora: Date): SeveridadeNotificacao {
-  switch (classificarSla(alocadoEm, agora)) {
+function severidadePorSla(lead: { alocadoEm?: string; prazoRespostaHoras?: number }, agora: Date): SeveridadeNotificacao {
+  switch (classificarSla(lead.alocadoEm, agora, prazoDaOferta(lead))) {
     case 'VERMELHO':
       return 'CRITICO';
     case 'AMARELO':
@@ -191,9 +192,9 @@ export function notificacoesDoPsicologo(
         // Depois do aceite a oferta está respondida: o prazo de 24h deixa de valer.
         descricao: lead.aceitoEm
           ? `${lead.nomePaciente} — ${resumoDoLead(lead)}. Você aceitou: combine o primeiro horário com o paciente.`
-          : `${lead.nomePaciente} — ${resumoDoLead(lead)}. Primeiro contato em até ${SLA_CONTATO_HORAS} h (${prazoRestante(lead.alocadoEm, agora)}).`,
+          : `${lead.nomePaciente} — ${resumoDoLead(lead)}. Primeiro contato em até ${prazoDaOferta(lead)} h (${prazoRestante(lead, agora)}).`,
         ocorridoEm: lead.alocadoEm,
-        severidade: lead.aceitoEm ? 'INFO' : severidadePorSla(lead.alocadoEm, agora),
+        severidade: lead.aceitoEm ? 'INFO' : severidadePorSla(lead, agora),
         // Sem `foco`: o portal do profissional não tem uma fila de leads para
         // apontar. O primeiro contato é feito pelo link que chega no WhatsApp,
         // e inventar aqui uma âncora para uma seção que não existe daria um
@@ -253,7 +254,7 @@ export function notificacoesDoPsicologo(
         tipo: 'paciente-repassado',
         titulo: 'Paciente saiu da sua fila',
         descricao: lead.slaExpirado
-          ? `${lead.nomePaciente} foi repassado a ${lead.psicologoNome ?? 'outro profissional'} porque o prazo de ${SLA_CONTATO_HORAS} h venceu sem confirmação.`
+          ? `${lead.nomePaciente} foi repassado a ${lead.psicologoNome ?? 'outro profissional'} porque o prazo de ${prazoDaOferta(lead)} h venceu sem confirmação.`
           : `${lead.nomePaciente} foi encaminhado a ${lead.psicologoNome ?? 'outro profissional'}.`,
         ocorridoEm: lead.alocadoEm,
         severidade: lead.slaExpirado ? 'ATENCAO' : 'INFO',
@@ -334,6 +335,26 @@ export function notificacoesDePagamento(
       mes: competenciaDoExtrato(pagamento.receivedAt),
     }),
     pendente: false,
+  }));
+}
+
+/**
+ * Cobranças individuais vencidas: mantém o aviso pendente no sino enquanto a
+ * cobrança continuar `overdue`, para o profissional decidir sobre o atendimento.
+ */
+export function notificacoesDeCobrancasVencidas(
+  cobrancas: readonly CobrancaVencida[]
+): NotificacaoDerivada[] {
+  const dinheiro = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+  return cobrancas.map((cobranca) => ({
+    chave: `cobranca-vencida:${cobranca.chargeId}:${cobranca.dueAt}`,
+    tipo: 'cobranca-vencida',
+    titulo: 'Cobrança vencida sem pagamento',
+    descricao: `${cobranca.patientName} — ${dinheiro.format(cobranca.amountCents / 100)} venceu sem pagamento${cobranca.sessionStartsAt ? ` (sessão em ${dataHoraSessao(cobranca.sessionStartsAt)})` : ''}. A sessão segue na agenda para sua decisão.`,
+    ocorridoEm: cobranca.dueAt,
+    severidade: 'ATENCAO',
+    href: comFoco('/meu-financeiro', focoCobranca(cobranca.chargeId)),
+    pendente: true,
   }));
 }
 
@@ -613,14 +634,14 @@ export function notificacoesDaGestao(
     // Depois do aceite o prazo da oferta já foi cumprido; o acompanhamento
     // passa a ser o aviso de 48h sem primeiro agendamento.
     if (lead.status === 'AGUARDANDO_CONTATO' && lead.alocadoEm && !lead.aceitoEm) {
-      const sla = classificarSla(lead.alocadoEm, agora);
+      const sla = classificarSla(lead.alocadoEm, agora, prazoDaOferta(lead));
 
       if (sla === 'VERMELHO') {
         itens.push({
           chave: `sla-estourado:${lead.id}:${lead.alocadoEm}`,
           tipo: 'sla-estourado',
           titulo: 'Prazo de primeiro contato vencido',
-          descricao: `${lead.nomePaciente} (${lead.protocolo}) está com ${lead.psicologoNome ?? 'profissional não identificado'} e ${prazoRestante(lead.alocadoEm, agora)}.`,
+          descricao: `${lead.nomePaciente} (${lead.protocolo}) está com ${lead.psicologoNome ?? 'profissional não identificado'} e ${prazoRestante(lead, agora)}.`,
           ocorridoEm: lead.alocadoEm,
           severidade: 'CRITICO',
           href: naFilaDaGestao(lead.id),
@@ -631,7 +652,7 @@ export function notificacoesDaGestao(
           chave: `sla-em-risco:${lead.id}:${lead.alocadoEm}`,
           tipo: 'sla-em-risco',
           titulo: 'Primeiro contato perto do prazo',
-          descricao: `${lead.nomePaciente} (${lead.protocolo}) com ${lead.psicologoNome ?? 'profissional não identificado'} — ${prazoRestante(lead.alocadoEm, agora)}.`,
+          descricao: `${lead.nomePaciente} (${lead.protocolo}) com ${lead.psicologoNome ?? 'profissional não identificado'} — ${prazoRestante(lead, agora)}.`,
           ocorridoEm: lead.alocadoEm,
           severidade: 'ATENCAO',
           href: naFilaDaGestao(lead.id),

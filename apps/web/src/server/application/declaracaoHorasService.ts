@@ -5,6 +5,7 @@ import {
   calcularHashDeclaracao,
   STATUS_QUE_CONTAM_HORA,
   type ApuracaoDeHoras,
+  type PeriodoApuracaoHoras,
 } from '@thats-life/core';
 import type { CadastroPsicologoRecord } from '@/server/application/persistence';
 import { getCaptureRepository } from '@/server/persistence/captureRepository';
@@ -187,18 +188,32 @@ function validarAjustes(ajustes: AjustesDeclaracao): AjustesDeclaracao {
   };
 }
 
-async function apurar(cadastro: CadastroPsicologoRecord, organizationId: string): Promise<ApuracaoDeHoras> {
+function validarPeriodoFiltro(periodo?: PeriodoApuracaoHoras): PeriodoApuracaoHoras | undefined {
+  const inicio = periodo?.inicio?.trim() ? dataObrigatoria(periodo.inicio, 'início do período') : undefined;
+  const fim = periodo?.fim?.trim() ? dataObrigatoria(periodo.fim, 'fim do período') : undefined;
+  if (inicio && fim && inicio > fim) {
+    throw new ApplicationError('INVALID_INPUT', 'O início do período não pode ser posterior ao fim.', 400);
+  }
+  return inicio || fim ? { inicio, fim } : undefined;
+}
+
+async function apurar(
+  cadastro: CadastroPsicologoRecord,
+  organizationId: string,
+  periodo?: PeriodoApuracaoHoras
+): Promise<ApuracaoDeHoras> {
   const sessoes = await getApplicationStore().sessions.list({
     organizationId,
     professionalId: exigirProfissionalRef(cadastro),
     statuses: STATUS_QUE_CONTAM_HORA,
   });
 
-  const apuracao = apurarHorasClinicas(sessoes);
+  const apuracao = apurarHorasClinicas(sessoes, periodo);
   if (!apuracao) {
+    const noPeriodo = periodo?.inicio || periodo?.fim ? ' no período selecionado' : '';
     throw new ApplicationError(
       'INVALID_STATE',
-      `Não há atendimentos confirmados como realizados para ${cadastro.nomeCompleto}. A declaração só pode ser emitida sobre atendimentos cuja realização foi confirmada pelo psicólogo.`,
+      `Não há atendimentos confirmados como realizados${noPeriodo} para ${cadastro.nomeCompleto}. A declaração só pode ser emitida sobre atendimentos cuja realização foi confirmada pelo psicólogo.`,
       422
     );
   }
@@ -208,10 +223,12 @@ async function apurar(cadastro: CadastroPsicologoRecord, organizationId: string)
 /** O que a declaração dirá, antes de emitir. Nada aqui é gravado. */
 export async function previaDeclaracao(
   organizationId: string,
-  psicologoCadastroId: string
+  psicologoCadastroId: string,
+  periodo?: PeriodoApuracaoHoras
 ): Promise<PreviaDeclaracao> {
+  const filtro = validarPeriodoFiltro(periodo);
   const cadastro = await exigirCadastro(psicologoCadastroId);
-  const apuracao = await apurar(cadastro, organizationId);
+  const apuracao = await apurar(cadastro, organizationId, filtro);
 
   return {
     psicologoCadastroId: cadastro.id,
@@ -242,20 +259,23 @@ export async function emitirDeclaracao(
 ): Promise<DeclaracaoHoras & { tratamento: string }> {
   exigirPersistenciaDeclaracao();
 
+  const ajustados = ajustes ? validarAjustes(ajustes) : undefined;
   const cadastro = await exigirCadastro(psicologoCadastroId);
-  const apuracao = await apurar(cadastro, organizationId);
-  const valores = ajustes
-    ? validarAjustes(ajustes)
-    : {
-        psicologoNome: cadastro.nomeSocial || cadastro.nomeCompleto,
-        psicologoCrp: cadastro.crp,
-        tratamento: tratamentoAcademico(cadastro),
-        curso: cursoDoCadastro(cadastro),
-        periodoInicio: apuracao.periodoInicio,
-        periodoFim: apuracao.periodoFim,
-        totalHoras: apuracao.totalHoras,
-        coordenadora: SIGNATARIOS_DECLARACAO.coordenadora,
-      };
+  const apuracao = await apurar(
+    cadastro,
+    organizationId,
+    ajustados ? { inicio: ajustados.periodoInicio, fim: ajustados.periodoFim } : undefined
+  );
+  const valores = ajustados ?? {
+    psicologoNome: cadastro.nomeSocial || cadastro.nomeCompleto,
+    psicologoCrp: cadastro.crp,
+    tratamento: tratamentoAcademico(cadastro),
+    curso: cursoDoCadastro(cadastro),
+    periodoInicio: apuracao.periodoInicio,
+    periodoFim: apuracao.periodoFim,
+    totalHoras: apuracao.totalHoras,
+    coordenadora: SIGNATARIOS_DECLARACAO.coordenadora,
+  };
 
   const declaracao = await new DeclaracaoHorasRepository().registrar(
     {

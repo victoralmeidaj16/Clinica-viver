@@ -47,6 +47,8 @@ interface AgendamentoAtual {
   modalidade: string;
   status: string;
   linkPagamento?: string;
+  custeadoPelaEmpresa: boolean;
+  publico?: string;
   podeReagendar: boolean;
   horasAteInicio: number;
   solicitacaoReagendamento?: {
@@ -67,9 +69,9 @@ interface Confirmado {
   inicio: string;
   fim: string;
   modalidade: string;
-  linkPagamento: string;
+  linkPagamento?: string;
   pagamentoIndisponivel?: boolean;
-  sessoes?: Array<{ inicio: string; fim: string; modalidade: string; linkPagamento: string }>;
+  sessoes?: Array<{ inicio: string; fim: string; modalidade: string; linkPagamento?: string; custeadoPelaEmpresa?: boolean }>;
 }
 
 function rotuloDia(dia: string): string {
@@ -418,7 +420,9 @@ export default function AgendarPage({ params }: Props) {
                     </div>
                   )}
 
-                  {agenda.agendamentoAtual.linkPagamento && (
+                  {agenda.agendamentoAtual.publico && <p className="text-xs text-muted">Público · {agenda.agendamentoAtual.publico}</p>}
+                  {agenda.agendamentoAtual.custeadoPelaEmpresa && <p className="text-xs font-bold text-emerald-800">Sessão custeada pela empresa</p>}
+                  {!agenda.agendamentoAtual.custeadoPelaEmpresa && agenda.agendamentoAtual.linkPagamento && (
                     <div className="pt-2 border-t border-purple-200/60 flex items-center justify-between">
                       <span className="text-[11px] text-muted">Pagamento desta consulta:</span>
                       <a

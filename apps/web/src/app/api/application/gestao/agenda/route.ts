@@ -6,6 +6,11 @@ export async function GET(request: Request) {
   try {
     const context = await resolveRequestContext(request);
     const params = new URL(request.url).searchParams;
-    return success(await getGestaoAgenda(context, params.get('busca') ?? '', Number(params.get('pagina') ?? 0)));
+    return success(await getGestaoAgenda(
+      context,
+      params.get('busca') ?? '',
+      Number(params.get('pagina') ?? 0),
+      params.get('status') ?? undefined
+    ));
   } catch (error) { return failure(error); }
 }

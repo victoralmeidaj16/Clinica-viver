@@ -40,3 +40,12 @@ it('resolve vínculo mensal somente dentro da organização autenticada', async 
   expect(sql).toContain('a.instituicao_id = ? AND o.ref_core = ?');
   expect(values).toEqual(['inst', 'org', 'apt', 'apt']);
 });
+
+it('filtra sessões realizadas, canceladas ou todas quando solicitado pela gestão', async () => {
+  await listarAgendaGestao('org', '', 0, 'realizado');
+  expect(query.mock.calls[0][0]).toContain("a.status = 'realizado'");
+  await listarAgendaGestao('org', '', 0, 'cancelado');
+  expect(query.mock.calls[1][0]).toContain("a.status = 'cancelado'");
+  await listarAgendaGestao('org', '', 0, 'todas');
+  expect(query.mock.calls[2][0]).toContain("a.status IN ('agendado', 'confirmado', 'realizado', 'cancelado')");
+});

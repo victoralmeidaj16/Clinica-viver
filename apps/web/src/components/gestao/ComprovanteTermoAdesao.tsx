@@ -11,8 +11,8 @@ const DATA_HORA = new Intl.DateTimeFormat('pt-BR', {
   timeZone: 'America/Sao_Paulo',
 });
 
-export function descreverEnvio(envio: Envio | undefined): string {
-  if (!envio) return 'sem registro de envio';
+export function descreverEnvio(envio: Envio | undefined, aprovado = true): string {
+  if (!envio) return aprovado ? 'sem registro de envio' : 'envio liberado após aprovação';
   const quando = DATA_HORA.format(new Date(envio.tentadoEm));
   if (envio.situacao === 'enviada') {
     const para = [envio.paraProfissional && 'profissional', envio.paraClinica && 'clínica'].filter(Boolean).join(' e ');
@@ -30,7 +30,15 @@ export function descreverEnvio(envio: Envio | undefined): string {
  * Via em PDF do termo aceito: o que foi enviado por e-mail, com download e
  * reenvio para o profissional e a clínica.
  */
-export function ComprovanteTermoAdesao({ psicologoId, aceite }: { psicologoId: string; aceite: Aceite }) {
+export function ComprovanteTermoAdesao({
+  psicologoId,
+  aceite,
+  aprovado = true,
+}: {
+  psicologoId: string;
+  aceite: Aceite;
+  aprovado?: boolean;
+}) {
   const [envio, setEnvio] = useState<Envio | undefined>(aceite.envioComprovante);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -57,7 +65,7 @@ export function ComprovanteTermoAdesao({ psicologoId, aceite }: { psicologoId: s
       <div className="flex items-start justify-between gap-3">
         <span className="font-bold text-slate-500 shrink-0">Via em PDF:</span>
         <span className={`font-semibold text-right ${enviado ? 'text-slate-800' : 'text-amber-800'}`}>
-          {descreverEnvio(envio)}
+          {descreverEnvio(envio, aprovado)}
         </span>
       </div>
       {aceite.comprovante && (
@@ -76,7 +84,8 @@ export function ComprovanteTermoAdesao({ psicologoId, aceite }: { psicologoId: s
         <button
           type="button"
           onClick={reenviar}
-          disabled={enviando}
+          disabled={enviando || !aprovado}
+          title={!aprovado ? 'Disponível após a aprovação do cadastro.' : undefined}
           className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-emerald-800 disabled:opacity-60"
         >
           {enviando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}

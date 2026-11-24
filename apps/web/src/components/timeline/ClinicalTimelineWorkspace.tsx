@@ -9,10 +9,19 @@ import TimelineHeader from './TimelineHeader';
 import TimelineSectionTabs from './TimelineSectionTabs';
 import EditPatientModal from '@/components/patients/EditPatientModal';
 import type { PatientRegistrationRecord } from '@/lib/patientRegistrationDetails';
+import { ManualRecordForm, RascunhoPendenteAviso } from './ManualRecordForm';
+import { usePacientesDaLinhaDoTempo } from './usePacientesDaLinhaDoTempo';
+import {
+  corpoDoRascunho,
+  daFichaAtiva,
+  incorporarRegistrosSalvos,
+  novoRascunho,
+  rascunhoTemConteudo,
+  type DaFicha,
+  type RascunhoProntuario,
+} from './fichaAtiva';
 import {
   Plus,
-  FileText,
-  Save,
   CheckCircle2,
   User,
   Clock,
@@ -26,17 +35,6 @@ import {
   ClipboardList,
 } from 'lucide-react';
 
-interface TimelinePatient {
-  id: string;
-  displayName: string;
-  phone?: string;
-  email?: string;
-  status?: string;
-  demanda?: string;
-  nextAppointmentAt?: string;
-  completedSessions?: number;
-}
-
 interface AppointmentSummary {
   id: string;
   patientId: string;
@@ -46,65 +44,58 @@ interface AppointmentSummary {
   modality: 'online' | 'presencial';
 }
 
+interface SessoesDaFicha {
+  itens: AppointmentSummary[];
+  /** Instante em que a lista de sessões chegou — a régua do "que ainda vem". */
+  carregadoEm: number;
+  falhou?: boolean;
+}
+
+// Referências estáveis para "nada carregado", para não reiniciar memos a cada render.
+const SEM_REGISTROS: ClinicalTimelineEntry[] = [];
+const SEM_SESSOES: AppointmentSummary[] = [];
+
 function ClinicalTimelineContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const urlPatientId = searchParams.get('patientId');
 
-  const [selectedPatientId, setSelectedPatientId] = useState(urlPatientId || '');
+  const {
+    patients, setPatients, encerrados, selectedPatientId, setSelectedPatientId, loadError,
+  } = usePacientesDaLinhaDoTempo(urlPatientId);
   const [activeTab, setActiveTab] = useState<'prontuarios' | 'sessoes' | 'demanda'>('prontuarios');
-  const [apiEntries, setApiEntries] = useState<ClinicalTimelineEntry[] | null>(null);
-  const [patients, setPatients] = useState<TimelinePatient[]>([]);
-  const [appointments, setAppointments] = useState<AppointmentSummary[]>([]);
-  /** Instante em que a lista de sessões chegou — a régua do "que ainda vem". */
-  const [carregadoEm, setCarregadoEm] = useState(0);
-  const [loadError, setLoadError] = useState<string>();
+  // Registros, sessões e falhas guardam o paciente a que pertencem: a tela só
+  // mostra o que é da ficha ativa (especificação final, § 8.04).
+  const [registros, setRegistros] = useState<DaFicha<ClinicalTimelineEntry[]> | null>(null);
+  const [falhaRegistros, setFalhaRegistros] = useState<DaFicha<string> | null>(null);
+  const [sessoes, setSessoes] = useState<DaFicha<SessoesDaFicha> | null>(null);
 
-  // Estado para Cadastro Manual de Prontuário
+  // Prontuário manual: o rascunho nasce preso à ficha em que foi aberto.
   const [mostrarFormNovo, setMostrarFormNovo] = useState(false);
-  const [novoTitulo, setNovoTitulo] = useState('');
-  const [novosSubjetivo, setNovosSubjetivo] = useState('');
-  const [novosObjetivo, setNovosObjetivo] = useState('');
-  const [novosAvaliacao, setNovosAvaliacao] = useState('');
-  const [novosPlano, setNovosPlano] = useState('');
-  const [salvandoProntuario, setSalvandoProntuario] = useState(false);
+  const [rascunho, setRascunho] = useState<RascunhoProntuario | null>(null);
+  const [salvandoDe, setSalvandoDe] = useState<string | null>(null);
+  const [falhaAoSalvar, setFalhaAoSalvar] = useState<DaFicha<string> | null>(null);
   const [mensagemSucesso, setMensagemSucesso] = useState<string>();
   const [editandoPaciente, setEditandoPaciente] = useState(false);
-
-  // Carrega Lista de Pacientes
-  useEffect(() => {
-    let cancelled = false;
-    applicationRequest<TimelinePatient[]>('/patients')
-      .then((items) => {
-        if (cancelled) return;
-        setPatients(items);
-        if (urlPatientId) {
-          setSelectedPatientId(urlPatientId);
-        } else if (items.length > 0) {
-          setSelectedPatientId((current) => current || items[0].id);
-        }
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) setLoadError(error instanceof Error ? error.message : 'Não foi possível carregar seus pacientes.');
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [urlPatientId]);
 
   // Carrega Prontuário do Paciente Selecionado
   useEffect(() => {
     if (!selectedPatientId) return;
+    const solicitado = selectedPatientId;
     let cancelled = false;
-    applicationRequest<{ entries: ClinicalTimelineEntry[] }>(`/timeline?patientId=${selectedPatientId}`)
+    applicationRequest<{ entries: ClinicalTimelineEntry[] }>(`/timeline?patientId=${encodeURIComponent(solicitado)}`)
       .then((data) => {
-        if (!cancelled) {
-          setApiEntries(data.entries);
-          setLoadError(undefined);
-        }
+        if (cancelled) return;
+        setRegistros({ patientId: solicitado, valor: data.entries });
+        setFalhaRegistros((atual) => (atual?.patientId === solicitado ? null : atual));
       })
       .catch((error: unknown) => {
-        if (!cancelled) setLoadError(error instanceof Error ? error.message : 'Não foi possível carregar o prontuário.');
+        if (!cancelled) {
+          setFalhaRegistros({
+            patientId: solicitado,
+            valor: error instanceof Error ? error.message : 'Não foi possível carregar o prontuário.',
+          });
+        }
       });
     return () => {
       cancelled = true;
@@ -114,30 +105,48 @@ function ClinicalTimelineContent() {
   // Carrega Agendamentos/Sessões do Paciente
   useEffect(() => {
     if (!selectedPatientId) return;
+    const solicitado = selectedPatientId;
     let cancelled = false;
     applicationRequest<AppointmentSummary[]>('/appointments')
       .then((items) => {
-        if (!cancelled && Array.isArray(items)) {
-          const patientApps = items.filter((a) => a.patientId === selectedPatientId);
-          setAppointments(patientApps);
-          // O relógio é lido junto com a chegada dos dados, e não durante a
-          // renderização: dentro do render o valor mudaria a cada re-render,
-          // e "a próxima sessão" passaria a depender de quantas vezes o React
-          // decidiu redesenhar a tela.
-          setCarregadoEm(Date.now());
-        }
+        if (cancelled) return;
+        const itens = Array.isArray(items) ? items.filter((a) => a.patientId === solicitado) : [];
+        // O relógio é lido junto com a chegada dos dados, e não durante a
+        // renderização: dentro do render o valor mudaria a cada re-render,
+        // e "a próxima sessão" passaria a depender de quantas vezes o React
+        // decidiu redesenhar a tela.
+        setSessoes({ patientId: solicitado, valor: { itens, carregadoEm: Date.now() } });
       })
       .catch(() => {
-        // Fallback silencioso para lista de sessões
+        if (!cancelled) setSessoes({ patientId: solicitado, valor: { itens: [], carregadoEm: Date.now(), falhou: true } });
       });
     return () => {
       cancelled = true;
     };
   }, [selectedPatientId]);
 
-  const allEntries = apiEntries ?? [];
+  const registrosDaFicha = daFichaAtiva(registros, selectedPatientId);
+  const erroRegistros = daFichaAtiva(falhaRegistros, selectedPatientId);
+  const carregandoRegistros = Boolean(selectedPatientId) && !registrosDaFicha && !erroRegistros;
+  const allEntries = registrosDaFicha ?? SEM_REGISTROS;
+  const sessoesDaFicha = daFichaAtiva(sessoes, selectedPatientId);
+  const appointments = sessoesDaFicha?.itens ?? SEM_SESSOES;
+  const carregadoEm = sessoesDaFicha?.carregadoEm ?? 0;
 
   const selectedPatient = patients.find((p) => p.id === selectedPatientId);
+  // Vínculo encerrado: só os próprios registros e complementos, sem cadastro (§ 8.05).
+  const fichaEncerrada = !selectedPatient && encerrados.some((p) => p.patientId === selectedPatientId);
+  const opcoesDoSeletor = useMemo(() => [
+    ...patients,
+    ...encerrados.map((p) => ({ id: p.patientId, displayName: `${p.displayName} (vínculo encerrado)` })),
+  ], [patients, encerrados]);
+  const nomeDoPaciente = (id: string) =>
+    patients.find((p) => p.id === id)?.displayName
+    || encerrados.find((p) => p.patientId === id)?.displayName
+    || 'Paciente';
+  const rascunhoDaFicha = rascunho?.patientId === selectedPatientId ? rascunho : null;
+  const rascunhoDeOutraFicha =
+    rascunho && rascunho.patientId !== selectedPatientId && rascunhoTemConteudo(rascunho) ? rascunho : null;
 
   // Próxima sessão agendada do paciente
   const nextAppointment = useMemo(() => {
@@ -158,43 +167,63 @@ function ClinicalTimelineContent() {
     };
   }, [selectedPatient, appointments, selectedPatientId, carregadoEm]);
 
-  // Adiciona Prontuário Manualmente
+  const selecionarPaciente = (id: string) => {
+    setSelectedPatientId(id);
+    router.replace(`/linha-do-tempo?patientId=${id}`);
+  };
+
+  // Abre ou fecha o formulário da ficha ativa. Um rascunho com texto de outra
+  // ficha só é substituído com confirmação, para nada se perder em silêncio.
+  const alternarFormulario = () => {
+    setActiveTab('prontuarios');
+    if (!selectedPatientId) return;
+    if (rascunhoDaFicha) {
+      setMostrarFormNovo((aberto) => !aberto);
+      return;
+    }
+    if (
+      rascunhoDeOutraFicha &&
+      !window.confirm(`Descartar o rascunho não salvo de ${nomeDoPaciente(rascunhoDeOutraFicha.patientId)} e começar um registro para ${nomeDoPaciente(selectedPatientId)}?`)
+    ) {
+      return;
+    }
+    setRascunho(novoRascunho(selectedPatientId));
+    setMostrarFormNovo(true);
+  };
+
+  const voltarParaRascunho = () => {
+    if (!rascunho) return;
+    selecionarPaciente(rascunho.patientId);
+    setMostrarFormNovo(true);
+  };
+
+  // Grava no paciente do rascunho, e não na ficha aberta na hora do clique.
   const handleSalvarProntuarioManual = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedPatientId) return;
+    if (!rascunho || salvandoDe) return;
+    const origem = rascunho.patientId;
 
-    setSalvandoProntuario(true);
+    setSalvandoDe(origem);
     setMensagemSucesso(undefined);
+    setFalhaAoSalvar(null);
 
     try {
       const result = await applicationRequest<{ entries: ClinicalTimelineEntry[] }>('/timeline', {
         method: 'POST',
         headers: commandHeaders(),
-        body: JSON.stringify({
-          patientId: selectedPatientId,
-          title: novoTitulo,
-          subjective: novosSubjetivo,
-          objective: novosObjetivo,
-          assessment: novosAvaliacao,
-          plan: novosPlano,
-        }),
+        body: JSON.stringify(corpoDoRascunho(rascunho)),
       });
-      setApiEntries((prev) => [...result.entries, ...(prev || []).filter(
-        (entry) => !result.entries.some((saved) => saved.id === entry.id)
-      )]);
-      setMensagemSucesso('Prontuário salvo com sucesso no histórico do paciente!');
-      setLoadError(undefined);
+      setRegistros((atual) => incorporarRegistrosSalvos(atual, origem, result.entries));
+      setMensagemSucesso(`Prontuário salvo no histórico de ${nomeDoPaciente(origem)}.`);
+      setRascunho((atual) => (atual?.patientId === origem ? null : atual));
       setMostrarFormNovo(false);
-
-      setNovoTitulo('');
-      setNovosSubjetivo('');
-      setNovosObjetivo('');
-      setNovosAvaliacao('');
-      setNovosPlano('');
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : 'Não foi possível salvar o prontuário.');
+      setFalhaAoSalvar({
+        patientId: origem,
+        valor: error instanceof Error ? error.message : 'Não foi possível salvar o prontuário.',
+      });
     } finally {
-      setSalvandoProntuario(false);
+      setSalvandoDe(null);
     }
   };
 
@@ -218,33 +247,42 @@ function ClinicalTimelineContent() {
         </button>
 
         <button
-          onClick={() => {
-            setActiveTab('prontuarios');
-            setMostrarFormNovo(!mostrarFormNovo);
-          }}
+          onClick={alternarFormulario}
           className="flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-psi-vibrant px-4 py-2.5 text-xs font-extrabold text-white shadow-lg shadow-psi-vibrant/30 transition-all hover:bg-psi-vibrant/90"
         >
           <Plus className="w-4 h-4" />
-          <span>Registrar Prontuário Manual</span>
+          <span>{fichaEncerrada ? 'Registrar Complemento' : 'Registrar Prontuário Manual'}</span>
         </button>
       </div>
 
       {/* Header com Seletor de Pacientes */}
       <TimelineHeader
         selectedPatientId={selectedPatientId}
-        onSelectPatient={(id) => {
-          setSelectedPatientId(id);
-          router.replace(`/linha-do-tempo?patientId=${id}`);
-        }}
-        patients={patients}
-        entriesCount={allEntries.length}
-        onEditPatient={selectedPatientId ? () => setEditandoPaciente(true) : undefined}
+        onSelectPatient={selecionarPaciente}
+        patients={opcoesDoSeletor}
+        entriesCount={registrosDaFicha?.length}
+        onEditPatient={selectedPatient ? () => setEditandoPaciente(true) : undefined}
       />
 
-      {loadError && (
+      {(loadError || erroRegistros) && (
         <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 font-bold">
-          {loadError}
+          {loadError ?? erroRegistros}
         </div>
+      )}
+
+      {fichaEncerrada && (
+        <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-xs font-bold text-sky-900">
+          Vínculo encerrado. Você vê somente os registros que fez enquanto atendia este paciente e pode acrescentar
+          complementos. Os dados cadastrais ficam com o profissional responsável.
+        </div>
+      )}
+
+      {rascunhoDeOutraFicha && (
+        <RascunhoPendenteAviso
+          patientName={nomeDoPaciente(rascunhoDeOutraFicha.patientId)}
+          onVoltar={voltarParaRascunho}
+          onDescartar={() => setRascunho(null)}
+        />
       )}
 
       {mensagemSucesso && (
@@ -374,111 +412,18 @@ function ClinicalTimelineContent() {
 
       <TimelineSectionTabs active={activeTab === 'sessoes' ? 'sessoes' : 'prontuarios'} recordsCount={allEntries.length} sessionsCount={appointments.length} onChange={setActiveTab} />
 
-      {/* Formulário de Prontuário Clínico Manual */}
-      {mostrarFormNovo && (
-        <form
+      {/* Formulário de Prontuário Clínico Manual — só na ficha do rascunho */}
+      {mostrarFormNovo && rascunhoDaFicha && (
+        <ManualRecordForm
+          patientName={nomeDoPaciente(rascunhoDaFicha.patientId)}
+          rascunho={rascunhoDaFicha}
+          onChange={setRascunho}
+          onCancel={() => setMostrarFormNovo(false)}
           onSubmit={handleSalvarProntuarioManual}
-          className="animate-in space-y-4 rounded-3xl border border-line bg-white p-4 shadow-card fade-in duration-200 sm:p-6"
-        >
-          <div className="flex flex-col gap-3 border-b border-line pb-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex min-w-0 items-start gap-2">
-              <FileText className="w-5 h-5 text-psi-vibrant" />
-              <h3 className="min-w-0 break-words font-extrabold text-base text-ink">
-                Novo Registro de Prontuário Manual — {selectedPatient?.displayName || 'Paciente'}
-              </h3>
-            </div>
-            <button
-              type="button"
-              onClick={() => setMostrarFormNovo(false)}
-              className="min-h-11 self-start rounded-xl px-3 text-xs font-bold text-muted hover:bg-canvas hover:text-ink sm:self-auto"
-            >
-              Cancelar
-            </button>
-          </div>
-
-          <div>
-            <label className="text-xs font-bold text-ink block mb-1">Título do Atendimento / Prontuário</label>
-            <input
-              type="text"
-              required
-              value={novoTitulo}
-              onChange={(e) => setNovoTitulo(e.target.value)}
-              placeholder="Ex: Sessão Semanal TCC, Anamnese Inicial..."
-              className="input py-2.5 text-xs w-full"
-            />
-          </div>
-
-          {/* Estrutura SOAP Manual */}
-          <div className="space-y-3 pt-2">
-            <h4 className="text-xs font-extrabold uppercase tracking-wider text-psi-vibrant">
-              Anotações &amp; Evolução Clínica Manual
-            </h4>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="text-[11px] font-bold text-ink block mb-1">Subjetivo (Relato do Paciente)</label>
-                <textarea
-                  rows={3}
-                  value={novosSubjetivo}
-                  onChange={(e) => setNovosSubjetivo(e.target.value)}
-                  placeholder="Queixas, sentimentos e relato trazido pelo paciente..."
-                  className="input py-2 text-xs w-full resize-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-ink block mb-1">Objetivo (Observações do Psicólogo)</label>
-                <textarea
-                  rows={3}
-                  value={novosObjetivo}
-                  onChange={(e) => setNovosObjetivo(e.target.value)}
-                  placeholder="Comportamentos observados, afeto, linguagem não verbal..."
-                  className="input py-2 text-xs w-full resize-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-ink block mb-1">Avaliação (Análise Clínica)</label>
-                <textarea
-                  rows={3}
-                  value={novosAvaliacao}
-                  onChange={(e) => setNovosAvaliacao(e.target.value)}
-                  placeholder="Impressões clínicas, hipóteses diagnósticas, avanços..."
-                  className="input py-2 text-xs w-full resize-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-ink block mb-1">Plano (Conduta &amp; Próximos Passos)</label>
-                <textarea
-                  rows={3}
-                  value={novosPlano}
-                  onChange={(e) => setNovosPlano(e.target.value)}
-                  placeholder="Tarefas combinadas, meta para a próxima sessão..."
-                  className="input py-2 text-xs w-full resize-none"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-2 pt-2 sm:flex sm:justify-end">
-            <button
-              type="button"
-              onClick={() => setMostrarFormNovo(false)}
-              className="min-h-11 rounded-xl px-4 py-2 text-xs font-bold text-muted hover:bg-canvas"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={salvandoProntuario}
-              className="btn-accent min-h-11 justify-center px-5 py-2 text-xs shadow-md"
-            >
-              <Save className="w-4 h-4" />
-              {salvandoProntuario ? 'Salvando…' : 'Salvar no Prontuário'}
-            </button>
-          </div>
-        </form>
+          salvando={salvandoDe === rascunhoDaFicha.patientId}
+          erro={daFichaAtiva(falhaAoSalvar, rascunhoDaFicha.patientId)}
+          complemento={fichaEncerrada}
+        />
       )}
 
       {/* Conteúdo da Aba Ativa */}
@@ -490,12 +435,16 @@ function ClinicalTimelineContent() {
                 Histórico de Prontuários
               </p>
               <p className="text-xs text-ink font-bold">
-                {allEntries.length} registro(s) no prontuário do paciente
+                {carregandoRegistros
+                  ? 'Carregando os registros desta ficha…'
+                  : erroRegistros
+                    ? 'Os registros desta ficha não puderam ser carregados.'
+                    : `${allEntries.length} registro(s) no prontuário do paciente`}
               </p>
             </div>
           </div>
 
-          <TimelineFeed entries={allEntries} />
+          {registrosDaFicha && <TimelineFeed entries={registrosDaFicha} />}
         </div>
       )}
 
@@ -508,9 +457,13 @@ function ClinicalTimelineContent() {
             <span className="text-xs text-slate-500 font-bold">{appointments.length} Sessão(ões)</span>
           </div>
 
-          {appointments.length === 0 ? (
+          {!sessoesDaFicha || sessoesDaFicha.falhou || appointments.length === 0 ? (
             <p className="text-xs text-slate-400 py-8 text-center bg-canvas rounded-2xl border border-line">
-              Nenhuma sessão registrada no histórico deste paciente até o momento.
+              {!sessoesDaFicha
+                ? 'Carregando as sessões deste paciente…'
+                : sessoesDaFicha.falhou
+                  ? 'Não foi possível carregar as sessões deste paciente.'
+                  : 'Nenhuma sessão registrada no histórico deste paciente até o momento.'}
             </p>
           ) : (
             <div className="space-y-3">

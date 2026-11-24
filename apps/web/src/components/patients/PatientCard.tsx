@@ -7,11 +7,13 @@ import {
   Calendar,
   CalendarPlus,
   CheckCircle2,
+  ClipboardList,
   Clock,
   FileText,
   PauseCircle,
   Pencil,
   Phone,
+  PowerOff,
   Send,
   UserX,
 } from 'lucide-react';
@@ -26,12 +28,15 @@ interface PatientCardProps {
   onSchedule: (patient: PatientDirectoryEntry) => void;
   onSendAgenda: (patient: PatientDirectoryEntry) => void;
   onDropout?: (patient: PatientDirectoryEntry) => void;
+  onInactivate?: (patient: PatientDirectoryEntry) => void;
+  onOpenRequest?: (patient: PatientDirectoryEntry) => void;
   canRegisterDropout?: boolean;
 }
 
 const STATUS_LABEL: Record<PatientDirectoryEntry['status'], string> = {
   active: 'Ativo',
-  paused: 'Em Pausa',
+  // `paused` é o vínculo inativado com motivo (especificação final, 6.05).
+  paused: 'Inativo',
   discharged: 'Alta',
 };
 
@@ -54,6 +59,8 @@ export function PatientCard({
   onSchedule,
   onSendAgenda,
   onDropout,
+  onInactivate,
+  onOpenRequest,
   canRegisterDropout = false,
 }: PatientCardProps) {
   const custeio = resumoCusteio(patient);
@@ -129,6 +136,19 @@ export function PatientCard({
           </div>
         </div>
 
+        {patient.inativacao && (
+          <p className="-mt-1 text-[11px] text-slate-600">
+            Inativado em {new Date(patient.inativacao.inativadoEm).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}: {patient.inativacao.motivo}
+          </p>
+        )}
+
+        {patient.responsavelFinanceiro && !patient.vinculoColetivo && (
+          <p className="-mt-1 text-[11px] text-muted">
+            Responsável: <strong className="text-ink">{patient.responsavelFinanceiro.nome}</strong>
+            {patient.responsavelFinanceiro.telefone ? ` · ${patient.responsavelFinanceiro.telefone}` : ''}
+          </p>
+        )}
+
         {custeio && (
           <p className="-mt-1 flex items-center gap-1.5 text-[11px] font-bold text-emerald-700">
             <Building2 className="h-3.5 w-3.5 shrink-0" />
@@ -186,9 +206,23 @@ export function PatientCard({
           </button>
         </div>
 
-        {/* REGISTRAR DESISTÊNCIA (LINK SUTIL) */}
-        {canRegisterDropout && !patient.dropoutRegistered && patient.status !== 'discharged' && onDropout && (
-          <div className="flex justify-end pt-0.5">
+        {/* PEDIDO, INATIVAÇÃO E DESISTÊNCIA (LINKS SUTIS) */}
+        <div className="flex flex-wrap items-center justify-end gap-3 pt-0.5">
+          {onOpenRequest && (
+            <button type="button" onClick={() => onOpenRequest(patient)}
+              className="mr-auto flex items-center gap-1 text-[10px] font-semibold text-slate-500 transition-colors hover:text-psi-vibrant">
+              <ClipboardList className="h-3 w-3" />
+              <span>Pedido e responsável</span>
+            </button>
+          )}
+          {canRegisterDropout && patient.status === 'active' && !patient.dropoutRegistered && onInactivate && (
+            <button type="button" onClick={() => onInactivate(patient)}
+              className="flex items-center gap-1 text-[10px] font-semibold text-slate-400 transition-colors hover:text-slate-700">
+              <PowerOff className="h-3 w-3" />
+              <span>Inativar vínculo</span>
+            </button>
+          )}
+          {canRegisterDropout && !patient.dropoutRegistered && patient.status !== 'discharged' && onDropout && (
             <button
               type="button"
               onClick={() => onDropout(patient)}
@@ -197,8 +231,8 @@ export function PatientCard({
               <UserX className="h-3 w-3" />
               <span>Registrar desistência</span>
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

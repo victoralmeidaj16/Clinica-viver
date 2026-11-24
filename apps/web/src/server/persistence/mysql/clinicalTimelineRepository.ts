@@ -120,6 +120,30 @@ export class MysqlClinicalTimelineRepository implements ClinicalTimelineReposito
   }
 
   /**
+   * Pacientes em cujo prontuário o profissional está autorizado. Serve à
+   * consulta dos vínculos encerrados (especificação final, § 8.05): a autoria
+   * fica gravada em cada entrada e não muda com a transferência.
+   */
+  async listPatientIdsAuthorizedFor(filter: {
+    organizationId: string;
+    professionalId: string;
+    categories?: readonly ClinicalTimelineCategory[];
+  }): Promise<readonly string[]> {
+    const clauses = ['JSON_CONTAINS(profissionais_autorizados, JSON_QUOTE(?))'];
+    const params: unknown[] = [instituicaoId(), filter.organizationId, filter.professionalId];
+    if (filter.categories?.length) {
+      clauses.push('categoria IN (?)');
+      params.push([...filter.categories]);
+    }
+    const [rows] = await this.pool.query<RowDataPacket[]>(
+      `SELECT DISTINCT paciente_ref FROM clinica_linha_do_tempo
+        WHERE instituicao_id = ? AND organizacao_ref = ? AND ${clauses.join(' AND ')}`,
+      params
+    );
+    return rows.map((row) => String(row.paciente_ref));
+  }
+
+  /**
    * Grava a entrada. `INSERT ... ON DUPLICATE KEY UPDATE` porque a projeção
    * pode ser recalculada a partir da fonte — reprojetar corrige a entrada em
    * vez de duplicá-la.

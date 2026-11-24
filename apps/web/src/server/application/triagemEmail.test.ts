@@ -48,22 +48,24 @@ describe('e-mails de confirmação de agendamento/triagem', () => {
     delete process.env.PSYCHOLOGIST_EMAIL_REPLY_TO;
   });
 
-  it('inclui protocolo, prazo de 24h e alerta do CVV 188 no texto e HTML', () => {
-    const conteudo = conteudoTriagemRecebida(lead, psicologo);
+  it('inclui protocolo e alerta do CVV 188 sem citar psicólogo nem prometer contato antes do aceite (§§ 4.01 e 12.01)', () => {
+    const conteudo = conteudoTriagemRecebida(lead);
     expect(conteudo.text).toContain('Protocolo de Acompanhamento: VM-123456');
     expect(conteudo.text).toContain('WhatsApp / Telefone informado: 5548988887777');
     expect(conteudo.html).toContain('<strong>WhatsApp / Telefone informado:</strong> 5548988887777');
-    expect(conteudo.text).toContain('Dra. Beatriz Santos');
-    expect(conteudo.text).toContain('Psicólogo(a): Dra. Beatriz Santos');
-    expect(conteudo.text).toContain('O psicólogo(a) entrará em contato com você via WhatsApp em até 24 horas para combinar o melhor dia e horário da sua primeira sessão.');
+    expect(conteudo.text).toContain('Assim que o atendimento for confirmado com um(a) profissional compatível, você receberá pelo WhatsApp');
+    expect(conteudo.html).toContain('Assim que o atendimento for confirmado com um(a) profissional compatível, você receberá pelo WhatsApp');
+    expect(conteudo.text).not.toContain('Dra. Beatriz Santos');
+    expect(conteudo.text).not.toContain('Psicólogo(a):');
+    expect(conteudo.text).not.toContain('entrará em contato com você via WhatsApp');
     expect(conteudo.text).not.toContain('Um de nossos psicólogos credenciados');
-    expect(conteudo.text).toContain('24 horas');
     expect(conteudo.text).toContain('188');
     expect(conteudo.text).toContain('CVV');
     expect(conteudo.html).toContain('João &amp; Maria');
     expect(conteudo.html).toContain('VM-123456');
-    expect(conteudo.html).toContain('<strong>Psicólogo(a):</strong> Dra. Beatriz Santos');
-    expect(conteudo.html).toContain('O psicólogo(a) entrará em contato com você via WhatsApp');
+    expect(conteudo.html).not.toContain('Dra. Beatriz Santos');
+    expect(conteudo.html).not.toContain('Psicólogo(a):');
+    expect(conteudo.html).not.toContain('entrará em contato com você via WhatsApp');
     expect(conteudo.html).not.toContain('Um de nossos psicólogos credenciados');
     expect(conteudo.html).toContain('188');
   });
@@ -74,7 +76,7 @@ describe('e-mails de confirmação de agendamento/triagem', () => {
       nomePaciente: 'Carlos Eduardo Ferreira',
       nomeSocial: 'Eduarda Ferreira',
     };
-    const conteudoSocial = conteudoTriagemRecebida(leadComNomeSocial, psicologo);
+    const conteudoSocial = conteudoTriagemRecebida(leadComNomeSocial);
     expect(conteudoSocial.text).toContain('Olá, Eduarda Ferreira!');
     expect(conteudoSocial.text).toContain('Paciente: Eduarda Ferreira');
     expect(conteudoSocial.text).not.toContain('Carlos Eduardo Ferreira');
@@ -87,7 +89,7 @@ describe('e-mails de confirmação de agendamento/triagem', () => {
       nomePaciente: 'Carlos Eduardo Ferreira',
       nomeSocial: undefined,
     };
-    const conteudoCivil = conteudoTriagemRecebida(leadSemNomeSocial, psicologo);
+    const conteudoCivil = conteudoTriagemRecebida(leadSemNomeSocial);
     expect(conteudoCivil.text).toContain('Olá, Carlos Eduardo Ferreira!');
     expect(conteudoCivil.text).toContain('Paciente: Carlos Eduardo Ferreira');
     expect(conteudoCivil.html).toContain('Olá, <strong>Carlos Eduardo Ferreira</strong>!');
@@ -98,7 +100,7 @@ describe('e-mails de confirmação de agendamento/triagem', () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(avisarTriagemRecebidaPorEmail(lead, psicologo)).resolves.toEqual({ situacao: 'enviada' });
+    await expect(avisarTriagemRecebidaPorEmail(lead)).resolves.toEqual({ situacao: 'enviada' });
 
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(new Headers(init.headers).get('Idempotency-Key')).toBe('triagem-received-triagem-123');
@@ -121,7 +123,7 @@ describe('e-mails de confirmação de agendamento/triagem', () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(avisarTriagemRecebidaPorEmail(lead, psicologo)).resolves.toEqual({ situacao: 'enviada' });
+    await expect(avisarTriagemRecebidaPorEmail(lead)).resolves.toEqual({ situacao: 'enviada' });
 
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     const body = JSON.parse(String(init.body));

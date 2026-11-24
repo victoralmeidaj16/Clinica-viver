@@ -145,4 +145,19 @@ describe('POST /api/application/triagem/[id]/encaminhar', () => {
     expect(avisarTransbordoMock).not.toHaveBeenCalled();
     expect(avisarAlocacaoPsicologoPorEmailMock).not.toHaveBeenCalled();
   });
+
+  it('repassa motivo opcional ao encaminhar e inclui o motivo no alerta à coordenação (§ 5.04)', async () => {
+    const request = new Request('http://localhost/api/application/triagem/lead-direto/encaminhar?psi=psi-1&t=token-valido', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ motivo: 'Sem vaga presencial no turno pedido.' }),
+    });
+    const response = await POST(request, { params: Promise.resolve({ id: 'lead-direto' }) });
+
+    expect(response.status).toBe(200);
+    expect(avisarCoordenacaoMock).toHaveBeenCalledWith(
+      expect.stringContaining('Motivo informado: Sem vaga presencial no turno pedido.'),
+      'escolha-direta-recusada:lead-direto'
+    );
+  });
 });

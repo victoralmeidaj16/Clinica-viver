@@ -41,12 +41,21 @@ export async function GET(request: Request) {
     const sessao = await readSession();
     if (!sessao) throw new NaoAutorizadoError(401, 'Faça login para continuar.');
 
-    const psicologoId = new URL(request.url).searchParams.get('psicologoId');
+    const params = new URL(request.url).searchParams;
+    const psicologoId = params.get('psicologoId');
     if (!psicologoId) {
       return success({ psicologos: await listarPsicologosParaDeclaracao() });
     }
 
-    return success(await previaDeclaracao(sessao.organizationId, psicologoId));
+    const inicio = params.get('periodoInicio')?.trim() || undefined;
+    const fim = params.get('periodoFim')?.trim() || undefined;
+    return success(
+      await previaDeclaracao(
+        sessao.organizationId,
+        psicologoId,
+        inicio || fim ? { inicio, fim } : undefined
+      )
+    );
   } catch (erro) {
     return respostaDeErro(erro);
   }

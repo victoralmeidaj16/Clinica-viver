@@ -41,6 +41,13 @@ export interface SessaoContabilizavel {
   actualEnd?: string;
 }
 
+export interface PeriodoApuracaoHoras {
+  /** Limite inicial inclusivo no formato `AAAA-MM-DD`. */
+  inicio?: string;
+  /** Limite final inclusivo no formato `AAAA-MM-DD`. */
+  fim?: string;
+}
+
 export interface ApuracaoDeHoras {
   /** Ids das sessões contadas, ordenados — é a evidência do total. */
   sessaoIds: readonly string[];
@@ -71,9 +78,17 @@ function instanteDaSessao(sessao: SessaoContabilizavel): string {
  * existe para impedir.
  */
 export function apurarHorasClinicas(
-  sessoes: readonly SessaoContabilizavel[]
+  sessoes: readonly SessaoContabilizavel[],
+  periodo?: PeriodoApuracaoHoras
 ): ApuracaoDeHoras | null {
-  const contadas = sessoes.filter((sessao) => STATUS_QUE_CONTAM_HORA.includes(sessao.status));
+  const contadas = sessoes.filter((sessao) => {
+    if (!STATUS_QUE_CONTAM_HORA.includes(sessao.status)) return false;
+    if (!periodo?.inicio && !periodo?.fim) return true;
+    const dia = instanteDaSessao(sessao).slice(0, 10);
+    if (periodo.inicio && dia < periodo.inicio) return false;
+    if (periodo.fim && dia > periodo.fim) return false;
+    return true;
+  });
   if (contadas.length === 0) return null;
 
   const instantes = contadas.map(instanteDaSessao).sort();

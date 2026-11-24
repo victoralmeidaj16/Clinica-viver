@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 import { emptySnapshot, type CadastroPsicologoRecord, type TriagemPacienteRecord } from './persistence';
-import { aceitarPaciente, encaminharParaProximo } from './viverMaisRodizio';
+import { aceitarPaciente, confirmarContato, encaminharParaProximo } from './viverMaisRodizio';
 
 const alocadoEm = '2026-10-15T10:00:00.000Z';
 const lead: TriagemPacienteRecord = {
@@ -35,6 +35,53 @@ function snapshot(comLead: TriagemPacienteRecord = lead) {
 }
 
 describe('aceite do paciente pelo psicólogo', () => {
+  const agoraDaOferta = new Date('2026-10-15T12:00:00.000Z');
+  const ofertaExtra = { ...lead, id: 'outra-oferta', modalidade: 'PARTICULAR' as const };
+  const comUltimaVaga = {
+    ...snapshot(), triagensPacientes: [lead, ofertaExtra],
+    cadastrosPsicologos: [{ ...psicologo, limitePacientesAtivos: 1 }],
+  };
+
+  it('ocupa a última vaga uma vez e conserva o pedido excedente na Gestão', () => {
+    const primeiro = aceitarPaciente(comUltimaVaga, lead.id, psicologo.id, agoraDaOferta);
+    const segundo = aceitarPaciente(primeiro.next, ofertaExtra.id, psicologo.id, agoraDaOferta);
+    expect(primeiro.result.kind).toBe('accepted');
+    expect(segundo.result.kind).toBe('capacity_pending');
+    expect(segundo.next.cadastrosPsicologos?.[0].pacientesAtivosCount).toBe(1);
+    expect(segundo.next.triagensPacientes?.find((item) => item.id === ofertaExtra.id)).toMatchObject({
+      status: 'PENDENTE_ATRIBUICAO', psicologosJaTentados: [psicologo.id],
+    });
+    expect(aceitarPaciente(segundo.next, lead.id, psicologo.id, agoraDaOferta).result.kind).toBe('already_accepted');
+  });
+
+  it.each(['RODIZIO', 'ESCOLHA_DIRETA'] as const)('respeita a origem %s quando a última vaga já foi ocupada', (tipoAlocacao) => {
+    const outro = { ...psicologo, id: 'outro', turnosDisponiveis: ['MANHA'], modalidadesAtendidas: ['PARTICULAR'] };
+    const fila = { ...comUltimaVaga, cadastrosPsicologos: [...comUltimaVaga.cadastrosPsicologos, outro],
+      triagensPacientes: [{ ...lead, aceitoEm: alocadoEm }, { ...ofertaExtra, tipoAlocacao }] };
+    const segundo = aceitarPaciente(fila, ofertaExtra.id, psicologo.id, agoraDaOferta);
+    const encaminhado = segundo.next.triagensPacientes?.find((item) => item.id === ofertaExtra.id);
+    expect(segundo.result.kind).toBe(tipoAlocacao === 'ESCOLHA_DIRETA' ? 'capacity_pending' : 'capacity_reallocated');
+    expect(encaminhado?.psicologoAlocadoId).toBe(tipoAlocacao === 'ESCOLHA_DIRETA' ? undefined : outro.id);
+    expect(encaminhado?.aceitoEm).toBeUndefined();
+    expect(encaminhado?.psicologosJaTentados).toContain(psicologo.id);
+  });
+
+  it('mantém a exceção do Projeto Acolhe quando o profissional está lotado', () => {
+    const fila = { ...comUltimaVaga, triagensPacientes: [{ ...lead, aceitoEm: alocadoEm }, { ...ofertaExtra, projetoAcolhe: true }] };
+    const segundo = aceitarPaciente(fila, ofertaExtra.id, psicologo.id, agoraDaOferta);
+    expect(segundo.result.kind).toBe('accepted');
+    expect(segundo.next.cadastrosPsicologos?.[0].pacientesAtivosCount).toBe(1);
+  });
+
+  it.each(['DESISTENTE', 'FINALIZADO'] as const)('o link antigo não volta a ocupar uma vaga de um vínculo %s', (status) => {
+    const estado = snapshot({ ...lead, status, aceitoEm: alocadoEm });
+    expect(aceitarPaciente(estado, lead.id, psicologo.id, agoraDaOferta).result.kind).toBe('conflict');
+    const contato = confirmarContato(estado, lead.id, psicologo.id, agoraDaOferta);
+    expect(contato.result.kind).toBe('conflict');
+    expect(contato.next.triagensPacientes?.[0].status).toBe(status);
+    expect(contato.next.cadastrosPsicologos?.[0].pacientesAtivosCount).toBe(0);
+  });
+
   it('persiste o aceite sem reiniciar o prazo e sem concluir o contato', () => {
     const agora = new Date('2026-10-15T12:00:00.000Z');
     const resultado = aceitarPaciente(snapshot(), 'lead-1', 'psi-1', agora);

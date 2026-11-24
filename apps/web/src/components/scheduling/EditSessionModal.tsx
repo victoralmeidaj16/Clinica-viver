@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { clinicDateTimeToIso } from '@/lib/manualAppointment';
 import { applicationRequest } from '@/lib/applicationApi';
+import { HistoricoAlteracoesSessao } from './HistoricoAlteracoesSessao';
 import { EditSessionFields, type StatusEdicao } from './EditSessionFields';
 import { SessionPayerField } from './SessionPayerField';
 import { SessionMonthlyCoverageModal } from './SessionMonthlyCoverageModal';
@@ -34,7 +35,7 @@ const FORMATTER = new Intl.DateTimeFormat('pt-BR', {
 
 export function EditSessionModal({ session, isOpen, onClose, onSaved, admin = false }: Props) {
   if (!isOpen || !session) return null;
-  return <FormularioEdicao admin={admin} session={session} onClose={onClose} onSaved={onSaved} />;
+  return <FormularioEdicao key={session.id} admin={admin} session={session} onClose={onClose} onSaved={onSaved} />;
 }
 
 function FormularioEdicao({
@@ -65,6 +66,7 @@ function FormularioEdicao({
   // do contrário, salvar um ajuste de horário confirmaria a realização sozinho.
   const statusInicial = iniciais.status;
   const statusPendente = session.status === 'confirmado' ? 'confirmado' : 'agendado';
+  const statusEncerrado = session.status === 'realizado' || session.status === 'completed' || session.status === 'cancelado';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -159,12 +161,16 @@ function FormularioEdicao({
             </span>
             <span
               className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${
-                session.status === 'realizado'
-                  ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                  : 'border-sky-200 bg-sky-50 text-sky-800'
+                session.status === 'cancelado'
+                  ? 'border-rose-200 bg-rose-50 text-rose-800'
+                  : session.status === 'realizado' || session.status === 'completed'
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                    : 'border-sky-200 bg-sky-50 text-sky-800'
               }`}
             >
-              {session.status === 'realizado' ? (
+              {session.status === 'cancelado' ? (
+                'Cancelado'
+              ) : session.status === 'realizado' || session.status === 'completed' ? (
                 <>
                   <CheckCircle2 className="w-3 h-3" /> Realizado
                 </>
@@ -190,11 +196,11 @@ function FormularioEdicao({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <EditSessionFields
-            data={data} hora={hora} duracaoMin={duracaoMin} canEditDuration={session.serviceKey === 'AVALIACAO'} modalidade={modalidade} status={status} statusPendente={statusPendente}
+            data={data} hora={hora} duracaoMin={duracaoMin} canEditDuration={session.serviceKey === 'AVALIACAO'} modalidade={modalidade} status={status} statusPendente={statusPendente} ocultarStatus={statusEncerrado}
             setData={setData} setHora={setHora} setDuracaoMin={setDuracaoMin} setModalidade={setModalidade} setStatus={setStatus}
           />
 
-          {admin && session.convenioNome && status !== 'realizado' && <SessionPayerField
+          {admin && session.convenioNome && !statusEncerrado && <SessionPayerField
             value={pagadorEmpresa} onChange={setPagadorEmpresa} convenio={session.convenioNome}
             onMonthlyCoverage={() => setMonthlyCoverage(true)}
             monthlyLimit={session.pacoteSessoes ? (session.pacoteSessoesCiclo === 'mensal' ? session.pacoteSessoes : undefined)
@@ -222,6 +228,7 @@ function FormularioEdicao({
             </button>
           </div>
         </form>
+        {admin && <HistoricoAlteracoesSessao id={session.id} />}
       </div>
     </div>
   );

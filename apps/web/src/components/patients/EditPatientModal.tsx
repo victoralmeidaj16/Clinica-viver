@@ -74,7 +74,9 @@ export default function EditPatientModal({ patientId, patientName, onClose, onSa
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!record) return;
-    if (!validCpf(form.cpf)) {
+    // Cadastro sem CPF próprio (menor pelo responsável ou vínculo coletivo):
+    // o servidor decide pelo vínculo se a ausência é aceita.
+    if (form.cpf ? !validCpf(form.cpf) : Boolean(record?.cpf)) {
       setError('Informe um CPF válido.');
       return;
     }
@@ -113,7 +115,7 @@ export default function EditPatientModal({ patientId, patientName, onClose, onSa
           <label className="font-bold text-ink">Nome social<input className={input} value={form.socialName} onChange={(e) => update('socialName', e.target.value)} /></label>
           <label className="font-bold text-ink">WhatsApp / telefone *<input required className={input} value={form.phone} onChange={(e) => update('phone', maskPhone(e.target.value))} /></label>
           <label className="font-bold text-ink">E-mail *<input required type="email" className={input} value={form.email} onChange={(e) => update('email', e.target.value)} /></label>
-          <label className="font-bold text-ink">CPF *<input required maxLength={14} className={`${input} ${form.cpf.length === 14 && !validCpf(form.cpf) ? 'border-rose-400 bg-rose-50/40 text-rose-900 focus:border-rose-600' : ''}`} value={form.cpf} onChange={(e) => update('cpf', maskCpf(e.target.value))} /></label>
+          <label className="font-bold text-ink">CPF {record && !record.cpf ? '' : '*'}<input required={Boolean(record?.cpf)} maxLength={14} className={`${input} ${form.cpf.length === 14 && !validCpf(form.cpf) ? 'border-rose-400 bg-rose-50/40 text-rose-900 focus:border-rose-600' : ''}`} value={form.cpf} onChange={(e) => update('cpf', maskCpf(e.target.value))} /></label>
         </div>
         <fieldset className="space-y-3 rounded-2xl border border-psi-soft bg-psi-light/40 p-4"><legend className="px-2 font-black text-psi-deep"><span className="flex items-center gap-1.5"><MapPin className="h-4 w-4" /> Endereço completo</span></legend>
           <div className="grid gap-3 sm:grid-cols-3">

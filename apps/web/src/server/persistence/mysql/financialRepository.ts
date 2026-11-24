@@ -48,6 +48,8 @@ interface CobrancaRow extends RowDataPacket {
   forma_pagamento: PaymentMethod | null;
   descricao: string | null;
   provedor_ref: string | null;
+  convenio_ref: string | null;
+  fatura_convenio_ref: string | null;
   criado_em: string;
   atualizado_em: string;
 }
@@ -66,6 +68,9 @@ function toCharge(row: CobrancaRow): FinancialCharge {
     paymentMethod: row.forma_pagamento ?? undefined,
     description: row.descricao ?? undefined,
     providerReference: row.provedor_ref ?? undefined,
+    // Cobrança da empresa: nasce com o convênio na confirmação da sessão ou
+    // entra numa fatura. A do paciente não tem nenhum dos dois.
+    payer: row.convenio_ref || row.fatura_convenio_ref ? 'company' : 'patient',
     createdAt: fromSqlTimestamp(row.criado_em) ?? new Date(0).toISOString(),
     updatedAt: fromSqlTimestamp(row.atualizado_em) ?? new Date(0).toISOString(),
   };
@@ -74,7 +79,7 @@ function toCharge(row: CobrancaRow): FinancialCharge {
 const COBRANCA_SELECT = `
   SELECT ref_core, organizacao_ref, sessao_ref, paciente_ref, profissional_ref,
          emitida_em, vence_em, valor_centavos, status, forma_pagamento, descricao,
-         provedor_ref, criado_em, atualizado_em
+         provedor_ref, convenio_ref, fatura_convenio_ref, criado_em, atualizado_em
     FROM financeiro_cobrancas
    WHERE instituicao_id = ?`;
 

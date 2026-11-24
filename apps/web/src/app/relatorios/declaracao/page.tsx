@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { AlertTriangle, Award, Loader2, PencilLine, Printer, RotateCcw, ShieldCheck } from 'lucide-react';
 import { DocumentoDeclaracao } from '@/components/declaracao/DocumentoDeclaracao';
+import { FiltroPeriodoDeclaracao } from '@/components/declaracao/FiltroPeriodoDeclaracao';
 import './declaracao.css';
 
 /**
@@ -84,6 +85,9 @@ export default function DeclaracaoHorasPage() {
   const [psicologos, setPsicologos] = useState<PsicologoElegivel[]>([]);
   const [carregandoLista, setCarregandoLista] = useState(true);
   const [selecionado, setSelecionado] = useState('');
+  const [filtroInicio, setFiltroInicio] = useState('');
+  const [filtroFim, setFiltroFim] = useState('');
+  const [periodoAplicado, setPeriodoAplicado] = useState<{ inicio?: string; fim?: string }>({});
   const [previa, setPrevia] = useState<Previa>();
   const [campos, setCampos] = useState<CamposEditaveis>();
   const [carregandoPrevia, setCarregandoPrevia] = useState(false);
@@ -106,18 +110,26 @@ export default function DeclaracaoHorasPage() {
     if (!selecionado) return;
 
     let ativo = true;
+    const query = new URLSearchParams({ psicologoId: selecionado });
+    if (periodoAplicado.inicio) query.set('periodoInicio', periodoAplicado.inicio);
+    if (periodoAplicado.fim) query.set('periodoFim', periodoAplicado.fim);
 
-    fetch(`/api/application/declaracao-horas?psicologoId=${encodeURIComponent(selecionado)}`)
+    fetch(`/api/application/declaracao-horas?${query.toString()}`)
       .then(async (resposta) => {
         if (!resposta.ok) throw new Error(await mensagemDeErro(resposta));
         const corpo = (await resposta.json()) as { data: Previa };
         if (ativo) {
           setPrevia(corpo.data);
           setCampos(corpo.data);
+          setErro(undefined);
         }
       })
       .catch((causa: Error) => {
-        if (ativo) setErro(causa.message);
+        if (ativo) {
+          setPrevia(undefined);
+          setCampos(undefined);
+          setErro(causa.message);
+        }
       })
       .finally(() => {
         if (ativo) setCarregandoPrevia(false);
@@ -126,7 +138,7 @@ export default function DeclaracaoHorasPage() {
     return () => {
       ativo = false;
     };
-  }, [selecionado]);
+  }, [selecionado, periodoAplicado]);
 
   async function emitir() {
     setEmitindo(true);
@@ -157,6 +169,9 @@ export default function DeclaracaoHorasPage() {
    */
   function selecionar(psicologoId: string) {
     setSelecionado(psicologoId);
+    setFiltroInicio('');
+    setFiltroFim('');
+    setPeriodoAplicado({});
     setPrevia(undefined);
     setCampos(undefined);
     setEmitida(undefined);
@@ -164,6 +179,27 @@ export default function DeclaracaoHorasPage() {
     // O "carregando" começa junto com a escolha, e não dentro do efeito: a
     // busca é consequência da seleção, e marcá-lo aqui evita o render extra.
     setCarregandoPrevia(Boolean(psicologoId));
+  }
+
+  function aplicarFiltroPeriodo() {
+    if (!selecionado) return;
+    setErro(undefined);
+    setEmitida(undefined);
+    setCarregandoPrevia(true);
+    setPeriodoAplicado({
+      inicio: filtroInicio || undefined,
+      fim: filtroFim || undefined,
+    });
+  }
+
+  function limparFiltroPeriodo() {
+    setFiltroInicio('');
+    setFiltroFim('');
+    if (!selecionado) return;
+    setErro(undefined);
+    setEmitida(undefined);
+    setCarregandoPrevia(true);
+    setPeriodoAplicado({});
   }
 
   const escolhido = psicologos.find((psi) => psi.id === selecionado);
@@ -238,6 +274,19 @@ export default function DeclaracaoHorasPage() {
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
               {escolhido.impedimento}
             </p>
+          )}
+
+          {selecionado && !escolhido?.impedimento && (
+            <FiltroPeriodoDeclaracao
+              inicio={filtroInicio}
+              fim={filtroFim}
+              temFiltroAplicado={Boolean(periodoAplicado.inicio || periodoAplicado.fim)}
+              desabilitado={carregandoPrevia || emitindo}
+              onInicioChange={setFiltroInicio}
+              onFimChange={setFiltroFim}
+              onAplicar={aplicarFiltroPeriodo}
+              onLimpar={limparFiltroPeriodo}
+            />
           )}
 
           {erro && (

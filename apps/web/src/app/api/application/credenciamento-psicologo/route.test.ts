@@ -73,12 +73,17 @@ describe('resposta ao cadastro repetido', () => {
     expect(mocks.email).not.toHaveBeenCalled();
     expect(mocks.comprovante).not.toHaveBeenCalled();
   });
-  it('mantém o envio normal para um cadastro novo', async () => {
+  it('mantém o envio normal para um cadastro novo sem disparar comprovante definitivo antes da aprovação', async () => {
     mocks.mutate.mockResolvedValue(undefined);
     mocks.email.mockResolvedValue({ situacao: 'enviada' });
     const response = await POST(request());
     expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      comprovanteTermo: 'aguardando_aprovacao',
+    });
     expect(mocks.email).toHaveBeenCalledTimes(1);
+    expect(mocks.comprovante).not.toHaveBeenCalled();
   });
 
   it('rejeita uma cidade que não pertence à UF antes de gravar o cadastro', async () => {

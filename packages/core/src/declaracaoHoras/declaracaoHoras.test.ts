@@ -86,6 +86,24 @@ describe('apurarHorasClinicas', () => {
     expect(apuracao!.periodoInicio).toBe('2026-03-02');
     expect(apuracao!.periodoFim).toBe('2026-03-02');
   });
+
+  it('filtra pelo período inclusivo selecionado e devolve null quando o intervalo está vazio', () => {
+    const sessoes = [
+      sessao('s-set', 'completed', '2026-09-30T13:00:00.000Z'),
+      sessao('s-out-1', 'completed', '2026-10-01T13:00:00.000Z'),
+      sessao('s-out-2', 'completed', '2026-10-31T13:00:00.000Z'),
+      sessao('s-nov', 'completed', '2026-11-01T13:00:00.000Z'),
+    ];
+
+    expect(apurarHorasClinicas(sessoes, { inicio: '2026-10-01', fim: '2026-10-31' })).toEqual({
+      sessaoIds: ['s-out-1', 's-out-2'],
+      totalSessoes: 2,
+      totalHoras: 2,
+      periodoInicio: '2026-10-01',
+      periodoFim: '2026-10-31',
+    });
+    expect(apurarHorasClinicas(sessoes, { inicio: '2026-12-01', fim: '2026-12-31' })).toBeNull();
+  });
 });
 
 describe('código de verificação', () => {

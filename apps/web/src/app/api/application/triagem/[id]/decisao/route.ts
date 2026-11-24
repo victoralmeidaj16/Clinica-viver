@@ -2,10 +2,11 @@ import { NextResponse } from 'next/server';
 import { captureStateAsSnapshot, getCaptureRepository } from '@/server/persistence/captureRepository';
 import { aceitarPaciente, ofertaExpirada, type AceitePacienteResult } from '@/server/application/viverMaisRodizio';
 
-const PRAZO_ENCERRADO = 'O prazo de 24h para responder a esta solicitação terminou. Ela seguiu para outro profissional ou para a coordenação da clínica.';
+const PRAZO_ENCERRADO = 'O prazo para responder a esta solicitação terminou. Ela seguiu para outro profissional ou para a coordenação da clínica.';
 import { reconciliarPacientes } from '@/server/application/patientPromotion';
 import { avisarConfirmacaoPaciente } from '@/server/application/viverMaisWhatsApp';
 import { validarTokenConfirmacao } from '@/server/viverMaisConfirmToken';
+import { respostaLotacao } from '../lotacao';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -30,6 +31,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const state = await getCaptureRepository().read();
   const lead = state.triagensPacientes.find((item) => item.id === id);
   if (!lead) return NextResponse.json({ success: false, error: 'Solicitação não encontrada.' }, { status: 404 });
+  if (lead.status === 'DESISTENTE' || lead.status === 'FINALIZADO') {
+    return NextResponse.json({ success: false, error: 'Este encaminhamento já foi encerrado.' }, { status: 409 });
+  }
   if (lead.psicologoAlocadoId !== psicologoId) {
     return NextResponse.json({ success: false, error: 'Este paciente já foi encaminhado a outro profissional.' }, { status: 409 });
   }
@@ -70,6 +74,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
     if (resultado.kind === 'expired') {
       return NextResponse.json({ success: false, error: PRAZO_ENCERRADO }, { status: 409 });
+    }
+    if (resultado.kind === 'capacity_reallocated' || resultado.kind === 'capacity_pending') {
+      return respostaLotacao(resultado);
     }
     if (resultado.kind === 'accepted') {
       // O aceite conclui a decisão: o paciente recebe as orientações sobre os

@@ -4,6 +4,7 @@ import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import type { PoolConnection } from 'mysql2/promise';
 import { getMysqlPool } from '@/server/oci/runtime';
 import { instituicaoId, toSqlTimestamp } from '@/server/persistence/mysql/mappers';
+import { vencimentoDoAgendamentoGestao, type VencimentoAgendamento } from '@/server/scheduling/gestaoAgendaRepository';
 import { isFutureChargeDueAt } from '@/lib/chargeDue';
 import { readDueResetPlan, type DueResetPlan } from './sessionChargeDuePlan';
 import { hasPendingChargeDueReset } from './sessionChargeDueQueue';
@@ -58,28 +59,25 @@ export async function enqueueChargeDuePlan(
 
 export async function atualizarVencimentoCobrancaSessao(input: {
   organizationId: string; professionalId: string; appointmentId: string; dueAt: string;
+  aposAlteracao?: (anterior: VencimentoAgendamento) => Promise<void>;
 }): Promise<UpdateChargeDueOutcome> {
   if (!isFutureChargeDueAt(input.dueAt)) return 'invalid';
   const connection = await getMysqlPool().getConnection();
   let appointmentId: string;
+  let anterior: VencimentoAgendamento | null = null;
   let result: UpdateChargeDueOutcome;
   try {
     await connection.beginTransaction();
-    const [rows] = await connection.query<RowDataPacket[]>(
-      `SELECT a.id FROM clinica_agendamentos a
-         JOIN clinica_organizacoes o ON o.id = a.organizacao_id
-         JOIN clinica_profissionais p ON p.id = a.profissional_id
-        WHERE a.instituicao_id = ? AND o.ref_core = ? AND p.ref_core = ?
-          AND (a.id = ? OR a.ref_core = ?) LIMIT 1 FOR UPDATE`,
-      [instituicaoId(), input.organizationId, input.professionalId, input.appointmentId, input.appointmentId]
-    );
-    if (!rows[0]) { await connection.rollback(); return 'not_found'; }
-    appointmentId = String(rows[0].id);
+    anterior = await vencimentoDoAgendamentoGestao(connection, input.organizationId, input.professionalId, input.appointmentId);
+    if (!anterior) { await connection.rollback(); return 'not_found'; }
+    appointmentId = anterior.agendamentoId;
     result = await resetAppointmentChargeDue(connection, appointmentId, input.dueAt);
     await connection.commit();
   } catch (error) {
     await connection.rollback();
     throw error;
   } finally { connection.release(); }
-  return result === 'queued' ? processAppointmentChargeDue(appointmentId) : result;
+  const outcome = result === 'queued' ? await processAppointmentChargeDue(appointmentId) : result;
+  if (anterior && (outcome === 'updated' || outcome === 'queued')) await input.aposAlteracao?.(anterior);
+  return outcome;
 }

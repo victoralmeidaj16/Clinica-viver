@@ -12,6 +12,7 @@ interface Props {
   status: StatusEdicao;
   /** Estado pendente atual da sessão: o botão da esquerda o preserva em vez de rebaixar uma confirmação. */
   statusPendente: 'agendado' | 'confirmado';
+  ocultarStatus?: boolean;
   setData: (value: string) => void;
   setHora: (value: string) => void;
   setDuracaoMin: (value: number) => void;
@@ -21,7 +22,7 @@ interface Props {
 
 export type StatusEdicao = 'agendado' | 'confirmado' | 'realizado';
 
-export function EditSessionFields({ data, hora, duracaoMin, canEditDuration, modalidade, status, statusPendente, setData, setHora, setDuracaoMin, setModalidade, setStatus }: Props) {
+export function EditSessionFields({ data, hora, duracaoMin, canEditDuration, modalidade, status, statusPendente, ocultarStatus = false, setData, setHora, setDuracaoMin, setModalidade, setStatus }: Props) {
   return <>
           {/* Data e Horário */}
           <div className="grid grid-cols-2 gap-3">
@@ -93,7 +94,7 @@ export function EditSessionFields({ data, hora, duracaoMin, canEditDuration, mod
           </div>
 
           {/* Status do Atendimento */}
-          <div>
+          {!ocultarStatus && <div>
             <label className="text-xs font-bold text-ink block mb-1">Status do Atendimento</label>
             <div className="grid grid-cols-2 gap-2">
               <button
@@ -119,7 +120,7 @@ export function EditSessionFields({ data, hora, duracaoMin, canEditDuration, mod
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Realizado
               </button>
             </div>
-          </div>
+          </div>}
 
   </>;
 }

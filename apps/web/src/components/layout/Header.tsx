@@ -10,7 +10,7 @@ export default function Header({
   onAbrirMenu,
 }: {
   displayName: string;
-  role: 'admin' | 'psicologo';
+  role: 'admin' | 'financeiro' | 'psicologo';
   onAbrirMenu: () => void;
 }) {
   return (
@@ -52,7 +52,9 @@ export default function Header({
           </div>
           <div className="hidden sm:block text-left min-w-0">
             <p className="text-xs font-bold text-ink leading-tight truncate max-w-[12rem]">{displayName}</p>
-            <p className="text-[10px] text-muted font-medium">{role === 'admin' ? 'Administrador da clínica' : 'Psicólogo da clínica'}</p>
+            <p className="text-[10px] text-muted font-medium">
+              {role === 'admin' ? 'Administrador da clínica' : role === 'financeiro' ? 'Financeiro da clínica' : 'Psicólogo da clínica'}
+            </p>
           </div>
         </div>
       </div>

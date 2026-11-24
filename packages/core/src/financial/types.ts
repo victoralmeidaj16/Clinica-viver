@@ -26,6 +26,12 @@ export interface FinancialCharge {
   paymentMethod?: PaymentMethod;
   description?: string;
   providerReference?: string;
+  /**
+   * Quem paga a cobrança. `company` é a sessão custeada por empresa, faturada
+   * ao convênio; ausente, vale `patient`. Decide a competência do crédito
+   * educacional (especificação final, §§ 10.07 e 11.04).
+   */
+  payer?: 'patient' | 'company';
   createdAt: string;
   updatedAt: string;
 }

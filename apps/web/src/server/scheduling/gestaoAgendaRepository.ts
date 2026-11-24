@@ -1,5 +1,5 @@
 import 'server-only';
-import type { RowDataPacket } from 'mysql2/promise';
+import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import { getMysqlPool } from '@/server/oci/runtime';
 import { fromSqlTimestamp, instituicaoId } from '@/server/persistence/mysql/mappers';
 import { custeioDoAgendamentoSql } from '@/server/persistence/mysql/custeioSql';
@@ -11,23 +11,39 @@ const JOINS = `FROM clinica_agendamentos a
   LEFT JOIN clinica_convenios conv ON conv.instituicao_id = a.instituicao_id
     AND conv.organizacao_ref = o.ref_core AND conv.ref_core = pa.convenio_ref`;
 
-export async function listarAgendaGestao(organizationId: string, busca: string, pagina: number) {
+const VENCIMENTO_EFETIVO = `COALESCE((SELECT c.vence_em FROM financeiro_cobrancas c
+        WHERE c.instituicao_id = a.instituicao_id AND c.organizacao_ref = o.ref_core
+          AND c.sessao_ref IN (a.ref_core, a.sessao_clinica_ref) AND c.status <> 'cancelled'
+        ORDER BY c.criado_em DESC LIMIT 1), a.cobranca_vence_em)`;
+
+export type FiltroStatusAgendaGestao = 'abertas' | 'realizado' | 'cancelado' | 'todas';
+
+function clausulaStatusAgendaGestao(statusFiltro: FiltroStatusAgendaGestao): string {
+  if (statusFiltro === 'realizado') return "a.status = 'realizado'";
+  if (statusFiltro === 'cancelado') return "a.status = 'cancelado'";
+  if (statusFiltro === 'todas') return "a.status IN ('agendado', 'confirmado', 'realizado', 'cancelado')";
+  return "a.status IN ('agendado', 'confirmado')";
+}
+
+export async function listarAgendaGestao(
+  organizationId: string,
+  busca: string,
+  pagina: number,
+  statusFiltro: FiltroStatusAgendaGestao = 'abertas'
+) {
   const [rows] = await getMysqlPool().query<RowDataPacket[]>(
     `SELECT a.id, a.versao, a.inicio, a.fim, a.modalidade, a.servico_key, a.status,
       COALESCE(pa.nome_social, pa.nome) AS paciente_nome, pr.nome AS profissional_nome,
       conv.nome AS convenio_nome, conv.pacote_sessoes, conv.pacote_sessoes_ciclo,
       pa.custeio_sessoes_cota, pa.custeio_sessoes_ciclo,
-      COALESCE((SELECT c.vence_em FROM financeiro_cobrancas c
-        WHERE c.instituicao_id = a.instituicao_id AND c.organizacao_ref = o.ref_core
-          AND c.sessao_ref IN (a.ref_core, a.sessao_clinica_ref) AND c.status <> 'cancelled'
-        ORDER BY c.criado_em DESC LIMIT 1), a.cobranca_vence_em) AS vencimento_cobranca_em,
+      ${VENCIMENTO_EFETIVO} AS vencimento_cobranca_em,
       (SELECT c.status FROM financeiro_cobrancas c
         WHERE c.instituicao_id = a.instituicao_id AND c.organizacao_ref = o.ref_core
           AND c.sessao_ref IN (a.ref_core, a.sessao_clinica_ref) AND c.status <> 'cancelled'
         ORDER BY c.criado_em DESC LIMIT 1) AS pagamento_status,
       ${custeioDoAgendamentoSql({ agendamento: 'a', paciente: 'pa', convenio: 'conv' })} AS custeado
       ${JOINS}
-      WHERE a.instituicao_id = ? AND o.ref_core = ? AND a.status IN ('agendado', 'confirmado')
+      WHERE a.instituicao_id = ? AND o.ref_core = ? AND ${clausulaStatusAgendaGestao(statusFiltro)}
         AND (COALESCE(pa.nome_social, pa.nome) LIKE ? OR pr.nome LIKE ?)
       -- Próximas sessões primeiro (da mais perto para a mais longe); as já
       -- encerradas sem conclusão vão para o fim, das mais recentes às antigas.
@@ -75,4 +91,27 @@ export async function convenioDoAgendamentoGestao(organizationId: string, id: st
     pacienteId: String(rows[0].paciente_ref), convenioId: rows[0].convenio_ref ? String(rows[0].convenio_ref) : undefined,
     pacoteSessoes: rows[0].pacote_sessoes == null ? undefined : Number(rows[0].pacote_sessoes),
   } : null;
+}
+
+export interface VencimentoAgendamento {
+  agendamentoId: string;
+  profissionalRef: string;
+  venceEm?: string;
+}
+
+export async function vencimentoDoAgendamentoGestao(
+  connection: PoolConnection, organizationId: string, professionalId: string, id: string
+): Promise<VencimentoAgendamento | null> {
+  const [rows] = await connection.query<RowDataPacket[]>(
+    `SELECT a.id, pr.ref_core AS profissional_ref, ${VENCIMENTO_EFETIVO} AS vence_em
+       FROM clinica_agendamentos a
+       JOIN clinica_organizacoes o ON o.id = a.organizacao_id
+       JOIN clinica_profissionais pr ON pr.id = a.profissional_id
+      WHERE a.instituicao_id = ? AND o.ref_core = ? AND pr.ref_core = ?
+        AND (a.id = ? OR a.ref_core = ?) LIMIT 1 FOR UPDATE`,
+    [instituicaoId(), organizationId, professionalId, id, id]
+  );
+  const row = rows[0];
+  return row ? { agendamentoId: String(row.id), profissionalRef: String(row.profissional_ref),
+    venceEm: fromSqlTimestamp(row.vence_em) } : null;
 }

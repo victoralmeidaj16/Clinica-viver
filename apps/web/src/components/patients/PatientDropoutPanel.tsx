@@ -90,7 +90,17 @@ export default function PatientDropoutPanel({ patient, onChange }: Props) {
               key={dropout.id}
               patient={patient}
               saving={saving}
-              onAllocate={(psicologoId) => void enviar({ action: 'ALOCAR_PACIENTE', id: dropout.id, psicologoId })}
+              onAllocate={(psicologoId, options) =>
+                void enviar({
+                  action: 'ALOCAR_PACIENTE',
+                  id: dropout.id,
+                  psicologoId,
+                  ...(options?.modo ? { modo: options.modo } : {}),
+                  ...(options?.excederLimite
+                    ? { excederLimite: true, justificativaExcesso: options.justificativaExcesso }
+                    : {}),
+                })
+              }
             />
           )}
         </div>

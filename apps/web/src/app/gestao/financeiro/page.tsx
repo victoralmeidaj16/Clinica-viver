@@ -116,7 +116,7 @@ export default function FinanceiroClinicaPage() {
 
   useEffect(() => {
     let cancelado = false;
-    applicationRequest<{ role: 'admin' | 'psicologo' }>('/../auth/me')
+    applicationRequest<{ role: 'admin' | 'financeiro' | 'psicologo' }>('/../auth/me')
       .then((sessao) => { if (!cancelado) setEAdmin(sessao.role === 'admin'); })
       .catch(() => { if (!cancelado) setEAdmin(false); });
     return () => { cancelado = true; };

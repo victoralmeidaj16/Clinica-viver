@@ -16,6 +16,7 @@ import {
   type CadastroPsicologoRecord,
   type EnvioComprovanteTermo,
   type PersistedSnapshot,
+  type RecusaEncaminhamento,
   type StatusCadastroPsicologo,
   type StatusTriagem,
   type TriagemPacienteRecord,
@@ -28,10 +29,19 @@ import {
   toSqlTimestamp,
 } from './mappers';
 import { comTurmasEncerradas } from '@/server/persistence/turmasEncerradas';
+import { lerListaEspera } from '@/lib/listaEspera';
+import { lerInativacoes } from '@/lib/inativacaoVinculo';
+import { lerResponsavelFinanceiro } from '@/lib/responsavelFinanceiro';
+import { lerVinculoColetivo } from '@/lib/vinculoColetivo';
+import { prazoOfertaValido } from '@/lib/prazoOferta';
+import type { AlteracaoPreferencias, PreferenciasSolicitacao } from '@/lib/preferenciasSolicitacao';
+import { lerPrazoOfertaConfigurado } from './configuracaoGestaoRepository';
 
 export interface CaptureState {
   triagensPacientes: readonly TriagemPacienteRecord[];
   cadastrosPsicologos: readonly CadastroPsicologoRecord[];
+  /** Prazo configurado pela Gestão para as novas ofertas (5.02). Só leitura aqui. */
+  prazoOfertaHoras?: number;
 }
 
 interface CaptureResult<T> {
@@ -81,9 +91,50 @@ interface TriagemRow extends RowDataPacket {
   sla_expirado: number;
   transbordos: number;
   psicologos_ja_tentados: unknown;
+  recusas?: unknown;
   tipo_alocacao?: string | null;
   projeto_acolhe?: number | null;
+  prazo_resposta_horas?: number | null;
+  lista_espera?: unknown;
+  inativacoes?: unknown;
+  preferencias_originais?: unknown;
+  alteracoes_preferencias?: unknown;
+  responsavel_financeiro?: unknown;
+  identificado_por_responsavel?: number | null;
+  vinculo_coletivo?: unknown;
   criado_em: string;
+}
+
+/**
+ * Colunas da migration 088. Cada uma é detectada antes de ser usada: a
+ * Vercel e a VPS podem publicar o código antes de a migration chegar ao banco.
+ */
+const COLUNAS_FLUXO = [
+  'prazo_resposta_horas',
+  'lista_espera',
+  'inativacoes',
+  'preferencias_originais',
+  'alteracoes_preferencias',
+  'responsavel_financeiro',
+  'identificado_por_responsavel',
+  'vinculo_coletivo',
+] as const;
+
+type ColunaFluxo = (typeof COLUNAS_FLUXO)[number];
+
+interface SuporteFluxo {
+  colunas: ReadonlySet<ColunaFluxo>;
+  statusInativo: boolean;
+}
+
+function lerJson<T>(valor: unknown): T | undefined {
+  if (valor === null || valor === undefined) return undefined;
+  if (typeof valor !== 'string') return valor as T;
+  try {
+    return JSON.parse(valor) as T;
+  } catch {
+    return undefined;
+  }
 }
 
 interface PsicologoRow extends RowDataPacket {
@@ -177,6 +228,29 @@ function asJson(value: readonly unknown[] | undefined): string {
   return JSON.stringify(value ?? []);
 }
 
+function asRecusas(value: unknown): RecusaEncaminhamento[] {
+  let parsed = value;
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value) as unknown;
+    } catch {
+      parsed = [];
+    }
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed.flatMap((item): RecusaEncaminhamento[] => {
+    if (!item || typeof item !== 'object') return [];
+    const entry = item as Record<string, unknown>;
+    if (typeof entry.psicologoId !== 'string' || typeof entry.recusadoEm !== 'string') return [];
+    return [{
+      psicologoId: entry.psicologoId,
+      recusadoEm: entry.recusadoEm,
+      ...(typeof entry.psicologoNome === 'string' && entry.psicologoNome ? { psicologoNome: entry.psicologoNome } : {}),
+      ...(typeof entry.motivo === 'string' && entry.motivo ? { motivo: entry.motivo } : {}),
+    }];
+  });
+}
+
 function asNullableJson(value: unknown): string | null {
   if (value === undefined || value === null) return null;
   return JSON.stringify(value);
@@ -204,6 +278,7 @@ function dataNascimentoLida(valor: string | Date | null | undefined): string | u
 }
 
 function toLead(row: TriagemRow): TriagemPacienteRecord {
+  const recusas = asRecusas(row.recusas);
   return {
     id: row.ref_core,
     protocolo: row.protocolo,
@@ -247,8 +322,30 @@ function toLead(row: TriagemRow): TriagemPacienteRecord {
     slaExpirado: Boolean(row.sla_expirado),
     transbordos: row.transbordos,
     psicologosJaTentados: asStringArray(row.psicologos_ja_tentados),
+    ...(recusas.length ? { recusas } : {}),
     tipoAlocacao: tipoAlocacaoLido(row.tipo_alocacao),
     ...(row.projeto_acolhe ? { projetoAcolhe: true } : {}),
+    ...camposDeFluxo(row),
+  };
+}
+
+function camposDeFluxo(row: TriagemRow): Partial<TriagemPacienteRecord> {
+  const prazo = prazoOfertaValido(row.prazo_resposta_horas);
+  const listaEspera = lerListaEspera(row.lista_espera);
+  const inativacoes = lerInativacoes(row.inativacoes);
+  const originais = lerJson<PreferenciasSolicitacao>(row.preferencias_originais);
+  const alteracoes = lerJson<AlteracaoPreferencias[]>(row.alteracoes_preferencias);
+  const responsavel = lerResponsavelFinanceiro(row.responsavel_financeiro);
+  const vinculo = lerVinculoColetivo(row.vinculo_coletivo);
+  return {
+    ...(prazo ? { prazoRespostaHoras: prazo } : {}),
+    ...(listaEspera ? { listaEspera } : {}),
+    ...(inativacoes.length ? { inativacoes } : {}),
+    ...(originais && typeof originais === 'object' && originais.registradoEm ? { preferenciasOriginais: originais } : {}),
+    ...(Array.isArray(alteracoes) && alteracoes.length ? { alteracoesPreferencias: alteracoes } : {}),
+    ...(responsavel ? { responsavelFinanceiro: responsavel } : {}),
+    ...(row.identificado_por_responsavel ? { identificadoPeloResponsavel: true } : {}),
+    ...(vinculo ? { vinculoColetivo: vinculo } : {}),
   };
 }
 
@@ -343,6 +440,7 @@ function stateFromSnapshot(snapshot: PersistedSnapshot): CaptureState {
   return {
     triagensPacientes: [...(snapshot.triagensPacientes ?? [])],
     cadastrosPsicologos: [...(snapshot.cadastrosPsicologos ?? [])],
+    ...(snapshot.prazoOfertaHoras !== undefined ? { prazoOfertaHoras: snapshot.prazoOfertaHoras } : {}),
   };
 }
 
@@ -435,6 +533,22 @@ export class MysqlCaptureRepository {
   private static hasAcessibilidadeColumn = false;
   private static hasReconfiguracaoColumn = false;
   private static hasProjetoAcolheColumn = false;
+  private static hasRecusasColumn = false;
+
+  /** Só o "sim" fica em cache, como nas demais colunas novas. */
+  private async supportsRecusasColumn(connection: Pool | PoolConnection): Promise<boolean> {
+    if (MysqlCaptureRepository.hasRecusasColumn) return true;
+    try {
+      const [rows] = await connection.query<RowDataPacket[]>(
+        `SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE()
+          AND table_name = 'clinica_triagens_pacientes' AND column_name = 'recusas' LIMIT 1`
+      );
+      MysqlCaptureRepository.hasRecusasColumn = rows.length > 0;
+    } catch {
+      return false;
+    }
+    return MysqlCaptureRepository.hasRecusasColumn;
+  }
 
   /** Só o "sim" fica em cache, como nas demais colunas novas. */
   private async supportsProjetoAcolheColumn(connection: Pool | PoolConnection): Promise<boolean> {
@@ -525,6 +639,36 @@ export class MysqlCaptureRepository {
     return MysqlCaptureRepository.hasNomeSocialColumn;
   }
 
+  private static suporteFluxo: SuporteFluxo | null = null;
+
+  /**
+   * Quais colunas da migration 088 existem. Uma consulta para todas; só o
+   * estado completo fica em cache, para a migration valer sem reiniciar.
+   */
+  private async suporteFluxo(connection: Pool | PoolConnection): Promise<SuporteFluxo> {
+    if (MysqlCaptureRepository.suporteFluxo) return MysqlCaptureRepository.suporteFluxo;
+    try {
+      const [rows] = await connection.query<RowDataPacket[]>(
+        `SELECT column_name AS nome, column_type AS tipo FROM information_schema.columns
+          WHERE table_schema = DATABASE() AND table_name = 'clinica_triagens_pacientes'
+            AND column_name IN (?)`,
+        [[...COLUNAS_FLUXO, 'status']]
+      );
+      const nomes = new Set(rows.map((row) => String(row.nome ?? row.COLUMN_NAME)));
+      const status = rows.find((row) => String(row.nome ?? row.COLUMN_NAME) === 'status');
+      const suporte: SuporteFluxo = {
+        colunas: new Set(COLUNAS_FLUXO.filter((coluna) => nomes.has(coluna))),
+        statusInativo: String(status?.tipo ?? status?.COLUMN_TYPE ?? '').includes("'INATIVO'"),
+      };
+      if (suporte.colunas.size === COLUNAS_FLUXO.length && suporte.statusInativo) {
+        MysqlCaptureRepository.suporteFluxo = suporte;
+      }
+      return suporte;
+    } catch {
+      return { colunas: new Set(), statusInativo: false };
+    }
+  }
+
   private async readState(
     connection: Pool | PoolConnection,
     lockRows: boolean
@@ -536,6 +680,9 @@ export class MysqlCaptureRepository {
     const temAcessibilidade = await this.supportsAcessibilidadeColumn(connection);
     const temReconfiguracao = await this.supportsReconfiguracaoColumn(connection);
     const temProjetoAcolhe = await this.supportsProjetoAcolheColumn(connection);
+    const temRecusas = await this.supportsRecusasColumn(connection);
+    const fluxo = await this.suporteFluxo(connection);
+    const colunasFluxo = COLUNAS_FLUXO.filter((coluna) => fluxo.colunas.has(coluna)).map((coluna) => ` ${coluna},`).join('');
     const campoNomeSocial = temNomeSocial ? 'nome_social' : 'NULL AS nome_social';
     const [leadRows] = await connection.query<TriagemRow[]>(
       `SELECT ref_core, protocolo, nome_paciente, ${campoNomeSocial}, telefone,${temNascimentoAlocacao ? ' data_nascimento,' : ''} idade, email, cpf, cep,
@@ -546,7 +693,7 @@ export class MysqlCaptureRepository {
               necessidades_paciente, necessidades_outro, opcao_avaliacao_psicologica,
               genero, genero_outro, status, psicologo_alocado_id,
               psicologo_nome, paciente_ref, alocado_em, aceito_em, confirmado_em, sla_expirado,
-              transbordos, psicologos_ja_tentados,${temNascimentoAlocacao ? ' tipo_alocacao,' : ''}${temProjetoAcolhe ? ' projeto_acolhe,' : ''} criado_em
+              transbordos, psicologos_ja_tentados,${temRecusas ? ' recusas,' : ''}${temNascimentoAlocacao ? ' tipo_alocacao,' : ''}${temProjetoAcolhe ? ' projeto_acolhe,' : ''}${colunasFluxo} criado_em
          FROM clinica_triagens_pacientes
         WHERE instituicao_id = ? AND organizacao_ref = ?
         ORDER BY criado_em${lock}`,
@@ -570,12 +717,14 @@ export class MysqlCaptureRepository {
         ORDER BY criado_em${lock}`,
       [instituicaoId(), organizacaoRef()]
     );
+    const prazoOfertaHoras = await lerPrazoOfertaConfigurado(connection, organizacaoRef());
     return {
       triagensPacientes: leadRows.map(toLead),
       cadastrosPsicologos: await comTurmasEncerradas(
         await this.comAusencias(connection, psychRows.map(toPsychologist)),
         connection
       ),
+      ...(prazoOfertaHoras !== undefined ? { prazoOfertaHoras } : {}),
     };
   }
 
@@ -723,7 +872,9 @@ export class MysqlCaptureRepository {
     lead: TriagemPacienteRecord,
     temNomeSocial: boolean,
     temNascimentoAlocacao: boolean,
-    temProjetoAcolhe: boolean
+    temProjetoAcolhe: boolean,
+    temRecusas = false,
+    colunasFluxo: ReadonlySet<ColunaFluxo> = new Set()
   ): Array<[string, string | number | null, boolean]> {
     const entries: Array<[string, string | number | null, boolean]> = [
       ['id', rowId('triagem', lead.id), false],
@@ -775,6 +926,10 @@ export class MysqlCaptureRepository {
     );
     if (temNascimentoAlocacao) entries.push(['tipo_alocacao', lead.tipoAlocacao ?? null, true]);
     if (temProjetoAcolhe) entries.push(['projeto_acolhe', lead.projetoAcolhe ? 1 : 0, true]);
+    if (temRecusas) entries.push(['recusas', asNullableJson(lead.recusas?.length ? lead.recusas : null), true]);
+    for (const [coluna, valor] of valoresDeFluxo(lead)) {
+      if (colunasFluxo.has(coluna)) entries.push([coluna, valor, true]);
+    }
     entries.push(['criado_em', toSqlTimestamp(lead.criadoEm), false]);
     return entries;
   }
@@ -883,21 +1038,24 @@ export class MysqlCaptureRepository {
     const temNomeSocial = await this.supportsNomeSocialColumn(connection);
     const temNascimentoAlocacao = await this.supportsNascimentoAlocacaoColumns(connection);
     const temProjetoAcolhe = await this.supportsProjetoAcolheColumn(connection);
+    const temRecusas = await this.supportsRecusasColumn(connection);
     // Sem a coluna, o paciente do Acolhe seria relido como vaga comum e tiraria
     // o profissional do rodízio. Melhor recusar o cadastro com a causa.
     if (!temProjetoAcolhe && state.triagensPacientes.some((lead) => lead.projetoAcolhe)) {
       throw new Error('O Projeto Acolhe requer a migration 083_triagem_projeto_acolhe.sql.');
     }
+    const fluxo = await this.suporteFluxo(connection);
     const prevLeads = previous
       ? new Map(previous.triagensPacientes.map((item) => [item.id, item]))
       : null;
     for (const lead of state.triagensPacientes) {
-      const entries = MysqlCaptureRepository.leadEntries(lead, temNomeSocial, temNascimentoAlocacao, temProjetoAcolhe);
       const before = prevLeads?.get(lead.id);
+      exigirMigrationDeFluxo(lead, before, fluxo);
+      const entries = MysqlCaptureRepository.leadEntries(lead, temNomeSocial, temNascimentoAlocacao, temProjetoAcolhe, temRecusas, fluxo.colunas);
       if (
         before &&
         JSON.stringify(entries) ===
-          JSON.stringify(MysqlCaptureRepository.leadEntries(before, temNomeSocial, temNascimentoAlocacao, temProjetoAcolhe))
+          JSON.stringify(MysqlCaptureRepository.leadEntries(before, temNomeSocial, temNascimentoAlocacao, temProjetoAcolhe, temRecusas, fluxo.colunas))
       ) {
         continue;
       }
@@ -919,11 +1077,52 @@ export class MysqlCaptureRepository {
   }
 }
 
+/** Valor de cada coluna da migration 088, na forma que o MySQL grava. */
+function valoresDeFluxo(lead: TriagemPacienteRecord): Array<[ColunaFluxo, string | number | null]> {
+  return [
+    ['prazo_resposta_horas', lead.prazoRespostaHoras ?? null],
+    ['lista_espera', asNullableJson(lead.listaEspera ?? null)],
+    ['inativacoes', asNullableJson(lead.inativacoes?.length ? lead.inativacoes : null)],
+    ['preferencias_originais', asNullableJson(lead.preferenciasOriginais ?? null)],
+    ['alteracoes_preferencias', asNullableJson(lead.alteracoesPreferencias?.length ? lead.alteracoesPreferencias : null)],
+    ['responsavel_financeiro', asNullableJson(lead.responsavelFinanceiro ?? null)],
+    ['identificado_por_responsavel', lead.identificadoPeloResponsavel ? 1 : 0],
+    ['vinculo_coletivo', asNullableJson(lead.vinculoColetivo ?? null)],
+  ];
+}
+
+/**
+ * Sem a migration 088, o pedido continua sendo gravado sem as colunas novas —
+ * o formulário público não pode falhar por isso, e prazo e preferências
+ * originais têm leitura padrão segura. Já uma **alteração** feita por comando
+ * (inativar, lista de espera, responsável, preferências) não pode sumir em
+ * silêncio: a gravação é recusada com a causa.
+ */
+function exigirMigrationDeFluxo(
+  lead: TriagemPacienteRecord,
+  before: TriagemPacienteRecord | undefined,
+  suporte: SuporteFluxo
+): void {
+  if (lead.status === 'INATIVO' && !suporte.statusInativo) {
+    throw new Error('A inativação de vínculo requer a migration 088_triagem_fluxos_paciente.sql.');
+  }
+  if (!before) return;
+  const atuais = new Map(valoresDeFluxo(lead));
+  const anteriores = new Map(valoresDeFluxo(before));
+  for (const coluna of COLUNAS_FLUXO) {
+    if (coluna === 'prazo_resposta_horas' || coluna === 'preferencias_originais') continue;
+    if (!suporte.colunas.has(coluna) && atuais.get(coluna) !== anteriores.get(coluna)) {
+      throw new Error(`Esta operação requer a migration 088_triagem_fluxos_paciente.sql (coluna ${coluna}).`);
+    }
+  }
+}
+
 export function captureStateAsSnapshot(state: CaptureState): PersistedSnapshot {
   return {
     ...emptySnapshot(),
     triagensPacientes: state.triagensPacientes,
     cadastrosPsicologos: state.cadastrosPsicologos,
+    ...(state.prazoOfertaHoras !== undefined ? { prazoOfertaHoras: state.prazoOfertaHoras } : {}),
   };
 }
 

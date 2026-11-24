@@ -39,11 +39,20 @@ describe('agendamento manual no fuso da clínica', () => {
   });
 
   it('restringe a duração enviada pela API ao serviço escolhido', () => {
+    expect(validServiceDuration('ORIENTACAO_PARENTAL', 50)).toBe(true);
+    expect(validServiceDuration('ORIENTACAO_PARENTAL', 90)).toBe(true);
+    expect(validServiceDuration('ORIENTACAO_PARENTAL', 75)).toBe(false);
     expect(validServiceDuration('AVALIACAO', 15)).toBe(true);
     expect(validServiceDuration('AVALIACAO', 90)).toBe(true);
     expect(validServiceDuration('AVALIACAO', 240)).toBe(true);
     expect(validServiceDuration('AVALIACAO', 241)).toBe(false);
-    expect(validServiceDuration('PSICOTERAPIA', 90)).toBe(false);
+    expect(validServiceDuration('PSICOTERAPIA', 90)).toBe(true);
+    expect(validServiceDuration('ORIENTACAO_VOCACIONAL', 90)).toBe(true);
+    expect(validServiceDuration('ORIENTACAO_PROFISSIONAL', 90)).toBe(true);
+    expect(CLINICAL_SERVICES.find(({ key }) => key === 'PSICOTERAPIA')?.durationOptions).toEqual([
+      { minutes: 50, label: 'Individual · 50 min' },
+      { minutes: 90, label: 'Casal, família ou grupo · 1h30' },
+    ]);
     expect(validServiceDuration('PSICOTERAPIA', 50)).toBe(true);
     expect(validServiceDuration('PSICOTERAPIA_CASAL', 90)).toBe(true);
     expect(validServiceDuration('OUTRO_DESCONHECIDO', 50)).toBe(false);

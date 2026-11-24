@@ -1,12 +1,11 @@
 import 'server-only';
 
-import { randomUUID } from 'node:crypto';
 import type { Pool, PoolConnection } from 'mysql2/promise';
 import type { RowDataPacket } from 'mysql2';
-import { descricaoFiscalDaSessao } from '@/lib/sessionReference';
+import { registrarCobrancaContratual } from './companySessionCharge';
 import { getMysqlPool } from '@/server/oci/runtime';
 import { custeioEfetivoSql } from '@/server/persistence/mysql/custeioSql';
-import { instituicaoId, rowId } from '@/server/persistence/mysql/mappers';
+import { instituicaoId } from '@/server/persistence/mysql/mappers';
 import { cancelarCobrancaDaSessao } from './sessionChargeCancellation';
 
 export interface ResultadoTransferencia {
@@ -113,13 +112,15 @@ async function transferirSessaoBloqueada(agendamentoId: string): Promise<boolean
   try {
     await connection.beginTransaction();
     const [rows] = await connection.query<RowDataPacket[]>(
-      `SELECT a.status, a.inicio, a.sessao_clinica_ref, a.valor_centavos,
-              pr.valor_sessao_centavos, o.ref_core AS organizacao_ref,
+      `SELECT a.status, a.inicio, a.sessao_clinica_ref, COALESCE(a.realizado_em, s.criado_em) AS confirmada_em,
+              conv.valor_sessao_contrato_centavos, o.ref_core AS organizacao_ref,
               pa.ref_core AS paciente_ref, pa.convenio_ref, pr.ref_core AS profissional_ref
          FROM clinica_agendamentos a
          JOIN clinica_organizacoes o ON o.id = a.organizacao_id
          JOIN clinica_pacientes pa ON pa.id = a.paciente_id
          JOIN clinica_profissionais pr ON pr.id = a.profissional_id
+         LEFT JOIN clinica_sessoes s ON s.instituicao_id = a.instituicao_id AND s.organizacao_ref = o.ref_core AND s.ref_core = a.sessao_clinica_ref
+         LEFT JOIN clinica_convenios conv ON conv.instituicao_id = a.instituicao_id AND conv.organizacao_ref = o.ref_core AND conv.ref_core = pa.convenio_ref
         WHERE a.instituicao_id = ? AND a.id = ? LIMIT 1 FOR UPDATE`,
       [instituicaoId(), agendamentoId]
     );
@@ -143,34 +144,17 @@ async function transferirSessaoBloqueada(agendamentoId: string): Promise<boolean
       await connection.commit();
       return false;
     }
-    const valorCents = Number(agendamento.valor_centavos ?? agendamento.valor_sessao_centavos);
-    if (!Number.isSafeInteger(valorCents) || valorCents <= 0) {
-      throw new Error('O valor da sessão custeada não está configurado no perfil profissional.');
-    }
     const agora = new Date();
-    const sessionRef = String(agendamento.sessao_clinica_ref);
-    const chargeRef = `charge-company-session-${randomUUID()}`;
     await connection.execute(
       `UPDATE clinica_agendamentos SET custeado_pela_empresa = 1, custeio_convenio_ref = ?, transferencia_convenio_ref = NULL, versao = versao + 1, atualizado_em = ?
         WHERE instituicao_id = ? AND id = ?`,
       [agendamento.convenio_ref, agora, instituicaoId(), agendamentoId]
     );
-    await connection.execute(
-      `INSERT INTO financeiro_cobrancas
-        (id, instituicao_id, organizacao_ref, ref_core, sessao_ref, paciente_ref,
-         profissional_ref, emitida_em, vence_em, valor_centavos, status,
-         descricao, fatura_convenio_ref, convenio_ref, criado_em, atualizado_em)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, NULL, ?, ?, ?)`,
-      [rowId('cobranca', chargeRef), instituicaoId(), agendamento.organizacao_ref,
-        chargeRef, sessionRef, agendamento.paciente_ref, agendamento.profissional_ref,
-        agora, agora, valorCents, descricaoFiscalDaSessao(new Date(agendamento.inicio).toISOString()),
-        agendamento.convenio_ref, agora, agora]
-    );
-    await connection.execute(
-      `UPDATE clinica_sessoes SET cobranca_ref = ?, atualizado_em = ?
-        WHERE instituicao_id = ? AND organizacao_ref = ? AND ref_core = ?`,
-      [chargeRef, agora, instituicaoId(), agendamento.organizacao_ref, sessionRef]
-    );
+    await registrarCobrancaContratual(connection, {
+      agendamentoId, organizacao: agendamento.organizacao_ref, convenio: agendamento.convenio_ref,
+      sessao: agendamento.sessao_clinica_ref, paciente: agendamento.paciente_ref, profissional: agendamento.profissional_ref,
+      inicio: new Date(agendamento.inicio), confirmadaEm: new Date(agendamento.confirmada_em),
+    }, agendamento.valor_sessao_contrato_centavos == null ? null : Number(agendamento.valor_sessao_contrato_centavos));
     await connection.commit();
     return true;
   } catch (error) {

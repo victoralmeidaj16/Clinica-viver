@@ -183,6 +183,20 @@ describe('completeAppointment', () => {
     expect(connection.commit).toHaveBeenCalled();
   });
 
+  it('confirma a sessão custeada com R$ 100 do contrato mesmo com a tabela profissional de R$ 120', async () => {
+    comLinhas({
+      ...PARA_CONCLUIR, custeado_pela_empresa: 1, convenio_ref: 'empresa-1',
+      valor_sessao_contrato_centavos: 10_000, valor_sessao_centavos: 12_000,
+    });
+
+    expect(await completeAppointment('org-1', 'pro-1', 'apt-1', AGORA)).toBe('completed');
+
+    const cobrancas = connection.execute.mock.calls.filter(([sql]) => sql.includes('INSERT INTO financeiro_cobrancas'));
+    expect(cobrancas).toHaveLength(1);
+    expect(cobrancas[0][1]?.slice(7, 10)).toEqual([AGORA, AGORA, 10_000]);
+    expect(connection.commit).toHaveBeenCalledOnce();
+  });
+
   it('conclui como particular quando uma decisão antiga de empresa ficou sem convênio', async () => {
     comLinhas({ ...PARA_CONCLUIR, custeado_pela_empresa: 1, convenio_ref: null });
     expect(await completeAppointment('org-1', 'pro-1', 'apt-1', AGORA)).toBe('completed');

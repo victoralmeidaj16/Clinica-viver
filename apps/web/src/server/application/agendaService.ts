@@ -2,6 +2,7 @@ import 'server-only';
 
 import type { RequestContext } from './context';
 import { ApplicationError } from './http';
+import type { VencimentoAgendamento } from '@/server/scheduling/gestaoAgendaRepository';
 import { parseAgendaBlockInput } from '@/server/scheduling/agendaBlockInput';
 import {
   cancelAppointment,
@@ -19,6 +20,7 @@ import {
   type JanelaEditavel,
   type ResultadoConfirmacaoRealizacao,
   type UpdateAppointmentInput,
+  type UpdateAppointmentOptions,
 } from '@/server/scheduling/agendaRepository';
 import { avisarSessaoCancelada } from '@/server/scheduling/agendaAvisos';
 import { getCaptureRepository } from '@/server/persistence/captureRepository';
@@ -301,10 +303,11 @@ export async function confirmAgendaAppointmentCompleted(
 export async function updateAgendaAppointmentChargeDue(
   context: RequestContext,
   appointmentId: string,
-  dueAt: string
+  dueAt: string,
+  aposAlteracao?: (anterior: VencimentoAgendamento) => Promise<void>
 ) {
   const { organizationId, professionalId } = perfilDaSessao(context);
-  const outcome = await atualizarVencimentoCobrancaSessao({ organizationId, professionalId, appointmentId, dueAt });
+  const outcome = await atualizarVencimentoCobrancaSessao({ organizationId, professionalId, appointmentId, dueAt, aposAlteracao });
   if (outcome === 'not_found') throw new ApplicationError('NOT_FOUND', 'Cobrança da sessão não encontrada.', 404);
   if (outcome === 'paid') throw new ApplicationError('CHARGE_SETTLED', 'O vencimento não pode ser alterado após o pagamento.', 409);
   if (outcome === 'invalid') throw new ApplicationError('INVALID_INPUT', 'O vencimento deve estar no futuro.', 400);
@@ -361,7 +364,7 @@ export async function editAgendaAppointment(
   context: RequestContext,
   appointmentId: string,
   input: UpdateAppointmentInput,
-  opcoes: { somenteAgendadas?: boolean; permitirHorarioPassado?: boolean } = {}
+  opcoes: Pick<UpdateAppointmentOptions, 'somenteAgendadas' | 'permitirHorarioPassado' | 'permitirCorrecaoAdministrativa' | 'registrarAlteracaoGestao'> = {}
 ) {
   const { organizationId, professionalId } = perfilDaSessao(context);
   if (input.custeadoPelaEmpresa !== undefined
@@ -469,7 +472,9 @@ export async function editAgendaAppointment(
   }
 
   if (querRealizar) {
-    const resultado = await completeAppointment(organizationId, professionalId, appointmentId);
+    const resultado = opcoes.registrarAlteracaoGestao
+      ? await completeAppointment(organizationId, professionalId, appointmentId, new Date(), opcoes.registrarAlteracaoGestao)
+      : await completeAppointment(organizationId, professionalId, appointmentId);
     exigirConclusao(resultado);
     // `already_completed` aqui é apenas o formulário reenviando o status atual.
     if (resultado === 'completed') await cobrarPacienteSePreciso(appointmentId);

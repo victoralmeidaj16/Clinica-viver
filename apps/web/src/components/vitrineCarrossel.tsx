@@ -27,8 +27,10 @@ export interface PsicologoVitrineItem {
   fotoUrl?: string;
   turmaViverMais?: string;
   posGraduacaoViverMais?: string;
+  segundaPosGraduacao?: string;
   especialidades: string[];
   servicosHabilitados: string[];
+  temposAtendimento?: number[];
   turnosDisponiveis?: string[];
   modalidadesAtendidas?: string[];
   /** ONLINE, PRESENCIAL ou AMBOS — define se a cidade do profissional aparece no card. */

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, ArrowDownWideNarrow, Clock3, HeartHandshake, Search, ShieldCheck, UserRoundX, UsersRound, UserX } from 'lucide-react';
 import PatientManagementDrawer from '@/components/patients/PatientManagementDrawer';
-import type { ManagedPatient, ManagedPsychologist, PatientManagementStatus } from '@/components/patients/managementTypes';
+import type { ManagedPatient, ManagedPsychologist, PatientManagementStatus, ReassignOptions } from '@/components/patients/managementTypes';
 import type { ManagedConvenio } from '@/components/patients/managementTypes';
 import { reassignManagedPatient, updatePatientConvenio, updatePatientSessionPricing } from '@/components/patients/patientManagementActions';
 import type { CusteioCiclo } from '@/lib/convenioBilling';
@@ -29,7 +29,7 @@ function agreementOf(patient: ManagedPatient): string {
 }
 
 const statusLabel: Record<PatientManagementStatus, string> = {
-  EM_TRIAGEM: 'Em triagem', ATIVO: 'Ativo', ALTA: 'Alta', DESISTENTE: 'Desistente',
+  EM_TRIAGEM: 'Em triagem', ATIVO: 'Ativo', ALTA: 'Alta', DESISTENTE: 'Desistente', INATIVO: 'Inativo',
 };
 
 const statusClass: Record<PatientManagementStatus, string> = {
@@ -37,6 +37,7 @@ const statusClass: Record<PatientManagementStatus, string> = {
   ATIVO: 'bg-psi-soft text-psi-deep border-psi-vibrant/30 font-bold',
   ALTA: 'bg-sky-500/10 text-sky-800 border-sky-500/30',
   DESISTENTE: 'bg-rose-500/10 text-rose-800 border-rose-500/30',
+  INATIVO: 'bg-slate-500/10 text-slate-700 border-slate-400/40',
 };
 
 export default function GestaoPacientesPage() {
@@ -124,8 +125,13 @@ export default function GestaoPacientesPage() {
   // continuaria exibindo o paciente como estava antes do registro.
   const selectedPatient = selected ? patients.find((patient) => patient.id === selected.id) ?? selected : null;
 
-  const reassign = async (patient: ManagedPatient, professionalId: string, reason: string) => {
-    await reassignManagedPatient(patient, professionalId, reason);
+  const reassign = async (
+    patient: ManagedPatient,
+    professionalId: string,
+    reason: string,
+    options?: ReassignOptions,
+  ) => {
+    await reassignManagedPatient(patient, professionalId, reason, options);
     await load();
     setSelected(null);
   };

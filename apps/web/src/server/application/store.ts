@@ -63,11 +63,13 @@ function createState(): DemoApplicationState {
   const professional = createProfessionalProfile({ id: 'professional-1', organizationId: organization.id, userId: 'user-demo', displayName: 'Dra. Camila', councilType: 'CRP', councilRegistration: '06/148293', specialties: ['TCC'], createdAt });
   const adminUser = createIdentityUser({ id: 'admin-demo', displayName: 'Coordenação Viver Mais', normalizedEmail: 'admin@vivermais.local', createdAt });
   const adminMembership = { ...createOrganizationMembership({ id: 'membership-admin-demo', organizationId: organization.id, userId: adminUser.id, roles: ['owner', 'admin'], createdAt }), status: 'active' as const };
+  const financeiroUser = createIdentityUser({ id: 'financeiro-demo', displayName: 'Financeiro Viver Mais', normalizedEmail: 'financeiro@vivermais.local', createdAt });
+  const financeiroMembership = { ...createOrganizationMembership({ id: 'membership-financeiro-demo', organizationId: organization.id, userId: financeiroUser.id, roles: ['billing'], createdAt }), status: 'active' as const };
   const membership: OrganizationMembership = { id: 'membership-demo', organizationId: organization.id, userId: professional.userId, roles: ['professional', 'billing'], status: 'active', professionalProfileId: professional.id, createdAt, updatedAt: createdAt };
   const documentSeed = isDocumentDemo() ? documentDemoSeed() : { patients: [], appointments: [] };
 
   return {
-    identities: new InMemoryIdentityRepository({ organizations: [organization], users: [adminUser], memberships: [membership, adminMembership], professionals: [professional], patients: documentSeed.patients }),
+    identities: new InMemoryIdentityRepository({ organizations: [organization], users: [adminUser, financeiroUser], memberships: [membership, adminMembership, financeiroMembership], professionals: [professional], patients: documentSeed.patients }),
     appointments: new InMemoryAppointmentRepository(documentSeed.appointments), notifications: new InMemoryNotificationRepository(), communicationAudit: new InMemoryCommunicationAudit(),
     sessions: new InMemoryClinicalSessionRepository([]), records: new InMemoryClinicalRecordRepository([]),
     timeline: new InMemoryClinicalTimelineRepository([]),

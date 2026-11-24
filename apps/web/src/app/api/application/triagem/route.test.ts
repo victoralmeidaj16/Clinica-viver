@@ -37,7 +37,7 @@ describe('acolhimento na solicitação de agendamento', () => {
   it('ativa a validação estrita da matriz pública antes de consultar o WhatsApp', async () => {
     mocks.mutate.mockResolvedValue({ situacao: 'criado', lead });
     await solicitar();
-    expect(mocks.validar).toHaveBeenCalledWith({}, { exigirCompatibilidadeVitrine: true });
+    expect(mocks.validar).toHaveBeenCalledWith({}, { exigirCompatibilidadeVitrine: true, exigirResponsavelDeMenor: true });
   });
 
   it.each([undefined, { id: 'psi-1' }])('envia ao paciente com profissional %j', async (psicologo) => {

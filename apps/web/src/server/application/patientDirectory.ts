@@ -10,13 +10,19 @@ import { recalcularPacientesAtivos } from './viverMaisRodizio';
 import { avisarConfirmacaoPaciente } from './viverMaisWhatsApp';
 import { motivoValido } from '@/lib/desistencias';
 import { validarSubmissaoTriagem } from '@/lib/triagemSubmissao';
+import type { AuditoriaDesistenciaRecord, TriagemPacienteRecord } from './persistence';
+import { getDesistenciaRepository } from '@/server/persistence/desistenciaRepository';
+import { executarListaDeEsperaSemFalhar } from './listaEsperaExecucao';
+import { inativacaoVigente, type InativacaoVinculo } from '@/lib/inativacaoVinculo';
+import type { ResponsavelFinanceiro } from '@/lib/responsavelFinanceiro';
+import type { VinculoColetivo } from '@/lib/vinculoColetivo';
 import {
-  emptySnapshot,
-  readSnapshot,
-  writeSnapshot,
-  type AuditoriaDesistenciaRecord,
-  type TriagemPacienteRecord,
-} from './persistence';
+  CAMPOS_PREFERENCIA,
+  type AlteracaoPreferencias,
+  type CampoPreferencia,
+  type PreferenciasSolicitacao,
+  type ValorPreferencia,
+} from '@/lib/preferenciasSolicitacao';
 import { isMysqlConfigured, getMysqlPool } from '@/server/oci/runtime';
 import { instituicaoId } from '@/server/persistence/mysql/mappers';
 import type { RowDataPacket } from 'mysql2/promise';
@@ -28,6 +34,9 @@ import { cicloDeCusteioSql, cotaDeCusteioSql, custeioEfetivoSql } from '@/server
 import { normalizarCicloCusteio } from '@/lib/convenioBilling';
 import { custeioAoAgendar, type CusteioAoAgendar } from '@/lib/sessionChargeRules';
 import { atendimentoPermitido } from '@/lib/patientCareOptions';
+import { tipoColetivoDoPedido } from '@/lib/vinculoColetivo';
+import { extrairPreferencias } from '@/lib/preferenciasSolicitacao';
+import { normalizarPedidoColetivo } from './pedidoColetivo';
 
 /**
  * Cadastro de pacientes visto pela equipe.
@@ -66,6 +75,22 @@ export interface PatientDirectoryEntry {
    */
   custeioAoAgendar?: CusteioAoAgendar;
   demanda?: string;
+  /** Inativação vigente do vínculo, com motivo, autor e data (6.05). */
+  inativacao?: InativacaoVinculo;
+  /** Responsável pelo primeiro contato e pelas cobranças (6.03 e 6.04). */
+  responsavelFinanceiro?: ResponsavelFinanceiro;
+  identificadoPeloResponsavel?: boolean;
+  vinculoColetivo?: VinculoColetivo;
+  /** O que o site enviou e o que mudou depois (4.04). */
+  preferenciasOriginais?: PreferenciasSolicitacao;
+  preferenciasAtuais?: Partial<Record<CampoPreferencia, ValorPreferencia>>;
+  alteracoesPreferencias?: readonly AlteracaoPreferencias[];
+}
+
+/** Valores de preferência vigentes no pedido, para comparar com os originais. */
+function preferenciasDoLead(lead: TriagemPacienteRecord): Partial<Record<CampoPreferencia, ValorPreferencia>> {
+  const fonte = lead as unknown as Partial<Record<CampoPreferencia, ValorPreferencia>>;
+  return Object.fromEntries(CAMPOS_PREFERENCIA.filter((campo) => fonte[campo] !== undefined).map((campo) => [campo, fonte[campo]]));
 }
 
 function contactSource(identities: unknown): PatientContactCapable | null {
@@ -96,7 +121,7 @@ export async function listPatientDirectory(context: RequestContext): Promise<rea
   const organizationId = context.actor.organizationId;
   const contacts = contactSource(store.identities);
 
-  const [patients, appointments, contactMap, capture, mysqlAgreementRows] = await Promise.all([
+  const [patients, appointments, contactMap, capture, mysqlAgreementRows, desistencias] = await Promise.all([
     store.identities.listPatients(organizationId),
     store.appointments.list({ organizationId, ...(clinicalOnly && professionalId ? { professionalId } : {}) }),
     contacts ? contacts.listPatientContacts(organizationId) : Promise.resolve<Record<string, PatientContact>>({}),
@@ -120,6 +145,7 @@ export async function listPatientDirectory(context: RequestContext): Promise<rea
           .then(([rows]) => rows)
           .catch(() => [] as RowDataPacket[])
       : Promise.resolve([] as RowDataPacket[]),
+    getDesistenciaRepository().list(organizationId).catch(() => [] as AuditoriaDesistenciaRecord[]),
   ]);
 
   const agreementsByPatient = new Map(mysqlAgreementRows.map((r) => [String(r.ref_core), r]));
@@ -136,12 +162,8 @@ export async function listPatientDirectory(context: RequestContext): Promise<rea
 
   const now = Date.now();
   const openDropouts = new Set(
-    (readSnapshot()?.auditoriaDesistencias ?? [])
-      .filter(
-        (dropout) =>
-          !dropout.reengajado &&
-          (!dropout.organizationId || dropout.organizationId === organizationId)
-      )
+    desistencias
+      .filter((dropout) => !dropout.reengajado)
       .map((dropout) => dropout.pacienteId)
       .filter((patientId): patientId is string => Boolean(patientId))
   );
@@ -216,6 +238,14 @@ export async function listPatientDirectory(context: RequestContext): Promise<rea
         ? custeioAoAgendar({ custeadoEfetivo: agreement.custeado_efetivo, cota: agreement.custeio_sessoes_cota })
         : undefined,
       demanda,
+      ...(lead?.status === 'INATIVO' && inativacaoVigente(lead) ? { inativacao: inativacaoVigente(lead) } : {}),
+      ...(lead?.responsavelFinanceiro ? { responsavelFinanceiro: lead.responsavelFinanceiro } : {}),
+      ...(lead?.identificadoPeloResponsavel ? { identificadoPeloResponsavel: true } : {}),
+      ...(lead?.vinculoColetivo ? { vinculoColetivo: lead.vinculoColetivo } : {}),
+      // O psicólogo que aceitou vê a origem das preferências (4.04).
+      ...(lead?.preferenciasOriginais ? { preferenciasOriginais: lead.preferenciasOriginais } : {}),
+      ...(lead ? { preferenciasAtuais: preferenciasDoLead(lead) } : {}),
+      ...(lead?.alteracoesPreferencias?.length ? { alteracoesPreferencias: lead.alteracoesPreferencias } : {}),
     };
   });
 }
@@ -262,17 +292,13 @@ export async function registerPatientDropout(
     throw new ApplicationError('FORBIDDEN', 'Este paciente não pertence à sua carteira.', 403);
   }
 
-  const snapshot = readSnapshot() ?? emptySnapshot();
+  const desistencias = getDesistenciaRepository();
+  const registros = await desistencias.list(context.actor.organizationId);
   const recordId = `desistencia-${context.idempotencyKey}`;
-  const repeatedCommand = (snapshot.auditoriaDesistencias ?? []).find((item) => item.id === recordId);
+  const repeatedCommand = registros.find((item) => item.id === recordId);
   if (repeatedCommand) return repeatedCommand;
 
-  const alreadyOpen = (snapshot.auditoriaDesistencias ?? []).some(
-    (item) =>
-      item.pacienteId === patient.id &&
-      !item.reengajado &&
-      (!item.organizationId || item.organizationId === context.actor.organizationId)
-  );
+  const alreadyOpen = registros.some((item) => item.pacienteId === patient.id && !item.reengajado);
   if (alreadyOpen) {
     throw new ApplicationError('CONFLICT', 'Este paciente já possui uma desistência em acompanhamento.', 409);
   }
@@ -303,14 +329,12 @@ export async function registerPatientDropout(
     dataDesistencia: now,
     reengajado: false,
     permitirTrocaPsicologo: Boolean(body.permitirTrocaPsicologo),
+    registradoPorUsuarioRef: context.actor.userId,
+    registradoPorPerfil: 'PSICOLOGO',
   };
 
   await store.identities.savePatient({ ...patient, status: 'discharged', updatedAt: now });
-  await writeSnapshot({
-    ...snapshot,
-    auditoriaDesistencias: [dropout, ...(snapshot.auditoriaDesistencias ?? [])],
-    savedAt: now,
-  });
+  await desistencias.save(dropout);
 
   // A triagem guarda o vínculo pelo `pacienteRef`. Marcar a saída aqui libera
   // imediatamente a capacidade sem atribuir o prontuário a outra pessoa.
@@ -329,6 +353,8 @@ export async function registerPatientDropout(
       result: null,
     };
   });
+  // A vaga liberada pode ser de quem espera na lista automática (5.07).
+  await executarListaDeEsperaSemFalhar();
 
   return dropout;
 }
@@ -352,11 +378,16 @@ export async function createPatient(
 
   const fullRegistration = body.whatsapp ? validarSubmissaoTriagem(body, {
     cadastroManual: context.actor.roles.includes('professional'),
+    exigirResponsavelDeMenor: true,
   }) : undefined;
   if (fullRegistration && !fullRegistration.ok) {
     throw new ApplicationError('INVALID_INPUT', fullRegistration.erro, fullRegistration.status);
   }
-  const registration = validatePatientRegistrationDetails(body);
+  // Menor sem CPF e vínculo coletivo não ocupam CPF no cadastro (6.03, 6.04).
+  const semCpfProprio = Boolean(fullRegistration?.ok && (
+    fullRegistration.dados.identificadoPeloResponsavel || tipoColetivoDoPedido(fullRegistration.dados)
+  ));
+  const registration = validatePatientRegistrationDetails(body, { cpfOpcional: semCpfProprio });
   if (!registration.ok) {
     throw new ApplicationError('INVALID_INPUT', registration.error, 400);
   }
@@ -376,8 +407,17 @@ export async function createPatient(
   const assertHabilitacao = (state: CaptureState) => {
     if (!context.actor.roles.includes('professional')) return;
     const cadastro = state.cadastrosPsicologos.find((item) => item.profissionalRef === professionalId);
-    if (!atendimentoPermitido(cadastro ?? null, String(body.servicoKey ?? ''), String(body.modalidade ?? ''))) {
-      throw new ApplicationError('FORBIDDEN', 'Selecione um serviço e uma modalidade habilitados no seu perfil pela clínica.', 403);
+    if (!atendimentoPermitido(
+      cadastro ?? null,
+      String(body.servicoKey ?? ''),
+      String(body.modalidade ?? ''),
+      String(body.paraQuemE ?? ''),
+    )) {
+      throw new ApplicationError(
+        'FORBIDDEN',
+        'Selecione serviço, modalidade e público habilitados no seu perfil pela clínica.',
+        403,
+      );
     }
   };
 
@@ -398,7 +438,7 @@ export async function createPatient(
     email: body.email ? String(body.email) : undefined,
     legalName: body.legalName ? String(body.legalName) : body.nome ? String(body.nome) : undefined,
     socialName: body.socialName ? String(body.socialName) : body.nomeSocial ? String(body.nomeSocial) : undefined,
-    documento: body.cpf ? String(body.cpf).replace(/\D/g, '') : undefined,
+    documento: !semCpfProprio && body.cpf ? String(body.cpf).replace(/\D/g, '') : undefined,
     cep: registration.data.address.cep,
     logradouro: registration.data.address.logradouro,
     numero: registration.data.address.numero,
@@ -426,9 +466,7 @@ export async function createPatient(
       return { next: state, result: null };
     }
     const cadastro = state.cadastrosPsicologos.find((item) => item.profissionalRef === professionalId);
-    const next = recalcularPacientesAtivos({
-      ...captureStateAsSnapshot(state),
-      triagensPacientes: [...state.triagensPacientes, {
+    const novo: TriagemPacienteRecord = normalizarPedidoColetivo({
         id: leadId,
         protocolo: `VM-MANUAL-${patient.id.slice(-8).toUpperCase()}`,
         nomePaciente: String(body.legalName ?? body.nome ?? displayName),
@@ -471,8 +509,14 @@ export async function createPatient(
         psicologosJaTentados: cadastro ? [cadastro.id] : [],
         // Projeto Acolhe fica fora do limite de vagas (especificação, seção 15).
         ...(body.projetoAcolhe === true ? { projetoAcolhe: true } : {}),
+        ...(data.responsavelFinanceiro ? { responsavelFinanceiro: data.responsavelFinanceiro } : {}),
+        ...(data.identificadoPeloResponsavel ? { identificadoPeloResponsavel: true } : {}),
         criadoEm: now,
-      }],
+      });
+    novo.preferenciasOriginais = extrairPreferencias(novo, 'CADASTRO_MANUAL', now);
+    const next = recalcularPacientesAtivos({
+      ...captureStateAsSnapshot(state),
+      triagensPacientes: [...state.triagensPacientes, novo],
     });
     return {
       next: {
@@ -496,7 +540,9 @@ export async function createPatient(
       );
       if (existingRows.length) return { next: state, result: null };
       assertHabilitacao(state);
-      await assertPatientCpfAvailable(connection, context.actor.organizationId, patient.id, registration.data.cpf);
+      if (contact.documento) {
+        await assertPatientCpfAvailable(connection, context.actor.organizationId, patient.id, contact.documento);
+      }
       await identities.savePatient(patient, connection);
       await identities.savePatientContact(patient.id, contact, connection);
       return addTriage(state);
@@ -555,7 +601,12 @@ export async function updatePatientRegistration(
     patientId: patient.id,
     assignedProfessionalIds: patient.assignedProfessionalIds,
   });
-  const parsed = validatePatientRegistrationDetails(body);
+  // O vínculo decide se o CPF próprio é dispensável (6.03, 6.04 e seção 15).
+  const vinculo = (await getCaptureRepository().read()).triagensPacientes
+    .find((lead) => lead.pacienteRef === patient.id);
+  const parsed = validatePatientRegistrationDetails(body, {
+    cpfOpcional: Boolean(vinculo?.identificadoPeloResponsavel || vinculo?.vinculoColetivo),
+  });
   if (!parsed.ok) throw new ApplicationError('INVALID_INPUT', parsed.error, 400);
   if ((body.expectedUpdatedAt !== null && typeof body.expectedUpdatedAt !== 'string') || typeof body.expectedCpf !== 'string') {
     throw new ApplicationError('INVALID_INPUT', 'Reabra o cadastro antes de salvar.', 400);

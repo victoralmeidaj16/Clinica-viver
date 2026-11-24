@@ -1,4 +1,6 @@
 import { rotuloTurnoPreferencia } from '@/lib/turnos';
+import { prazoDaOferta, rotuloPrazo } from '@/lib/prazoOferta';
+import { responsavelDoPrimeiroContato } from '@/lib/responsavelFinanceiro';
 import 'server-only';
 
 import type { CadastroPsicologoRecord, TriagemPacienteRecord } from './persistence';
@@ -53,15 +55,12 @@ function configuracaoEmail() {
 }
 
 export function conteudoTriagemRecebida(
-  lead: TriagemPacienteRecord,
-  psicologo?: CadastroPsicologoRecord
+  lead: TriagemPacienteRecord
 ): ConteudoEmail {
   const nomePaciente = lead.nomeSocial?.trim() || lead.nomePaciente?.trim() || 'Paciente';
   const nomePacienteSeguro = escaparHtml(nomePaciente);
   const protocoloSeguro = escaparHtml(lead.protocolo);
   const servicoSeguro = escaparHtml(lead.servico || 'Psicoterapia');
-  const nomePsicologo = psicologo ? (psicologo.nomeSocial?.trim() || psicologo.nomeCompleto) : undefined;
-  const psicologoSeguro = nomePsicologo ? escaparHtml(nomePsicologo) : undefined;
 
   return {
     subject: `Solicitação de Agendamento Recebida (${lead.protocolo}) — Viver Mais Psicologia`,
@@ -74,10 +73,9 @@ export function conteudoTriagemRecebida(
       `Paciente: ${nomePaciente}`,
       `WhatsApp / Telefone informado: ${lead.telefone}`,
       `Serviço Solicitado: ${lead.servico || 'Psicoterapia'}`,
-      ...(nomePsicologo ? [`Psicólogo(a): ${nomePsicologo}`] : []),
       '',
       'Próximos Passos:',
-      'O psicólogo(a) entrará em contato com você via WhatsApp em até 24 horas para combinar o melhor dia e horário da sua primeira sessão.',
+      'Sua solicitação foi registrada e está em encaminhamento pela Clínica Viver Mais Psicologia. Assim que o atendimento for confirmado com um(a) profissional compatível, você receberá pelo WhatsApp as próximas orientações para combinar o dia e horário da sua primeira sessão.',
       '',
       '⚠️ ATENÇÃO & SUPORTE DE EMERGÊNCIA:',
       'Se você ou alguém que você conhece estiver passando por uma crise emocional aguda, sofrimento intenso ou risco à vida, ligue imediatamente para o CVV no número 188 (ligação gratuita, 24 horas por dia) ou procure a Unidade de Pronto Atendimento (UPA) mais próxima.',
@@ -94,12 +92,11 @@ export function conteudoTriagemRecebida(
         <p style="margin: 0 0 8px 0;"><strong>Protocolo:</strong> <span style="font-family: monospace; font-size: 1.1em; color: #581c87;">${protocoloSeguro}</span></p>
         <p style="margin: 0 0 8px 0;"><strong>Paciente:</strong> ${nomePacienteSeguro}</p>
         <p style="margin: 0 0 8px 0;"><strong>WhatsApp / Telefone informado:</strong> ${escaparHtml(lead.telefone)}</p>
-        <p style="margin: 0 0 8px 0;"><strong>Serviço:</strong> ${servicoSeguro}</p>
-        ${psicologoSeguro ? `<p style="margin: 0;"><strong>Psicólogo(a):</strong> ${psicologoSeguro}</p>` : ''}
+        <p style="margin: 0;"><strong>Serviço:</strong> ${servicoSeguro}</p>
       </div>
 
       <h3 style="color: #334155; font-size: 1.1em;">Próximos Passos:</h3>
-      <p>O psicólogo(a) entrará em contato com você via WhatsApp em até <strong>24 horas</strong> para combinar o melhor dia e horário da sua primeira sessão.</p>
+      <p>Sua solicitação foi registrada e está em encaminhamento pela Clínica Viver Mais Psicologia. Assim que o atendimento for confirmado com um(a) profissional compatível, você receberá pelo WhatsApp as próximas orientações para combinar o dia e horário da sua primeira sessão.</p>
 
       <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 16px; margin: 24px 0;">
         <strong style="color: #991b1b; display: block; margin-bottom: 6px;">⚠️ Suporte e Acolhimento em Crise:</strong>
@@ -117,8 +114,7 @@ export function conteudoTriagemRecebida(
 }
 
 export async function avisarTriagemRecebidaPorEmail(
-  lead: TriagemPacienteRecord,
-  psicologo?: CadastroPsicologoRecord
+  lead: TriagemPacienteRecord
 ): Promise<ResultadoEmailTriagem> {
   const destinatario = normalizarEmail(lead.email);
   if (!destinatario) return { situacao: 'destinatario_invalido' };
@@ -129,7 +125,7 @@ export async function avisarTriagemRecebidaPorEmail(
     return { situacao: 'provedor_desconfigurado' };
   }
 
-  const conteudo = conteudoTriagemRecebida(lead, psicologo);
+  const conteudo = conteudoTriagemRecebida(lead);
 
   try {
     const response = await fetch(RESEND_ENDPOINT, {
@@ -253,6 +249,11 @@ export function conteudoAlocacaoPsicologo(
     ...(lead.necessidadesPaciente ?? []),
     ...(lead.necessidadesOutro ? [lead.necessidadesOutro] : []),
   ];
+  // Prazo com que esta oferta foi enviada (5.02): o configurado pela Gestão.
+  const prazo = rotuloPrazo(prazoDaOferta(lead));
+  const prazoCurto = `${prazoDaOferta(lead)}h`;
+  const prazoTitulo = prazo.replace('horas', 'Horas').replace('hora', 'Hora');
+  const responsavel = responsavelDoPrimeiroContato(lead);
 
   const linhasTexto = [
     `Olá, ${nomePsicologo}!`,
@@ -261,19 +262,22 @@ export function conteudoAlocacaoPsicologo(
       ? 'Você recebeu uma nova solicitação de atendimento por ESCOLHA DIRETA na Vitrine da Clínica Viver Mais Psicologia.'
       : 'Você foi selecionado no RODÍZIO INTELIGENTE de atendimentos da Clínica Viver Mais Psicologia.',
     '',
-    '⏰ ATENÇÃO AO PRAZO PARA RESPOSTA (24 HORAS):',
-    '• Você tem até 24 horas para aceitar ou recusar esta solicitação pelo link abaixo.',
+    `⏰ ATENÇÃO AO PRAZO PARA RESPOSTA (${prazo.toUpperCase()}):`,
+    `• Você tem até ${prazo} para aceitar ou recusar esta solicitação pelo link abaixo.`,
     `• ${ORIENTACOES_NO_ACEITE}`,
     isEscolhaDireta
       ? '• Se não puder atender, recuse pelo link: a coordenação da clínica decidirá o encaminhamento.'
       : '• Caso não possa atender esta solicitação no momento, encaminhe-a imediatamente para que o paciente seja direcionado ao próximo psicólogo da fila.',
     isEscolhaDireta
-      ? '• Sem resposta em 24 horas, a solicitação seguirá para a coordenação da clínica.'
-      : '• Se o prazo de 24 horas expirar sem resposta, o paciente será encaminhado automaticamente a outro profissional credenciado.',
+      ? `• Sem resposta em ${prazo}, a solicitação seguirá para a coordenação da clínica.`
+      : `• Se o prazo de ${prazo} expirar sem resposta, o paciente será encaminhado automaticamente a outro profissional credenciado.`,
     '',
     'Dados da Solicitação:',
     `• Paciente: ${nomePaciente}`,
     `• WhatsApp / Telefone: ${lead.telefone}${linkWhatsApp ? ` (${linkWhatsApp})` : ''}`,
+    ...(responsavel
+      ? [`• Responsável (primeiro contato e cobranças): ${responsavel.nome}${responsavel.telefone ? ` — ${responsavel.telefone}` : ''}`]
+      : []),
     `• Serviço: ${lead.servico || 'Psicoterapia'}`,
     `• Modalidade: ${rotuloModalidade(lead.modalidade)}`,
     `• Turno de Preferência: ${rotuloTurno(lead.turno)}`,
@@ -315,14 +319,14 @@ export function conteudoAlocacaoPsicologo(
 
     <!-- ALERTA DE 24 HORAS -->
     <div style="background-color: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; padding: 16px; margin: 20px 0;">
-      <strong style="color: #b45309; font-size: 15px; display: block; margin-bottom: 6px;">⏰ Prazo de Ação: até 24 Horas</strong>
+      <strong style="color: #b45309; font-size: 15px; display: block; margin-bottom: 6px;">⏰ Prazo de Ação: até ${prazoTitulo}</strong>
       <p style="margin: 0 0 8px 0; font-size: 13.5px; color: #92400e;">
-        Você tem <strong>até 24 horas</strong> para <strong>aceitar</strong> ou <strong>recusar</strong> esta solicitação. ${ORIENTACOES_NO_ACEITE}
+        Você tem <strong>até ${prazo}</strong> para <strong>aceitar</strong> ou <strong>recusar</strong> esta solicitação. ${ORIENTACOES_NO_ACEITE}
       </p>
       <p style="margin: 0; font-size: 12.5px; color: #b45309; font-style: italic;">
         ${isEscolhaDireta
-          ? '*Sem resposta em 24h, a solicitação seguirá para a coordenação da clínica, que decidirá o encaminhamento.'
-          : '*Caso não haja resposta em 24h, o sistema efetuará o transbordo automático para o próximo psicólogo da fila, garantindo agilidade no acolhimento.'}
+          ? `*Sem resposta em ${prazoCurto}, a solicitação seguirá para a coordenação da clínica, que decidirá o encaminhamento.`
+          : `*Caso não haja resposta em ${prazoCurto}, o sistema efetuará o transbordo automático para o próximo psicólogo da fila, garantindo agilidade no acolhimento.`}
       </p>
     </div>
 

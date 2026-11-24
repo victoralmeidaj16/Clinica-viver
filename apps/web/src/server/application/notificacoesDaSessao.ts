@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { alteracoesRecentesDoProfissional } from '@/server/persistence/mysql/agendamentoAlteracoesRepository';
+import { notificacoesDeCorrecaoDaGestao } from './notificacoesCorrecaoAgenda';
 import type { AuthSession } from '@/server/auth';
 import { getCaptureRepository } from '@/server/persistence/captureRepository';
 import { cadastroDaSessao } from '@/server/application/psychologistSelf';
@@ -7,13 +9,17 @@ import {
   notificacoesDeAceiteSemAgendamento,
   notificacoesDeAgendamentos,
   notificacoesDaGestao,
+  notificacoesDeCobrancasVencidas,
   notificacoesDePagamento,
   notificacoesDePerfilAlterado,
   notificacoesDoPsicologo,
   type NotificacaoDerivada,
 } from '@/server/application/notificacoes';
 import { getApplicationStore } from '@/server/application/store';
-import { listRecentConfirmedPayments } from '@/server/payments/paymentLinkRepository';
+import {
+  listOverdueChargesForProfessional,
+  listRecentConfirmedPayments,
+} from '@/server/payments/paymentLinkRepository';
 import { getPerfilAlteracoesRepository } from '@/server/persistence/perfilAlteracoes';
 import { isMysqlConfigured } from '@/server/oci/runtime';
 import { listAppointments } from '@/server/scheduling/agendaRepository';
@@ -59,11 +65,28 @@ async function pagamentosDoPsicologo(
   try {
     const professionalId = await profissionalDaSessao(organizationId, userId);
     if (!professionalId) return [];
-    return notificacoesDePagamento(
-      await listRecentConfirmedPayments(organizationId, professionalId, inicioDaJanela())
-    );
+    const desde = inicioDaJanela();
+    const [pagamentos, vencidas] = await Promise.all([
+      listRecentConfirmedPayments(organizationId, professionalId, desde),
+      listOverdueChargesForProfessional(organizationId, professionalId, desde),
+    ]);
+    return [...notificacoesDePagamento(pagamentos), ...notificacoesDeCobrancasVencidas(vencidas)];
   } catch (error) {
     console.error('Erro ao ler pagamentos para o sino:', error);
+    return [];
+  }
+}
+
+export async function correcoesDaGestao(organizationId: string, userId: string): Promise<NotificacaoDerivada[]> {
+  if (!isMysqlConfigured()) return [];
+  try {
+    const professionalId = await profissionalDaSessao(organizationId, userId);
+    if (!professionalId) return [];
+    return notificacoesDeCorrecaoDaGestao(
+      await alteracoesRecentesDoProfissional(organizationId, professionalId, inicioDaJanela())
+    );
+  } catch {
+    console.error('[agenda] Falha ao consultar correções da Gestão para o sino.');
     return [];
   }
 }
@@ -143,10 +166,13 @@ export async function notificacoesDaSessao(
       ...(await alteracoesDePerfil()),
     ];
   }
+  if (session.role === 'financeiro') return [];
   const cadastro = await cadastroDaSessao(session);
-  if (!cadastro) return [];
+  const correcoes = await correcoesDaGestao(session.organizationId, session.userId);
+  if (!cadastro) return correcoes;
   return [
     ...notificacoesDoPsicologo(state, cadastro, agora),
+    ...correcoes,
     ...(await agendamentosDoPsicologo(session.organizationId, session.userId)),
     ...(await pagamentosDoPsicologo(session.organizationId, session.userId)),
   ];

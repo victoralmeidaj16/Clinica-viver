@@ -30,6 +30,7 @@ import type {
   ManagedConvenio,
   ManagedPatient,
   ManagedPsychologist,
+  ReassignOptions,
 } from '@/components/patients/managementTypes';
 import type { CusteioCiclo } from '@/lib/convenioBilling';
 import type { SessionPricingCategory } from '@/components/patients/patientSessionPricingView';
@@ -45,6 +46,9 @@ import {
 } from '@/lib/turnos';
 import { formatarTempoDecorrido } from '@/lib/tempoDecorrido';
 import { DevolverAoRodizioBotao } from '@/components/gestao/DevolverAoRodizioBotao';
+import { PrazoOfertaPainel } from '@/components/gestao/PrazoOfertaPainel';
+import { ListaEsperaResumo } from '@/components/gestao/ListaEsperaResumo';
+import { naListaDeEspera, type ListaEsperaRegistro } from '@/lib/listaEspera';
 
 /** Linha da fila, como o `GET /api/application/triagem` a devolve. */
 interface LeadFila {
@@ -66,6 +70,11 @@ interface LeadFila {
   transbordos?: number;
   slaStatus: 'VERDE' | 'AMARELO' | 'VERMELHO';
   horasDecorridas: number | null;
+  /** Prazo gravado na oferta em andamento (5.02). */
+  prazoRespostaHoras?: number;
+  expiraEm?: string;
+  listaEspera?: ListaEsperaRegistro;
+  posicaoListaEspera?: number;
 }
 
 /** Cadastro de psicólogo, em qualquer etapa do credenciamento. */
@@ -164,31 +173,36 @@ function BadgeSla({ item }: { item: LeadFila }) {
       </span>
     );
   }
-  // Sem psicólogo alocado o relógio das 24h nem começou: não há prazo a estourar.
+  // Sem psicólogo alocado o relógio nem começou: não há prazo a estourar.
   if (!item.psicologoAlocadoId) {
     return (
       <span className="bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full whitespace-nowrap">
-        Aguardando alocação
+        {naListaDeEspera(item)
+          ? `Lista de espera${item.posicaoListaEspera ? ` · ${item.posicaoListaEspera}º` : ''}`
+          : 'Aguardando alocação'}
       </span>
     );
   }
+  // O prazo é o da própria oferta: mudar a configuração não reescreve as enviadas.
+  const prazo = item.prazoRespostaHoras ?? 24;
+  const metade = Math.round(prazo / 2);
   if (item.slaStatus === 'VERDE') {
     return (
       <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full whitespace-nowrap">
-        Normal (&lt; 12h)
+        Normal (&lt; {metade}h)
       </span>
     );
   }
   if (item.slaStatus === 'AMARELO') {
     return (
       <span className="bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full whitespace-nowrap">
-        Atenção (&gt; 12h)
+        Atenção (&gt; {metade}h)
       </span>
     );
   }
   return (
     <span className="bg-rose-100 text-rose-800 border border-rose-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full whitespace-nowrap">
-      Estourado (&gt; 24h)
+      Estourado (&gt; {prazo}h)
     </span>
   );
 }
@@ -206,6 +220,7 @@ export default function GestaoCockpitPage() {
   const [psicologosGestao, setPsicologosGestao] = useState<ManagedPsychologist[]>([]);
   const [conveniosGestao, setConveniosGestao] = useState<ManagedConvenio[]>([]);
   const [leadAberto, setLeadAberto] = useState<string | null>(null);
+  const [prazoOfertaHoras, setPrazoOfertaHoras] = useState(24);
 
   /**
    * Recarrega fila e cadastros das rotas de gestão.
@@ -234,6 +249,7 @@ export default function GestaoCockpitPage() {
       }
 
       setLeads(fila.data as LeadFila[]);
+      if (typeof fila.prazoOfertaHoras === 'number') setPrazoOfertaHoras(fila.prazoOfertaHoras);
       setPacientesGestao(Array.isArray(gestao?.data) ? (gestao.data as ManagedPatient[]) : []);
       setPsicologosGestao(Array.isArray(gestao?.psicologos) ? (gestao.psicologos as ManagedPsychologist[]) : []);
       setConveniosGestao(Array.isArray(gestao?.convenios) ? (gestao.convenios as ManagedConvenio[]) : []);
@@ -340,7 +356,7 @@ export default function GestaoCockpitPage() {
     }
     if (corpo.transbordosExecutados === 0) {
       setErroCarga(
-        'Nada a encaminhar: o prazo de 24h ainda não venceu ou não há outro profissional elegível.'
+        'Nada a encaminhar: o prazo da oferta ainda não venceu ou não há outro profissional elegível.'
       );
     }
     await recarregar();
@@ -365,8 +381,13 @@ export default function GestaoCockpitPage() {
     setLeadAberto(leadId);
   };
 
-  const encaminharPaciente = async (paciente: ManagedPatient, profissionalId: string, motivo: string) => {
-    await reassignManagedPatient(paciente, profissionalId, motivo);
+  const encaminharPaciente = async (
+    paciente: ManagedPatient,
+    profissionalId: string,
+    motivo: string,
+    opcoes?: ReassignOptions,
+  ) => {
+    await reassignManagedPatient(paciente, profissionalId, motivo, opcoes);
     await recarregar();
     setLeadAberto(null);
   };
@@ -420,7 +441,7 @@ export default function GestaoCockpitPage() {
           <span className="chip-accent text-[11px] mb-1">Cockpit da Gestão — Giuliana & Diretoria</span>
           <h1 className="text-2xl font-black text-ink flex items-center gap-2">
             <Shield className="w-6 h-6 text-psi-vibrant" />
-            Fila Inteligente & Prazo para Contato (24h)
+            Fila Inteligente & Prazo para Contato ({prazoOfertaHoras}h)
           </h1>
           <p className="text-xs text-muted">
             Acompanhe a distribuição circular de novos pacientes, alertas de estouro de prazo e encaminhamento em tempo real.
@@ -494,7 +515,7 @@ export default function GestaoCockpitPage() {
           icone={UserCheck}
         />
         <CardKpi
-          titulo="Prazo para contato vencido (> 24h)"
+          titulo={`Prazo para contato vencido (> ${prazoOfertaHoras}h)`}
           valor={contarPacientes(slasEstourados)}
           icone={AlertTriangle}
           critico={slasEstourados > 0}
@@ -562,12 +583,20 @@ export default function GestaoCockpitPage() {
         onSessionPricingChange={alterarValorSessao}
       />
 
+      {/* Prazo configurável e lista de espera (especificação final, 5.02 e 5.07) */}
+      {abaAtiva === 'FILA' && (
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          <PrazoOfertaPainel onAlterado={setPrazoOfertaHoras} />
+          <ListaEsperaResumo leads={leads} onAbrir={abrirDetalhes} />
+        </div>
+      )}
+
       {/* Conteúdo da Aba 1: Fila de Triagem */}
       {abaAtiva === 'FILA' && (
         <div className="bg-surface rounded-3xl border border-line shadow-card overflow-hidden space-y-4">
           <div className="p-5 sm:p-6 border-b border-line flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <h3 className="font-extrabold text-base text-ink">Monitoramento da Fila de Atribuição (prazo de 24h)</h3>
+              <h3 className="font-extrabold text-base text-ink">Monitoramento da Fila de Atribuição (prazo atual de {prazoOfertaHoras}h)</h3>
               <p className="text-xs text-muted">Pacientes em andamento e contagem regressiva para confirmação via WhatsApp</p>
             </div>
 

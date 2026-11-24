@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { captureStateAsSnapshot, getCaptureRepository } from '@/server/persistence/captureRepository';
 import { validarTokenConfirmacao } from '@/server/viverMaisConfirmToken';
 import { confirmarContato, type ConfirmacaoResult } from '@/server/application/viverMaisRodizio';
-import { avisarTransbordo, avisarConfirmacaoPaciente } from '@/server/application/viverMaisWhatsApp';
+import { avisarConfirmacaoPaciente } from '@/server/application/viverMaisWhatsApp';
+import { respostaLotacao } from '../lotacao';
 import { reconciliarPacientes } from '@/server/application/patientPromotion';
 
 export const runtime = 'nodejs';
@@ -51,16 +52,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
     if (resultado.kind === 'conflict') {
       return NextResponse.json(
-        { success: false, error: 'Este atendimento já foi encaminhado a outro profissional pelo prazo de 24h.' },
+        { success: false, error: 'Este atendimento já foi encaminhado a outro profissional porque o prazo de resposta terminou.' },
         { status: 409 }
       );
     }
     if (resultado.kind === 'expired') {
-      return NextResponse.json({ success: false, error: 'O prazo de 24h para responder a esta solicitação terminou. Ela seguiu para outro profissional ou para a coordenação da clínica.' }, { status: 409 });
+      return NextResponse.json({ success: false, error: 'O prazo para responder a esta solicitação terminou. Ela seguiu para outro profissional ou para a coordenação da clínica.' }, { status: 409 });
     }
     if (resultado.kind === 'capacity_reallocated' || resultado.kind === 'capacity_pending') {
-      if (resultado.psicologo) void avisarTransbordo(resultado.lead, resultado.psicologo);
-      return NextResponse.json({ success: false, realocado: resultado.kind === 'capacity_reallocated', error: resultado.kind === 'capacity_reallocated' ? 'Seu limite de 5 pacientes ativos foi atingido. O atendimento foi encaminhado ao próximo profissional.' : 'Seu limite de 5 pacientes ativos foi atingido. O atendimento retornou para a fila da gestão.' }, { status: 409 });
+      return respostaLotacao(resultado);
     }
 
     // As orientações saem no aceite (rota `decisao`). Aqui o envio é só rede

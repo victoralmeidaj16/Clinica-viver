@@ -16,3 +16,9 @@ it.each([['AVALIACAO', true], ['PSICOTERAPIA', false]] as const)('libera duraç�
 it('renderiza antes da chegada das cobranças sem falhar', () => {
   expect(() => renderToStaticMarkup(<MyReceivablesTable pacientesMap={new Map()} onCopyPayment={vi.fn()} onEditSession={vi.fn()} />)).not.toThrow();
 });
+it('marca cada linha de cobrança com data-foco para o sino abrir o item exato', () => {
+  const markup = renderToStaticMarkup(
+    <MyReceivablesTable receivables={[receivable]} pacientesMap={new Map()} onCopyPayment={vi.fn()} onEditSession={vi.fn()} />
+  );
+  expect(markup).toContain('data-foco="cobranca-charge-test"');
+});

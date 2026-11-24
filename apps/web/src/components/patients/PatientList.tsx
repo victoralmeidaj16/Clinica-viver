@@ -4,12 +4,15 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { PatientDirectoryEntry } from '@/server/application/patientDirectory';
 import PatientDropoutModal from './PatientDropoutModal';
+import PatientInactivateModal from './PatientInactivateModal';
+import PatientRequestModal from './PatientRequestModal';
 import { ManualAppointmentDialog } from '@/components/scheduling/ManualAppointmentDialog';
 import { PatientListToolbar } from './PatientListToolbar';
 import EditPatientModal from './EditPatientModal';
 import { PatientCard } from './PatientCard';
 import { FocoDeNotificacao } from '@/components/layout/FocoDeNotificacao';
 import { FOCO_SECAO } from '@/lib/focoNotificacao';
+import { VinculosEncerrados } from '@/components/timeline/VinculosEncerrados';
 
 interface PatientListProps {
   patients: readonly PatientDirectoryEntry[];
@@ -34,6 +37,8 @@ export default function PatientList({
   const [patientForSchedule, setPatientForSchedule] = useState<PatientDirectoryEntry | null>(null);
   const [patientForDropout, setPatientForDropout] = useState<PatientDirectoryEntry | null>(null);
   const [patientForEdit, setPatientForEdit] = useState<PatientDirectoryEntry | null>(null);
+  const [patientForInactivation, setPatientForInactivation] = useState<PatientDirectoryEntry | null>(null);
+  const [patientForRequest, setPatientForRequest] = useState<PatientDirectoryEntry | null>(null);
 
   // KPIs Rápidos
   const pacientesAtivosCount = patients.filter((p) => p.status === 'active').length;
@@ -57,11 +62,14 @@ export default function PatientList({
     const origin = typeof window !== 'undefined' ? window.location.origin : 'https://clinica-viver-web.vercel.app';
     const linkAgenda = agendaToken ? `${origin}/agendar/${agendaToken}` : `${origin}/agenda`;
 
-    const texto = encodeURIComponent(
-      `Olá, ${patient.displayName}! Segue o link para você escolher o melhor dia e horário para a nossa próxima sessão na Clínica Viver Mais:\n\n${linkAgenda}`
+    // Criança ou adolescente: o link vai ao responsável, que agenda e paga (6.03).
+    const responsavel = patient.vinculoColetivo ? undefined : patient.responsavelFinanceiro;
+    const texto = encodeURIComponent(responsavel
+      ? `Olá, ${responsavel.nome}! Segue o link para escolher o melhor dia e horário da próxima sessão de ${patient.displayName} na Clínica Viver Mais. Para se identificar, use o seu CPF:\n\n${linkAgenda}`
+      : `Olá, ${patient.displayName}! Segue o link para você escolher o melhor dia e horário para a nossa próxima sessão na Clínica Viver Mais:\n\n${linkAgenda}`
     );
 
-    const telefoneLimpo = (patient.phone || '').replace(/\D/g, '');
+    const telefoneLimpo = (responsavel?.telefone || patient.phone || '').replace(/\D/g, '');
     const urlWhatsApp = telefoneLimpo
       ? `https://wa.me/55${telefoneLimpo}?text=${texto}`
       : `https://wa.me/?text=${texto}`;
@@ -110,10 +118,15 @@ export default function PatientList({
             onSchedule={setPatientForSchedule}
             onSendAgenda={abrirWhatsAppAgenda}
             onDropout={setPatientForDropout}
+            onInactivate={setPatientForInactivation}
+            onOpenRequest={setPatientForRequest}
             canRegisterDropout={canRegisterDropout}
           />
         ))}
       </div>
+
+      {/* Pacientes transferidos: acesso aos registros feitos pela própria psicóloga (§ 8.05). */}
+      <VinculosEncerrados />
 
       {patientForSchedule && (
         <ManualAppointmentDialog
@@ -133,6 +146,20 @@ export default function PatientList({
           onRegistered={() => onPatientUpdated?.()}
         />
       )}
+
+      <PatientInactivateModal
+        key={patientForInactivation?.id ?? 'sem-inativacao'}
+        patient={patientForInactivation}
+        onClose={() => setPatientForInactivation(null)}
+        onInactivated={() => onPatientUpdated?.()}
+      />
+
+      <PatientRequestModal
+        key={patientForRequest?.id ?? 'sem-pedido'}
+        patient={patientForRequest}
+        onClose={() => setPatientForRequest(null)}
+        onSaved={() => onPatientUpdated?.()}
+      />
 
       {patientForEdit && (
         <EditPatientModal

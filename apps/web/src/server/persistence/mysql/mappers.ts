@@ -342,6 +342,7 @@ export interface AgendamentoRow {
   timezone: string;
   modalidade: string;
   servico_key: string | null;
+  publico_atendimento?: string | null;
   cobranca_vence_em?: string | null;
   status: string;
   recorrencia: string | Record<string, unknown> | null;
@@ -381,6 +382,7 @@ export function toAppointment(row: AgendamentoRow, lembretes: readonly LembreteR
     timezone: row.timezone,
     mode: MODALIDADE_LEITURA[row.modalidade] ?? 'in_person',
     serviceKey: row.servico_key ?? undefined,
+    audience: row.publico_atendimento ?? undefined,
     chargeDueAt: fromSqlTimestamp(row.cobranca_vence_em ?? null),
     status: AGENDAMENTO_STATUS_LEITURA[row.status] ?? 'scheduled',
     reminders: lembretes

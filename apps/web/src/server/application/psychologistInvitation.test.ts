@@ -13,6 +13,7 @@ vi.mock('./viverMaisWhatsApp', () => ({
   avisarBoasVindasPsicologo: vi.fn(),
 }));
 vi.mock('./termoAdesaoComprovantePdf', () => ({ montarComprovanteTermoAdesao: vi.fn() }));
+vi.mock('./termoAdesaoComprovanteEmail', () => ({ enviarComprovanteTermoAdesao: vi.fn() }));
 vi.mock('@/server/oci/runtime', () => ({ isMysqlConfigured: () => true }));
 vi.mock('@/server/persistence/mysql/captureRepository', () => ({
   MysqlCaptureRepository: class { async registrarEnvioComprovanteTermo() {} },
@@ -24,6 +25,7 @@ import { markWelcomeSent, provisionPsychologistAccess } from './psychologistAcce
 import { avisarCadastroAprovadoPorEmail } from './psychologistRegistrationEmail';
 import { avisarBoasVindasPsicologo } from './viverMaisWhatsApp';
 import { montarComprovanteTermoAdesao } from './termoAdesaoComprovantePdf';
+import { enviarComprovanteTermoAdesao } from './termoAdesaoComprovanteEmail';
 import { MysqlCaptureRepository } from '@/server/persistence/mysql/captureRepository';
 
 const cadastro: CadastroPsicologoRecord = {
@@ -38,6 +40,12 @@ describe('convite de acesso do psicólogo', () => {
       finalidade: 'boas_vindas_psicologo', chaveDedupe: 'nova', situacao: 'enviada',
     });
     vi.mocked(avisarCadastroAprovadoPorEmail).mockResolvedValue({ situacao: 'enviada' });
+    vi.mocked(enviarComprovanteTermoAdesao).mockResolvedValue({
+      situacao: 'enviada',
+      tentadoEm: '2026-10-08T12:00:00.000Z',
+      paraProfissional: false,
+      paraClinica: true,
+    });
   });
 
   it('renova o token e envia o mesmo link pelos dois canais', async () => {
@@ -94,9 +102,63 @@ describe('convite de acesso do psicólogo', () => {
     expect(avisarCadastroAprovadoPorEmail).toHaveBeenCalledWith(record,
       'https://clinicavivermais.cloud/login', 'https://clinicavivermais.cloud/ativar-conta?token=novo', 'aprovacao', comprovante);
     expect(record.aceiteTermoAdesao?.aceitoEm).toBe('2026-10-01T12:00:00.000Z');
-    expect(registrar).toHaveBeenCalledWith(record.id, expect.objectContaining({
-      situacao: 'enviada', paraProfissional: true, paraClinica: false,
-    }), 'envioComprovanteConvite');
+    expect(registrar).toHaveBeenNthCalledWith(
+      1,
+      record.id,
+      expect.objectContaining({ situacao: 'enviada', paraProfissional: false, paraClinica: true }),
+      'envioComprovante'
+    );
+    expect(registrar).toHaveBeenNthCalledWith(
+      2,
+      record.id,
+      expect.objectContaining({ situacao: 'enviada', paraProfissional: true, paraClinica: false }),
+      'envioComprovanteConvite'
+    );
+    expect(enviarComprovanteTermoAdesao).toHaveBeenCalledWith(
+      record,
+      comprovante,
+      expect.any(Date),
+      undefined,
+      { somenteClinica: true }
+    );
+    registrar.mockRestore();
+  });
+
+  it('não reenvia a via da clínica no convite se ela já foi entregue antes', async () => {
+    const record: CadastroPsicologoRecord = {
+      ...cadastro,
+      aceiteTermoAdesao: {
+        versao: '2026.2',
+        aceitoEm: '2026-10-01T12:00:00.000Z',
+        hashAlgoritmo: 'SHA-256',
+        envioComprovante: {
+          situacao: 'enviada',
+          tentadoEm: '2026-10-01T12:00:01.000Z',
+          paraProfissional: false,
+          paraClinica: true,
+        },
+      },
+    };
+    const comprovante = {
+      pdf: Buffer.from('%PDF-teste'),
+      arquivo: 'comprovante.pdf',
+      sha256: 'a'.repeat(64),
+      codigoVerificacao: 'b'.repeat(64),
+    };
+    vi.mocked(montarComprovanteTermoAdesao).mockResolvedValue(comprovante);
+    vi.mocked(provisionPsychologistAccess).mockResolvedValue({
+      userId: 'user-1',
+      professionalId: 'pro-1',
+      activationToken: 'novo',
+      email: cadastro.email!,
+      displayName: cadastro.nomeCompleto,
+      whatsapp: cadastro.whatsapp,
+    });
+    const registrar = vi.spyOn(MysqlCaptureRepository.prototype, 'registrarEnvioComprovanteTermo');
+    await enviarConvitePsicologo(record, 'reenvio');
+    expect(enviarComprovanteTermoAdesao).not.toHaveBeenCalled();
+    expect(registrar).toHaveBeenCalledTimes(1);
+    expect(registrar).toHaveBeenCalledWith(record.id, expect.anything(), 'envioComprovanteConvite');
     registrar.mockRestore();
   });
 

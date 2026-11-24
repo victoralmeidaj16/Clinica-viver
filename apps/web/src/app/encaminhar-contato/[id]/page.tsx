@@ -29,15 +29,22 @@ export default function EncaminharContatoPage() {
           mensagem: 'Link incompleto. Abra o link exatamente como recebeu na notificação.',
         }
   );
+  const [motivo, setMotivo] = useState('');
 
   const executarEncaminhamento = async () => {
     if (!linkCompleto) return;
     setSituacao({ estado: 'ENVIANDO' });
+    const motivoLimpo = motivo.trim();
 
     try {
       const resposta = await fetch(
         `/api/application/triagem/${leadId}/encaminhar?psi=${encodeURIComponent(psi ?? '')}&t=${encodeURIComponent(token ?? '')}`,
-        { method: 'POST' }
+        {
+          method: 'POST',
+          ...(motivoLimpo
+            ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ motivo: motivoLimpo }) }
+            : {}),
+        }
       );
       const corpo = await resposta.json();
 
@@ -78,6 +85,14 @@ export default function EncaminharContatoPage() {
               Ele segue imediatamente ao próximo profissional compatível da fila; se o paciente escolheu você na
               vitrine, a coordenação da clínica decide o encaminhamento.
             </p>
+            <textarea
+              value={motivo}
+              onChange={(event) => setMotivo(event.target.value)}
+              maxLength={300}
+              rows={3}
+              placeholder="Motivo da recusa (opcional — ex.: sem horário livre no turno solicitado)"
+              className="w-full resize-none rounded-xl border border-slate-300 bg-white p-3 text-left text-xs text-slate-800 focus:border-purple-600 focus:outline-none"
+            />
             <div className="pt-2 flex flex-col gap-2">
               <button
                 type="button"

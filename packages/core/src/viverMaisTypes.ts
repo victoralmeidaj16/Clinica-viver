@@ -4,6 +4,10 @@
 
 export type ModalidadeAtendimento = 'ACESSIVEL_SOCIAL' | 'PARTICULAR' | 'AVALIACAO_PSICOLOGICA';
 
+export type FormatoAtendimento = 'ONLINE' | 'PRESENCIAL' | 'AMBOS';
+
+export type PreferenciaFormatoAtendimento = 'ONLINE' | 'PRESENCIAL' | 'INDIFERENTE';
+
 export type TurnoAtendimento = 'MANHA' | 'TARDE' | 'NOITE';
 
 export type StatusLead = 
@@ -82,6 +86,9 @@ export interface LeadTriagem {
    * válidos e seguem indo para a fila inteira.
    */
   preferenciaGeneroPsicologo?: PreferenciaGeneroPsicologo;
+  formatoAtendimento?: PreferenciaFormatoAtendimento;
+  abordagemDesejada?: string;
+  duracaoDesejadaMinutos?: number;
 }
 
 export interface PsicologoPerfil {
@@ -101,7 +108,10 @@ export interface PsicologoPerfil {
   genero?: GeneroProfissional;
   turnosDisponiveis: TurnoAtendimento[];
   modalidadesAtendidas: ModalidadeAtendimento[];
+  modalidadeAtendimento?: string;
+  abordagem?: string;
   servicosHabilitados?: string[]; // Ex: ['PSICOTERAPIA', 'AVALIACAO', 'ORIENTACAO_VOCACIONAL', 'ORIENTACAO_PROFISSIONAL', 'ORIENTACAO_PARENTAL']
+  temposAtendimento?: readonly number[];
   publicoAlvo?: string[];
   especificarNecessidades?: boolean;
   necessidadesAtendidas?: string[];

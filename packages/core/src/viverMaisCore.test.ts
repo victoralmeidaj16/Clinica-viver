@@ -126,6 +126,7 @@ describe('Domínio Clínica Viver Mais Psicologia (Core Engine & Regras Giuliana
 
     expect(split.creditoAluno).toBe(70.00);
     expect(split.receitaClinica).toBe(30.00);
+    expect(calcularSplit7030(0.45)).toEqual({ creditoAluno: 0.32, receitaClinica: 0.13 });
   });
 
   describe('Elegibilidade do rodízio', () => {
@@ -391,6 +392,139 @@ describe('Domínio Clínica Viver Mais Psicologia (Core Engine & Regras Giuliana
 
       expect(resultado.sucesso).toBe(false);
       expect(resultado.psicologoAlocado).toBeUndefined();
+    });
+
+    it('preserva formato, abordagem e duração ao escolher para quem transbordar', () => {
+      const candidatoIncompativel = {
+        ...psicologosMock[1],
+        id: 'psi-incompativel',
+        pacientesAtivosCount: 0,
+        ultimoLeadRecebidoEm: undefined,
+        modalidadeAtendimento: 'PRESENCIAL',
+        posGraduacaoViverMais: 'Programa de Estudos e Pós-graduação em Psicanálise',
+        temposAtendimento: [50],
+      };
+      const candidatoCompativel = {
+        ...psicologosMock[1],
+        id: 'psi-compativel',
+        pacientesAtivosCount: 1,
+        modalidadeAtendimento: 'ONLINE',
+        posGraduacaoViverMais: 'Formação e Pós-graduação em Terapia Cognitivo-Comportamental',
+        temposAtendimento: [50, 90],
+      };
+
+      const resultado = checarEExecutarTransbordoSla(
+        {
+          ...leadAlocado(25),
+          formatoAtendimento: 'ONLINE',
+          abordagemDesejada: 'TCC',
+          duracaoDesejadaMinutos: 90,
+        },
+        [psicologosMock[0], candidatoIncompativel, candidatoCompativel]
+      );
+
+      expect(resultado.sucesso).toBe(true);
+      expect(resultado.psicologoAlocado?.id).toBe('psi-compativel');
+    });
+  });
+
+  describe('Critérios de formato, abordagem e duração (§§ 3.12, 4.03 e 5.01)', () => {
+    const base = (sobrescrever: Partial<PsicologoPerfil>): PsicologoPerfil => ({
+      id: 'psi-base',
+      nome: 'Dra. Teste',
+      crp: '07/00001',
+      telefoneWhatsApp: '51999990000',
+      email: 'teste@example.com',
+      turnosDisponiveis: ['TARDE'],
+      modalidadesAtendidas: ['ACESSIVEL_SOCIAL', 'PARTICULAR'],
+      limitePacientesAtivos: 5,
+      pacientesAtivosCount: 0,
+      exibirNaVitrine: true,
+      posicaoFilaRoundRobin: 1,
+      saldoCreditoAbatimento: 0,
+      ...sobrescrever,
+    });
+
+    it('filtra formato on-line, presencial e híbrido/ambos, mantendo indiferente livre', () => {
+      const soOnline = base({ id: 'psi-online', modalidadeAtendimento: 'ONLINE' });
+      const soPresencial = base({ id: 'psi-presencial', modalidadeAtendimento: 'PRESENCIAL' });
+      const hibrido = base({ id: 'psi-hibrido', modalidadeAtendimento: 'Híbrido' });
+
+      expect(
+        selecionarPsicologoRoundRobin([soPresencial, soOnline], 'TARDE', 'PARTICULAR', {
+          formatoDesejado: 'ONLINE',
+        })?.id
+      ).toBe('psi-online');
+      expect(
+        selecionarPsicologoRoundRobin([soOnline, soPresencial], 'TARDE', 'PARTICULAR', {
+          formatoDesejado: 'PRESENCIAL',
+        })?.id
+      ).toBe('psi-presencial');
+      expect(
+        selecionarPsicologoRoundRobin([soOnline, hibrido], 'TARDE', 'PARTICULAR', {
+          formatoDesejado: 'PRESENCIAL',
+        })?.id
+      ).toBe('psi-hibrido');
+      expect(
+        selecionarPsicologoRoundRobin([soPresencial], 'TARDE', 'PARTICULAR', {
+          formatoDesejado: 'INDIFERENTE',
+        })?.id
+      ).toBe('psi-presencial');
+    });
+
+    it('filtra por abordagem considerando acentos, alias TCC e segunda pós', () => {
+      const psicanalise = base({
+        id: 'psi-psicanalise',
+        posGraduacaoViverMais: 'Programa de Estudos e Pós-graduação em Psicanálise',
+      });
+      const tccSegundaPos = base({
+        id: 'psi-tcc',
+        posGraduacaoViverMais: 'Formação e Pós-graduação em Psicodrama',
+        outrasPosGraduacoes: ['Formação e Pós-graduação em Terapia Cognitivo-Comportamental'],
+      });
+      const junguiana = base({ id: 'psi-jung', abordagem: 'Junguiana' });
+
+      expect(
+        selecionarPsicologoRoundRobin([psicanalise, tccSegundaPos], 'TARDE', 'PARTICULAR', {
+          abordagemDesejada: 'TCC',
+        })?.id
+      ).toBe('psi-tcc');
+      expect(
+        selecionarPsicologoRoundRobin([junguiana, psicanalise], 'TARDE', 'PARTICULAR', {
+          abordagemDesejada: 'Psicanalise',
+        })?.id
+      ).toBe('psi-psicanalise');
+    });
+
+    it('filtra por duração de 50 ou 90 minutos conforme serviço/público e isenta Avaliação', () => {
+      const so50 = base({ id: 'psi-50', temposAtendimento: [50] });
+      const so90 = base({ id: 'psi-90', temposAtendimento: [90] });
+      const com90 = base({ id: 'psi-50-90', temposAtendimento: [50, 90] });
+      const avaliacaoSemTempo = base({ id: 'psi-av', servicosHabilitados: ['AVALIACAO'], temposAtendimento: [] });
+
+      expect(
+        selecionarPsicologoRoundRobin([so50, com90], 'TARDE', 'PARTICULAR', {
+          servicoDesejado: 'ORIENTACAO_PARENTAL',
+          paraQuemE: 'Família',
+        })?.id
+      ).toBe('psi-50-90');
+      expect(
+        selecionarPsicologoRoundRobin([so90, so50], 'TARDE', 'PARTICULAR', {
+          servicoDesejado: 'PSICOTERAPIA',
+          paraQuemE: 'Adulto',
+          duracaoDesejadaMinutos: 50,
+        })?.id
+      ).toBe('psi-50');
+      expect(
+        selecionarPsicologoRoundRobin([so50], 'TARDE', 'PARTICULAR', {
+          servicoDesejado: 'PSICOTERAPIA_CASAL',
+        })
+      ).toBeNull();
+      expect(
+        selecionarPsicologoRoundRobin([avaliacaoSemTempo], 'TARDE', 'PARTICULAR', {
+          servicoDesejado: 'AVALIACAO',
+        })?.id
+      ).toBe('psi-av');
     });
   });
 });

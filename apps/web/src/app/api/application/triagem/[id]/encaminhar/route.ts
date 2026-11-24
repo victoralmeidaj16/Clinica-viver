@@ -29,9 +29,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       );
     }
 
+    const corpo = (await request.json().catch(() => null)) as { motivo?: unknown } | null;
+    const motivo = typeof corpo?.motivo === 'string' ? corpo.motivo.trim().slice(0, 300) || undefined : undefined;
+
     const repositorio = getCaptureRepository();
     const resultado = await repositorio.mutate<ResultadoEncaminhamento>((state) => {
-      const handled = encaminharParaProximo(captureStateAsSnapshot(state), id, psicologoId);
+      const handled = motivo
+        ? encaminharParaProximo(captureStateAsSnapshot(state), id, psicologoId, new Date(), motivo)
+        : encaminharParaProximo(captureStateAsSnapshot(state), id, psicologoId);
       return {
         next: {
           triagensPacientes: handled.snapshot?.triagensPacientes ?? [],
@@ -50,7 +55,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         {
           success: false,
           error:
-            'Este atendimento já foi confirmado ou não está mais atribuído a você (o prazo de 24h pode ter expirado).',
+            'Este atendimento já foi confirmado ou não está mais atribuído a você (o prazo de resposta pode ter expirado).',
         },
         { status: 409 }
       );
@@ -74,6 +79,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           'Alerta operacional — pedido para profissional específico recusado.',
           `Protocolo: ${protocolo}`,
           'O paciente escolheu este profissional na vitrine, e ele recusou pelo link.',
+          ...(motivo ? [`Motivo informado: ${motivo}`] : []),
           'O caso não foi redistribuído: aguarda a coordenação encaminhar ou devolver ao rodízio.',
         ].join('\n'),
         `escolha-direta-recusada:${id}`
@@ -92,6 +98,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           'Alerta operacional — encaminhamento sem destino.',
           `Protocolo: ${protocolo}`,
           'Profissional solicitou encaminhamento pelo link e não há outro profissional elegível no momento.',
+          ...(motivo ? [`Motivo informado: ${motivo}`] : []),
           'O caso foi retido para decisão manual da coordenação.',
         ].join('\n'),
         `sem-candidato-link:${id}`

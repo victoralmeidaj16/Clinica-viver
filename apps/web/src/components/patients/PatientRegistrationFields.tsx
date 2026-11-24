@@ -23,7 +23,10 @@ interface Props {
 
 const field = 'input';
 
-export function PatientRegistrationFields({ form, setForm, convenios, conveniosCarregando, conveniosIndisponiveis, temNomeSocial, onTemNomeSocialChange, habilitacao }: Props) {
+export function PatientRegistrationFields({ form, setForm, convenios, conveniosCarregando, conveniosIndisponiveis, temNomeSocial, onTemNomeSocialChange, habilitacao, cpfOpcional = false }: Props & {
+  /** Menor identificado pelo CPF do responsável (seção 15). */
+  cpfOpcional?: boolean;
+}) {
   const [buscandoCep, setBuscandoCep] = useState(false);
   const [cepConsultado, setCepConsultado] = useState(false);
   const [cepNaoEncontrado, setCepNaoEncontrado] = useState(false);
@@ -71,14 +74,17 @@ export function PatientRegistrationFields({ form, setForm, convenios, conveniosC
 
   const handleServiceChange = (serviceKey: string) => {
     setForm((current) => {
+      const permitidos = audiencesForService(serviceKey, habilitacao);
       let paraQuemE = current.paraQuemE;
       if (serviceKey === 'ORIENTACAO_PARENTAL') {
         paraQuemE = '';
       } else if (serviceKey === 'PSICOTERAPIA_CASAL') {
         if (paraQuemE !== 'Casal' && paraQuemE !== 'Outro') {
-          paraQuemE = 'Casal';
+          paraQuemE = permitidos.includes('Casal') ? 'Casal' : '';
+        } else if (!permitidos.includes(paraQuemE)) {
+          paraQuemE = '';
         }
-      } else if (!audiencesForService(serviceKey).includes(paraQuemE)) {
+      } else if (!permitidos.includes(paraQuemE)) {
         paraQuemE = '';
       }
       return {
@@ -116,10 +122,10 @@ export function PatientRegistrationFields({ form, setForm, convenios, conveniosC
     <GenderFields idPrefix="cadastro-interno-paciente" gender={form.genero} other={form.generoOutro} onGenderChange={(value) => update('genero', value)} onOtherChange={(value) => update('generoOutro', value)} />
     <div className="grid gap-3 sm:grid-cols-3">
       <div>
-        <label className="mb-1 block font-bold text-ink">CPF *</label>
+        <label className="mb-1 block font-bold text-ink">CPF {cpfOpcional ? <span className="font-normal text-muted">(do responsável)</span> : '*'}</label>
         <input
           className={`${field} ${form.cpf.length === 14 && !validCpf(form.cpf) ? 'border-rose-400 bg-rose-50/40 text-rose-900 focus:border-rose-600' : ''}`}
-          required
+          required={!cpfOpcional}
           maxLength={14}
           value={form.cpf}
           onChange={(e) => update('cpf', maskCpf(e.target.value))}
@@ -175,7 +181,7 @@ export function PatientRegistrationFields({ form, setForm, convenios, conveniosC
     </div>}
     {form.servicoKey !== 'ORIENTACAO_PARENTAL' && <div>
       <label className="mb-2 block font-bold text-ink">Para quem é o atendimento? <span className="font-normal text-muted">(opcional)</span></label>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{audiencesForService(form.servicoKey).map((item) => <button key={item} type="button" onClick={() => update('paraQuemE', form.paraQuemE === item ? '' : item)} className={`rounded-xl border p-2.5 text-left font-semibold transition ${form.paraQuemE === item ? 'border-primary bg-primary/10 text-primary' : 'border-line bg-white text-ink hover:bg-canvas'}`}>{item}</button>)}</div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{audiencesForService(form.servicoKey, habilitacao).map((item) => <button key={item} type="button" onClick={() => update('paraQuemE', form.paraQuemE === item ? '' : item)} className={`rounded-xl border p-2.5 text-left font-semibold transition ${form.paraQuemE === item ? 'border-primary bg-primary/10 text-primary' : 'border-line bg-white text-ink hover:bg-canvas'}`}>{item}</button>)}</div>
 
       {form.paraQuemE === 'Outro' && <input className={`${field} mt-2`} required value={form.paraQuemEOutro} onChange={(e) => update('paraQuemEOutro', e.target.value)} placeholder="Especifique para quem é o atendimento" />}
     </div>}

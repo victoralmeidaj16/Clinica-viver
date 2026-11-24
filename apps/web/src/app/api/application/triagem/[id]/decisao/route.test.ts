@@ -29,8 +29,11 @@ vi.mock('@/server/application/patientPromotion', () => ({
 
 // Nenhum teste envia mensagem real: o módulo inteiro de WhatsApp é substituído.
 const avisarConfirmacaoPacienteMock = vi.fn();
+const avisarTransbordoMock = vi.fn();
+vi.mock('@/server/application/triagemEmail', () => ({ avisarAlocacaoPsicologoPorEmail: vi.fn() }));
 vi.mock('@/server/application/viverMaisWhatsApp', () => ({
   avisarConfirmacaoPaciente: (...args: unknown[]) => avisarConfirmacaoPacienteMock(...args),
+  avisarTransbordo: (...args: unknown[]) => avisarTransbordoMock(...args),
 }));
 
 import { GET, POST } from './route';
@@ -64,6 +67,17 @@ describe('/api/application/triagem/[id]/decisao', () => {
       expect(avisarConfirmacaoPacienteMock).toHaveBeenCalledExactlyOnceWith(aceito);
     });
 
+    it.each(['capacity_pending', 'capacity_reallocated'])('responde à lotação sem confirmar o vínculo: %s', async (kind) => {
+      const novo = { id: 'outro-profissional' };
+      aceitarPacienteMock.mockReturnValue({ next: {}, result: { kind, lead: aceito, psicologo: novo } });
+      const response = await POST(new Request(url, { method: 'POST' }), { params });
+      expect(response.status).toBe(409);
+      expect(await response.json()).toMatchObject({ success: false, realocado: kind === 'capacity_reallocated' });
+      expect(reconciliarPacientesMock).not.toHaveBeenCalled();
+      expect(avisarConfirmacaoPacienteMock).not.toHaveBeenCalled();
+      expect(avisarTransbordoMock).toHaveBeenCalledTimes(kind === 'capacity_reallocated' ? 1 : 0);
+    });
+
     it.each(['already_accepted', 'already_confirmed', 'expired', 'conflict', 'not_found'])(
       'não envia orientações quando o resultado é %s', async (kind) => {
         aceitarPacienteMock.mockReturnValue({
@@ -89,11 +103,20 @@ describe('/api/application/triagem/[id]/decisao', () => {
     });
   });
 
+  it.each(['DESISTENTE', 'FINALIZADO'])('não reabre a decisão de um encaminhamento encerrado: %s', async (status) => {
+    readMock.mockResolvedValue({
+      triagensPacientes: [{ id: 'lead-1', psicologoAlocadoId: 'psi-1', status, aceitoEm: '2026-10-15T12:00:00.000Z' }],
+    });
+    const response = await GET(new Request(url), { params });
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toContain('encerrado');
+  });
+
   it('não abre a decisão de uma oferta vencida', async () => {
     ofertaExpiradaMock.mockReturnValue(true);
     const response = await GET(new Request(url), { params });
     expect(response.status).toBe(409);
-    expect((await response.json()).error).toContain('prazo de 24h');
+    expect((await response.json()).error).toContain('prazo para responder');
   });
 
   it('recusa o aceite de uma oferta vencida sem promover o paciente', async () => {

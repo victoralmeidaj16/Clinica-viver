@@ -1,13 +1,19 @@
 'use client';
 
 import { useState } from 'react';
-import { UserRoundPen, CalendarDays, CircleDollarSign, Clock3, UserRoundCog, X } from 'lucide-react';
+import { UserRoundPen, CalendarDays, CircleDollarSign, Clock3, X } from 'lucide-react';
 import { rotuloTurnoPreferencia } from '@/lib/turnos';
 import EditPatientModal from './EditPatientModal';
 import PatientConvenioPanel from './PatientConvenioPanel';
 import PatientSessionPricingPanel from './PatientSessionPricingPanel';
 import PatientDropoutPanel from './PatientDropoutPanel';
-import type { ManagedConvenio, ManagedPatient, ManagedPsychologist } from './managementTypes';
+import PatientAdministrativeHistoryPanel from './PatientAdministrativeHistoryPanel';
+import PatientReassignPanel from './PatientReassignPanel';
+import PatientPreferencesPanel from './PatientPreferencesPanel';
+import PatientWaitlistPanel from './PatientWaitlistPanel';
+import PatientInactivationPanel from './PatientInactivationPanel';
+import PatientBondForm from './PatientBondForm';
+import type { ManagedConvenio, ManagedPatient, ManagedPsychologist, ReassignOptions } from './managementTypes';
 import type { CusteioCiclo } from '@/lib/convenioBilling';
 import type { SessionPricingCategory } from './patientSessionPricingView';
 
@@ -16,7 +22,12 @@ interface Props {
   psychologists: readonly ManagedPsychologist[];
   convenios: readonly ManagedConvenio[];
   onClose: () => void;
-  onReassign: (patient: ManagedPatient, professionalId: string, reason: string) => Promise<void>;
+  onReassign: (
+    patient: ManagedPatient,
+    professionalId: string,
+    reason: string,
+    options?: ReassignOptions,
+  ) => Promise<void>;
   /** Recarrega a fila depois de registrar a saída ou o reengajamento. */
   onDropoutChange: () => Promise<void>;
   onRegistrationChange: () => Promise<void>;
@@ -35,21 +46,8 @@ const money = (cents: number) => new Intl.NumberFormat('pt-BR', {
 
 export default function PatientManagementDrawer({ patient, psychologists, convenios, onClose, onReassign, onDropoutChange, onConvenioChange, onSessionPricingChange, onRegistrationChange }: Props) {
   const [editing, setEditing] = useState(false);
-  const [professionalId, setProfessionalId] = useState(patient?.psicologoId ?? '');
-  const [reason, setReason] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
 
   if (!patient) return null;
-
-  const submit = async () => {
-    if ((!patient.patientId && !patient.leadId) || !professionalId || !reason.trim()) return;
-    setSaving(true);
-    setError('');
-    try { await onReassign(patient, professionalId, reason.trim()); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : 'Falha ao encaminhar paciente.'); }
-    finally { setSaving(false); }
-  };
 
   return (
     <>
@@ -80,7 +78,9 @@ export default function PatientManagementDrawer({ patient, psychologists, conven
           <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Info label="WhatsApp" value={patient.whatsapp} />
             <Info label="E-mail" value={patient.email} />
-            <Info label="CPF" value={patient.cpf} />
+            <Info label="CPF" value={patient.cpf || (patient.identificadoPeloResponsavel
+              ? `Sem CPF próprio — pelo responsável (${patient.responsavelFinanceiro?.cpf ?? ''})`
+              : patient.vinculoColetivo ? 'No responsável e nos participantes' : undefined)} />
             <Info label="Idade" value={patient.idade} />
             <Info label="CEP / número" value={[patient.cep, patient.numeroResidencia].filter(Boolean).join(' · ')} />
             <Info label="Convênio informado" value={patient.convenioSelecionado} />
@@ -108,50 +108,32 @@ export default function PatientManagementDrawer({ patient, psychologists, conven
             />
           </section>
 
+          <PatientPreferencesPanel key={`pref-${patient.id}`} patient={patient} onChange={onRegistrationChange} />
+
+          {patient.patientId
+            ? <PatientBondForm key={`vinculo-${patient.patientId}`} patientId={patient.patientId} onSaved={onRegistrationChange} />
+            : patient.responsavelFinanceiro && (
+              <Info label="Responsável financeiro" value={`${patient.responsavelFinanceiro.nome} · CPF ${patient.responsavelFinanceiro.cpf}`} />
+            )}
+
+          <PatientAdministrativeHistoryPanel patient={patient} />
+
           <section className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-3">
             <Metric icon={Clock3} label="Espera" value={patient.horasEspera ? `${patient.horasEspera}h` : 'Concluída'} />
             <Metric icon={CalendarDays} label="Sessões" value={`${patient.agenda.realizadas}/${patient.agenda.total}`} />
             <Metric icon={CircleDollarSign} label="Em aberto" value={money(patient.financeiro.emAbertoCentavos)} />
           </section>
 
-          <section className="rounded-2xl border border-psi-soft/60 bg-psi-soft/20 p-4 sm:p-5">
-            <div className="mb-4 flex items-center gap-2">
-              <UserRoundCog className="h-4 w-4 text-psi-vibrant" />
-              <h3 className="text-sm font-black text-ink">Encaminhar para psicólogo</h3>
-            </div>
-            {!patient.patientId && !patient.leadId ? (
-              <p className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-3 text-xs font-semibold text-amber-800">
-                Não foi possível identificar a triagem ou o cadastro deste paciente para encaminhamento.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                <select
-                  value={professionalId}
-                  onChange={(event) => setProfessionalId(event.target.value)}
-                  className="w-full rounded-xl border border-psi-soft bg-white px-3 py-2.5 text-xs text-ink focus:outline-none focus:border-psi-vibrant focus:ring-2 focus:ring-psi-vibrant/20 font-medium"
-                >
-                  <option value="">Selecione o novo responsável</option>
-                  {psychologists.map((psychologist) => <option key={psychologist.id} value={psychologist.id}>{psychologist.nome}</option>)}
-                </select>
-                <textarea
-                  value={reason}
-                  onChange={(event) => setReason(event.target.value)}
-                  placeholder="Motivo obrigatório da troca"
-                  rows={3}
-                  className="w-full resize-none rounded-xl border border-psi-soft bg-white px-3 py-2.5 text-xs text-ink focus:outline-none focus:border-psi-vibrant focus:ring-2 focus:ring-psi-vibrant/20 font-medium"
-                />
-                {error && <p className="text-xs font-semibold text-rose-700">{error}</p>}
-                <button
-                  type="button"
-                  onClick={submit}
-                  disabled={saving || !professionalId || !reason.trim()}
-                  className="btn-primary w-full text-xs font-black py-3 rounded-xl disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {saving ? 'Registrando encaminhamento…' : 'Confirmar encaminhamento'}
-                </button>
-              </div>
-            )}
-          </section>
+          <PatientReassignPanel
+            key={patient.id}
+            patient={patient}
+            psychologists={psychologists}
+            onReassign={onReassign}
+          />
+
+          <PatientWaitlistPanel key={`espera-${patient.id}`} patient={patient} onChange={onRegistrationChange} />
+
+          <PatientInactivationPanel key={`inativo-${patient.id}`} patient={patient} onChange={onRegistrationChange} />
 
           <PatientDropoutPanel patient={patient} onChange={onDropoutChange} />
 

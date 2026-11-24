@@ -1,3 +1,5 @@
+import { publicoAlvoCompativel } from '@thats-life/core';
+import type { HabilitacaoAtendimento } from '@/lib/patientCareOptions';
 import type { PatientAccessibility } from '@/lib/patientAccessibility';
 import type { GenderValue } from '@/lib/gender';
 import type { TurnoPreferencia } from '@/lib/turnos';
@@ -64,14 +66,19 @@ export const PATIENT_AUDIENCES = ['Criança', 'Adolescente', 'Homem', 'Mulher', 
 export const PATIENT_ORIGINS = ['Facebook', 'Instagram', 'Google', 'Whatsapp', 'Sou aluno', 'Conveniado', 'Indicação', 'Outros'] as const;
 export { PATIENT_SERVICES, PATIENT_MODALITIES, serviceName, modalitiesForService } from '@/lib/patientCareOptions';
 
-export function audiencesForService(serviceKey?: string | null): readonly string[] {
-  if (serviceKey === 'PSICOTERAPIA_CASAL') {
-    return ['Casal', 'Outro'] as const;
-  }
-  if (serviceKey === 'AVALIACAO') {
-    return ['Criança', 'Adolescente', 'Homem', 'Mulher', 'Idoso'] as const;
-  }
-  return ['Criança', 'Adolescente', 'Homem', 'Mulher', 'Idoso', 'Outro'] as const;
+export function audiencesForService(
+  serviceKey?: string | null,
+  habilitacao?: HabilitacaoAtendimento | null,
+): readonly string[] {
+  const base = serviceKey === 'PSICOTERAPIA_CASAL'
+    ? (['Casal', 'Outro'] as const)
+    : serviceKey === 'AVALIACAO'
+      ? (['Criança', 'Adolescente', 'Homem', 'Mulher', 'Idoso'] as const)
+      : (['Criança', 'Adolescente', 'Homem', 'Mulher', 'Idoso', 'Outro'] as const);
+  if (habilitacao === undefined) return base;
+  if (habilitacao === null || habilitacao.status !== 'APROVADO') return [];
+  if (!habilitacao.publicoAlvo?.length) return base;
+  return base.filter((item) => publicoAlvoCompativel(habilitacao.publicoAlvo, item));
 }
 export { maskCpf, validCpf } from '@/lib/cpf';
 

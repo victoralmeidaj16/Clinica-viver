@@ -19,12 +19,28 @@ async function assertNoConflict(repository: AppointmentRepository, appointment: 
   }
 }
 
+function authorizedReplay(
+  actor: StaffAccessContext, replay: Appointment, appointmentId: string,
+  creation?: Pick<ScheduleAppointmentInput, 'patientId' | 'professionalId'>,
+): AppointmentCommandResult {
+  assertStaffAuthorized(actor, 'schedule.write', {
+    organizationId: replay.organizationId,
+    patientId: replay.patientId,
+    assignedProfessionalIds: [replay.professionalId],
+  });
+  if (replay.id !== appointmentId || (creation &&
+    (replay.patientId !== creation.patientId || replay.professionalId !== creation.professionalId))) {
+    throw new Error('Conflito: a chave de idempotência já foi usada para outro agendamento.');
+  }
+  return { appointment: replay, idempotentReplay: true };
+}
+
 async function execute(
   dependencies: SchedulingDependencies, actor: StaffAccessContext, appointmentId: string, metadata: PersistedAppointmentMetadata,
   transition: (appointment: Appointment) => AppointmentTransitionResult
 ): Promise<AppointmentCommandResult> {
   const replay = await dependencies.appointments.findByCommandId(actor.organizationId, metadata.commandId);
-  if (replay) return { appointment: replay, idempotentReplay: true };
+  if (replay) return authorizedReplay(actor, replay, appointmentId);
   const current = await dependencies.appointments.getById(actor.organizationId, appointmentId);
   if (!current) throw new Error('Agendamento não encontrado na organização.');
   assertStaffAuthorized(actor, 'schedule.write', { organizationId: current.organizationId, patientId: current.patientId, assignedProfessionalIds: [current.professionalId] });
@@ -34,17 +50,20 @@ async function execute(
   return { appointment: result.appointment, idempotentReplay: false };
 }
 
-export async function scheduleAppointmentCommand(dependencies: SchedulingDependencies, actor: StaffAccessContext, input: ScheduleAppointmentInput, metadata: PersistedAppointmentMetadata): Promise<AppointmentCommandResult> {
+export async function scheduleAppointmentCommand(dependencies: SchedulingDependencies & {
+  resolveAudience?: () => Promise<string | undefined>;
+}, actor: StaffAccessContext, input: ScheduleAppointmentInput, metadata: PersistedAppointmentMetadata): Promise<AppointmentCommandResult> {
   if (actor.organizationId !== input.organizationId) throw new Error('Acesso negado: cross_tenant.');
   const replay = await dependencies.appointments.findByCommandId(actor.organizationId, metadata.commandId);
-  if (replay) return { appointment: replay, idempotentReplay: true };
+  if (replay) return authorizedReplay(actor, replay, input.id, input);
   const [patient, professional] = await Promise.all([
     dependencies.identities.getPatient(input.organizationId, input.patientId),
     dependencies.identities.getProfessional(input.organizationId, input.professionalId),
   ]);
   if (!patient || !professional || !patient.assignedProfessionalIds.includes(professional.id)) throw new Error('Paciente ou profissional não está disponível para o agendamento.');
   assertStaffAuthorized(actor, 'schedule.write', { organizationId: input.organizationId, patientId: input.patientId, assignedProfessionalIds: patient.assignedProfessionalIds });
-  const result = scheduleAppointment(input, metadata);
+  const audience = dependencies.resolveAudience ? await dependencies.resolveAudience() : input.audience;
+  const result = scheduleAppointment({ ...input, audience }, metadata);
   await assertNoConflict(dependencies.appointments, result.appointment);
   await dependencies.appointments.commit({ appointment: result.appointment, expectedVersion: 0, commandId: metadata.commandId, events: result.events });
   return { appointment: result.appointment, idempotentReplay: false };

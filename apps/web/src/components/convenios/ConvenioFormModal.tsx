@@ -12,6 +12,9 @@ export function ConvenioFormModal({ convenio, onClose, onSave }: { convenio?: Co
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [valorContrato, setValorContrato] = useState(
+    convenio?.valorSessaoContratoCents == null ? '' : (convenio.valorSessaoContratoCents / 100).toFixed(2)
+  );
   const pacote = form.pacoteSessoes ?? 0;
   const sessoes = pacote === 1 ? '1 sessão' : `${pacote} sessões`;
   const explicacaoPacote = !form.empresaPagaSessoes
@@ -22,7 +25,11 @@ export function ConvenioFormModal({ convenio, onClose, onSave }: { convenio?: Co
         : `A empresa paga as ${pacote === 1 ? 'primeira sessão' : `${pacote} primeiras sessões`} de cada paciente; depois disso, o paciente recebe a cobrança.`;
   const submit = async (event: React.FormEvent) => {
     event.preventDefault(); setSaving(true); setError('');
-    try { await onSave(form); onClose(); }
+    try {
+      const valorSessaoContratoCents = valorContrato ? Math.round(Number(valorContrato) * 100) : undefined;
+      await onSave({ ...form, valorSessaoContratoCents });
+      onClose();
+    }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Não foi possível salvar.'); }
     finally { setSaving(false); }
   };
@@ -38,6 +45,12 @@ export function ConvenioFormModal({ convenio, onClose, onSave }: { convenio?: Co
           <Field label="Razão social"><input value={form.razaoSocial} onChange={(e) => setForm({ ...form, razaoSocial: e.target.value })} className="input text-xs" /></Field>
           <Field label="CNPJ"><input inputMode="numeric" value={form.cnpj} onChange={(e) => setForm({ ...form, cnpj: e.target.value })} placeholder="00.000.000/0000-00" className="input text-xs" /></Field>
           <Field label="E-mail de faturamento"><input type="email" value={form.emailFaturamento} onChange={(e) => setForm({ ...form, emailFaturamento: e.target.value })} className="input text-xs" /></Field>
+          <Field label="Valor contratual por sessão (R$)" required={form.empresaPagaSessoes}>
+            <input type="number" inputMode="decimal" min="0.01" max="42949672.95" step="0.01"
+              required={form.empresaPagaSessoes || convenio?.valorSessaoContratoCents != null}
+              value={valorContrato} onChange={(e) => setValorContrato(e.target.value)} className="input text-xs" />
+          </Field>
+          {convenio && !convenio.valorSessaoContratoCents && <p className="self-center text-xs text-muted">Ao informar o valor, as sessões custeadas que aguardam preço recebem o crédito no mês em que foram confirmadas.</p>}
           <Field label="Pacote de sessões"><input type="number" min={1} value={form.pacoteSessoes ?? ''} onChange={(e) => setForm({ ...form, pacoteSessoes: e.target.value ? Number(e.target.value) : null })} className="input text-xs" /></Field>
           <Field label="Contagem do pacote"><select value={form.pacoteSessoesCiclo ?? 'total'} onChange={(e) => setForm({ ...form, pacoteSessoesCiclo: e.target.value === 'mensal' ? 'mensal' : 'total' })} className="input text-xs"><option value="total">No total, por paciente</option><option value="mensal">Por mês, por paciente</option></select></Field>
           <p className="text-[11px] leading-relaxed text-muted sm:col-span-2">{explicacaoPacote}</p>

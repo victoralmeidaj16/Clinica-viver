@@ -76,6 +76,8 @@ export async function POST(request: Request) {
         pacienteNome: paciente.nome,
         acessibilidade: paciente.acessibilidade,
         professionalName: paciente.professionalName,
+        serviceKey: paciente.serviceKey ?? null,
+        publico: paciente.publico ?? null,
         dias: [...dias.entries()].map(([dia, horarios]) => ({ dia, horarios })),
         agendamentoAtual: agendamentoAtual ?? null,
       },

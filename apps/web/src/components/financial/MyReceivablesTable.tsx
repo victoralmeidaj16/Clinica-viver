@@ -1,6 +1,7 @@
 'use client';
 
 import { Building2, CalendarDays, Check, CheckCircle2, Copy, Pencil, XCircle } from 'lucide-react';
+import { focoCobranca } from '@/lib/focoNotificacao';
 import { reaisDeCentavos, rotuloFormaPagamento } from '@/lib/modalidadesPagamento';
 import type { PaymentStatus, Receivable } from '@/lib/myFinancialModel';
 
@@ -71,7 +72,7 @@ export function MyReceivablesTable({ receivables, pacientesMap, linkCopiado, onC
                 const custeado = Boolean(item.custeadoPelaEmpresa ?? isConveniado);
 
                 return (
-                  <tr key={item.chargeId} className="border-b border-line/70 hover:bg-slate-50/50 transition">
+                  <tr key={item.chargeId} data-foco={focoCobranca(item.chargeId)} className="border-b border-line/70 hover:bg-slate-50/50 transition">
                     <td className="py-3 whitespace-nowrap">
                       {new Date(item.startsAt || item.dueAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' })}
                     </td>

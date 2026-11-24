@@ -20,8 +20,7 @@ import { ManualAppointmentChargeDue } from './ManualAppointmentChargeDue';
 import type { CusteioAoAgendar } from '@/lib/sessionChargeRules';
 import {
   CLINICAL_SERVICES,
-  getServiceDuration,
-  hasVariableDuration,
+  validServiceDuration,
   monthlyRecurrenceDates,
   todayAtClinic,
   type AppointmentFrequency,
@@ -61,13 +60,14 @@ export function ManualAppointmentDialog({
   const eligible = useMemo(
     () =>
       patients
-        .filter((patient) => patient.status !== 'discharged')
+        .filter((patient) => patient.status !== 'discharged' && patient.status !== 'paused')
         .sort((a, b) => a.displayName.localeCompare(b.displayName, 'pt-BR')),
     [patients]
   );
 
   const [accessibilityByPatient, setAccessibilityByPatient] = useState<Record<string, PatientAccessibility | null>>({});
-  const [patientId, setPatientId] = useState(initialPatientId ?? '');
+  const initialPatient = eligible.find((patient) => patient.id === initialPatientId);
+  const [patientId, setPatientId] = useState(initialPatient?.id ?? '');
   const selectedPatient = useMemo(
     () => eligible.find((p) => p.id === patientId),
     [eligible, patientId]
@@ -96,16 +96,13 @@ export function ManualAppointmentDialog({
   const [customDue, setCustomDue] = useState(false);
   const custeio = selectedPatient?.custeioAoAgendar;
 
-  const variableDuration = hasVariableDuration(serviceKey);
-  const manualDuration = variableDuration && durationPreset === 'manual';
-  const selectedEvaluationDuration = durationPreset === 'manual'
-    ? variableDurationMinutes(customHours, customMinutes)
-    : durationPreset;
-  const durationMinutes = variableDuration
-    ? selectedEvaluationDuration
-    : getServiceDuration(serviceKey);
-  const validDuration = Number.isInteger(durationMinutes) && durationMinutes >= 15 && durationMinutes <= 240;
   const selectedService = CLINICAL_SERVICES.find((s) => s.key === serviceKey) ?? CLINICAL_SERVICES[0];
+  const variableDuration = Boolean(selectedService.variableDuration);
+  const manualDuration = variableDuration && durationPreset === 'manual';
+  let durationMinutes = selectedService.durationMinutes;
+  if (manualDuration) durationMinutes = variableDurationMinutes(customHours, customMinutes);
+  else if ((variableDuration || selectedService.durationOptions) && durationPreset !== 'manual') durationMinutes = durationPreset;
+  const validDuration = validServiceDuration(serviceKey, durationMinutes);
   const recurrenceDates = useMemo(() => frequency === 'custom' ? customDates : monthlyRecurrenceDates(date, frequency), [date, frequency, customDates]);
 
   const { submit, saving, message, completed } = useManualAppointmentSubmission({
@@ -136,7 +133,7 @@ export function ManualAppointmentDialog({
                 required
                 value={patientId}
                 onChange={(event) => setPatientId(event.target.value)}
-                disabled={Boolean(initialPatientId) || saving || completed}
+                disabled={Boolean(initialPatient) || saving || completed}
                 className="input w-full appearance-none py-3 pl-10 pr-10 text-xs font-bold"
               >
                 <option value="">Selecione um paciente</option>
@@ -174,9 +171,9 @@ export function ManualAppointmentDialog({
 
           {selectedPatient && <PatientAccessibilityFields value={accessibilityByPatient[patientId] === undefined ? selectedPatient.acessibilidade : accessibilityByPatient[patientId]}
             onChange={(value) => setAccessibilityByPatient((current) => ({ ...current, [patientId]: value }))} disabled={saving || completed} />}
-          <ManualAppointmentServiceFields services={servicosDisponiveis} serviceKey={serviceKey}
+          <ManualAppointmentServiceFields services={servicosDisponiveis} selectedService={selectedService}
             onServiceChange={(value) => { setServiceKey(value); setDurationPreset(50); setCustomHours(''); setCustomMinutes(''); }}
-            variableDuration={variableDuration} manualDuration={manualDuration} durationPreset={durationPreset}
+            manualDuration={manualDuration} durationPreset={durationPreset}
             setDurationPreset={setDurationPreset} customHours={customHours} customMinutes={customMinutes}
             setCustomHours={setCustomHours} setCustomMinutes={setCustomMinutes} disabled={saving || completed} />
 

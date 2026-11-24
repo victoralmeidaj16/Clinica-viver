@@ -4,6 +4,11 @@ import { validCpf } from './cpf';
 import { validateGender, type GenderValue } from './gender';
 import { normalizarTurnosPreferencia } from './turnos';
 import { publicoVitrinePermitido } from './vitrinePublico';
+import {
+  pacienteMenorDeIdade,
+  validarResponsavelFinanceiro,
+  type ResponsavelFinanceiro,
+} from './responsavelFinanceiro';
 
 /**
  * Saneamento do formulário público da vitrine.
@@ -107,6 +112,9 @@ export interface DadosTriagem {
   servico?: string;
   servicoKey?: string;
   modalidade?: string;
+  formatoAtendimento?: 'ONLINE' | 'PRESENCIAL' | 'INDIFERENTE';
+  abordagemDesejada?: string;
+  duracaoSessaoMinutos?: number;
   paraQuemE?: string;
   preferenciaGeneroPsicologo: PreferenciaGeneroPsicologo;
   especificarNecessidades: boolean;
@@ -115,6 +123,10 @@ export interface DadosTriagem {
   opcaoAvaliacaoPsicologica?: string;
   /** Presente apenas quando o paciente escolheu alguém no catálogo público. */
   psicologoPreferidoId?: string;
+  /** Criança ou adolescente: quem recebe o primeiro contato e as cobranças (6.03). */
+  responsavelFinanceiro?: ResponsavelFinanceiro;
+  /** Menor sem CPF próprio, identificado pelo CPF do responsável (seção 15). */
+  identificadoPeloResponsavel?: boolean;
 }
 
 export type ResultadoValidacao =
@@ -154,7 +166,7 @@ function preferenciaGenero(valor: unknown): PreferenciaGeneroPsicologo {
  */
 export function validarSubmissaoTriagem(
   corpo: unknown,
-  opcoes: { exigirCompatibilidadeVitrine?: boolean; cadastroManual?: boolean } = {},
+  opcoes: { exigirCompatibilidadeVitrine?: boolean; cadastroManual?: boolean; exigirResponsavelDeMenor?: boolean } = {},
 ): ResultadoValidacao {
   if (!corpo || typeof corpo !== 'object' || Array.isArray(corpo)) {
     return recusa('Não foi possível ler os dados enviados.');
@@ -255,10 +267,23 @@ export function validarSubmissaoTriagem(
         .filter(Boolean)
     : [];
 
-  const livres = [texto(body.necessidadesOutro, 300), texto(body.paraQuemE, 160)];
+  const livres = [
+    texto(body.necessidadesOutro, 300),
+    texto(body.paraQuemE, 160),
+    texto(body.abordagemDesejada, 120),
+  ];
   if (livres.some((campo) => campo && LINK.test(campo))) {
     return recusa('Não foi possível validar o envio do formulário.');
   }
+
+  const formatoBruto = texto(body.formatoAtendimento, 24)?.toUpperCase();
+  const formatoAtendimento = formatoBruto === 'ONLINE' || formatoBruto === 'PRESENCIAL' || formatoBruto === 'INDIFERENTE'
+    ? formatoBruto
+    : undefined;
+  const duracaoBruta = typeof body.duracaoSessaoMinutos === 'number'
+    ? body.duracaoSessaoMinutos
+    : Number(body.duracaoSessaoMinutos);
+  const duracaoSessaoMinutos = duracaoBruta === 50 || duracaoBruta === 90 ? duracaoBruta : undefined;
 
   const modalidade = texto(body.modalidade, 40);
   const servicoKey = texto(body.servicoKey, 40);
@@ -271,6 +296,30 @@ export function validarSubmissaoTriagem(
   }
   const modalidadeParticular = modalidade?.toUpperCase().includes('PARTICULAR');
 
+  // Criança ou adolescente (6.03 e seção 15): o responsável é obrigatório onde
+  // a clínica exige, e, sem CPF próprio, o menor é identificado pelo dele.
+  const menor = pacienteMenorDeIdade({ dataNascimento, idade, paraQuemE });
+  const menorSemCpf = body.menorSemCpf === true;
+  if (menorSemCpf && !menor) {
+    return recusa('O CPF do responsável só substitui o do paciente para crianças e adolescentes. Informe o CPF do paciente.');
+  }
+  const responsavelBruto = body.responsavelFinanceiro;
+  const informouResponsavel = Boolean(responsavelBruto && typeof responsavelBruto === 'object'
+    && Object.values(responsavelBruto as Record<string, unknown>).some((valor) => typeof valor === 'string' && valor.trim()));
+  let responsavelFinanceiro: ResponsavelFinanceiro | undefined;
+  if (menorSemCpf || informouResponsavel || (menor && opcoes.exigirResponsavelDeMenor)) {
+    const validado = validarResponsavelFinanceiro(responsavelBruto);
+    if (!validado.ok) {
+      return recusa(menor && !informouResponsavel
+        ? 'Para crianças e adolescentes, informe o nome e o CPF do responsável.'
+        : validado.erro);
+    }
+    responsavelFinanceiro = validado.responsavel;
+    if (!menorSemCpf && cpf && cpf === responsavelFinanceiro.cpf) {
+      return recusa('O CPF do responsável deve ser diferente do CPF do paciente. Se o paciente ainda não tem CPF, marque essa opção.');
+    }
+  }
+
   return {
     ok: true,
     dados: {
@@ -282,7 +331,7 @@ export function validarSubmissaoTriagem(
       dataNascimento,
       idade,
       email,
-      cpf,
+      cpf: menorSemCpf ? undefined : cpf,
       cep,
       logradouro,
       numeroResidencia,
@@ -297,6 +346,9 @@ export function validarSubmissaoTriagem(
       servico: texto(body.servico, 120),
       servicoKey,
       modalidade,
+      formatoAtendimento,
+      abordagemDesejada: livres[2],
+      duracaoSessaoMinutos,
       paraQuemE,
       preferenciaGeneroPsicologo: preferenciaGenero(body.preferenciaGeneroPsicologo),
       especificarNecessidades: Boolean(body.especificarNecessidades),
@@ -304,6 +356,8 @@ export function validarSubmissaoTriagem(
       necessidadesOutro: livres[0],
       opcaoAvaliacaoPsicologica: texto(body.opcaoAvaliacaoPsicologica, 120),
       psicologoPreferidoId: texto(body.psicologoPreferidoId, 120),
+      ...(responsavelFinanceiro ? { responsavelFinanceiro } : {}),
+      ...(menorSemCpf ? { identificadoPeloResponsavel: true } : {}),
     },
   };
 }

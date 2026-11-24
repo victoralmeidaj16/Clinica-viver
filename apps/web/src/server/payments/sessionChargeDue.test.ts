@@ -7,7 +7,10 @@ const state = vi.hoisted(() => ({
   connection: { beginTransaction: vi.fn(), commit: vi.fn(), rollback: vi.fn(), release: vi.fn(), query: vi.fn(), execute: vi.fn() },
 }));
 vi.mock('@/server/oci/runtime', () => ({ getMysqlPool: () => ({ getConnection: async () => state.connection }) }));
-vi.mock('@/server/persistence/mysql/mappers', () => ({ instituicaoId: () => 'inst', toSqlTimestamp: (value: string) => value }));
+vi.mock('@/server/persistence/mysql/mappers', async (original) => ({
+  ...await original<typeof import('@/server/persistence/mysql/mappers')>(),
+  instituicaoId: () => 'inst', toSqlTimestamp: (value: string) => value,
+}));
 vi.mock('./sessionChargeCancellation', () => ({ cancelRemote: vi.fn(), remoteCancellationState: vi.fn() }));
 import { cancelRemote, remoteCancellationState } from './sessionChargeCancellation';
 import { atualizarVencimentoCobrancaSessao } from './sessionChargeDue';
@@ -27,7 +30,7 @@ beforeEach(() => {
     if (sql.includes('GET_LOCK')) return [[{ acquired: 1 }], []];
     if (sql.includes('JSON_CONTAINS')) return [[...(state.job?.situacao === 'pending' ? [state.job] : [])], []];
     if (sql.includes('SELECT id, plano')) return [[...(state.job?.situacao === 'pending' ? [state.job] : [])], []];
-    if (sql.includes('SELECT a.id FROM')) return [[{ id: 'appt' }], []];
+    if (sql.includes('AS profissional_ref')) return [[{ id: 'appt', profissional_ref: 'pro' }], []];
     if (sql.includes('SELECT c.ref_core')) return [state.charges, []];
     if (sql.includes('SELECT x.id')) return [state.checkouts, []];
     if (sql.includes('SELECT cobranca_ref')) return [[{ cobranca_ref: 'charge' }, { cobranca_ref: 'group-member' }], []];
@@ -49,6 +52,28 @@ function secondPayment() {
 }
 
 describe('ajuste financeiro após liberar a agenda', () => {
+  it('captura o vencimento efetivo sob a trava e comunica as trocas aceitas após o commit', async () => {
+    state.charges = []; state.checkouts = [];
+    let vencimento = '2098-01-01 09:00:00.000';
+    const query = state.connection.query.getMockImplementation()!;
+    state.connection.query.mockImplementation(async (sql, values) => {
+      if (!sql.includes('AS profissional_ref')) return query(sql, values);
+      expect(sql).toMatch(/COALESCE\(\(SELECT c\.vence_em[\s\S]+a\.cobranca_vence_em\) AS vence_em/);
+      expect(sql).toContain('FOR UPDATE');
+      expect(state.transaction).toBe(true);
+      return [[{ id: 'appt', profissional_ref: 'pro', vence_em: vencimento }], []];
+    });
+    state.connection.execute.mockImplementation(async (sql, values) => {
+      if (sql.startsWith('UPDATE clinica_agendamentos SET cobranca_vence_em')) vencimento = String(values[0]);
+      return [{ affectedRows: 1 }, []];
+    });
+    const aposAlteracao = vi.fn(async () => { expect(state.transaction).toBe(false); });
+    await atualizarVencimentoCobrancaSessao({ ...input, aposAlteracao });
+    await atualizarVencimentoCobrancaSessao({ ...input, dueAt: '2099-02-01T12:00:00Z', aposAlteracao });
+    expect(aposAlteracao).toHaveBeenNthCalledWith(1, { agendamentoId: 'appt', profissionalRef: 'pro', venceEm: '2098-01-01T09:00:00.000Z' });
+    expect(aposAlteracao).toHaveBeenNthCalledWith(2, { agendamentoId: 'appt', profissionalRef: 'pro', venceEm: '2099-01-01T12:00:00.000Z' });
+  });
+
   it('grava a intenção antes de acessar a rede e libera todas as sessões do grupo', async () => {
     expect(await atualizarVencimentoCobrancaSessao(input)).toBe('updated');
     expect(state.job?.situacao).toBe('completed');
@@ -60,7 +85,9 @@ describe('ajuste financeiro após liberar a agenda', () => {
   it('não cancela nenhum pagamento se o segundo já estiver pago na pré-consulta', async () => {
     secondPayment();
     vi.mocked(remoteCancellationState).mockResolvedValueOnce('pending').mockResolvedValueOnce('paid');
-    expect(await atualizarVencimentoCobrancaSessao(input)).toBe('paid');
+    const aposAlteracao = vi.fn();
+    expect(await atualizarVencimentoCobrancaSessao({ ...input, aposAlteracao })).toBe('paid');
+    expect(aposAlteracao).not.toHaveBeenCalled();
     expect(cancelRemote).not.toHaveBeenCalled();
     expect(state.job?.situacao).toBe('paid');
   });

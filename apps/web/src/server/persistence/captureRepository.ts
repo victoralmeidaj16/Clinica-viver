@@ -15,6 +15,7 @@ import {
   type CaptureState,
 } from './mysql/captureRepository';
 import { comTurmasEncerradas } from './turmasEncerradas';
+import { prazoOfertaValido } from '@/lib/prazoOferta';
 
 /**
  * Um caminho só para a captação — fila de triagem e credenciamento.
@@ -47,18 +48,23 @@ export interface CaptureRepository {
 /**
  * Adaptador de arquivo.
  *
- * Não tem transação nem trava: duas requisições simultâneas podem se
- * sobrescrever, e o encadeamento de escritas em `writeSnapshot` só protege
- * dentro do mesmo processo. É a razão de o MySQL existir — e é uma limitação
- * declarada, não um detalhe esquecido. Este caminho serve à instalação de
- * demonstração e ao desenvolvimento local.
+ * A fila cobre a leitura e a gravação em um único processo de demonstração.
+ * O MySQL usa uma transação por organização nas instalações compartilhadas.
  */
 export class FileCaptureRepository implements CaptureRepository {
+  private static pendingMutation: Promise<void> = Promise.resolve();
+
   async read(): Promise<CaptureState> {
     return this.comDerivados(captureStateFromSnapshot(readSnapshot() ?? emptySnapshot()));
   }
 
-  async mutate<T>(mutator: (state: CaptureState) => CaptureResult<T>): Promise<T> {
+  mutate<T>(mutator: (state: CaptureState) => CaptureResult<T>): Promise<T> {
+    const operation = FileCaptureRepository.pendingMutation.then(() => this.applyMutation(mutator));
+    FileCaptureRepository.pendingMutation = operation.then(() => undefined, () => undefined);
+    return operation;
+  }
+
+  private async applyMutation<T>(mutator: (state: CaptureState) => CaptureResult<T>): Promise<T> {
     const snapshot = readSnapshot() ?? emptySnapshot();
     const current = await this.comDerivados(captureStateFromSnapshot(snapshot));
     const change = mutator(current);
@@ -77,9 +83,14 @@ export class FileCaptureRepository implements CaptureRepository {
   }
 
   private async comDerivados(state: CaptureState): Promise<CaptureState> {
+    // Modo arquivo é de uma organização só: vale o prazo que estiver gravado.
+    const prazo = (readSnapshot()?.configuracoesGestao ?? [])
+      .find((item) => item.chave.endsWith(':prazo_oferta_horas'));
+    const prazoOfertaHoras = prazoOfertaValido(prazo?.valor) ?? undefined;
     return {
       ...state,
       cadastrosPsicologos: await comTurmasEncerradas([...state.cadastrosPsicologos]),
+      ...(prazoOfertaHoras !== undefined ? { prazoOfertaHoras } : {}),
     };
   }
 }

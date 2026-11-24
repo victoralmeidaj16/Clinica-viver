@@ -8,7 +8,6 @@ import {
   type CadastroPsicologoRecord,
 } from '@/server/application/persistence';
 import { isMysqlConfigured } from '@/server/oci/runtime';
-import { MysqlCaptureRepository } from '@/server/persistence/mysql/captureRepository';
 import { getCaptureRepository } from '@/server/persistence/captureRepository';
 import { exigirGestao, NaoAutorizadoError } from '@/server/viverMaisGestaoAuth';
 import { normalizeBrazilPhone } from '@/lib/brazilPhone';
@@ -24,7 +23,6 @@ import { avisarCadastroRecebidoPorEmail } from '@/server/application/psychologis
 import { registrarAceiteTermoAdesao } from '@/server/application/termoAdesaoAceite';
 import type { ComprovanteGerado } from '@/server/application/termoAdesaoComprovante';
 import { montarComprovanteTermoAdesao } from '@/server/application/termoAdesaoComprovantePdf';
-import { enviarComprovanteTermoAdesao } from '@/server/application/termoAdesaoComprovanteEmail';
 import { validarAcessibilidade } from '@/lib/psychologistAccessibility';
 import { posicoesDoRodizio } from '@/server/application/gestaoRodizio';
 
@@ -111,20 +109,6 @@ async function prepararComprovante(cadastro: CadastroPsicologoRecord): Promise<C
     console.error('Não foi possível gerar o comprovante do Termo de Adesão:', error);
     return null;
   }
-}
-
-/** Envia a via da clínica na inscrição e anota o resultado na prova. */
-async function entregarComprovante(cadastro: CadastroPsicologoRecord, comprovante: ComprovanteGerado | null) {
-  if (!comprovante) return 'nao_gerado' as const;
-  const envio = await enviarComprovanteTermoAdesao(cadastro, comprovante);
-  if (isMysqlConfigured()) {
-    try {
-      await new MysqlCaptureRepository().registrarEnvioComprovanteTermo(cadastro.id, envio);
-    } catch (error) {
-      console.error('Não foi possível registrar o envio do comprovante do termo:', error);
-    }
-  }
-  return envio.situacao;
 }
 
 export async function GET() {
@@ -293,16 +277,13 @@ export async function POST(request: Request) {
       result: novoPsicologo,
     }));
 
-    const [emailDelivery, comprovanteTermo] = await Promise.all([
-      avisarCadastroRecebidoPorEmail(novoPsicologo),
-      entregarComprovante(novoPsicologo, comprovante),
-    ]);
+    const emailDelivery = await avisarCadastroRecebidoPorEmail(novoPsicologo);
 
     return NextResponse.json({
       success: true,
       data: novoPsicologo,
       email: emailDelivery.situacao,
-      comprovanteTermo,
+      comprovanteTermo: 'aguardando_aprovacao',
     });
   } catch (error) {
     if (error instanceof CadastroDuplicadoError) {

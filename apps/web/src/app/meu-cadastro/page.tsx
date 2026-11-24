@@ -11,7 +11,6 @@ import {
   Pencil,
   ShieldCheck,
   XCircle,
-  ExternalLink,
 } from 'lucide-react';
 import { formatBrazilPhone, maskBrazilPhoneInput, normalizeBrazilPhone } from '@/lib/brazilPhone';
 import { maskCrpInput } from '@/lib/crp';
@@ -32,6 +31,7 @@ import { BrazilLocationFields } from '@/components/forms/BrazilLocationFields';
 import { TemposAtendimentoPsicologo } from '@/components/forms/TemposAtendimentoPsicologo';
 import { processImageUpload } from '@/lib/imageUpload';
 import { CardDefinidoPelaGestao } from '@/components/meu-cadastro/CardDefinidoPelaGestao';
+import { CardTermoAdesao } from '@/components/meu-cadastro/CardTermoAdesao';
 import { ReconfiguracaoAtendimento } from '@/components/meu-cadastro/ReconfiguracaoAtendimento';
 import { FocoDeNotificacao } from '@/components/layout/FocoDeNotificacao';
 import { FOCO_SECAO } from '@/lib/focoNotificacao';
@@ -88,6 +88,9 @@ interface Cadastro {
     respondidoEm?: string;
     motivoRecusa?: string;
   };
+  versaoTermos?: string;
+  aceitouTermosEm?: string;
+  aceiteTermoAdesao?: { versao: string; aceitoEm: string };
   criadoEm?: string;
 }
 
@@ -641,33 +644,13 @@ export default function MeuCadastroPage() {
               onCancelarSolicitacao={cancelarSolicitacaoGestao}
             />
 
-            {/* Card do Termo de Adesão e Condições de Uso */}
-            <section className="bg-surface rounded-3xl border border-line shadow-card p-6 space-y-4">
-              <div className="flex items-center justify-between gap-3 border-b border-line pb-4">
-                <div className="flex items-center gap-3">
-                  <ShieldCheck className="w-5 h-5 text-psi-vibrant" />
-                  <h2 className="font-black text-ink">Termo de Adesão e Condições de Uso</h2>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setModalTermosAberto(true)}
-                  className="inline-flex items-center gap-1.5 text-xs font-extrabold text-psi-deep hover:text-psi-darkest underline"
-                >
-                  <span>Consultar termo completo</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              <div className="bg-psi-soft/40 border border-psi-soft p-4 rounded-2xl space-y-2">
-                <div className="flex items-center gap-2 text-xs font-extrabold text-psi-darkest">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Adesão em Conformidade Ética e Contratual</span>
-                </div>
-                <p className="text-xs text-muted leading-relaxed">
-                  Consulte as condições operacionais, financeiras, éticas e de proteção de dados aceitas no seu credenciamento.
-                </p>
-              </div>
-            </section>
+            <CardTermoAdesao
+              cadastroId={cadastro.id}
+              possuiComprovante={Boolean(cadastro.aceiteTermoAdesao)}
+              versaoTermos={cadastro.aceiteTermoAdesao?.versao ?? cadastro.versaoTermos}
+              aceitoEm={cadastro.aceiteTermoAdesao?.aceitoEm ?? cadastro.aceitouTermosEm}
+              onAbrirTermo={() => setModalTermosAberto(true)}
+            />
           </div>
 
           <aside className="bg-psi-darkest rounded-3xl p-6 text-white shadow-contrast h-fit">

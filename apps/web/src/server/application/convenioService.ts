@@ -20,6 +20,10 @@ import { getMysqlPool } from '@/server/oci/runtime';
 import { instituicaoId } from '@/server/persistence/mysql/mappers';
 
 function admin(context: RequestContext) {
+  const roles = context.actor?.roles ?? [];
+  if (roles.includes('billing') && !roles.includes('professional')) {
+    return context.actor.organizationId;
+  }
   exigirAdminFiscal(context, 'A gestão de convênios é exclusiva do perfil administrador.');
   return context.actor.organizationId;
 }

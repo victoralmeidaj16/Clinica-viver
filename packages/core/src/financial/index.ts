@@ -10,3 +10,4 @@ export * from './csv';
 export * from './pdf';
 export * from './inMemoryPersistence';
 export * from './ledgerValidation';
+export * from './educationalCredits';

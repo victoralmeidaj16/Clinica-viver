@@ -17,9 +17,22 @@ const SESSION_TTL_SECONDS = 60 * 60 * 8;
 export interface AuthSession {
   userId: string;
   organizationId: string;
-  role: 'admin' | 'psicologo';
+  role: 'admin' | 'financeiro' | 'psicologo';
   issuedAt: number;
   expiresAt: number;
+}
+
+/**
+ * Traduz os papéis organizacionais para o perfil da sessão web.
+ *
+ * Contas de demonstração de psicólogo carregam `['professional', 'billing']`,
+ * por isso `billing` só abre o perfil Financeiro dedicado quando não há
+ * vínculo clínico (`professional`) na mesma associação.
+ */
+export function resolveWebRole(roles: readonly string[]): AuthSession['role'] {
+  if (roles.some((role) => role === 'owner' || role === 'admin')) return 'admin';
+  if (roles.includes('billing') && !roles.includes('professional')) return 'financeiro';
+  return 'psicologo';
 }
 
 interface LoginUser {
@@ -58,6 +71,7 @@ function configuredUsers(): LoginUser[] {
   // Credenciais de demonstração de fallback caso AUTH_USERS_JSON e DATABASE_URL não estejam definidos
   return [
     { email: 'admin@vivermais.local', password: 'Admin@123', userId: 'admin-demo', organizationId: 'org-demo' },
+    { email: 'financeiro@vivermais.local', password: 'Fin@123', userId: 'financeiro-demo', organizationId: 'org-demo' },
     { email: 'psicologo@vivermais.local', password: 'Psi@123', userId: 'user-demo', organizationId: 'org-demo' },
     { email: 'admin@vivermaispsicologia.com.br', password: 'Admin@123', userId: 'admin-demo', organizationId: 'org-demo' },
     { email: 'psicologo@vivermaispsicologia.com.br', password: 'Psi@123', userId: 'user-demo', organizationId: 'org-demo' },
@@ -175,8 +189,8 @@ async function sessionStillValid(session: AuthSession): Promise<boolean> {
   );
   const row = rows[0];
   if (!row || row.membro_status !== 'active' || row.usuario_status === 'disabled') return false;
-  const admin = String(row.papeis ?? '').split(',').some((role) => role === 'owner' || role === 'admin');
-  if (admin !== (session.role === 'admin')) return false;
+  const roles = String(row.papeis ?? '').split(',').map((role) => role.trim()).filter(Boolean);
+  if (resolveWebRole(roles) !== session.role) return false;
   const passwordSetAt = fromSqlTimestamp(row.senha_definida_em);
   return !passwordSetAt || session.issuedAt >= Date.parse(passwordSetAt);
 }

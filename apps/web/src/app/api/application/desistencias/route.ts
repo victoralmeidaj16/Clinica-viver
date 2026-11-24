@@ -1,13 +1,9 @@
 import { NextResponse } from 'next/server';
 import { readSession } from '@/server/auth';
 import { getApplicationStore } from '@/server/application/store';
-import {
-  emptySnapshot,
-  readSnapshot,
-  writeSnapshot,
-  type AuditoriaDesistenciaRecord,
-  type TriagemPacienteRecord,
-} from '@/server/application/persistence';
+import type { AuditoriaDesistenciaRecord, TriagemPacienteRecord } from '@/server/application/persistence';
+import { getDesistenciaRepository } from '@/server/persistence/desistenciaRepository';
+import { executarListaDeEsperaSemFalhar } from '@/server/application/listaEsperaExecucao';
 import { captureStateAsSnapshot, getCaptureRepository } from '@/server/persistence/captureRepository';
 import { exigirGestao, NaoAutorizadoError } from '@/server/viverMaisGestaoAuth';
 import {
@@ -15,6 +11,8 @@ import {
   listarPsicologosCompativeis,
   recalcularPacientesAtivos,
 } from '@/server/application/viverMaisRodizio';
+import { avisarAlocacao, avisarConfirmacaoPaciente } from '@/server/application/viverMaisWhatsApp';
+import { avisarAlocacaoPsicologoPorEmail } from '@/server/application/triagemEmail';
 import { motivoValido } from '@/lib/desistencias';
 
 export const runtime = 'nodejs';
@@ -114,8 +112,8 @@ export async function POST(request: Request) {
     if (!sessao) throw new NaoAutorizadoError(401, 'Faça login para continuar.');
 
     const body = (await request.json()) as Record<string, unknown>;
-    const snapshot = readSnapshot() ?? emptySnapshot();
-    const registros = [...(snapshot.auditoriaDesistencias ?? [])];
+    const repositorio = getDesistenciaRepository();
+    const registros = await repositorio.list(sessao.organizationId);
     const agora = new Date().toISOString();
 
     if (body.action === 'ALOCAR_PACIENTE') {
@@ -133,6 +131,12 @@ export async function POST(request: Request) {
 
       const psicologoId = String(body.psicologoId ?? '').trim();
       if (!psicologoId) throw new RequisicaoInvalida('Selecione o psicólogo para a nova alocação.');
+      const modo = body.modo === 'PEDIR_ACEITE' ? ('PEDIR_ACEITE' as const) : ('VINCULAR_DIRETO' as const);
+      const excederLimite = Boolean(body.excederLimite);
+      const justificativaExcesso = String(body.justificativaExcesso ?? '').trim().slice(0, 500);
+      if (excederLimite && !justificativaExcesso) {
+        throw new RequisicaoInvalida('Informe a justificativa para exceder o limite de pacientes do psicólogo.');
+      }
 
       const captureRepository = getCaptureRepository();
       const captura = await captureRepository.read();
@@ -146,10 +150,22 @@ export async function POST(request: Request) {
         throw new RequisicaoInvalida('O paciente não autorizou a troca para outro psicólogo.', 409);
       }
 
-      const compativel = listarPsicologosCompativeis(captureStateAsSnapshot(captura), lead)
-        .find((item) => item.id === psicologoId && item.profissionalRef);
+      const compativel = listarPsicologosCompativeis(
+        captureStateAsSnapshot(captura),
+        lead,
+        new Date(),
+        { ignorarCapacidade: true }
+      ).find((item) => item.id === psicologoId && item.profissionalRef);
       if (!compativel?.profissionalRef) {
         throw new RequisicaoInvalida('O psicólogo não está mais disponível ou não é compatível com esta solicitação.', 409);
+      }
+      const ativosAntes = compativel.pacientesAtivosCount ?? 0;
+      const limite = compativel.limitePacientesAtivos ?? 5;
+      if (!excederLimite && ativosAntes >= limite) {
+        throw new RequisicaoInvalida(
+          `O psicólogo atingiu o limite (${ativosAntes} de ${limite}). Autorize a exceção com justificativa para alocar mesmo assim.`,
+          409
+        );
       }
 
       const store = getApplicationStore();
@@ -157,23 +173,34 @@ export async function POST(request: Request) {
       if (!perfil || perfil.status !== 'active') {
         throw new RequisicaoInvalida('O perfil clínico do psicólogo está inativo.', 409);
       }
-      const reatribuido = await store.identities.reassignPatient({
-        organizationId: sessao.organizationId,
-        patientId: registro.pacienteId,
-        professionalId: compativel.profissionalRef,
-        actorUserId: sessao.userId,
-        reason: `Nova alocação após desistência (${registro.motivo}).`,
-        changedAt: agora,
-      });
-      if (!reatribuido) throw new RequisicaoInvalida('Paciente não encontrado.', 404);
-      await store.identities.savePatient({ ...reatribuido, status: 'active', updatedAt: agora });
 
-      await captureRepository.mutate((state) => {
+      if (modo === 'VINCULAR_DIRETO') {
+        const motivoReatribuicao = excederLimite
+          ? `Nova alocação após desistência (${registro.motivo}) — exceção de limite: ${justificativaExcesso}`
+          : `Nova alocação após desistência (${registro.motivo}).`;
+        const reatribuido = await store.identities.reassignPatient({
+          organizationId: sessao.organizationId,
+          patientId: registro.pacienteId,
+          professionalId: compativel.profissionalRef,
+          actorUserId: sessao.userId,
+          reason: motivoReatribuicao,
+          changedAt: agora,
+        });
+        if (!reatribuido) throw new RequisicaoInvalida('Paciente não encontrado.', 404);
+        await store.identities.savePatient({ ...reatribuido, status: 'active', updatedAt: agora });
+      }
+
+      const opcoesAlocacao = modo !== 'VINCULAR_DIRETO' || excederLimite
+        ? { modo, excederLimite, justificativaExcesso }
+        : undefined;
+      const alocado = await captureRepository.mutate((state) => {
         const atual = state.triagensPacientes.find((item) =>
           item.id === lead.id && item.pacienteRef === registro.pacienteId
         );
         if (!atual) throw new RequisicaoInvalida('Triagem vinculada ao paciente não encontrada.', 404);
-        const resultado = alocarLeadParaPsicologo(captureStateAsSnapshot(state), atual, psicologoId, agora);
+        const resultado = opcoesAlocacao
+          ? alocarLeadParaPsicologo(captureStateAsSnapshot(state), atual, psicologoId, agora, opcoesAlocacao)
+          : alocarLeadParaPsicologo(captureStateAsSnapshot(state), atual, psicologoId, agora);
         if (!resultado.psicologo) {
           throw new RequisicaoInvalida('O psicólogo deixou de estar disponível para esta alocação.', 409);
         }
@@ -182,18 +209,37 @@ export async function POST(request: Request) {
             triagensPacientes: resultado.snapshot.triagensPacientes ?? [],
             cadastrosPsicologos: resultado.snapshot.cadastrosPsicologos ?? [],
           },
-          result: null,
+          result: { lead: resultado.lead, psicologo: resultado.psicologo },
         };
       });
+
+      const leadAlocado = alocado?.lead ?? lead;
+      const psicologoAlocado = alocado?.psicologo ?? compativel;
+      if (modo === 'VINCULAR_DIRETO') {
+        void avisarConfirmacaoPaciente(leadAlocado);
+      } else {
+        void avisarAlocacao(leadAlocado, psicologoAlocado);
+        void avisarAlocacaoPsicologoPorEmail(leadAlocado, psicologoAlocado, 'RODIZIO');
+      }
+
+      const ativosDepois = psicologoAlocado.pacientesAtivosCount
+        ?? (ativosAntes + (modo === 'VINCULAR_DIRETO' ? 1 : 0));
+      const nomePsi = compativel.nomeSocial || compativel.nomeCompleto;
+      const sufixoLimite = excederLimite
+        ? ` — exceção de limite (${ativosDepois} de ${limite}): ${justificativaExcesso}`
+        : '';
 
       registros[indice] = {
         ...registro,
         leadId: lead.id,
         reengajado: true,
-        observacoesReengajamento: `Paciente alocado para ${compativel.nomeSocial || compativel.nomeCompleto}.`,
+        observacoesReengajamento:
+          (modo === 'PEDIR_ACEITE'
+            ? `Pedido de aceite enviado para ${nomePsi}.`
+            : `Paciente alocado para ${nomePsi}.`) + sufixoLimite,
       };
 
-      await writeSnapshot({ ...snapshot, auditoriaDesistencias: registros, savedAt: agora });
+      await repositorio.save(registros[indice]);
       return NextResponse.json({ success: true, data: registros[indice] });
     }
 
@@ -234,6 +280,8 @@ export async function POST(request: Request) {
       dataDesistencia: agora,
       reengajado: false,
       permitirTrocaPsicologo: Boolean(body.permitirTrocaPsicologo),
+      registradoPorUsuarioRef: sessao.userId,
+      registradoPorPerfil: 'GESTAO',
     };
 
     // O prontuário é encerrado antes da auditoria porque é ele que faz o
@@ -246,11 +294,7 @@ export async function POST(request: Request) {
       if (paciente) await store.identities.savePatient({ ...paciente, status: 'discharged', updatedAt: agora });
     }
 
-    await writeSnapshot({
-      ...snapshot,
-      auditoriaDesistencias: [desistencia, ...registros],
-      savedAt: agora,
-    });
+    await repositorio.save(desistencia);
 
     // Marcar o lead libera a vaga do profissional no mesmo banco que o rodízio
     // consulta — sem isso a capacidade seguiria ocupada por quem saiu.
@@ -271,6 +315,8 @@ export async function POST(request: Request) {
           result: null,
         };
       });
+      // A vaga liberada pode ser de quem espera na lista automática (5.07).
+      await executarListaDeEsperaSemFalhar();
     }
 
     return NextResponse.json({ success: true, data: desistencia }, { status: 201 });

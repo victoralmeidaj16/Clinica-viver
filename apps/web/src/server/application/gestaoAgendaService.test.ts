@@ -3,8 +3,15 @@ import type { RequestContext } from './context';
 vi.mock('server-only', () => ({}));
 vi.mock('./agendaService', () => ({
   editAgendaAppointment: vi.fn(async () => ({})),
-  updateAgendaAppointmentChargeDue: vi.fn(async () => ({})),
+  updateAgendaAppointmentChargeDue: vi.fn(async (_context, _id, _dueAt, aposAlteracao) => {
+    await aposAlteracao({ profissionalRef: 'pro-from-appointment', agendamentoId: 'apt', venceEm: '2099-01-01T11:00:00Z' });
+    return {};
+  }),
 }));
+vi.mock('./autorGestao', () => ({ nomeDoUsuario: vi.fn(async () => 'Gestão') }));
+vi.mock('@/server/oci/runtime', () => ({ getMysqlPool: () => ({}) }));
+vi.mock('@/server/persistence/mysql/agendamentoAlteracoesRepository', () => ({ registrarAlteracaoAgendamento: vi.fn() }));
+import { registrarAlteracaoAgendamento } from '@/server/persistence/mysql/agendamentoAlteracoesRepository';
 vi.mock('./convenioService', () => ({ updatePatientConvenio: vi.fn(async () => ({ cobrancasPendentes: 0 })) }));
 vi.mock('@/server/scheduling/gestaoAgendaRepository', () => ({
   listarAgendaGestao: vi.fn(async () => ({ appointments: [], temMais: false })),
@@ -36,9 +43,21 @@ it.each(['professional', 'billing'] as const)('nega leitura e edição ao perfil
 it('permite alterar vencimento sem perfil clínico usando o profissional da sessão', async () => {
   await expect(updateGestaoChargeDue(context, 'apt', '2099-01-01T12:00:00Z')).resolves.toEqual({ updated: true });
   expect(updateAgendaAppointmentChargeDue).toHaveBeenCalledWith({ ...context,
-    actor: { ...context.actor, professionalProfileId: 'pro-from-appointment' } }, 'apt', '2099-01-01T12:00:00Z');
+    actor: { ...context.actor, professionalProfileId: 'pro-from-appointment' } }, 'apt', '2099-01-01T12:00:00Z', expect.any(Function));
 });
 
+it('registra o vencimento anterior e o novo depois da alteração aceita', async () => {
+  await updateGestaoChargeDue(context, 'apt', '2099-01-01T12:00:00Z');
+  expect(registrarAlteracaoAgendamento).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+    agendamentoId: 'apt', organizacaoRef: 'org-1', profissionalRef: 'pro-from-appointment', usuarioRef: 'admin-1', nome: 'Gestão',
+    mudancas: [{ campo: 'vencimento', rotulo: 'Vencimento da cobrança', de: '01/01/2099 às 08:00', para: '01/01/2099 às 09:00' }],
+  }));
+});
+it('não grava histórico quando a troca de vencimento falha', async () => {
+  vi.mocked(updateAgendaAppointmentChargeDue).mockRejectedValueOnce(new Error('paga'));
+  await expect(updateGestaoChargeDue(context, 'apt', '2099-01-01T12:00:00Z')).rejects.toThrow('paga');
+  expect(registrarAlteracaoAgendamento).not.toHaveBeenCalled();
+});
 it('recusa vencimento de sessão fora da organização', async () => {
   vi.mocked(profissionalDoAgendamentoGestao).mockResolvedValueOnce(null);
   await expect(updateGestaoChargeDue(context, 'other-org', '2099-01-01T12:00:00Z')).rejects.toMatchObject({ status: 404 });
@@ -82,7 +101,7 @@ it.each(['admin', 'owner'] as const)('permite %s sem perfil profissional editar 
   expect(profissionalDoAgendamentoGestao).toHaveBeenCalledWith('org-1', 'apt');
   expect(editAgendaAppointment).toHaveBeenCalledWith({ ...authorized,
     actor: { ...authorized.actor, professionalProfileId: 'pro-from-appointment' } },
-  'apt', { custeadoPelaEmpresa: true }, { somenteAgendadas: true, permitirHorarioPassado: true });
+  'apt', { custeadoPelaEmpresa: true }, { permitirCorrecaoAdministrativa: true, permitirHorarioPassado: true, registrarAlteracaoGestao: { usuarioRef: 'admin-1', nome: 'Gestão' } });
 });
 it('não edita referência ausente da organização autenticada', async () => {
   vi.mocked(profissionalDoAgendamentoGestao).mockResolvedValueOnce(null);
@@ -92,6 +111,11 @@ it('não edita referência ausente da organização autenticada', async () => {
 it('lista com busca e paginação na organização autenticada', async () => {
   await getGestaoAgenda(context, '  Maria  ', 2);
   expect(listarAgendaGestao).toHaveBeenCalledWith('org-1', 'Maria', 2);
+});
+it('repassa filtro de status válido e rejeita filtro inválido', async () => {
+  await getGestaoAgenda(context, 'Maria', 0, 'realizado');
+  expect(listarAgendaGestao).toHaveBeenCalledWith('org-1', 'Maria', 0, 'realizado');
+  await expect(getGestaoAgenda(context, 'Maria', 0, 'invalido')).rejects.toMatchObject({ status: 400 });
 });
 it.each([-1, NaN, 1.5])('recusa página inválida %s', async (pagina) => {
   await expect(getGestaoAgenda(context, '', pagina)).rejects.toMatchObject({ status: 400 });

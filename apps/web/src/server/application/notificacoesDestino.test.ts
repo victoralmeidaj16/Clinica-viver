@@ -8,6 +8,7 @@ import type { AgendamentoResumo } from '@/server/scheduling/agendaRepository';
 import {
   notificacoesDaGestao,
   notificacoesDeAgendamentos,
+  notificacoesDeCobrancasVencidas,
   notificacoesDePagamento,
   notificacoesDePerfilAlterado,
   notificacoesDoPsicologo,
@@ -205,6 +206,32 @@ describe('destino das notificações do psicólogo', () => {
       caminho: '/meu-financeiro',
       foco: 'pagamento-pag-5',
       mes: '2026-08',
+    });
+  });
+
+  it('avisa o psicólogo no vencimento da cobrança com foco na linha pendente (§§ 9.05 e 12.01)', () => {
+    const [aviso] = notificacoesDeCobrancasVencidas([
+      {
+        chargeId: 'cob-9',
+        patientName: 'Paciente Um',
+        amountCents: 15_000,
+        dueAt: '2026-09-06T20:00:00.000Z',
+        sessionStartsAt: '2026-09-08T13:00:00.000Z',
+      },
+    ]);
+
+    expect(aviso).toMatchObject({
+      chave: 'cobranca-vencida:cob-9:2026-09-06T20:00:00.000Z',
+      tipo: 'cobranca-vencida',
+      severidade: 'ATENCAO',
+      pendente: true,
+    });
+    expect(aviso.descricao).toContain('Paciente Um');
+    expect(aviso.descricao).toContain('150,00');
+    expect(aviso.descricao).toContain('08/09/2026');
+    expect(destino(aviso.href)).toMatchObject({
+      caminho: '/meu-financeiro',
+      foco: 'cobranca-cob-9',
     });
   });
 

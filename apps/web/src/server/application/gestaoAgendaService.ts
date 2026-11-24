@@ -2,9 +2,20 @@ import 'server-only';
 import type { RequestContext } from './context';
 import { ApplicationError } from './http';
 import { editAgendaAppointment, updateAgendaAppointmentChargeDue } from './agendaService';
+import { nomeDoUsuario } from './autorGestao';
+import { diferencasDoAgendamento } from '@/lib/alteracoesAgendamento';
+import { alteracoesDoAgendamento, registrarAlteracaoAgendamento } from '@/server/persistence/mysql/agendamentoAlteracoesRepository';
+import { getMysqlPool } from '@/server/oci/runtime';
 import { updatePatientConvenio } from './convenioService';
-import { listarAgendaGestao, profissionalDoAgendamentoGestao, convenioDoAgendamentoGestao } from '@/server/scheduling/gestaoAgendaRepository';
+import {
+  listarAgendaGestao,
+  profissionalDoAgendamentoGestao,
+  convenioDoAgendamentoGestao,
+  type FiltroStatusAgendaGestao,
+} from '@/server/scheduling/gestaoAgendaRepository';
 import type { UpdateAppointmentInput } from '@/server/scheduling/agendaRepository';
+
+const STATUS_FILTRO_VALIDOS: readonly FiltroStatusAgendaGestao[] = ['abertas', 'realizado', 'cancelado', 'todas'];
 
 function exigirAdmin(context: RequestContext) {
   if (!context.actor.roles.some((role) => role === 'admin' || role === 'owner')) {
@@ -12,12 +23,23 @@ function exigirAdmin(context: RequestContext) {
   }
 }
 
-export async function getGestaoAgenda(context: RequestContext, busca = '', pagina = 0) {
+export async function getGestaoAgenda(
+  context: RequestContext,
+  busca = '',
+  pagina = 0,
+  statusFiltro?: string
+) {
   exigirAdmin(context);
   if (!Number.isSafeInteger(pagina) || pagina < 0 || pagina > 100000) {
     throw new ApplicationError('INVALID_INPUT', 'Página inválida.', 400);
   }
-  return listarAgendaGestao(context.actor.organizationId, busca.trim().slice(0, 150), pagina);
+  if (statusFiltro !== undefined && !STATUS_FILTRO_VALIDOS.includes(statusFiltro as FiltroStatusAgendaGestao)) {
+    throw new ApplicationError('INVALID_INPUT', 'Filtro de status inválido.', 400);
+  }
+  const termo = busca.trim().slice(0, 150);
+  return statusFiltro && statusFiltro !== 'abertas'
+    ? listarAgendaGestao(context.actor.organizationId, termo, pagina, statusFiltro as FiltroStatusAgendaGestao)
+    : listarAgendaGestao(context.actor.organizationId, termo, pagina);
 }
 
 export async function editGestaoAppointment(context: RequestContext, id: string, input: UpdateAppointmentInput) {
@@ -33,16 +55,30 @@ export async function editGestaoAppointment(context: RequestContext, id: string,
   if (!professionalId) throw new ApplicationError('NOT_FOUND', 'Agendamento não encontrado.', 404);
   // O profissional vem do agendamento da organização autenticada, nunca do cliente.
   await editAgendaAppointment({ ...context, actor: { ...context.actor, professionalProfileId: professionalId } },
-    id, input, { somenteAgendadas: true, permitirHorarioPassado: true });
+    id, input, { permitirCorrecaoAdministrativa: true, permitirHorarioPassado: true,
+      registrarAlteracaoGestao: { usuarioRef: context.actor.userId, nome: await nomeDoUsuario(context.actor.userId) } });
   return { updated: true };
 }
 
 export async function updateGestaoChargeDue(context: RequestContext, id: string, dueAt: string) {
   exigirAdmin(context);
-  const professionalId = await profissionalDoAgendamentoGestao(context.actor.organizationId, id);
+  const { organizationId, userId } = context.actor;
+  const professionalId = await profissionalDoAgendamentoGestao(organizationId, id);
   if (!professionalId) throw new ApplicationError('NOT_FOUND', 'Agendamento não encontrado.', 404);
   await updateAgendaAppointmentChargeDue({ ...context,
-    actor: { ...context.actor, professionalProfileId: professionalId } }, id, dueAt);
+    actor: { ...context.actor, professionalProfileId: professionalId } }, id, dueAt, async (anterior) => {
+    try {
+      const mudancas = diferencasDoAgendamento({ venceEm: anterior.venceEm }, { venceEm: dueAt });
+      if (mudancas.length) {
+        await registrarAlteracaoAgendamento(getMysqlPool(), {
+          organizacaoRef: organizationId, agendamentoId: anterior.agendamentoId, profissionalRef: anterior.profissionalRef,
+          usuarioRef: userId, nome: await nomeDoUsuario(userId), alteradoEm: new Date(), mudancas,
+        });
+      }
+    } catch {
+      console.error('[agenda] Falha ao registrar a alteração de vencimento.');
+    }
+  });
   return { updated: true };
 }
 
@@ -60,4 +96,13 @@ export async function updateGestaoMonthlyCoverage(context: RequestContext, id: s
   return updatePatientConvenio(context, vinculo.pacienteId, {
     convenioId: vinculo.convenioId, custeadoPelaEmpresa: true, custeioCota: cota, custeioCiclo: 'mensal',
   });
+}
+
+export async function historicoGestaoAppointment(context: RequestContext, id: string) {
+  exigirAdmin(context);
+  const { organizationId } = context.actor;
+  if (!await profissionalDoAgendamentoGestao(organizationId, id)) {
+    throw new ApplicationError('NOT_FOUND', 'Agendamento não encontrado.', 404);
+  }
+  return { alteracoes: await alteracoesDoAgendamento(organizationId, id) };
 }

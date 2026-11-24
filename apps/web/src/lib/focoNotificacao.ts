@@ -26,6 +26,9 @@ export const focoSessao = (agendamentoId: string) => `sessao-${agendamentoId}`;
 /** Um pagamento conciliado no extrato do profissional. */
 export const focoPagamento = (pagamentoRef: string) => `pagamento-${pagamentoRef}`;
 
+/** Uma cobrança na tabela de atendimentos/recebíveis do profissional. */
+export const focoCobranca = (cobrancaRef: string) => `cobranca-${cobrancaRef}`;
+
 /** Uma candidatura na aba de credenciamentos. */
 export const focoCredenciamento = (cadastroId: string) => `credenciamento-${cadastroId}`;
 

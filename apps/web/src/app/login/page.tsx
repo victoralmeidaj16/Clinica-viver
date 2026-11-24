@@ -64,7 +64,13 @@ export default function LoginPage() {
     setError(null);
     try {
       const role = await professionalLogin({ email, password });
-      router.replace(role === 'admin' ? '/gestao/cockpit' : '/pacientes');
+      router.replace(
+        role === 'admin'
+          ? '/gestao/cockpit'
+          : role === 'financeiro'
+            ? '/gestao/financeiro'
+            : '/pacientes'
+      );
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Não foi possível entrar.');
     } finally {

@@ -3,6 +3,25 @@ import { describe, expect, it } from 'vitest';
 import { ManualAppointmentDialog, type ManualAppointmentPatient } from './ManualAppointmentDialog';
 
 describe('ManualAppointmentDialog', () => {
+  it('só lista pacientes com vínculo disponível', () => {
+    const markup = renderToStaticMarkup(<ManualAppointmentDialog patients={[
+      { id: 'a', displayName: 'Paciente ativo', status: 'active' },
+      { id: 'b', displayName: 'Paciente pausado', status: 'paused' },
+      { id: 'c', displayName: 'Paciente de alta', status: 'discharged' },
+    ]} onClose={() => undefined} />);
+    expect(markup).toContain('Paciente ativo');
+    expect(markup).not.toContain('Paciente pausado');
+    expect(markup).not.toContain('Paciente de alta');
+  });
+
+  it('oferece Orientação Parental individual e em família com duração fixa para cada opção', () => {
+    const markup = renderToStaticMarkup(<ManualAppointmentDialog patients={[]} servicosHabilitados={['ORIENTACAO_PARENTAL']}
+      onClose={() => undefined} />);
+    expect(markup).toContain('Individual · 50 min');
+    expect(markup).toContain('Em família · 1h30');
+    expect(markup).not.toContain('Definir outro tempo');
+  });
+
   it('oferece atalhos de 50 min e 1h30 para avaliação', () => {
     const markup = renderToStaticMarkup(
       <ManualAppointmentDialog

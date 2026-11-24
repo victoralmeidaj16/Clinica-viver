@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { opcoesAtendimentoDaPos } from './opcoesPsicologo';
+import { opcoesAtendimentoDaPos, POS_GRADUACOES_VIVER_MAIS } from './opcoesPsicologo';
 
 describe('opcoesAtendimentoDaPos', () => {
   const publicoAmplo = [
@@ -23,7 +23,15 @@ describe('opcoesAtendimentoDaPos', () => {
     'Formação e Pós-graduação em Terapia Familiar Sistêmica',
     'Formação e Pós-graduação em Psicodrama Didata e Psicoterapeuta do Aluno - Nível II',
     'Formação e Pós-graduação em Psicodrama Didata Orientador e Supervisor - Nível III',
+    'Pós-graduação em Inovações e Atualizações em Psicologia Clínica',
+    'Pós-graduação em Psicopatologia e Neurodivergências',
   ];
+
+  it('lista os 17 cursos da especificação, incluindo Inovações e Psicopatologia', () => {
+    expect(POS_GRADUACOES_VIVER_MAIS).toHaveLength(17);
+    expect(POS_GRADUACOES_VIVER_MAIS).toContain('Pós-graduação em Inovações e Atualizações em Psicologia Clínica');
+    expect(POS_GRADUACOES_VIVER_MAIS).toContain('Pós-graduação em Psicopatologia e Neurodivergências');
+  });
 
   it.each(cursosAmplos)('oferece a configuração ampla para %s', (curso) => {
     expect(opcoesAtendimentoDaPos(curso)).toEqual({
@@ -87,8 +95,30 @@ describe('opcoesAtendimentoDaPos', () => {
     });
   });
 
-  it('oculta duração quando avaliação é a segunda pós, mantendo os serviços da formação ampla', () => {
-    expect(opcoesAtendimentoDaPos('Programa de Estudos e Pós-graduação em Psicanálise',
-      'Pós-graduação em Neuropsicologia Clínica')).toEqual({ tempos: [], servicos: servicosAmplos, publico: publicoAmplo });
+  it('soma os serviços das duas formações quando avaliação acompanha uma formação ampla (§§ 2.01–2.02)', () => {
+    expect(opcoesAtendimentoDaPos(
+      'Programa de Estudos e Pós-graduação em Psicanálise',
+      'Pós-graduação em Neuropsicologia Clínica'
+    )).toEqual({
+      tempos: [],
+      servicos: [...servicosAmplos, 'Avaliação Psicológica'],
+      publico: publicoAmplo,
+    });
+  });
+
+  it('soma os serviços de formação restrita e avaliação quando cursadas juntas', () => {
+    expect(opcoesAtendimentoDaPos(
+      'Pós-graduação em Psicologia Perinatal e Parentalidade',
+      'Pós-graduação em Avaliação Psicológica'
+    )).toEqual({
+      tempos: [],
+      servicos: [
+        'Atendimento Psicológico',
+        'Orientação Parental',
+        'Orientação Vocacional e Profissional',
+        'Avaliação Psicológica',
+      ],
+      publico: publicoAmplo,
+    });
   });
 });

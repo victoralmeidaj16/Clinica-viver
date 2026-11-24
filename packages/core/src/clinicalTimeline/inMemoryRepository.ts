@@ -45,6 +45,22 @@ export class InMemoryClinicalTimelineRepository
       .sort((first, second) => second.occurredAt.localeCompare(first.occurredAt))
       .map(clone);
   }
+
+  async listPatientIdsAuthorizedFor(
+    filter: Parameters<ClinicalTimelineRepository['listPatientIdsAuthorizedFor']>[0]
+  ): Promise<readonly string[]> {
+    const ids = new Set<string>();
+    this.entries.forEach((entry) => {
+      if (
+        entry.organizationId === filter.organizationId &&
+        entry.authorizedProfessionalIds.includes(filter.professionalId) &&
+        (!filter.categories || filter.categories.includes(entry.category))
+      ) {
+        ids.add(entry.patientId);
+      }
+    });
+    return Array.from(ids);
+  }
 }
 
 export class InMemoryClinicalTimelineAccessAudit

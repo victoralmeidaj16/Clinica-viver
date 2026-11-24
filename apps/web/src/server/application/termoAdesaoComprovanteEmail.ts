@@ -22,16 +22,28 @@ function emailDaClinica(replyTo: string | undefined): string | undefined {
   return normalizarEmail(process.env.TERMO_ADESAO_EMAIL_CLINICA) ?? normalizarEmail(replyTo);
 }
 
-export function conteudoComprovanteTermo(cadastro: CadastroPsicologoRecord, comprovante: ComprovanteGerado) {
+export interface OpcoesEnvioComprovanteTermo {
+  somenteClinica?: boolean;
+}
+
+export function conteudoComprovanteTermo(
+  cadastro: CadastroPsicologoRecord,
+  comprovante: ComprovanteGerado,
+  opcoes?: OpcoesEnvioComprovanteTermo
+) {
   const aceite = cadastro.aceiteTermoAdesao!;
   const nome = cadastro.nomeCompleto.trim();
-  const aprovado = cadastro.status === 'APROVADO';
-  const introducao = aprovado
+  const paraProfissional = cadastro.status === 'APROVADO' && !opcoes?.somenteClinica;
+  const introducao = paraProfissional
     ? 'Segue em anexo a sua via do Termo de Adesão e Condições de Uso da Viver Mais Psicologia, com o registro do seu aceite eletrônico.'
-    : 'Segue em anexo a via da clínica do Termo de Adesão e Condições de Uso, com o aceite eletrônico registrado na solicitação de cadastro do profissional.';
-  const entrega = aprovado
+    : opcoes?.somenteClinica
+      ? 'Segue em anexo a via da clínica do Termo de Adesão e Condições de Uso do profissional aprovado, com o registro do aceite eletrônico.'
+      : 'Segue em anexo a via da clínica do Termo de Adesão e Condições de Uso, com o aceite eletrônico registrado na solicitação de cadastro do profissional.';
+  const entrega = paraProfissional
     ? 'Esta mesma mensagem foi enviada à Viver Mais Psicologia, que guarda a via da instituição.'
-    : 'A via do profissional será enviada junto ao e-mail de acesso ao portal, após a aprovação do cadastro pela gestão.';
+    : opcoes?.somenteClinica
+      ? 'A via do profissional acompanha o e-mail de aprovação e acesso ao portal.'
+      : 'A via do profissional será enviada junto ao e-mail de acesso ao portal, após a aprovação do cadastro pela gestão.';
   const quando = dataHoraBrasilia(aceite.aceitoEm);
   const registro = [
     `Profissional: ${nome} — CRP ${cadastro.crp.trim()}`,
@@ -44,7 +56,7 @@ export function conteudoComprovanteTermo(cadastro: CadastroPsicologoRecord, comp
   return {
     subject: `Comprovante de aceite do Termo de Adesão — ${nome}`,
     text: [
-      aprovado ? `Olá, ${nome}!` : 'Olá, equipe Viver Mais!',
+      paraProfissional ? `Olá, ${nome}!` : 'Olá, equipe Viver Mais!',
       '',
       introducao,
       entrega,
@@ -58,8 +70,8 @@ export function conteudoComprovanteTermo(cadastro: CadastroPsicologoRecord, comp
     html: montarEmailViverMais({
       preheader: 'Sua via do Termo de Adesão, com o registro do aceite eletrônico.',
       eyebrow: 'Termo de Adesão',
-      titulo: aprovado ? 'Sua via do termo aceito' : 'Via da clínica do termo aceito',
-      saudacao: aprovado ? `Olá, <strong>${escaparHtml(nome)}</strong>!` : 'Olá, equipe Viver Mais!',
+      titulo: paraProfissional ? 'Sua via do termo aceito' : 'Via da clínica do termo aceito',
+      saudacao: paraProfissional ? `Olá, <strong>${escaparHtml(nome)}</strong>!` : 'Olá, equipe Viver Mais!',
       paragrafos: [
         introducao,
         entrega,
@@ -71,22 +83,33 @@ export function conteudoComprovanteTermo(cadastro: CadastroPsicologoRecord, comp
 }
 
 /**
- * Na inscrição, entrega somente a via da clínica. O profissional recebe sua
- * via no convite aprovado; reenvios manuais podem incluí-lo após a aprovação.
+ * O comprovante definitivo só é enviado por e-mail após a aprovação pela Gestão
+ * (§§ 3.7 e 12.05): com `somenteClinica`, entrega a via institucional; sem essa
+ * opção, entrega ao profissional aprovado e à clínica.
  */
 export async function enviarComprovanteTermoAdesao(
   cadastro: CadastroPsicologoRecord,
   comprovante: ComprovanteGerado,
   agora: Date = new Date(),
   /** Reenvio pela gestão: sem um sufixo novo o provedor descartaria a mensagem como repetida. */
-  reenvioId?: string
+  reenvioId?: string,
+  opcoes?: OpcoesEnvioComprovanteTermo
 ): Promise<EnvioComprovanteTermo> {
+  if (cadastro.status !== 'APROVADO') {
+    return {
+      situacao: 'falha',
+      tentadoEm: agora.toISOString(),
+      paraProfissional: false,
+      paraClinica: false,
+      detalhe: 'Comprovante definitivo disponível para envio apenas após aprovação.',
+    };
+  }
   const config = configuracaoEmail();
   if (!config) {
     console.warn('[email] Comprovante do Termo de Adesão não enviado: provedor desconfigurado.');
     return { situacao: 'provedor_desconfigurado', tentadoEm: agora.toISOString() };
   }
-  const profissional = cadastro.status === 'APROVADO' ? normalizarEmail(cadastro.email) : undefined;
+  const profissional = opcoes?.somenteClinica ? undefined : normalizarEmail(cadastro.email);
   const clinica = emailDaClinica(config.replyTo);
   const destinatarios = [profissional, clinica].filter((email): email is string => Boolean(email));
   if (destinatarios.length === 0) return { situacao: 'destinatario_invalido', tentadoEm: agora.toISOString() };
@@ -105,7 +128,7 @@ export async function enviarComprovanteTermoAdesao(
         to: [to],
         ...(cc.length ? { cc } : {}),
         ...(config.replyTo ? { reply_to: config.replyTo } : {}),
-        ...conteudoComprovanteTermo(cadastro, comprovante),
+        ...conteudoComprovanteTermo(cadastro, comprovante, opcoes),
         attachments: [{ filename: comprovante.arquivo, content: comprovante.pdf.toString('base64') }],
       }),
       signal: AbortSignal.timeout(15_000),

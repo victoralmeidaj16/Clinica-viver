@@ -1,3 +1,5 @@
+import { lerResponsavelFinanceiro, type ResponsavelFinanceiro } from '@/lib/responsavelFinanceiro';
+import { responsavelFinanceiroDisponivel } from '@/server/persistence/mysql/responsavelFinanceiroSql';
 import {
   assertStaffAuthorized,
   avaliarBaseFiscalAtendimento,
@@ -6,6 +8,7 @@ import {
   deriveChargeStatus,
   generateFinancialReports,
   isFinancialEventInPeriod,
+  listEducationalCreditLines,
   reconcileSessionReceivables,
   type ChargeStatus,
   type FinancialCharge,
@@ -101,19 +104,48 @@ export interface PanoramaFinanceiroClinica {
   porPsicologo: readonly ConsolidadoPsicologo[];
 }
 
-/** Caixa do período, incluindo estornos de pagamentos feitos em meses anteriores. */
-function recebimentosNoPeriodo(ledger: FinancialLedger, filter: FinancialFilter): Map<string, number> {
-  const values = new Map<string, number>();
-  const payments = new Map(ledger.payments.filter((p) => p.status === 'confirmed').map((p) => [p.id, p]));
-  const add = (chargeId: string, amount: number) => values.set(chargeId, (values.get(chargeId) ?? 0) + amount);
-  for (const payment of payments.values()) {
-    if (isFinancialEventInPeriod(payment.receivedAt, filter)) add(payment.chargeId, payment.amountCents);
-  }
+/**
+ * Caixa e receita do período, incluindo estornos de pagamentos feitos em meses
+ * anteriores. O crédito educacional vem da regra única do domínio, a mesma do
+ * extrato do psicólogo: a sessão custeada por empresa gera crédito no mês da
+ * confirmação, e a quitação do boleto só movimenta caixa e receita.
+ */
+function recebimentosNoPeriodo(ledger: FinancialLedger, filter: FinancialFilter) {
+  const porCobranca = new Map<string, Pick<AtendimentoFinanceiroClinica, 'recebidoCents' | 'creditoPsicologoCents' | 'receitaClinicaCents'>>();
+  const estornos = new Map<string, { anteriores: number; noPeriodo: number }>();
+  const inicio = filter.startDate ? Date.parse(filter.startDate) : undefined;
   for (const refund of ledger.refunds) {
-    const payment = payments.get(refund.paymentId);
-    if (payment && isFinancialEventInPeriod(refund.refundedAt, filter)) add(payment.chargeId, -refund.amountCents);
+    const total = estornos.get(refund.paymentId) ?? { anteriores: 0, noPeriodo: 0 };
+    if (isFinancialEventInPeriod(refund.refundedAt, filter)) total.noPeriodo += refund.amountCents;
+    else if (inicio !== undefined && Date.parse(refund.refundedAt) < inicio) total.anteriores += refund.amountCents;
+    estornos.set(refund.paymentId, total);
   }
-  return values;
+  for (const payment of ledger.payments) {
+    if (payment.status !== 'confirmed') continue;
+    const entrou = isFinancialEventInPeriod(payment.receivedAt, filter);
+    const estorno = estornos.get(payment.id);
+    if (!entrou && !estorno?.noPeriodo) continue;
+    const total = porCobranca.get(payment.chargeId) ?? { recebidoCents: 0, creditoPsicologoCents: 0, receitaClinicaCents: 0 };
+    if (entrou) {
+      total.recebidoCents += payment.amountCents;
+      total.receitaClinicaCents += dividirSplit7030Centavos(payment.amountCents).receitaClinicaCents;
+    }
+    if (estorno?.noPeriodo) {
+      // O estorno afeta o caixa e a receita da clínica. O crédito educacional só muda por decisão da Gestão.
+      const antes = Math.max(0, payment.amountCents - estorno.anteriores);
+      const depois = Math.max(0, antes - estorno.noPeriodo);
+      total.recebidoCents -= estorno.noPeriodo;
+      total.receitaClinicaCents += dividirSplit7030Centavos(depois).receitaClinicaCents
+        - dividirSplit7030Centavos(antes).receitaClinicaCents;
+    }
+    porCobranca.set(payment.chargeId, total);
+  }
+  for (const linha of listEducationalCreditLines(ledger, { startDate: filter.startDate, endDate: filter.endDate })) {
+    const total = porCobranca.get(linha.chargeId) ?? { recebidoCents: 0, creditoPsicologoCents: 0, receitaClinicaCents: 0 };
+    total.creditoPsicologoCents += linha.creditCents;
+    porCobranca.set(linha.chargeId, total);
+  }
+  return porCobranca;
 }
 
 async function resolverNomes(
@@ -200,8 +232,8 @@ export async function getClinicFinanceOverview(
   ]);
 
   const atendimentos = receivables.map((receivable): AtendimentoFinanceiroClinica => {
-    const recebidoCents = receivedByCharge.get(receivable.chargeId) ?? 0;
-    const { creditoPsicologoCents, receitaClinicaCents } = dividirSplit7030Centavos(recebidoCents);
+    const { recebidoCents, creditoPsicologoCents, receitaClinicaCents } = receivedByCharge.get(receivable.chargeId)
+      ?? { recebidoCents: 0, creditoPsicologoCents: 0, receitaClinicaCents: 0 };
 
     return {
       chargeId: receivable.chargeId,
@@ -260,7 +292,6 @@ export async function getClinicFinanceOverview(
     atendimentos.reduce((total, item) => total + selecionar(item), 0);
 
   const recebidoCents = somar((item) => item.recebidoCents);
-  const { creditoPsicologoCents, receitaClinicaCents } = dividirSplit7030Centavos(recebidoCents);
 
   return {
     periodo: { inicio: filter.startDate, fim: filter.endDate },
@@ -274,11 +305,8 @@ export async function getClinicFinanceOverview(
       emAbertoCents: bundle.summary.outstandingCents,
       vencidoCents: bundle.summary.overdueCents,
       inadimplencia: bundle.summary.delinquencyRate,
-      // O total do período é dividido uma vez só, e não pela soma das linhas:
-      // somar arredondamentos linha a linha faz o consolidado divergir do
-      // extrato em alguns centavos — o suficiente para a conferência não bater.
-      creditoPsicologosCents: creditoPsicologoCents,
-      receitaClinicaCents,
+      creditoPsicologosCents: somar((item) => item.creditoPsicologoCents),
+      receitaClinicaCents: somar((item) => item.receitaClinicaCents),
       provisionadoConvenioCents: somar((item) => item.custeadoPelaEmpresa && issuedChargeIds.has(item.chargeId) ? item.emAbertoCents : 0),
     },
     atendimentos,
@@ -326,19 +354,25 @@ function registrationSource(valor: unknown): PatientRegistrationCapable | null {
   return typeof candidato.getPatientRegistration === 'function' ? (candidato as PatientRegistrationCapable) : null;
 }
 
-async function leadFiscalDoPaciente(organizationId: string, patientId: string): Promise<{ nomePaciente?: string; cpf?: string; email?: string } | undefined> {
+async function leadFiscalDoPaciente(
+  organizationId: string,
+  patientId: string
+): Promise<{ nomePaciente?: string; cpf?: string; email?: string; responsavelFinanceiro?: ResponsavelFinanceiro } | undefined> {
   if (isMysqlConfigured()) {
+    const comResponsavel = await responsavelFinanceiroDisponivel(getMysqlPool());
     const [rows] = await getMysqlPool().query<RowDataPacket[]>(
-      `SELECT nome_paciente, cpf, email FROM clinica_triagens_pacientes
+      `SELECT nome_paciente, cpf, email${comResponsavel ? ', responsavel_financeiro' : ''} FROM clinica_triagens_pacientes
         WHERE instituicao_id = ? AND organizacao_ref = ? AND paciente_ref = ?
         ORDER BY criado_em DESC LIMIT 1`,
       [instituicaoId(), organizationId, patientId]
     );
     const row = rows[0];
+    const responsavel = lerResponsavelFinanceiro(row?.responsavel_financeiro);
     return row ? {
       nomePaciente: row.nome_paciente ? String(row.nome_paciente) : undefined,
       cpf: row.cpf ? String(row.cpf) : undefined,
       email: row.email ? String(row.email) : undefined,
+      ...(responsavel ? { responsavelFinanceiro: responsavel } : {}),
     } : undefined;
   }
   const state = await getCaptureRepository().read();
@@ -501,9 +535,15 @@ export async function getNfsePreview(
   const cpf = registro?.cpf?.replace(/\D/g, '') || cadastro?.documento?.replace(/\D/g, '') || lead?.cpf?.replace(/\D/g, '') || undefined;
   const email = normalizarEmailPaciente(registro?.email) ?? normalizarEmailPaciente(cadastro?.email) ?? normalizarEmailPaciente(lead?.email);
 
+  // Com responsável financeiro, a nota sai em nome dele (6.03 e 6.04): nome e
+  // CPF dele, nunca o nome do paciente com o CPF de outra pessoa.
+  const responsavel = lead?.responsavelFinanceiro;
+  const tomadorCpf = responsavel ? responsavel.cpf : cpf;
+  const tomadorEmail = responsavel ? normalizarEmailPaciente(responsavel.email) ?? email : email;
+
   const camposPendentes: string[] = [];
-  if (!cpf) camposPendentes.push('CPF do tomador');
-  if (!email) camposPendentes.push('e-mail válido do paciente');
+  if (!tomadorCpf) camposPendentes.push('CPF do tomador');
+  if (!tomadorEmail) camposPendentes.push(responsavel ? 'e-mail válido do responsável financeiro' : 'e-mail válido do paciente');
 
   // O certificado responde se a emissão é possível hoje. Antes isto era um
   // `false` fixo; agora vencer o certificado, ou trocá-lo por um de outro
@@ -514,9 +554,9 @@ export async function getNfsePreview(
     chargeId,
     paciente: {
       ref: charge.patientId,
-      nome: paciente?.displayName ?? lead?.nomePaciente ?? charge.patientId,
-      cpf,
-      email,
+      nome: responsavel?.nome ?? paciente?.displayName ?? lead?.nomePaciente ?? charge.patientId,
+      cpf: tomadorCpf,
+      email: tomadorEmail,
     },
     competencia: fatoFiscal.competencia,
     descricaoServico: descricaoFiscalDaSessao(fatoFiscal.inicioAtendimento),

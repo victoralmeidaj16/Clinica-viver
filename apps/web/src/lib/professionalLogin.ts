@@ -34,7 +34,7 @@ async function authRequest(path: string, init?: RequestInit): Promise<AuthRespon
   return payload;
 }
 
-export async function professionalLogin(credentials: { email: string; password: string }): Promise<'admin' | 'psicologo'> {
+export async function professionalLogin(credentials: { email: string; password: string }): Promise<'admin' | 'financeiro' | 'psicologo'> {
   await authRequest('/api/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -42,6 +42,6 @@ export async function professionalLogin(credentials: { email: string; password: 
   });
   const me = await authRequest('/api/auth/me', { cache: 'no-store' });
   const role = me.data?.role;
-  if (role !== 'admin' && role !== 'psicologo') throw new Error(UNAVAILABLE);
+  if (role !== 'admin' && role !== 'financeiro' && role !== 'psicologo') throw new Error(UNAVAILABLE);
   return role;
 }

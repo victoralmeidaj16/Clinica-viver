@@ -4,6 +4,11 @@ import { dirname, join } from 'node:path';
 import type { MotivoDesistencia } from '@/lib/desistencias';
 import type { TurmaEncerrada } from '@/lib/turmaEncerrada';
 import type { AcessibilidadePsicologo } from '@/lib/psychologistAccessibility';
+import type { ListaEsperaRegistro } from '@/lib/listaEspera';
+import type { InativacaoVinculo } from '@/lib/inativacaoVinculo';
+import type { AlteracaoPreferencias, PreferenciasSolicitacao } from '@/lib/preferenciasSolicitacao';
+import type { ResponsavelFinanceiro } from '@/lib/responsavelFinanceiro';
+import type { VinculoColetivo } from '@/lib/vinculoColetivo';
 import type {
   Appointment,
   ClinicalRecord,
@@ -51,13 +56,16 @@ export interface AssessmentRecord {
  *
  * `PENDENTE_ATRIBUICAO` é o estado de quem chegou e não achou profissional
  * elegível: fica visível para a gestão decidir, em vez de sumir.
+ * `INATIVO` é o vínculo inativado com motivo (especificação final, 6.05):
+ * não ocupa vaga e é distinto de `DESISTENTE`, que aguarda novo destino.
  */
 export type StatusTriagem =
   | 'PENDENTE_ATRIBUICAO'
   | 'AGUARDANDO_CONTATO'
   | 'CONTATO_CONFIRMADO'
   | 'DESISTENTE'
-  | 'FINALIZADO';
+  | 'FINALIZADO'
+  | 'INATIVO';
 
 /**
  * Lead capturado pelo formulário público da vitrine, antes de virar paciente.
@@ -65,6 +73,13 @@ export type StatusTriagem =
  * Os campos opcionais são os que o formulário pode deixar em branco: as rotas
  * gravam `body.<campo>` sem valor padrão, então o registro nasce sem eles.
  */
+export interface RecusaEncaminhamento {
+  psicologoId: string;
+  psicologoNome?: string;
+  recusadoEm: string;
+  motivo?: string;
+}
+
 export interface TriagemPacienteRecord {
   id: string;
   protocolo: string;
@@ -91,6 +106,9 @@ export interface TriagemPacienteRecord {
   /** Chave do serviço (`PSICOTERAPIA`, `AVALIACAO`, …), que o rodízio compara. */
   servicoKey?: string;
   modalidade?: string;
+  formatoAtendimento?: string;
+  abordagemDesejada?: string;
+  duracaoSessaoMinutos?: number;
   paraQuemE?: string;
   /**
    * Gênero de profissional pedido na triagem. Critério do rodízio, não do
@@ -125,6 +143,8 @@ export interface TriagemPacienteRecord {
   transbordos?: number;
   /** Quem já teve a chance neste lead, para o transbordo não voltar ao mesmo. */
   psicologosJaTentados?: readonly string[];
+  /** Histórico das recusas realizadas pelos profissionais com motivo opcional (§ 5.04). */
+  recusas?: readonly RecusaEncaminhamento[];
   /** Como o psicólogo foi selecionado: escolha direta na vitrine ou rodízio inteligente. */
   tipoAlocacao?: 'ESCOLHA_DIRETA' | 'RODIZIO';
   /**
@@ -132,6 +152,25 @@ export interface TriagemPacienteRecord {
    * vaga no limite de pacientes ativos (especificação final, 6.02 e seção 15).
    */
   projetoAcolhe?: boolean;
+  /**
+   * Prazo, em horas, da oferta em andamento — o configurado pela Gestão no
+   * momento em que a oferta foi enviada (5.02). Ausente vale 24 horas.
+   */
+  prazoRespostaHoras?: number;
+  /** Permanência na lista de espera, aberta ou encerrada (5.07). */
+  listaEspera?: ListaEsperaRegistro;
+  /** Inativações do vínculo, com motivo, autor e data (6.05). */
+  inativacoes?: readonly InativacaoVinculo[];
+  /** Preferências como chegaram, nunca reescritas (4.04). */
+  preferenciasOriginais?: PreferenciasSolicitacao;
+  /** Cada alteração posterior das preferências, com antes e depois (4.04). */
+  alteracoesPreferencias?: readonly AlteracaoPreferencias[];
+  /** Destinatário do primeiro contato e das cobranças, quando não é o paciente (6.03 e 6.04). */
+  responsavelFinanceiro?: ResponsavelFinanceiro;
+  /** Menor sem CPF próprio, identificado pelo CPF do responsável (seção 15). */
+  identificadoPeloResponsavel?: boolean;
+  /** Casal, família ou grupo atendidos como um vínculo só (6.04). */
+  vinculoColetivo?: VinculoColetivo;
 }
 
 /** Situação do psicólogo no credenciamento. `APROVADO` significa "no rodízio". */
@@ -338,6 +377,9 @@ export interface AuditoriaDesistenciaRecord {
   reengajado: boolean;
   observacoesReengajamento?: string;
   permitirTrocaPsicologo?: boolean;
+  /** Quem registrou a saída (6.06). Ausente nos registros anteriores à migration 089. */
+  registradoPorUsuarioRef?: string;
+  registradoPorPerfil?: 'PSICOLOGO' | 'GESTAO';
 }
 
 export interface PersistedSnapshot {
@@ -357,6 +399,29 @@ export interface PersistedSnapshot {
   cadastrosPsicologos?: readonly CadastroPsicologoRecord[];
   ledgerAlunos?: readonly LancamentoLedgerAluno[];
   auditoriaDesistencias?: readonly AuditoriaDesistenciaRecord[];
+  /**
+   * Prazo configurado para novas ofertas. Na captação vem de
+   * `clinica_configuracoes_gestao` (MySQL) ou de `configuracoesGestao` (arquivo).
+   */
+  prazoOfertaHoras?: number;
+  /** Configurações da Gestão no modo arquivo. No MySQL, ficam em tabela própria. */
+  configuracoesGestao?: readonly ConfiguracaoGestaoRecord[];
+}
+
+/** Valor atual de uma configuração da Gestão, com o autor da última mudança. */
+export interface ConfiguracaoGestaoRecord {
+  chave: string;
+  valor: unknown;
+  atualizadoEm: string;
+  atualizadoPorUsuarioRef?: string;
+  atualizadoPorNome?: string;
+  historico?: readonly {
+    valorAnterior: unknown;
+    valorNovo: unknown;
+    alteradoEm: string;
+    alteradoPorUsuarioRef?: string;
+    alteradoPorNome?: string;
+  }[];
 }
 
 export function emptySnapshot(): PersistedSnapshot {

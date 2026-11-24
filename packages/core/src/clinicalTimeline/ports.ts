@@ -1,4 +1,5 @@
 import type {
+  ClinicalTimelineCategory,
   ClinicalTimelineEntry,
   ClinicalTimelineFilter,
 } from './types';
@@ -6,6 +7,12 @@ import type {
 export interface ClinicalTimelineRepository {
   upsert(entries: readonly ClinicalTimelineEntry[]): Promise<void>;
   list(filter: ClinicalTimelineFilter): Promise<readonly ClinicalTimelineEntry[]>;
+  /** Pacientes com entradas autorizadas a este profissional, de vínculos atuais ou encerrados. */
+  listPatientIdsAuthorizedFor(filter: {
+    organizationId: string;
+    professionalId: string;
+    categories?: readonly ClinicalTimelineCategory[];
+  }): Promise<readonly string[]>;
 }
 
 export interface ClinicalTimelineAccessAuditPort {

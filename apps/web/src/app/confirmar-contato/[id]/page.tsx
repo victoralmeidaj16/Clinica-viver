@@ -4,7 +4,16 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { AlertTriangle, ArrowRightLeft, CheckCircle2, Clock3, HeartHandshake, Loader2 } from 'lucide-react';
 
-type Estado = 'CARREGANDO' | 'DECISAO' | 'PERGUNTA_CONTATO' | 'AVISO_24H' | 'ENVIANDO' | 'CONFIRMADO' | 'ENCAMINHADO' | 'ERRO';
+type Estado =
+  | 'CARREGANDO'
+  | 'DECISAO'
+  | 'CONFIRMAR_RECUSA'
+  | 'PERGUNTA_CONTATO'
+  | 'AVISO_24H'
+  | 'ENVIANDO'
+  | 'CONFIRMADO'
+  | 'ENCAMINHADO'
+  | 'ERRO';
 
 export default function ConfirmarContatoPage() {
   const params = useParams<{ id: string }>();
@@ -15,6 +24,7 @@ export default function ConfirmarContatoPage() {
   const linkCompleto = Boolean(leadId && psi && token);
   const [estado, setEstado] = useState<Estado>(linkCompleto ? 'CARREGANDO' : 'ERRO');
   const [mensagem, setMensagem] = useState(linkCompleto ? '' : 'Link incompleto. Abra exatamente o endereço recebido na mensagem.');
+  const [motivoRecusa, setMotivoRecusa] = useState('');
 
   const endpoint = useCallback((acao: 'decisao' | 'confirmar' | 'encaminhar') =>
     `/api/application/triagem/${leadId}/${acao}?psi=${encodeURIComponent(psi ?? '')}&t=${encodeURIComponent(token ?? '')}`,
@@ -38,10 +48,16 @@ export default function ConfirmarContatoPage() {
     return () => { ativo = false; };
   }, [endpoint, linkCompleto]);
 
-  const executar = async (acao: 'decisao' | 'confirmar' | 'encaminhar') => {
+  const executar = async (acao: 'decisao' | 'confirmar' | 'encaminhar', motivo?: string) => {
     setEstado('ENVIANDO');
     try {
-      const resposta = await fetch(endpoint(acao), { method: 'POST' });
+      const motivoLimpo = acao === 'encaminhar' ? motivo?.trim() : undefined;
+      const resposta = await fetch(endpoint(acao), {
+        method: 'POST',
+        ...(motivoLimpo
+          ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ motivo: motivoLimpo }) }
+          : {}),
+      });
       const corpo = await resposta.json();
       if (!resposta.ok || !corpo.success) throw new Error(corpo.error || 'Não foi possível registrar sua resposta.');
       if (acao === 'decisao') setEstado(corpo.estado === 'CONFIRMADO' ? 'CONFIRMADO' : 'PERGUNTA_CONTATO');
@@ -72,7 +88,25 @@ export default function ConfirmarContatoPage() {
           <p className="text-sm leading-relaxed text-slate-600">Registre sua decisão para que a clínica dê continuidade ao encaminhamento. Ao aceitar, o paciente passa a ocupar uma vaga sua e recebe da clínica as orientações sobre os próximos passos.</p>
           <div className="flex flex-col gap-3 pt-2">
             <button type="button" onClick={() => void executar('decisao')} className="w-full rounded-xl bg-purple-700 px-4 py-3 text-sm font-extrabold text-white transition-colors hover:bg-purple-800">QUERO O PACIENTE</button>
-            <button type="button" onClick={() => void executar('encaminhar')} className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 py-3 text-sm font-extrabold text-slate-700 transition-colors hover:bg-slate-50"><ArrowRightLeft className="h-4 w-4" /> ENCAMINHAR PARA COLEGA</button>
+            <button type="button" onClick={() => setEstado('CONFIRMAR_RECUSA')} className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 py-3 text-sm font-extrabold text-slate-700 transition-colors hover:bg-slate-50"><ArrowRightLeft className="h-4 w-4" /> ENCAMINHAR PARA COLEGA</button>
+          </div>
+        </>}
+
+        {estado === 'CONFIRMAR_RECUSA' && <>
+          <ArrowRightLeft className="mx-auto h-10 w-10 text-amber-600" />
+          <h1 className="text-xl font-black text-slate-900">Encaminhar para colega?</h1>
+          <p className="text-sm leading-relaxed text-slate-600">Se quiser, informe o motivo da recusa para a coordenação. O campo é opcional.</p>
+          <textarea
+            value={motivoRecusa}
+            onChange={(event) => setMotivoRecusa(event.target.value)}
+            maxLength={300}
+            rows={3}
+            placeholder="Motivo da recusa (opcional — ex.: sem horário livre no turno solicitado)"
+            className="w-full resize-none rounded-xl border border-slate-300 bg-white p-3 text-left text-xs text-slate-800 focus:border-purple-600 focus:outline-none"
+          />
+          <div className="flex flex-col gap-2 pt-1">
+            <button type="button" onClick={() => void executar('encaminhar', motivoRecusa)} className="w-full rounded-xl bg-purple-700 px-4 py-3 text-sm font-extrabold text-white transition-colors hover:bg-purple-800">Confirmar encaminhamento</button>
+            <button type="button" onClick={() => setEstado('DECISAO')} className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50">Voltar</button>
           </div>
         </>}
 

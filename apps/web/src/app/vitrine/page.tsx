@@ -28,6 +28,9 @@ import FloatingWhatsAppButton from '@/components/layout/FloatingWhatsAppButton';
 import { BookingProgress, type BookingStep } from '@/components/vitrine/BookingProgress';
 import { LandingEspecialista } from '@/components/vitrine/LandingEspecialista';
 import { SecaoVitrineNav, SECOES_VITRINE, type SecaoVitrine } from '@/components/vitrine/SecaoVitrineNav';
+import { ResponsavelMenorCampos, erroResponsavelMenor } from '@/components/forms/ResponsavelMenorCampos';
+import { RESPONSAVEL_VAZIO, responsavelParaEnvio, type ResponsavelForm } from '@/components/patients/ResponsavelFinanceiroCampos';
+import { pacienteMenorDeIdade } from '@/lib/responsavelFinanceiro';
 import {
   Sparkles,
   Heart,
@@ -113,6 +116,9 @@ export default function ViverMaisLandingPage() {
   const [secaoVitrineAtiva, setSecaoVitrineAtiva] = useState<SecaoVitrine>('SERVICOS');
   
   const [temNomeSocialPaciente, setTemNomeSocialPaciente] = useState(false);
+  // Criança ou adolescente: responsável e, sem CPF próprio, o CPF dele (6.03 e seção 15).
+  const [responsavelMenor, setResponsavelMenor] = useState<ResponsavelForm>(RESPONSAVEL_VAZIO);
+  const [menorSemCpf, setMenorSemCpf] = useState(false);
 
   const [form, setForm] = useState({
     nome: '',
@@ -495,8 +501,15 @@ export default function ViverMaisLandingPage() {
       alert('Confirme o endereço completo: rua, bairro, cidade e UF.');
       return;
     }
-    if (!validCpf(form.cpf)) {
+    const pacienteMenor = pacienteMenorDeIdade({ dataNascimento: form.dataNascimento, idade: form.idade, paraQuemE: form.paraQuemE });
+    const semCpfProprio = pacienteMenor && menorSemCpf;
+    if (!semCpfProprio && !validCpf(form.cpf)) {
       alert('Informe um CPF válido para continuar.');
+      return;
+    }
+    const erroResponsavel = pacienteMenor ? erroResponsavelMenor(responsavelMenor, form.cpf, semCpfProprio) : null;
+    if (erroResponsavel) {
+      alert(erroResponsavel);
       return;
     }
     if (selectedService !== 'ORIENTACAO_PARENTAL' && form.paraQuemE === 'Outro' && !form.paraQuemEOutro.trim()) {
@@ -517,6 +530,8 @@ export default function ViverMaisLandingPage() {
           servicoKey: selectedService,
           modalidade: selectedModalidade,
           psicologoPreferidoId: caminho === 'PROFISSIONAL' ? psicologoEscolhido?.id : undefined,
+          ...(pacienteMenor ? { responsavelFinanceiro: responsavelParaEnvio(responsavelMenor) } : {}),
+          ...(semCpfProprio ? { menorSemCpf: true, cpf: '' } : {}),
         }),
       });
       const data = await resp.json();
@@ -1264,10 +1279,14 @@ export default function ViverMaisLandingPage() {
               {/* CPF, CEP e Número da Residência */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">CPF <span className="text-rose-500">*</span></label>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    CPF {menorSemCpf && pacienteMenorDeIdade({ dataNascimento: form.dataNascimento, idade: form.idade, paraQuemE: form.paraQuemE })
+                      ? <span className="text-slate-400 font-normal text-[11px]">(usaremos o do responsável)</span>
+                      : <span className="text-rose-500">*</span>}
+                  </label>
                   <input
                     type="text"
-                    required
+                    required={!(menorSemCpf && pacienteMenorDeIdade({ dataNascimento: form.dataNascimento, idade: form.idade, paraQuemE: form.paraQuemE }))}
                     value={form.cpf}
                     onChange={(e) => setForm({ ...form, cpf: maskCPF(e.target.value) })}
                     placeholder="000.000.000-00"
@@ -1317,6 +1336,16 @@ export default function ViverMaisLandingPage() {
                   />
                 </div>
               </div>
+
+              {pacienteMenorDeIdade({ dataNascimento: form.dataNascimento, idade: form.idade, paraQuemE: form.paraQuemE }) && (
+                <ResponsavelMenorCampos
+                  idPrefixo="vitrine-responsavel"
+                  semCpf={menorSemCpf}
+                  onSemCpfChange={setMenorSemCpf}
+                  responsavel={responsavelMenor}
+                  onResponsavelChange={setResponsavelMenor}
+                />
+              )}
 
               {/* O endereço sempre aparece após oito dígitos, mesmo se o ViaCEP falhar. */}
               {form.cep.replace(/\D/g, '').length === 8 && (

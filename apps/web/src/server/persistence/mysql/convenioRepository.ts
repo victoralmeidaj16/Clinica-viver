@@ -7,6 +7,7 @@ import { fromSqlTimestamp, instituicaoId, rowId, toSqlTimestamp } from './mapper
 import { normalizarCicloCusteio, ratearFatura, type CusteioCiclo } from '@/lib/convenioBilling';
 import { cicloDeCusteioSql, cotaDeCusteioSql, custeioDoAgendamentoSql, custeioEfetivoSql } from './custeioSql';
 import { cobrancaVisivelNoConvenioSql } from './convenioChargeSql';
+import { precificarSessoesPendentes } from '@/server/payments/companySessionCharge';
 
 export type StatusFaturaConvenio = 'aberta' | 'boleto_gerado' | 'paga' | 'cancelada' | 'revisao_estorno' | 'revisao_pagamento';
 
@@ -17,6 +18,7 @@ export interface Convenio {
   cnpj?: string;
   emailFaturamento?: string;
   empresaPagaSessoes: boolean;
+  valorSessaoContratoCents?: number;
   /** Sessões que a empresa cobre por paciente; ausente é o acordo sem limite. */
   pacoteSessoes?: number;
   pacoteSessoesCiclo?: CusteioCiclo;
@@ -82,6 +84,7 @@ export interface FaturaConvenio {
 interface ConvenioRow extends RowDataPacket {
   ref_core: string; nome: string; razao_social: string | null; cnpj: string | null;
   email_faturamento: string | null; empresa_paga_sessoes: number;
+  valor_sessao_contrato_centavos: number | null;
   pacote_sessoes: number | null; pacote_sessoes_ciclo: string | null; dia_vencimento: number | null; ativo: number;
   pacientes: number; pacientes_custeados: number; sessoes_provisionadas: number; valor_provisionado_centavos: number;
 }
@@ -100,7 +103,7 @@ const ATENDIMENTO_FATURAVEL_SQL = "(ag.id IS NULL OR ag.status = 'realizado')";
 
 const CONVENIO_SELECT = `
   SELECT c.ref_core, c.nome, c.razao_social, c.cnpj, c.email_faturamento,
-         c.empresa_paga_sessoes, c.pacote_sessoes, c.pacote_sessoes_ciclo, c.dia_vencimento, c.ativo,
+         c.empresa_paga_sessoes, c.valor_sessao_contrato_centavos, c.pacote_sessoes, c.pacote_sessoes_ciclo, c.dia_vencimento, c.ativo,
          COUNT(DISTINCT CASE WHEN p.convenio_ref = c.ref_core THEN p.id END) AS pacientes,
          COUNT(DISTINCT CASE
            WHEN p.convenio_ref = c.ref_core
@@ -146,6 +149,7 @@ function toConvenio(row: ConvenioRow): Convenio {
     cnpj: row.cnpj ?? undefined,
     emailFaturamento: row.email_faturamento ?? undefined,
     empresaPagaSessoes: Boolean(row.empresa_paga_sessoes),
+    valorSessaoContratoCents: row.valor_sessao_contrato_centavos == null ? undefined : Number(row.valor_sessao_contrato_centavos),
     pacoteSessoes: row.pacote_sessoes === null ? undefined : Number(row.pacote_sessoes),
     pacoteSessoesCiclo: row.pacote_sessoes === null ? undefined : normalizarCicloCusteio(row.pacote_sessoes_ciclo) ?? 'total',
     diaVencimento: row.dia_vencimento === null ? undefined : Number(row.dia_vencimento),
@@ -206,13 +210,13 @@ export async function criarConvenio(organizationId: string, input: Omit<Convenio
   await getMysqlPool().execute(
     `INSERT INTO clinica_convenios
        (id, instituicao_id, organizacao_ref, ref_core, nome, razao_social, cnpj,
-        email_faturamento, empresa_paga_sessoes, pacote_sessoes, pacote_sessoes_ciclo, dia_vencimento, ativo)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        email_faturamento, empresa_paga_sessoes, pacote_sessoes, pacote_sessoes_ciclo, dia_vencimento, ativo, valor_sessao_contrato_centavos)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [rowId('convenio', id), instituicaoId(), organizationId, id, input.nome,
       input.razaoSocial ?? null, input.cnpj ?? null, input.emailFaturamento ?? null,
       input.empresaPagaSessoes ? 1 : 0, input.pacoteSessoes ?? null,
       input.pacoteSessoes ? input.pacoteSessoesCiclo ?? 'total' : null,
-      input.diaVencimento ?? null, input.ativo ? 1 : 0]
+      input.diaVencimento ?? null, input.ativo ? 1 : 0, input.valorSessaoContratoCents ?? null]
   );
   return (await obterConvenio(organizationId, id))!;
 }
@@ -221,16 +225,32 @@ export async function atualizarConvenio(organizationId: string, id: string, inpu
   const atual = await obterConvenio(organizationId, id);
   if (!atual) return null;
   const proximo = { ...atual, ...input };
-  await getMysqlPool().execute(
-    `UPDATE clinica_convenios SET nome = ?, razao_social = ?, cnpj = ?, email_faturamento = ?,
-       empresa_paga_sessoes = ?, pacote_sessoes = ?, pacote_sessoes_ciclo = ?, dia_vencimento = ?, ativo = ?
-      WHERE instituicao_id = ? AND organizacao_ref = ? AND ref_core = ?`,
-    [proximo.nome, proximo.razaoSocial ?? null, proximo.cnpj ?? null,
+  const sql = `UPDATE clinica_convenios SET nome = ?, razao_social = ?, cnpj = ?, email_faturamento = ?,
+       empresa_paga_sessoes = ?, pacote_sessoes = ?, pacote_sessoes_ciclo = ?, dia_vencimento = ?, ativo = ?,
+       valor_sessao_contrato_centavos = COALESCE(?, valor_sessao_contrato_centavos)
+      WHERE instituicao_id = ? AND organizacao_ref = ? AND ref_core = ?`;
+  const params = [proximo.nome, proximo.razaoSocial ?? null, proximo.cnpj ?? null,
       proximo.emailFaturamento ?? null, proximo.empresaPagaSessoes ? 1 : 0,
       proximo.pacoteSessoes ?? null, proximo.pacoteSessoes ? proximo.pacoteSessoesCiclo ?? 'total' : null,
-      proximo.diaVencimento ?? null, proximo.ativo ? 1 : 0,
-      instituicaoId(), organizationId, id]
-  );
+      proximo.diaVencimento ?? null, proximo.ativo ? 1 : 0, input.valorSessaoContratoCents ?? null,
+      instituicaoId(), organizationId, id];
+  const pool = getMysqlPool();
+  if (input.valorSessaoContratoCents === undefined) {
+    await pool.execute(sql, params);
+  } else {
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      await connection.execute(sql, params);
+      await precificarSessoesPendentes(connection, organizationId, id, input.valorSessaoContratoCents);
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
   return obterConvenio(organizationId, id);
 }
 

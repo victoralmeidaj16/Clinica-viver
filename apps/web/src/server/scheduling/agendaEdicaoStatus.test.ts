@@ -24,13 +24,14 @@ vi.mock('@/server/oci/runtime', () => ({
   isMysqlConfigured: () => true,
   getMysqlPool: () => ({ getConnection: async () => connection }),
 }));
-vi.mock('@/server/persistence/mysql/mappers', () => ({
+vi.mock('@/server/persistence/mysql/mappers', async (original) => ({
+  ...await original<typeof import('@/server/persistence/mysql/mappers')>(),
   instituicaoId: () => 'inst-1',
   toSqlTimestamp: (value: string) => value,
   rowId: (prefix: string, ref: string) => `${prefix}:${ref}`,
 }));
 
-import { updateAppointmentDetails } from './agendaRepository';
+import { completeAppointment, updateAppointmentDetails } from './agendaRepository';
 import { concluirReagendamento } from './agendaReagendamentoEffects';
 
 const AGENDAMENTO = {
@@ -65,6 +66,56 @@ describe('updateAppointmentDetails', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     comAgendamento();
+  });
+
+  const auditoria = { registrarAlteracaoGestao: { usuarioRef: 'admin', nome: 'Gestão' } };
+  const insertHistorico = 'INSERT INTO clinica_agendamentos_alteracoes';
+  it.each([
+    ['confirmado', null, '2099-01-01T15:00:00Z', 'completed'],
+    ['realizado', 'sessao-1', '2099-01-01T15:00:00Z', 'already_completed'],
+    ['confirmado', null, '2099-01-01T12:00:00Z', 'too_early'],
+  ] as const)('audita a conclusão apenas quando efetivada (%s, %s, %s)', async (status, sessao, quando, resultado) => {
+    comAgendamento({ status, sessao_clinica_ref: sessao });
+    expect(await completeAppointment('org-1', 'pro-1', 'apt-1', new Date(quando), auditoria.registrarAlteracaoGestao)).toBe(resultado);
+    const index = connection.execute.mock.calls.findIndex(([sql]) => sql.includes(insertHistorico));
+    if (resultado === 'completed') {
+      expect(connection.execute.mock.calls[index][1]).toContain(JSON.stringify([
+        { campo: 'situacao', rotulo: 'Situação', de: 'Confirmado', para: 'Realizado' },
+      ]));
+      expect(connection.execute.mock.invocationCallOrder[index]).toBeLessThan(connection.commit.mock.invocationCallOrder[0]);
+    } else {
+      expect(index).toBe(-1);
+    }
+  });
+
+  it('grava a alteração administrativa na transação antes do commit', async () => {
+    comAgendamento({ modalidade: 'presencial' });
+    await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', { modalidade: 'online' }, auditoria);
+    const index = connection.execute.mock.calls.findIndex(([sql]) => sql.includes(insertHistorico));
+    expect(index).toBeGreaterThanOrEqual(0);
+    expect(connection.execute.mock.invocationCallOrder[index]).toBeLessThan(connection.commit.mock.invocationCallOrder[0]);
+  });
+
+  it.each([
+    ['presencial', {}],
+    ['online', auditoria],
+  ] as const)('não gera histórico para %s com opções %o', async (modalidade, opcoes) => {
+    await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', { modalidade }, opcoes);
+    expect(connection.execute.mock.calls.some(([sql]) => sql.includes(insertHistorico))).toBe(false);
+  });
+
+  it.each([true, false])('falha do histórico com tabela ausente=%s', async (ausente) => {
+    const erro = ausente ? { code: 'ER_NO_SUCH_TABLE' } : new Error('falha');
+    connection.execute.mockResolvedValueOnce([{ affectedRows: 1 }, []]).mockRejectedValueOnce(erro);
+    const edicao = updateAppointmentDetails('org-1', 'pro-1', 'apt-1', { modalidade: 'presencial' }, auditoria);
+    if (ausente) {
+      await expect(edicao).resolves.toBe('ok');
+      expect(connection.commit).toHaveBeenCalledOnce();
+    } else {
+      await expect(edicao).rejects.toBe(erro);
+      expect(connection.rollback).toHaveBeenCalledOnce();
+      expect(connection.commit).not.toHaveBeenCalled();
+    }
   });
 
   it('recusa uma edição quando o horário visto no formulário ficou desatualizado', async () => {
@@ -320,5 +371,66 @@ describe('updateAppointmentDetails', () => {
       .toBe('funding_locked');
     expect(connection.execute).not.toHaveBeenCalled();
     expect(connection.commit).not.toHaveBeenCalled();
+  });
+
+  describe('correção administrativa de sessões realizadas ou canceladas (§§ 7.07 e 13.01)', () => {
+    it('corrige modalidade e horário de sessão realizada e sincroniza clinica_sessoes sem reenviar avisos', async () => {
+      comAgendamento({ status: 'realizado', sessao_clinica_ref: 'session-1' });
+      const res = await updateAppointmentDetails(
+        'org-1',
+        'pro-1',
+        'apt-1',
+        {
+          startsAt: '2099-02-01T14:00:00.000Z',
+          endsAt: '2099-02-01T14:50:00.000Z',
+          modalidade: 'presencial',
+        },
+        { permitirCorrecaoAdministrativa: true, permitirHorarioPassado: true }
+      );
+      expect(res).toBe('ok');
+      const [sqlAgendamento] = connection.execute.mock.calls[0];
+      expect(sqlAgendamento).toContain('UPDATE clinica_agendamentos');
+      const [sqlSessao, valsSessao] = connection.execute.mock.calls[1];
+      expect(sqlSessao).toContain('UPDATE clinica_sessoes');
+      expect(valsSessao).toContain('in_person');
+      expect(valsSessao).toContain('session-1');
+      expect(concluirReagendamento).not.toHaveBeenCalled();
+      expect(connection.commit).toHaveBeenCalledOnce();
+    });
+
+    it('corrige modalidade e horário de sessão cancelada sem checar conflito nem avisar', async () => {
+      comAgendamento({ status: 'cancelado' });
+      const res = await updateAppointmentDetails(
+        'org-1',
+        'pro-1',
+        'apt-1',
+        {
+          startsAt: '2099-02-01T14:00:00.000Z',
+          endsAt: '2099-02-01T14:50:00.000Z',
+          modalidade: 'presencial',
+        },
+        { permitirCorrecaoAdministrativa: true, permitirHorarioPassado: true }
+      );
+      expect(res).toBe('ok');
+      expect(connection.query.mock.calls.some(([sql]) => String(sql).includes('AND a.id <> ?'))).toBe(false);
+      expect(concluirReagendamento).not.toHaveBeenCalled();
+      expect(connection.commit).toHaveBeenCalledOnce();
+    });
+
+    it('mantém bloqueio para troca de status ou de custeio em sessões realizadas ou canceladas', async () => {
+      comAgendamento({ status: 'realizado', sessao_clinica_ref: 'session-1' });
+      expect(
+        await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', { status: 'agendado' }, { permitirCorrecaoAdministrativa: true })
+      ).toBe('completed_locked');
+      expect(
+        await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', { custeadoPelaEmpresa: false }, { permitirCorrecaoAdministrativa: true })
+      ).toBe('completed_locked');
+
+      comAgendamento({ status: 'cancelado' });
+      expect(
+        await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', { status: 'agendado' }, { permitirCorrecaoAdministrativa: true })
+      ).toBe('cancelled_locked');
+      expect(connection.execute).not.toHaveBeenCalled();
+    });
   });
 });

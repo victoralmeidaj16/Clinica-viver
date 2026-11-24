@@ -2,6 +2,10 @@ import type { SessionEditableData } from '@/components/scheduling/editSessionMod
 
 export interface Transaction {
   id: string;
+  chargeId: string;
+  sessionId: string;
+  sessionStartsAt?: string;
+  originLabel: string;
   patientName: string;
   receivedAt: string;
   amountCents: number;

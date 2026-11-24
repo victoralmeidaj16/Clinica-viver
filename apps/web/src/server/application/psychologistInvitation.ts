@@ -6,6 +6,7 @@ import { avisarCadastroAprovadoPorEmail, normalizarEmail } from './psychologistR
 import { avisarBoasVindasPsicologo, type ResultadoEnvio } from './viverMaisWhatsApp';
 import { markWelcomeSent, provisionPsychologistAccess } from './psychologistAccess';
 import { montarComprovanteTermoAdesao } from './termoAdesaoComprovantePdf';
+import { enviarComprovanteTermoAdesao } from './termoAdesaoComprovanteEmail';
 import { isMysqlConfigured } from '@/server/oci/runtime';
 import { MysqlCaptureRepository } from '@/server/persistence/mysql/captureRepository';
 
@@ -60,6 +61,31 @@ export async function enviarConvitePsicologo(
       tentativaId,
       comprovante
     );
+  }
+
+  if (comprovante) {
+    const viaClinicaJaEnviada = cadastro.aceiteTermoAdesao?.envioComprovante?.situacao === 'enviada'
+      && Boolean(cadastro.aceiteTermoAdesao?.envioComprovante?.paraClinica);
+    if (!viaClinicaJaEnviada) {
+      try {
+        const envioClinica = await enviarComprovanteTermoAdesao(
+          cadastro,
+          comprovante,
+          new Date(),
+          undefined,
+          { somenteClinica: true }
+        );
+        if (isMysqlConfigured()) {
+          await new MysqlCaptureRepository().registrarEnvioComprovanteTermo(
+            cadastro.id,
+            envioClinica,
+            'envioComprovante'
+          );
+        }
+      } catch {
+        console.error('Não foi possível enviar ou registrar a via da clínica do Termo de Adesão.');
+      }
+    }
   }
 
   if (comprovante && isMysqlConfigured()) {

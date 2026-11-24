@@ -34,4 +34,23 @@ describe('opções de atendimento do cadastro manual', () => {
     expect(html).not.toContain('value="AVALIACAO"');
     expect(html).not.toContain('value="ORIENTACAO_PARENTAL"');
   });
+
+  it('filtra os públicos exibidos conforme o público homologado do profissional (§§ 2.03 e 6.02)', () => {
+    const html = renderToStaticMarkup(<PatientRegistrationFields
+      form={{ ...EMPTY_PATIENT_REGISTRATION, servicoKey: 'PSICOTERAPIA' }} setForm={() => {}}
+      convenios={[]} conveniosCarregando={false} conveniosIndisponiveis={false}
+      temNomeSocial={false} onTemNomeSocialChange={() => {}}
+      habilitacao={{
+        status: 'APROVADO',
+        servicosHabilitados: ['PSICOTERAPIA'],
+        modalidadesAtendidas: ['ACESSIVEL_SOCIAL'],
+        publicoAlvo: ['Homens', 'Mulheres'],
+      }}
+    />);
+    expect(html).toContain('>Homem</button>');
+    expect(html).toContain('>Mulher</button>');
+    expect(html).not.toContain('>Criança</button>');
+    expect(html).not.toContain('>Adolescente</button>');
+    expect(html).not.toContain('>Idoso</button>');
+  });
 });

@@ -48,4 +48,20 @@ describe('permissões de convênio', () => {
     await updatePatientConvenio(contextWith(['admin']), 'pac-1', { convenioId: 'conv-1' });
     expect(vincularPacienteConvenio).toHaveBeenCalledOnce();
   });
+
+  it('permite ao perfil Financeiro dedicado consultar, criar e vincular convênios', async () => {
+    const financeiro = contextWith(['billing']);
+    await expect(listConvenios(financeiro)).resolves.toMatchObject({ convenios: [] });
+    await expect(createConvenio(financeiro, { nome: 'Convênio Financeiro' })).resolves.toMatchObject({ id: 'conv-1' });
+    await expect(updatePatientConvenio(financeiro, 'pac-1', { convenioId: 'conv-1' })).resolves.toBeDefined();
+    expect(listarConvenios).toHaveBeenCalledOnce();
+    expect(criarConvenio).toHaveBeenCalledOnce();
+    expect(vincularPacienteConvenio).toHaveBeenCalledOnce();
+  });
+
+  it('nega convênios quando o vínculo combina papel profissional com billing', async () => {
+    const hibrido = contextWith(['professional', 'billing']);
+    await expect(listConvenios(hibrido)).rejects.toMatchObject({ status: 403 });
+    expect(listarConvenios).not.toHaveBeenCalled();
+  });
 });

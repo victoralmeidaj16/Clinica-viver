@@ -5,6 +5,7 @@ import { avisarTransbordo } from '@/server/application/viverMaisWhatsApp';
 import { avisarAlocacaoPsicologoPorEmail } from '@/server/application/triagemEmail';
 import { exigirVarreduraAutorizada, NaoAutorizadoError } from '@/server/viverMaisGestaoAuth';
 import { desvincularPacientesTransbordados, reconciliarPacientes } from '@/server/application/patientPromotion';
+import { executarListaDeEspera } from '@/server/application/listaEsperaExecucao';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -61,10 +62,17 @@ export async function POST(request: Request) {
       console.error('[triagem] Falha ao desvincular pacientes transbordados:', erro)
     );
     const pacientesPromovidos = await reconciliarPacientes(repositorio);
+    // A varredura é também o relógio da lista de espera automática (5.07):
+    // uma vaga liberada sem nenhuma ação na tela ainda chega a quem espera.
+    const ofertasListaEspera = leadId ? 0 : await executarListaDeEspera(repositorio).catch((erro) => {
+      console.error('[triagem] Falha ao processar a lista de espera na varredura:', erro);
+      return 0;
+    });
 
     return NextResponse.json({
       success: true,
       transbordosExecutados: resultado.transbordos.length,
+      ofertasListaEspera,
       pacientesPromovidos,
       leads: resultado.transbordos.map((item) => ({
         protocolo: item.lead.protocolo,

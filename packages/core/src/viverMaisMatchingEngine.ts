@@ -1,7 +1,9 @@
 import {
+  FormatoAtendimento,
   LeadTriagem,
   PsicologoPerfil,
   ModalidadeAtendimento,
+  PreferenciaFormatoAtendimento,
   PreferenciaGeneroPsicologo,
   TurnoAtendimento,
 } from './viverMaisTypes';
@@ -22,6 +24,10 @@ export interface CriteriosSelecao {
   servicoDesejado?: string;
   paraQuemE?: string;
   necessidadesDesejadas?: readonly string[];
+  formatoDesejado?: PreferenciaFormatoAtendimento;
+  abordagemDesejada?: string;
+  duracaoDesejadaMinutos?: number;
+  ignorarCapacidade?: boolean;
   /**
    * Gênero pedido pelo paciente. `SEM_PREFERENCIA` (ou ausente) mantém a fila
    * inteira.
@@ -34,9 +40,107 @@ export interface CriteriosSelecao {
   sortear?: (quantidade: number) => number;
 }
 
+function normalizarTexto(valor?: string): string {
+  return (valor ?? '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+export function normalizarFormatoAtendimento(
+  valor?: string
+): FormatoAtendimento | 'INDIFERENTE' | undefined {
+  const limpo = normalizarTexto(valor);
+  if (!limpo) return undefined;
+  if (
+    limpo === 'ambos' ||
+    limpo === 'hibrido' ||
+    limpo === 'online e presencial' ||
+    limpo === 'online_e_presencial'
+  ) {
+    return 'AMBOS';
+  }
+  if (limpo === 'online' || limpo === 'on-line' || limpo === 'remoto') return 'ONLINE';
+  if (limpo === 'presencial') return 'PRESENCIAL';
+  if (limpo === 'indiferente' || limpo === 'sem preferencia' || limpo === 'sem_preferencia') {
+    return 'INDIFERENTE';
+  }
+  return undefined;
+}
+
+function expandirAliasesAbordagem(valor: string): string[] {
+  const base = normalizarTexto(valor);
+  if (!base) return [];
+  const aliases = new Set<string>([base]);
+  if (
+    base === 'tcc' ||
+    /\btcc\b/.test(base) ||
+    base.includes('cognitivo-comportamental') ||
+    base.includes('cognitivo comportamental')
+  ) {
+    aliases.add('tcc');
+    aliases.add('terapia cognitivo-comportamental');
+    aliases.add('terapias cognitivo-comportamentais');
+    aliases.add('cognitivo-comportamental');
+  }
+  return [...aliases];
+}
+
+function abordagemCompativel(
+  p: Pick<PsicologoPerfil, 'abordagem' | 'posGraduacaoViverMais' | 'outrasPosGraduacoes'>,
+  abordagemDesejada?: string
+): boolean {
+  const alvoBruto = normalizarTexto(abordagemDesejada);
+  if (!alvoBruto || alvoBruto === 'indiferente' || alvoBruto === 'sem preferencia' || alvoBruto === 'sem_preferencia') {
+    return true;
+  }
+  const candidatos = [p.abordagem, p.posGraduacaoViverMais, ...(p.outrasPosGraduacoes ?? [])]
+    .flatMap((item) => (item ? expandirAliasesAbordagem(item) : []));
+  if (candidatos.length === 0) return false;
+  const alvos = expandirAliasesAbordagem(alvoBruto);
+  return candidatos.some((cand) => alvos.some((alvo) => cand === alvo || cand.includes(alvo) || alvo.includes(cand)));
+}
+
+export function duracaoEsperadaDaDemanda(
+  servicoDesejado?: string,
+  paraQuemE?: string,
+  duracaoExplicita?: number
+): number | undefined {
+  if (duracaoExplicita === 50 || duracaoExplicita === 90) return duracaoExplicita;
+  if (servicoDesejado === 'AVALIACAO') return undefined;
+  const publico = normalizarTexto(paraQuemE);
+  if (servicoDesejado === 'PSICOTERAPIA_CASAL' || /\b(casal|casais|familia|grupo)\b/.test(publico)) {
+    return 90;
+  }
+  if (
+    servicoDesejado === 'PSICOTERAPIA' ||
+    servicoDesejado === 'ORIENTACAO_PARENTAL' ||
+    servicoDesejado === 'ORIENTACAO_VOCACIONAL' ||
+    servicoDesejado === 'ORIENTACAO_PROFISSIONAL' ||
+    servicoDesejado === 'ORIENTACAO_VOCACIONAL_PROFISSIONAL'
+  ) {
+    return 50;
+  }
+  return undefined;
+}
+
 /** Regra pura compartilhada pela vitrine e pela alocação. */
 export function psicologoCompativel(
-  p: Pick<PsicologoPerfil, 'id' | 'pausadoNoRodizio' | 'pacientesAtivosCount' | 'limitePacientesAtivos' | 'turnosDisponiveis' | 'modalidadesAtendidas' | 'genero' | 'servicosHabilitados' | 'publicoAlvo' | 'necessidadesAtendidas'>,
+  p: Pick<
+    PsicologoPerfil,
+    | 'id'
+    | 'pausadoNoRodizio'
+    | 'pacientesAtivosCount'
+    | 'limitePacientesAtivos'
+    | 'turnosDisponiveis'
+    | 'modalidadesAtendidas'
+    | 'modalidadeAtendimento'
+    | 'abordagem'
+    | 'posGraduacaoViverMais'
+    | 'outrasPosGraduacoes'
+    | 'temposAtendimento'
+    | 'genero'
+    | 'servicosHabilitados'
+    | 'publicoAlvo'
+    | 'necessidadesAtendidas'
+  >,
   turnoDesejado: TurnoAtendimento | readonly TurnoAtendimento[],
   modalidadeDesejada: ModalidadeAtendimento,
   criterios: CriteriosSelecao = {}
@@ -46,6 +150,10 @@ export function psicologoCompativel(
     servicoDesejado,
     paraQuemE,
     necessidadesDesejadas,
+    formatoDesejado,
+    abordagemDesejada,
+    duracaoDesejadaMinutos,
+    ignorarCapacidade,
     preferenciaGeneroPsicologo,
   } = criterios;
 
@@ -61,9 +169,19 @@ export function psicologoCompativel(
   // A migração 017 carimbou `pausadoNoRodizio` em todos os que estavam com a
   // vitrine desligada, para que a troca de critério não reativasse ninguém.
   if (p.pausadoNoRodizio) return false;
-  if (p.pacientesAtivosCount >= p.limitePacientesAtivos) return false;
+  if (!ignorarCapacidade && p.pacientesAtivosCount >= p.limitePacientesAtivos) return false;
   if (!turnos.some((turno) => p.turnosDisponiveis.includes(turno))) return false;
   if (!p.modalidadesAtendidas.includes(modalidadeDesejada)) return false;
+  const formato = normalizarFormatoAtendimento(formatoDesejado);
+  if (formato === 'ONLINE' || formato === 'PRESENCIAL') {
+    const formatoPsi = normalizarFormatoAtendimento(p.modalidadeAtendimento);
+    if (formatoPsi !== 'AMBOS' && formatoPsi !== formato) return false;
+  }
+  if (!abordagemCompativel(p, abordagemDesejada)) return false;
+  const duracaoNecessaria = duracaoEsperadaDaDemanda(servicoDesejado, paraQuemE, duracaoDesejadaMinutos);
+  if (duracaoNecessaria !== undefined && p.temposAtendimento && p.temposAtendimento.length > 0) {
+    if (!p.temposAtendimento.includes(duracaoNecessaria)) return false;
+  }
   // Preferência de gênero corta a fila em vez de só reordená-la: quem pediu
   // uma psicóloga não deve receber um psicólogo porque era a vez dele. Quem
   // não declarou gênero — ou declarou um que não é masculino nem feminino —
@@ -171,6 +289,9 @@ export function processarTriagemLead(
     servicoDesejado,
     paraQuemE: lead.paraQuemE,
     necessidadesDesejadas: lead.necessidadesPaciente,
+    formatoDesejado: lead.formatoAtendimento,
+    abordagemDesejada: lead.abordagemDesejada,
+    duracaoDesejadaMinutos: lead.duracaoDesejadaMinutos,
     preferenciaGeneroPsicologo: lead.preferenciaGeneroPsicologo,
   });
 
@@ -245,6 +366,9 @@ export function checarEExecutarTransbordoSla(
     servicoDesejado: opcoes.servicoDesejado,
     paraQuemE: lead.paraQuemE,
     necessidadesDesejadas: lead.necessidadesPaciente,
+    formatoDesejado: lead.formatoAtendimento,
+    abordagemDesejada: lead.abordagemDesejada,
+    duracaoDesejadaMinutos: lead.duracaoDesejadaMinutos,
     // O transbordo herda a preferência: um pedido que valeu na indicação
     // original não pode se perder só porque o prazo estourou.
     preferenciaGeneroPsicologo: lead.preferenciaGeneroPsicologo,

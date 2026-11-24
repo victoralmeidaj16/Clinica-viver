@@ -4,7 +4,9 @@ export { normalizarModalidade } from '@/lib/modalidade';
 
 import {
   checarEExecutarTransbordoSla,
+  normalizarFormatoAtendimento,
   processarTriagemLead,
+  psicologoCompativel,
   type LeadTriagem,
   type PsicologoPerfil,
   type TurnoAtendimento,
@@ -13,6 +15,7 @@ import type {
   AusenciaAgenda,
   CadastroPsicologoRecord,
   PersistedSnapshot,
+  RecusaEncaminhamento,
   TriagemPacienteRecord,
 } from './persistence';
 import { generoProfissional } from '@/lib/gender';
@@ -23,6 +26,8 @@ import {
   LIMITE_PACIENTES_MINIMO,
   LIMITE_PACIENTES_PADRAO,
 } from '@/lib/psychologistCapacity';
+import { normalizarPrazoOferta, prazoDaOferta, PRAZO_OFERTA_PADRAO_HORAS } from '@/lib/prazoOferta';
+import { devolverParaEspera, encerrarEsperaSeAtendido } from './listaEsperaSaida';
 
 /**
  * Ponte entre o motor de rodízio (`@thats-life/core`) e o estado persistido.
@@ -39,11 +44,16 @@ import {
  * alocação já decidida.
  */
 
-/** Limite do SLA de primeiro contato, em horas. */
-export const SLA_CONTATO_HORAS = 24;
+/**
+ * Prazo padrão da oferta, em horas. O valor em uso vem da configuração da
+ * Gestão (`prazoOfertaHoras` no snapshot) e fica gravado em cada oferta.
+ */
+export const SLA_CONTATO_HORAS = PRAZO_OFERTA_PADRAO_HORAS;
 
-/** A partir daqui a linha fica amarela no cockpit: ainda dá tempo, mas aperta. */
-const SLA_ATENCAO_HORAS = 12;
+/** Prazo que as novas ofertas recebem agora. */
+export function prazoConfigurado(snapshot: Pick<PersistedSnapshot, 'prazoOfertaHoras'>): number {
+  return normalizarPrazoOferta(snapshot.prazoOfertaHoras);
+}
 
 export type SlaStatus = 'VERDE' | 'AMARELO' | 'VERMELHO';
 
@@ -60,6 +70,14 @@ export interface ResultadoAlocacao {
   psicologo?: CadastroPsicologoRecord;
 }
 
+export type ModoAlocacaoGestao = 'PEDIR_ACEITE' | 'VINCULAR_DIRETO';
+
+export interface OpcoesAlocacaoGestao {
+  modo?: ModoAlocacaoGestao;
+  excederLimite?: boolean;
+  justificativaExcesso?: string;
+}
+
 export type ResultadoReatribuicaoGestao =
   | {
       situacao: 'reatribuido';
@@ -68,6 +86,16 @@ export type ResultadoReatribuicaoGestao =
       psicologo: CadastroPsicologoRecord;
       primeiraAlocacao: boolean;
       psicologoAnteriorNome?: string;
+      modo: ModoAlocacaoGestao;
+      excedeuLimite: boolean;
+      ocupacaoResultante: { ativos: number; limite: number };
+    }
+  | {
+      situacao: 'limite_atingido' | 'justificativa_obrigatoria';
+      snapshot: PersistedSnapshot;
+      ativos: number;
+      limite: number;
+      psicologo: CadastroPsicologoRecord;
     }
   | { situacao: 'lead_nao_encontrado' | 'psicologo_indisponivel' | 'lead_ja_confirmado'; snapshot: PersistedSnapshot };
 
@@ -138,7 +166,10 @@ export function paraPsicologoPerfil(
     genero: generoProfissional(record.genero),
     turnosDisponiveis: normalizarLista(record.turnosDisponiveis, normalizarTurno),
     modalidadesAtendidas: normalizarLista(record.modalidadesAtendidas, normalizarModalidade),
+    modalidadeAtendimento: record.modalidadeAtendimento,
+    abordagem: record.especialidade,
     servicosHabilitados: [...(record.servicosHabilitados ?? [])],
+    temposAtendimento: record.temposAtendimento ? [...record.temposAtendimento] : undefined,
     publicoAlvo: record.publicoAlvo ? [...record.publicoAlvo] : undefined,
     especificarNecessidades: record.especificarNecessidades,
     necessidadesAtendidas: record.necessidadesAtendidas ? [...record.necessidadesAtendidas] : undefined,
@@ -161,6 +192,7 @@ export function paraPsicologoPerfil(
     saldoCreditoAbatimento: 0,
     turmaViverMais: record.turmaViverMais,
     posGraduacaoViverMais: record.posGraduacaoViverMais,
+    outrasPosGraduacoes: record.segundaPosGraduacao ? [record.segundaPosGraduacao] : undefined,
   };
 }
 
@@ -185,6 +217,7 @@ function paraLeadTriagem(
   const turno = normalizarTurnosPreferencia(record.turno);
   const modalidade = normalizarModalidade(record.modalidade);
   if (!turno.length || !modalidade) return null;
+  const formato = normalizarFormatoAtendimento(record.formatoAtendimento);
 
   return {
     id: record.id,
@@ -210,6 +243,9 @@ function paraLeadTriagem(
     preferenciaGeneroPsicologo: opcoes.ignorarPreferenciaGenero
       ? undefined
       : record.preferenciaGeneroPsicologo,
+    formatoAtendimento: formato && formato !== 'AMBOS' ? formato : undefined,
+    abordagemDesejada: record.abordagemDesejada,
+    duracaoDesejadaMinutos: record.duracaoSessaoMinutos,
   };
 }
 
@@ -223,6 +259,11 @@ function substituirLead(
       item.id === lead.id ? lead : item
     ),
   };
+}
+
+/** Campos de toda oferta nova: relógio zerado e prazo vigente gravado nela. */
+function novaOferta(snapshot: PersistedSnapshot, alocadoEm: string) {
+  return { alocadoEm, aceitoEm: undefined, slaExpirado: false, prazoRespostaHoras: prazoConfigurado(snapshot) };
 }
 
 /**
@@ -267,12 +308,16 @@ function ocupaVaga(lead: TriagemPacienteRecord): boolean {
 
 export function recalcularPacientesAtivos(snapshot: PersistedSnapshot): PersistedSnapshot {
   const contagem = new Map<string, number>();
-  for (const lead of snapshot.triagensPacientes ?? []) {
+  // Quem foi aceito, vinculado, inativado ou desistiu deixa a lista de espera
+  // aqui, no ponto por onde toda mutação da fila passa (5.07).
+  const triagens = snapshot.triagensPacientes?.map(encerrarEsperaSeAtendido);
+  for (const lead of triagens ?? []) {
     if (!ocupaVaga(lead) || !lead.psicologoAlocadoId) continue;
     contagem.set(lead.psicologoAlocadoId, (contagem.get(lead.psicologoAlocadoId) ?? 0) + 1);
   }
   return {
     ...snapshot,
+    ...(triagens ? { triagensPacientes: triagens } : {}),
     cadastrosPsicologos: (snapshot.cadastrosPsicologos ?? []).map((psi) => ({
       ...psi,
       limitePacientesAtivos: Math.min(
@@ -284,7 +329,45 @@ export function recalcularPacientesAtivos(snapshot: PersistedSnapshot): Persiste
   };
 }
 
+export type ResultadoLotacao =
+  | { kind: 'capacity_reallocated'; lead: TriagemPacienteRecord; psicologo: CadastroPsicologoRecord; anteriorNome?: string }
+  | { kind: 'capacity_pending'; lead: TriagemPacienteRecord };
+
+/** A oferta pendente não reserva vaga. Revalidamos dentro da mutação que grava o vínculo. */
+function redirecionarSeLotado(
+  atual: PersistedSnapshot,
+  lead: TriagemPacienteRecord,
+  psicologoId: string,
+  agora: Date
+): { next: PersistedSnapshot; result: ResultadoLotacao } | undefined {
+  if (lead.projetoAcolhe || lead.aceitoEm || lead.status === 'CONTATO_CONFIRMADO') return;
+  const psicologo = atual.cadastrosPsicologos?.find((item) => item.id === psicologoId);
+  if (psicologo && (psicologo.pacientesAtivosCount ?? 0) < (psicologo.limitePacientesAtivos ?? LIMITE_PACIENTES_PADRAO)) return;
+
+  const pendente: TriagemPacienteRecord = {
+    ...lead,
+    status: 'PENDENTE_ATRIBUICAO',
+    psicologoAlocadoId: undefined,
+    psicologoNome: undefined,
+    alocadoEm: undefined,
+    slaExpirado: false,
+    psicologosJaTentados: [...new Set([...(lead.psicologosJaTentados ?? []), psicologoId])],
+  };
+  const fila = substituirLead(atual, pendente);
+  if (pendente.tipoAlocacao !== 'ESCOLHA_DIRETA') {
+    const proximaOferta = devolverAoRodizio(fila, lead.id, agora);
+    if (proximaOferta.situacao === 'alocado') {
+      const realocado = { ...proximaOferta.lead, transbordos: (lead.transbordos ?? 0) + 1 };
+      return { next: substituirLead(proximaOferta.snapshot, realocado), result: {
+        kind: 'capacity_reallocated', lead: realocado, psicologo: proximaOferta.psicologo, anteriorNome: lead.psicologoNome,
+      } };
+    }
+  }
+  return { next: fila, result: { kind: 'capacity_pending', lead: pendente } };
+}
+
 export type AceitePacienteResult =
+  | ResultadoLotacao
   | { kind: 'not_found' }
   | { kind: 'conflict' }
   | { kind: 'already_confirmed'; lead: TriagemPacienteRecord }
@@ -301,7 +384,7 @@ export type AceitePacienteResult =
 export function ofertaExpirada(lead: TriagemPacienteRecord, agora: Date = new Date()): boolean {
   if (lead.aceitoEm || lead.confirmadoEm || lead.status !== 'AGUARDANDO_CONTATO') return false;
   const horas = horasDesdeAlocacao(lead.alocadoEm, agora);
-  return horas !== null && horas >= SLA_CONTATO_HORAS;
+  return horas !== null && horas >= prazoDaOferta(lead);
 }
 
 /** Registra o aceite sem confundi-lo com a confirmação do primeiro contato. */
@@ -313,18 +396,17 @@ export function aceitarPaciente(
 ): { next: PersistedSnapshot; result: AceitePacienteResult } {
   const lead = snapshot.triagensPacientes?.find((item) => item.id === id);
   if (!lead) return { next: snapshot, result: { kind: 'not_found' } };
-  if (lead.psicologoAlocadoId !== psicologoId || lead.status === 'PENDENTE_ATRIBUICAO') {
+  if (lead.psicologoAlocadoId !== psicologoId || (lead.status !== 'AGUARDANDO_CONTATO' && lead.status !== 'CONTATO_CONFIRMADO')) {
     return { next: snapshot, result: { kind: 'conflict' } };
   }
   if (lead.confirmadoEm || lead.status === 'CONTATO_CONFIRMADO') {
     return { next: snapshot, result: { kind: 'already_confirmed', lead } };
   }
   if (lead.aceitoEm) return { next: snapshot, result: { kind: 'already_accepted', lead } };
-  if (lead.status !== 'AGUARDANDO_CONTATO') {
-    return { next: snapshot, result: { kind: 'conflict' } };
-  }
   if (ofertaExpirada(lead, agora)) return { next: snapshot, result: { kind: 'expired', lead } };
 
+  const lotacao = redirecionarSeLotado(recalcularPacientesAtivos(snapshot), lead, psicologoId, agora);
+  if (lotacao) return lotacao;
   const aceito: TriagemPacienteRecord = { ...lead, aceitoEm: agora.toISOString() };
   const next = recalcularPacientesAtivos({
     ...snapshot,
@@ -373,10 +455,8 @@ export function alocarLead(
     status: 'AGUARDANDO_CONTATO',
     psicologoAlocadoId: escolhido.id,
     psicologoNome: nomeDeExibicao(escolhido),
-    alocadoEm,
-    aceitoEm: undefined,
+    ...novaOferta(snapshot, alocadoEm),
     tipoAlocacao: 'RODIZIO',
-    slaExpirado: false,
     transbordos: leadRecord.transbordos ?? 0,
     psicologosJaTentados: [...(leadRecord.psicologosJaTentados ?? []), escolhido.id],
   };
@@ -453,10 +533,8 @@ export function alocarLeadEscolhido(
     status: 'AGUARDANDO_CONTATO',
     psicologoAlocadoId: escolhido.id,
     psicologoNome: nomeDeExibicao(escolhido),
-    alocadoEm,
-    aceitoEm: undefined,
+    ...novaOferta(atual, alocadoEm),
     tipoAlocacao: 'ESCOLHA_DIRETA',
-    slaExpirado: false,
     transbordos: leadRecord.transbordos ?? 0,
     psicologosJaTentados: [...new Set([...(leadRecord.psicologosJaTentados ?? []), escolhido.id])],
   };
@@ -483,18 +561,23 @@ export function alocarLeadEscolhido(
 export function listarPsicologosCompativeis(
   snapshot: PersistedSnapshot,
   leadRecord: TriagemPacienteRecord,
-  agora: Date = new Date()
+  agora: Date = new Date(),
+  opcoes: { ignorarCapacidade?: boolean } = {}
 ): CadastroPsicologoRecord[] {
   const atual = recalcularPacientesAtivos(snapshot);
   const lead = paraLeadTriagem(leadRecord, { ignorarPreferenciaGenero: true });
   if (!lead) return [];
 
   return rosterAtivo(atual).filter((psicologo) =>
-    processarTriagemLead(
-      lead,
-      [paraPsicologoPerfil(psicologo, agora)],
-      leadRecord.servicoKey
-    ).sucesso
+    psicologoCompativel(paraPsicologoPerfil(psicologo, agora), lead.turno, lead.modalidade, {
+      servicoDesejado: leadRecord.servicoKey,
+      paraQuemE: lead.paraQuemE,
+      necessidadesDesejadas: lead.necessidadesPaciente,
+      formatoDesejado: lead.formatoAtendimento,
+      abordagemDesejada: lead.abordagemDesejada,
+      duracaoDesejadaMinutos: lead.duracaoDesejadaMinutos,
+      ignorarCapacidade: opcoes.ignorarCapacidade,
+    })
   );
 }
 
@@ -511,7 +594,8 @@ export type ResultadoDevolucaoRodizio =
 export function devolverAoRodizio(
   snapshot: PersistedSnapshot,
   leadId: string,
-  agora: Date = new Date()
+  agora: Date = new Date(),
+  opcoes: { excluirPsicologos?: readonly string[] } = {}
 ): ResultadoDevolucaoRodizio {
   const atual = recalcularPacientesAtivos(snapshot);
   const leadRecord = atual.triagensPacientes?.find((item) => item.id === leadId);
@@ -522,7 +606,8 @@ export function devolverAoRodizio(
 
   const lead = paraLeadTriagem(leadRecord);
   const jaTentados = leadRecord.psicologosJaTentados ?? [];
-  const candidatos = rosterAtivo(atual).filter((psi) => !jaTentados.includes(psi.id));
+  const excluidos = new Set([...jaTentados, ...(opcoes.excluirPsicologos ?? [])]);
+  const candidatos = rosterAtivo(atual).filter((psi) => !excluidos.has(psi.id));
   const resultado = lead && candidatos.length
     ? processarTriagemLead(lead, candidatos.map((psi) => paraPsicologoPerfil(psi, agora)), leadRecord.servicoKey)
     : null;
@@ -537,10 +622,8 @@ export function devolverAoRodizio(
     status: 'AGUARDANDO_CONTATO',
     psicologoAlocadoId: escolhido.id,
     psicologoNome: nomeDeExibicao(escolhido),
-    alocadoEm,
-    aceitoEm: undefined,
+    ...novaOferta(atual, alocadoEm),
     tipoAlocacao: 'RODIZIO',
-    slaExpirado: false,
     psicologosJaTentados: [...jaTentados, escolhido.id],
   };
   return {
@@ -551,43 +634,55 @@ export function devolverAoRodizio(
   };
 }
 
-/** Alocação manual validada, usada pela gestão após uma desistência. */
+/** Alocação manual validada pela gestão após uma desistência. */
 export function alocarLeadParaPsicologo(
   snapshot: PersistedSnapshot,
   leadRecord: TriagemPacienteRecord,
   psicologoId: string,
-  confirmadoEm = new Date().toISOString()
+  confirmadoEm = new Date().toISOString(),
+  opcoes: OpcoesAlocacaoGestao = {}
 ): ResultadoAlocacao {
+  const modo: ModoAlocacaoGestao = opcoes.modo === 'PEDIR_ACEITE' ? 'PEDIR_ACEITE' : 'VINCULAR_DIRETO';
   const atual = recalcularPacientesAtivos(snapshot);
-  const psicologo = listarPsicologosCompativeis(atual, leadRecord)
-    .find((item) => item.id === psicologoId);
+  if (opcoes.excederLimite && !opcoes.justificativaExcesso?.trim()) {
+    return { snapshot: atual, lead: leadRecord };
+  }
+  const referencia = new Date(confirmadoEm);
+  const agora = Number.isNaN(referencia.getTime()) ? new Date() : referencia;
+  const psicologo = listarPsicologosCompativeis(atual, leadRecord, agora, {
+    ignorarCapacidade: Boolean(opcoes.excederLimite),
+  }).find((item) => item.id === psicologoId);
   if (!psicologo) return { snapshot: atual, lead: leadRecord };
 
+  const vinculadoDireto = modo === 'VINCULAR_DIRETO';
   const atualizado: TriagemPacienteRecord = {
     ...leadRecord,
-    status: 'CONTATO_CONFIRMADO',
+    status: vinculadoDireto ? 'CONTATO_CONFIRMADO' : 'AGUARDANDO_CONTATO',
     psicologoAlocadoId: psicologo.id,
     psicologoNome: nomeDeExibicao(psicologo),
-    alocadoEm: confirmadoEm,
-    aceitoEm: confirmadoEm,
-    confirmadoEm,
-    slaExpirado: false,
+    ...novaOferta(atual, confirmadoEm),
+    aceitoEm: vinculadoDireto ? confirmadoEm : undefined,
+    confirmadoEm: vinculadoDireto ? confirmadoEm : undefined,
     psicologosJaTentados: [...new Set([...(leadRecord.psicologosJaTentados ?? []), psicologo.id])],
   };
-  const next = registrarRecebimento(substituirLead(atual, atualizado), psicologo.id, confirmadoEm);
-  return { snapshot: recalcularPacientesAtivos(next), lead: atualizado, psicologo };
+  const next = recalcularPacientesAtivos(
+    registrarRecebimento(substituirLead(atual, atualizado), psicologo.id, confirmadoEm)
+  );
+  const psicologoAtualizado = next.cadastrosPsicologos?.find((item) => item.id === psicologo.id) ?? psicologo;
+  return { snapshot: next, lead: atualizado, psicologo: psicologoAtualizado };
 }
 
 /**
- * Troca administrativa do responsável enquanto a solicitação ainda aguarda o
- * primeiro contato. É uma decisão explícita da gestão, portanto não depende
- * de o profissional anterior confirmar ou devolver o lead ao rodízio.
+ * Encaminhamento ou vínculo direto pela Gestão (§§ 6.07–6.08). Permite pedir
+ * aceite (24h) ou vincular diretamente e autorizar excesso de capacidade com
+ * justificativa obrigatória.
  */
 export function reatribuirLeadPelaGestao(
   snapshot: PersistedSnapshot,
   leadId: string,
   profissionalRef: string,
-  agora: Date = new Date()
+  agora: Date = new Date(),
+  opcoes: OpcoesAlocacaoGestao = {}
 ): ResultadoReatribuicaoGestao {
   const atual = recalcularPacientesAtivos(snapshot);
   const lead = (atual.triagensPacientes ?? []).find((item) => item.id === leadId);
@@ -601,30 +696,52 @@ export function reatribuirLeadPelaGestao(
   );
   if (!psicologo) return { situacao: 'psicologo_indisponivel', snapshot: atual };
 
+  const modo: ModoAlocacaoGestao = opcoes.modo === 'VINCULAR_DIRETO' ? 'VINCULAR_DIRETO' : 'PEDIR_ACEITE';
+  const ativos = psicologo.pacientesAtivosCount ?? 0;
+  const limite = psicologo.limitePacientesAtivos ?? LIMITE_PACIENTES_PADRAO;
+  const jaOcupavaVagaAqui = lead.psicologoAlocadoId === psicologo.id && Boolean(lead.aceitoEm);
+  const excedeuLimite = !lead.projetoAcolhe && !jaOcupavaVagaAqui && ativos >= limite;
+
+  if (excedeuLimite && !opcoes.excederLimite) {
+    return { situacao: 'limite_atingido', snapshot: atual, ativos, limite, psicologo };
+  }
+  if (excedeuLimite && !opcoes.justificativaExcesso?.trim()) {
+    return { situacao: 'justificativa_obrigatoria', snapshot: atual, ativos, limite, psicologo };
+  }
+
   const alocadoEm = agora.toISOString();
   const primeiraAlocacao = !lead.psicologoAlocadoId;
   const mudouResponsavel = lead.psicologoAlocadoId !== psicologo.id;
+  const vinculadoDireto = modo === 'VINCULAR_DIRETO';
   const atualizado: TriagemPacienteRecord = {
     ...lead,
-    status: 'AGUARDANDO_CONTATO',
+    status: vinculadoDireto ? 'CONTATO_CONFIRMADO' : 'AGUARDANDO_CONTATO',
     psicologoAlocadoId: psicologo.id,
     psicologoNome: nomeDeExibicao(psicologo),
-    alocadoEm,
-    aceitoEm: undefined,
-    confirmadoEm: undefined,
+    ...novaOferta(atual, alocadoEm),
+    aceitoEm: vinculadoDireto ? alocadoEm : undefined,
+    confirmadoEm: vinculadoDireto ? alocadoEm : undefined,
     tipoAlocacao: 'RODIZIO',
-    slaExpirado: false,
     transbordos: (lead.transbordos ?? 0) + (mudouResponsavel && lead.psicologoAlocadoId ? 1 : 0),
     psicologosJaTentados: [...new Set([...(lead.psicologosJaTentados ?? []), psicologo.id])],
   };
-  const next = registrarRecebimento(substituirLead(atual, atualizado), psicologo.id, alocadoEm);
+  const next = recalcularPacientesAtivos(
+    registrarRecebimento(substituirLead(atual, atualizado), psicologo.id, alocadoEm)
+  );
+  const psicologoAtualizado = next.cadastrosPsicologos?.find((item) => item.id === psicologo.id) ?? psicologo;
   return {
     situacao: 'reatribuido',
-    snapshot: recalcularPacientesAtivos(next),
+    snapshot: next,
     lead: atualizado,
-    psicologo,
+    psicologo: psicologoAtualizado,
     primeiraAlocacao,
     psicologoAnteriorNome: lead.psicologoNome,
+    modo,
+    excedeuLimite,
+    ocupacaoResultante: {
+      ativos: psicologoAtualizado.pacientesAtivosCount ?? ativos,
+      limite: psicologoAtualizado.limitePacientesAtivos ?? limite,
+    },
   };
 }
 
@@ -641,11 +758,16 @@ export function horasDesdeAlocacao(alocadoEm: string | undefined, agora = new Da
  * cor se deriva dela a cada leitura. Persistir a cor seria guardar uma verdade
  * que envelhece sozinha.
  */
-export function classificarSla(alocadoEm: string | undefined, agora = new Date()): SlaStatus {
+export function classificarSla(
+  alocadoEm: string | undefined,
+  agora = new Date(),
+  prazoHoras: number = SLA_CONTATO_HORAS
+): SlaStatus {
   const horas = horasDesdeAlocacao(alocadoEm, agora);
   if (horas === null) return 'VERMELHO';
-  if (horas >= SLA_CONTATO_HORAS) return 'VERMELHO';
-  if (horas >= SLA_ATENCAO_HORAS) return 'AMARELO';
+  if (horas >= prazoHoras) return 'VERMELHO';
+  // Amarelo na metade do prazo: com 24 horas, a partir de 12 — como sempre foi.
+  if (horas >= prazoHoras / 2) return 'AMARELO';
   return 'VERDE';
 }
 
@@ -695,7 +817,7 @@ export function varrerSla(
     // regra validada para ele não inclui seguir pelo rodízio.
     if (leadRecord.tipoAlocacao === 'ESCOLHA_DIRETA' && leadRecord.psicologoAlocadoId) {
       const horas = horasDesdeAlocacao(leadRecord.alocadoEm, agora);
-      if (horas !== null && horas >= SLA_CONTATO_HORAS) {
+      if (horas !== null && horas >= prazoDaOferta(leadRecord)) {
         atual = substituirLead(atual, devolverEscolhaDiretaAGestao(leadRecord, leadRecord.psicologoAlocadoId, true));
         alterado = true;
       }
@@ -712,7 +834,7 @@ export function varrerSla(
     const resultado = checarEExecutarTransbordoSla(
       lead,
       roster.map((psi) => paraPsicologoPerfil(psi, agora)),
-      SLA_CONTATO_HORAS,
+      prazoDaOferta(leadRecord),
       {
         servicoDesejado: leadRecord.servicoKey,
         psicologosJaTentados: leadRecord.psicologosJaTentados,
@@ -720,6 +842,13 @@ export function varrerSla(
     );
 
     if (!resultado.sucesso) {
+      // Oferta vinda da lista de espera volta a esperar em vez de ficar presa
+      // a quem não respondeu (5.07).
+      if (resultado.leadAtualizado.slaExpirado && leadRecord.listaEspera && !leadRecord.listaEspera.saidaEm) {
+        atual = substituirLead(atual, devolverParaEspera(leadRecord, agora, 'Prazo da oferta encerrado sem resposta.'));
+        alterado = true;
+        continue;
+      }
       // Estourou o prazo e não havia para quem passar: registra o estouro para
       // a gestão ver, sem tirar o lead da fila.
       if (resultado.leadAtualizado.slaExpirado && !leadRecord.slaExpirado) {
@@ -738,8 +867,7 @@ export function varrerSla(
       status: 'AGUARDANDO_CONTATO',
       psicologoAlocadoId: novo.id,
       psicologoNome: nomeDeExibicao(novo),
-      alocadoEm,
-      aceitoEm: undefined,
+      ...novaOferta(atual, alocadoEm),
       tipoAlocacao: 'RODIZIO',
       slaExpirado: true,
       transbordos: (leadRecord.transbordos ?? 0) + 1,
@@ -768,10 +896,9 @@ export function varrerSla(
  * confirmação estoura o limite de pacientes ativos.
  */
 export type ConfirmacaoResult =
+  | ResultadoLotacao
   | { kind: 'not_found' }
   | { kind: 'conflict' }
-  | { kind: 'capacity_reallocated'; lead: TriagemPacienteRecord; psicologo: CadastroPsicologoRecord }
-  | { kind: 'capacity_pending'; lead: TriagemPacienteRecord; psicologo?: undefined }
   | { kind: 'expired'; lead: TriagemPacienteRecord }
   | { kind: 'already_confirmed'; data: { nomePaciente: string; telefone: string; confirmadoEm: string } }
   | { kind: 'confirmed'; lead: TriagemPacienteRecord; data: { nomePaciente: string; telefone: string; confirmadoEm: string } };
@@ -785,7 +912,9 @@ export function confirmarContato(
   const atual = recalcularPacientesAtivos(snapshot);
   const lead = atual.triagensPacientes?.find((item) => item.id === id);
   if (!lead) return { next: atual, result: { kind: 'not_found' } };
-  if (lead.psicologoAlocadoId !== psicologoId) return { next: atual, result: { kind: 'conflict' } };
+  if (lead.psicologoAlocadoId !== psicologoId || (lead.status !== 'AGUARDANDO_CONTATO' && lead.status !== 'CONTATO_CONFIRMADO')) {
+    return { next: atual, result: { kind: 'conflict' } };
+  }
 
   if (lead.confirmadoEm) {
     return {
@@ -799,30 +928,8 @@ export function confirmarContato(
 
   if (ofertaExpirada(lead, agora)) return { next: atual, result: { kind: 'expired', lead } };
 
-  const psicologo = atual.cadastrosPsicologos?.find((item) => item.id === psicologoId);
-  if (!lead.aceitoEm && psicologo && (psicologo.pacientesAtivosCount ?? 0) >= (psicologo.limitePacientesAtivos ?? LIMITE_PACIENTES_PADRAO)) {
-    const paraRealocar: TriagemPacienteRecord = {
-      ...lead,
-      status: 'PENDENTE_ATRIBUICAO',
-      psicologoAlocadoId: undefined,
-      psicologoNome: undefined,
-      alocadoEm: undefined,
-      aceitoEm: undefined,
-      confirmadoEm: undefined,
-      slaExpirado: false,
-    };
-    const base = {
-      ...atual,
-      triagensPacientes: (atual.triagensPacientes ?? []).map((item) => (item.id === id ? paraRealocar : item)),
-    };
-    const realocado = alocarLead(base, paraRealocar);
-    return realocado.psicologo
-      ? {
-          next: realocado.snapshot,
-          result: { kind: 'capacity_reallocated', lead: realocado.lead, psicologo: realocado.psicologo },
-        }
-      : { next: realocado.snapshot, result: { kind: 'capacity_pending', lead: realocado.lead } };
-  }
+  const lotacao = redirecionarSeLotado(atual, lead, psicologoId, agora);
+  if (lotacao) return lotacao;
 
   const confirmadoEm = agora.toISOString();
   const confirmado: TriagemPacienteRecord = { ...lead, status: 'CONTATO_CONFIRMADO', confirmadoEm };
@@ -865,7 +972,8 @@ export function encaminharParaProximo(
   snapshot: PersistedSnapshot,
   leadId: string,
   psicologoAtualId: string,
-  agora: Date = new Date()
+  agora: Date = new Date(),
+  motivo?: string
 ): ResultadoEncaminhamento {
   const atual = recalcularPacientesAtivos(snapshot);
   const leadRecord = atual.triagensPacientes?.find((item) => item.id === leadId);
@@ -887,9 +995,21 @@ export function encaminharParaProximo(
     return { snapshot: atual, situacao: 'ja_aceito', lead: leadRecord };
   }
 
+  const motivoLimpo = typeof motivo === 'string' ? motivo.trim().slice(0, 300) || undefined : undefined;
+  const registroRecusa: RecusaEncaminhamento = {
+    psicologoId: psicologoAtualId,
+    psicologoNome: leadRecord.psicologoNome,
+    recusadoEm: agora.toISOString(),
+    ...(motivoLimpo ? { motivo: motivoLimpo } : {}),
+  };
+  const recusasAtualizadas = [...(leadRecord.recusas ?? []), registroRecusa];
+
   // O paciente escolheu esta pessoa: a recusa leva o caso à Gestão.
   if (leadRecord.tipoAlocacao === 'ESCOLHA_DIRETA') {
-    const pendente = devolverEscolhaDiretaAGestao(leadRecord, psicologoAtualId, false);
+    const pendente: TriagemPacienteRecord = {
+      ...devolverEscolhaDiretaAGestao(leadRecord, psicologoAtualId, false),
+      recusas: recusasAtualizadas,
+    };
     return {
       snapshot: recalcularPacientesAtivos(substituirLead(atual, pendente)),
       situacao: 'devolvido_gestao',
@@ -903,7 +1023,16 @@ export function encaminharParaProximo(
   const candidatos = rosterAtivo(atual).filter((psi) => !jaTentados.includes(psi.id));
 
   if (!lead || candidatos.length === 0) {
-    return { snapshot: atual, situacao: 'sem_candidato', lead: leadRecord };
+    const semDestino: TriagemPacienteRecord = devolverParaEspera(
+      { ...leadRecord, recusas: recusasAtualizadas, psicologosJaTentados: [...new Set(jaTentados)] },
+      agora,
+      'Oferta recusada sem outro profissional compatível.'
+    );
+    return {
+      snapshot: recalcularPacientesAtivos(substituirLead(atual, semDestino)),
+      situacao: 'sem_candidato',
+      lead: semDestino,
+    };
   }
 
   const resultado = processarTriagemLead(
@@ -912,7 +1041,16 @@ export function encaminharParaProximo(
     leadRecord.servicoKey
   );
   if (!resultado.sucesso || !resultado.psicologoAlocado) {
-    return { snapshot: atual, situacao: 'sem_candidato', lead: leadRecord };
+    const semDestino: TriagemPacienteRecord = devolverParaEspera(
+      { ...leadRecord, recusas: recusasAtualizadas, psicologosJaTentados: [...new Set(jaTentados)] },
+      agora,
+      'Oferta recusada sem outro profissional compatível.'
+    );
+    return {
+      snapshot: recalcularPacientesAtivos(substituirLead(atual, semDestino)),
+      situacao: 'sem_candidato',
+      lead: semDestino,
+    };
   }
 
   const novo = candidatos.find((psi) => psi.id === resultado.psicologoAlocado!.id)!;
@@ -923,14 +1061,13 @@ export function encaminharParaProximo(
     status: 'AGUARDANDO_CONTATO',
     psicologoAlocadoId: novo.id,
     psicologoNome: nomeDeExibicao(novo),
-    alocadoEm,
-    aceitoEm: undefined,
-    tipoAlocacao: 'RODIZIO',
     // O relógio recomeça para quem acabou de receber: o prazo é de quem tem o
     // lead agora, não a sobra do prazo de quem devolveu.
-    slaExpirado: false,
+    ...novaOferta(atual, alocadoEm),
+    tipoAlocacao: 'RODIZIO',
     transbordos: (leadRecord.transbordos ?? 0) + 1,
     psicologosJaTentados: [...jaTentados, novo.id],
+    recusas: recusasAtualizadas,
   };
 
   return {

@@ -4,7 +4,11 @@ import type { PatientProfile } from '@thats-life/core';
 import { readSession } from '@/server/auth';
 import { getApplicationStore } from '@/server/application/store';
 import { captureStateAsSnapshot, getCaptureRepository } from '@/server/persistence/captureRepository';
-import { readSnapshot, type TriagemPacienteRecord } from '@/server/application/persistence';
+import type { TriagemPacienteRecord } from '@/server/application/persistence';
+import { getDesistenciaRepository } from '@/server/persistence/desistenciaRepository';
+import { inativacaoVigente } from '@/lib/inativacaoVinculo';
+import { posicaoNaListaDeEspera } from '@/lib/listaEspera';
+import { expiracaoDaOferta, prazoDaOferta } from '@/lib/prazoOferta';
 import { desistenciaDoPaciente } from '@/lib/desistencias';
 import type { PatientContact, PatientContactCapable } from '@/server/persistence/mysql/identityRepository';
 import { exigirGestao, NaoAutorizadoError } from '@/server/viverMaisGestaoAuth';
@@ -14,14 +18,20 @@ import type { RowDataPacket } from 'mysql2/promise';
 import { listarConvenios } from '@/server/persistence/mysql/convenioRepository';
 import { cicloDeCusteioSql, cotaDeCusteioSql, custeioEfetivoSql, dentroDoCicloSql } from '@/server/persistence/mysql/custeioSql';
 import { normalizarCicloCusteio } from '@/lib/convenioBilling';
-import { listarPsicologosCompativeis, reatribuirLeadPelaGestao } from '@/server/application/viverMaisRodizio';
-import { avisarAlocacao, avisarTransbordo } from '@/server/application/viverMaisWhatsApp';
+import { historicoAdministrativoDoPedido, historicoAdministrativoPorCpf } from '@/lib/historicoCpf';
+import {
+  listarPsicologosCompativeis,
+  reatribuirLeadPelaGestao,
+  recalcularPacientesAtivos,
+} from '@/server/application/viverMaisRodizio';
+import { promoverLeadEmPaciente } from '@/server/application/patientPromotion';
+import { avisarAlocacao, avisarConfirmacaoPaciente, avisarTransbordo } from '@/server/application/viverMaisWhatsApp';
 import { avisarAlocacaoPsicologoPorEmail } from '@/server/application/triagemEmail';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-type StatusGestao = 'EM_TRIAGEM' | 'ATIVO' | 'ALTA' | 'DESISTENTE';
+type StatusGestao = 'EM_TRIAGEM' | 'ATIVO' | 'ALTA' | 'DESISTENTE' | 'INATIVO';
 
 function contactSource(value: unknown): PatientContactCapable | null {
   const candidate = value as Partial<PatientContactCapable>;
@@ -30,6 +40,7 @@ function contactSource(value: unknown): PatientContactCapable | null {
 
 function statusGestao(lead: TriagemPacienteRecord | undefined, patient: PatientProfile | undefined): StatusGestao {
   if (lead?.status === 'DESISTENTE') return 'DESISTENTE';
+  if (lead?.status === 'INATIVO') return 'INATIVO';
   if (patient?.status === 'discharged' || lead?.status === 'FINALIZADO') return 'ALTA';
   if (patient && lead?.status === 'CONTATO_CONFIRMADO') return 'ATIVO';
   if (patient?.status === 'active') return 'ATIVO';
@@ -49,6 +60,7 @@ export async function GET() {
 
     const store = getApplicationStore();
     const capture = await getCaptureRepository().read();
+    const captureSnapshot = recalcularPacientesAtivos(captureStateAsSnapshot(capture));
     const contacts = contactSource(store.identities);
     const organizationId = session.organizationId;
     const [patients, appointments, ledger, contactMap] = await Promise.all([
@@ -118,12 +130,9 @@ export async function GET() {
       capture.triagensPacientes.map((lead) => [lead.pacienteRef ?? `lead:${lead.id}`, lead])
     );
 
-    // A auditoria de desistências deixou de ter tela própria e passou a ser
-    // conduzida daqui, do cadastro. Ela mora só no snapshot em arquivo — não
-    // há tabela para ela —, e por isso é lida à parte da captação.
-    const auditoria = (readSnapshot()?.auditoriaDesistencias ?? []).filter(
-      (registro) => !registro.organizationId || registro.organizationId === organizationId
-    );
+    // A auditoria de desistências é conduzida daqui, do cadastro. Desde a
+    // migration 089 ela mora no MySQL (com o arquivo como legado importado).
+    const auditoria = await getDesistenciaRepository().list(organizationId);
 
     const data = [...patientIds].map((id) => {
       const patient = patientsById.get(id);
@@ -144,17 +153,34 @@ export async function GET() {
       const desistencia = desistenciaDoPaciente(auditoria, { patientId, leadId: lead?.id });
       const agreement = patientId ? agreementsByPatient.get(patientId) : undefined;
       const compativeis = lead && desistencia && !desistencia.reengajado && patientId
-        ? listarPsicologosCompativeis(captureStateAsSnapshot(capture), lead)
+        ? listarPsicologosCompativeis(captureSnapshot, lead, new Date(), { ignorarCapacidade: true })
             .filter((psi) => Boolean(psi.profissionalRef))
             .filter((psi) => desistencia.permitirTrocaPsicologo || psi.id === lead.psicologoAlocadoId)
+            .sort((a, b) => {
+              const aLotado = (a.pacientesAtivosCount ?? 0) >= (a.limitePacientesAtivos ?? 5);
+              const bLotado = (b.pacientesAtivosCount ?? 0) >= (b.limitePacientesAtivos ?? 5);
+              return Number(aLotado) - Number(bLotado);
+            })
         : [];
+
+      const registration = managedPatientRegistration(
+        patient,
+        patientId ? contactMap[patientId] : undefined,
+        lead
+      );
+      const historicoCpf = lead
+        ? historicoAdministrativoDoPedido(capture.triagensPacientes, lead, registration.cpf)
+        : historicoAdministrativoPorCpf(capture.triagensPacientes, registration.cpf);
+      const inativacao = lead?.status === 'INATIVO' ? inativacaoVigente(lead) : undefined;
 
       return {
         id: patientId ?? id,
         patientId,
         leadId: lead?.id,
         protocolo: lead?.protocolo ?? patient?.externalReference,
-        ...managedPatientRegistration(patient, patientId ? contactMap[patientId] : undefined, lead),
+        ...registration,
+        ...(historicoCpf.length ? { historicoCpf } : {}),
+        ...(lead?.recusas?.length ? { recusas: lead.recusas } : {}),
         idade: lead?.idade,
         servicoKey: lead?.servicoKey,
         servicoNome: lead?.servico,
@@ -192,6 +218,29 @@ export async function GET() {
         necessidadesPaciente: lead?.necessidadesPaciente,
         necessidadesOutro: lead?.necessidadesOutro,
         opcaoAvaliacaoPsicologica: lead?.opcaoAvaliacaoPsicologica,
+        formatoAtendimento: lead?.formatoAtendimento,
+        preferenciaGeneroPsicologo: lead?.preferenciaGeneroPsicologo,
+        abordagemDesejada: lead?.abordagemDesejada,
+        duracaoSessaoMinutos: lead?.duracaoSessaoMinutos,
+        leadStatus: lead?.status,
+        // Origem das preferências e o que mudou depois (4.04).
+        ...(lead?.preferenciasOriginais ? { preferenciasOriginais: lead.preferenciasOriginais } : {}),
+        ...(lead?.alteracoesPreferencias?.length ? { alteracoesPreferencias: lead.alteracoesPreferencias } : {}),
+        // Prazo da oferta em andamento, gravado com ela (5.02).
+        ...(lead?.alocadoEm && lead.status === 'AGUARDANDO_CONTATO' && !lead.aceitoEm
+          ? { prazoRespostaHoras: prazoDaOferta(lead), expiraEm: expiracaoDaOferta(lead) }
+          : {}),
+        // Lista de espera: permanência, posição e eventos (5.07).
+        ...(lead?.listaEspera
+          ? { listaEspera: lead.listaEspera, posicaoListaEspera: posicaoNaListaDeEspera(capture.triagensPacientes, lead.id) }
+          : {}),
+        // Inativação vigente e histórico (6.05).
+        ...(inativacao ? { inativacao } : {}),
+        ...(lead?.inativacoes?.length ? { inativacoes: lead.inativacoes } : {}),
+        // Responsável e vínculo coletivo (6.03 e 6.04).
+        ...(lead?.responsavelFinanceiro ? { responsavelFinanceiro: lead.responsavelFinanceiro } : {}),
+        ...(lead?.identificadoPeloResponsavel ? { identificadoPeloResponsavel: true } : {}),
+        ...(lead?.vinculoColetivo ? { vinculoColetivo: lead.vinculoColetivo } : {}),
         psicologoId: professionalId,
         psicologoNome: professionalId
           ? professionalNames.get(professionalId) ?? lead?.psicologoNome
@@ -223,12 +272,14 @@ export async function GET() {
           reengajado: desistencia.reengajado,
           observacoesReengajamento: desistencia.observacoesReengajamento,
           permitirTrocaPsicologo: desistencia.permitirTrocaPsicologo,
+          registradoPorPerfil: desistencia.registradoPorPerfil,
         },
         psicologosCompativeis: compativeis.map((psi) => ({
           id: psi.id,
           nome: psi.nomeSocial || psi.nomeCompleto,
           pacientesAtivos: psi.pacientesAtivosCount ?? 0,
           limitePacientes: psi.limitePacientesAtivos ?? 5,
+          lotado: (psi.pacientesAtivosCount ?? 0) >= (psi.limitePacientesAtivos ?? 5),
         })),
         financeiro: {
           cobrancas: ownCharges.length,
@@ -240,9 +291,14 @@ export async function GET() {
       };
     });
 
-    const psicologos = capture.cadastrosPsicologos
+    const psicologos = (captureSnapshot.cadastrosPsicologos ?? [])
       .filter((psi) => psi.status === 'APROVADO' && psi.profissionalRef)
-      .map((psi) => ({ id: psi.profissionalRef!, nome: psi.nomeSocial || psi.nomeCompleto }));
+      .map((psi) => ({
+        id: psi.profissionalRef!,
+        nome: psi.nomeSocial || psi.nomeCompleto,
+        pacientesAtivos: psi.pacientesAtivosCount ?? 0,
+        limitePacientes: psi.limitePacientesAtivos ?? 5,
+      }));
 
     return NextResponse.json(
       { success: true, data, psicologos, convenios: convenios.map((item) => ({
@@ -267,6 +323,9 @@ export async function PATCH(request: Request) {
     const leadId = String(body.leadId ?? '').trim();
     const professionalId = String(body.professionalId ?? '').trim();
     const motivo = String(body.motivo ?? '').trim();
+    const modo = body.modo === 'VINCULAR_DIRETO' ? 'VINCULAR_DIRETO' : 'PEDIR_ACEITE';
+    const excederLimite = Boolean(body.excederLimite);
+    const justificativaExcesso = String(body.justificativaExcesso ?? '').trim();
     if (!leadId || !professionalId || !motivo) {
       return NextResponse.json(
         { success: false, error: 'Triagem, novo psicólogo e motivo do encaminhamento são obrigatórios.' },
@@ -278,7 +337,9 @@ export async function PATCH(request: Request) {
       const handled = reatribuirLeadPelaGestao(
         captureStateAsSnapshot(state),
         leadId,
-        professionalId
+        professionalId,
+        new Date(),
+        { modo, excederLimite, justificativaExcesso }
       );
       return {
         next: {
@@ -301,22 +362,71 @@ export async function PATCH(request: Request) {
         { status: 409 }
       );
     }
+    if (resultado.situacao === 'limite_atingido') {
+      return NextResponse.json(
+        {
+          success: false,
+          code: 'LIMITE_ATINGIDO',
+          error: `O profissional atingiu o limite (${resultado.ativos} de ${resultado.limite}). Autorize a exceção com justificativa para vincular mesmo assim.`,
+          ativos: resultado.ativos,
+          limite: resultado.limite,
+        },
+        { status: 409 }
+      );
+    }
+    if (resultado.situacao === 'justificativa_obrigatoria') {
+      return NextResponse.json(
+        {
+          success: false,
+          code: 'JUSTIFICATIVA_OBRIGATORIA',
+          error: `Informe a justificativa para exceder o limite (${resultado.ativos} de ${resultado.limite}) do profissional.`,
+          ativos: resultado.ativos,
+          limite: resultado.limite,
+        },
+        { status: 400 }
+      );
+    }
     if (resultado.situacao !== 'reatribuido') {
       return NextResponse.json({ success: false, error: 'Falha ao encaminhar para o psicólogo.' }, { status: 500 });
     }
 
-    if (resultado.primeiraAlocacao) {
-      void avisarAlocacao(resultado.lead, resultado.psicologo);
+    let leadFinal = resultado.lead;
+    if (resultado.modo === 'VINCULAR_DIRETO') {
+      const pacienteRef = await promoverLeadEmPaciente(
+        leadFinal,
+        resultado.snapshot.cadastrosPsicologos ?? []
+      );
+      if (pacienteRef && leadFinal.pacienteRef !== pacienteRef) {
+        await getCaptureRepository().mutate((state) => ({
+          next: {
+            ...state,
+            triagensPacientes: state.triagensPacientes.map((item) =>
+              item.id === leadFinal.id ? { ...item, pacienteRef } : item
+            ),
+          },
+          result: null,
+        }));
+        leadFinal = { ...leadFinal, pacienteRef };
+      }
+      void avisarConfirmacaoPaciente(leadFinal);
+    } else if (resultado.primeiraAlocacao) {
+      void avisarAlocacao(leadFinal, resultado.psicologo);
     } else {
       void avisarTransbordo(
-        resultado.lead,
+        leadFinal,
         resultado.psicologo,
         resultado.psicologoAnteriorNome,
         'reatribuicao_gestao'
       );
     }
-    void avisarAlocacaoPsicologoPorEmail(resultado.lead, resultado.psicologo, 'RODIZIO');
-    return NextResponse.json({ success: true, data: resultado.lead });
+    void avisarAlocacaoPsicologoPorEmail(leadFinal, resultado.psicologo, 'RODIZIO');
+    return NextResponse.json({
+      success: true,
+      data: leadFinal,
+      modo: resultado.modo,
+      excedeuLimite: resultado.excedeuLimite,
+      ocupacaoResultante: resultado.ocupacaoResultante,
+    });
   } catch (error) {
     if (error instanceof NaoAutorizadoError) {
       return NextResponse.json({ success: false, error: error.message }, { status: error.status });

@@ -1,6 +1,7 @@
 import {
   assertStaffAuthorized,
   exportFinancialReportCsv,
+  listEducationalCreditLines,
   generateFinancialReports,
   reconcileSessionReceivables,
   type ChargeStatus,
@@ -18,6 +19,23 @@ import {
   financialAttendanceStatus,
   type FinancialAttendanceStatus,
 } from '@/lib/financialAttendanceStatus';
+import { CLINICAL_SERVICES } from '@/lib/manualAppointment';
+import { dataHoraSessao } from '@/lib/sessionReference';
+
+function descreverOrigemDoCredito(
+  charge: { description?: string; dueAt: string } | undefined,
+  apt: { startsAt: string; serviceKey?: string } | undefined,
+  chargeId: string
+): string {
+  const descricao = charge?.description?.trim();
+  if (descricao && /\bpacote\b/i.test(descricao)) return descricao;
+  if (apt?.startsAt) {
+    const servico = CLINICAL_SERVICES.find((item) => item.key === apt.serviceKey)?.label ?? 'Sessão';
+    return `${servico} · ${dataHoraSessao(apt.startsAt)}`;
+  }
+  if (descricao) return descricao;
+  return charge?.dueAt ? `Sessão · ${dataHoraSessao(charge.dueAt)}` : `Cobrança ${chargeId}`;
+}
 
 export async function getFinancialReportsData(
   context: RequestContext,
@@ -65,23 +83,6 @@ export async function getMyFinancialData(
   const patients = await store.identities.listPatients(organizationId);
   const names = new Map(patients.map((patient) => [patient.id, patient.displayName]));
   const charges = new Map(ledger.charges.map((charge) => [charge.id, charge]));
-  const transactions = ledger.payments
-    .filter((payment) => payment.status === 'confirmed')
-    .filter((payment) => !filter.startDate || Date.parse(payment.receivedAt) >= Date.parse(filter.startDate))
-    .filter((payment) => !filter.endDate || Date.parse(payment.receivedAt) <= Date.parse(filter.endDate))
-    .map((payment) => {
-      const charge = charges.get(payment.chargeId);
-      return {
-        id: payment.id,
-        patientName: charge ? names.get(charge.patientId) ?? 'Paciente' : 'Paciente',
-        receivedAt: payment.receivedAt,
-        amountCents: payment.amountCents,
-        professionalCreditCents: Math.round(payment.amountCents * 0.7),
-        clinicRevenueCents: payment.amountCents - Math.round(payment.amountCents * 0.7),
-        method: payment.method,
-      };
-    })
-    .sort((left, right) => right.receivedAt.localeCompare(left.receivedAt));
 
   // Mapeamento dos agendamentos para obter o status confirmado pelo psicólogo.
   const appointmentsMap = new Map<string, {
@@ -224,6 +225,32 @@ export async function getMyFinancialData(
       console.error('[financial] Falha ao enriquecer atendimentos via MySQL:', err);
     }
   }
+
+  // Créditos Educacionais pela regra única do domínio, a mesma do painel da
+  // Gestão: pagamento do paciente no mês do recebimento; sessão custeada por
+  // empresa no mês da confirmação, sem novo crédito na quitação do boleto
+  // (especificação final, §§ 10.07, 11.01 e 11.04).
+  const transactions = listEducationalCreditLines(ledger, {
+    startDate: filter.startDate,
+    endDate: filter.endDate,
+    professionalIds: [professionalId],
+  }).map((linha) => {
+    const charge = charges.get(linha.chargeId);
+    const apt = appointmentsMap.get(linha.sessionId);
+    return {
+      id: linha.id,
+      chargeId: linha.chargeId,
+      sessionId: linha.sessionId,
+      sessionStartsAt: apt?.startsAt,
+      originLabel: descreverOrigemDoCredito(charge, apt, linha.chargeId),
+      patientName: names.get(linha.patientId) ?? 'Paciente',
+      receivedAt: linha.occurredAt,
+      amountCents: linha.baseCents,
+      professionalCreditCents: linha.creditCents,
+      clinicRevenueCents: linha.baseCents - linha.creditCents,
+      method: linha.source === 'company_session' ? 'convenio' : linha.paymentMethod ?? 'other',
+    };
+  });
 
   // O razão já chega filtrado pelo perfil profissional. Conciliar aqui, antes
   // de expor os dados, permite ao psicólogo acompanhar cada atendimento sem

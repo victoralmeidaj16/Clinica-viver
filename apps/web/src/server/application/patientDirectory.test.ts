@@ -264,6 +264,23 @@ describe('cadastro manual de paciente', () => {
     expect(state.capture.triagensPacientes).toEqual([]);
     expect(state.welcome).not.toHaveBeenCalled();
   });
+
+  it('valida o público homologado do psicólogo ao cadastrar paciente manualmente (§§ 2.03 e 6.02)', async () => {
+    state.capture.cadastrosPsicologos[0].publicoAlvo = ['Homens', 'Mulheres'];
+
+    await expect(createPatient(context, {
+      ...body, paraQuemE: 'Criança', responsavelFinanceiro: { nome: 'Responsável Fictício', cpf: '11144477735' },
+    })).rejects.toMatchObject({ status: 403 });
+    await expect(createPatient(context, {
+      ...body, servicoKey: 'PSICOTERAPIA_CASAL', modalidade: 'CASAL_SOCIAL', paraQuemE: 'Casal',
+    })).rejects.toMatchObject({ status: 403 });
+    expect(state.patients.size).toBe(0);
+    expect(state.welcome).not.toHaveBeenCalled();
+
+    const permitido = await createPatient(context, { ...body, paraQuemE: 'Homem' });
+    expect(permitido.id).toBeDefined();
+    expect(state.capture.triagensPacientes[0].paraQuemE).toBe('Homem');
+  });
 });
 
 describe('notificação após encaminhar paciente confirmado', () => {

@@ -91,11 +91,23 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(login);
   }
   const adminPage = ['/gestao', '/relatorios', '/convenios', '/configuracoes', '/linha-do-tempo', '/ajuda'].some((prefix) => pathname.startsWith(prefix));
+  const financeiroPage = ['/gestao/financeiro', '/convenios', '/ajuda'].some((prefix) => pathname.startsWith(prefix));
   // `/meu-cadastro` é o destino do fluxo de ativação de conta e precisa ficar
   // acessível ao psicólogo logo após a definição da senha.
   const professionalPage = ['/pacientes', '/meu-financeiro', '/agenda', '/sessao', '/meu-cadastro', '/linha-do-tempo', '/relatorios', '/ajuda'].some((prefix) => pathname.startsWith(prefix));
-  const allowed = session.role === 'admin' ? adminPage : professionalPage;
-  if (!allowed) return NextResponse.redirect(new URL(session.role === 'admin' ? '/gestao/cockpit' : '/pacientes', request.url));
+  const allowed = session.role === 'admin'
+    ? adminPage
+    : session.role === 'financeiro'
+      ? financeiroPage
+      : professionalPage;
+  if (!allowed) {
+    const destino = session.role === 'admin'
+      ? '/gestao/cockpit'
+      : session.role === 'financeiro'
+        ? '/gestao/financeiro'
+        : '/pacientes';
+    return NextResponse.redirect(new URL(destino, request.url));
+  }
   return NextResponse.next();
 }
 

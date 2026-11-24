@@ -1,7 +1,8 @@
 import {
-  assertStaffAuthorized,
+  authorizeClinicalTimelineWrite,
   createClinicalTimelineEntry,
   listClinicalTimelineForStaff,
+  listFormerTimelinePatientsForStaff,
   searchClinicalTimelineForStaff,
   timelineEntryId,
   type ClinicalTimelineCategory,
@@ -41,11 +42,10 @@ export async function createManualClinicalRecord(
 
   const patient = await store.identities.getPatient(context.actor.organizationId, input.patientId);
   if (!patient) throw new ApplicationError('NOT_FOUND', 'Paciente não encontrado.', 404);
-  assertStaffAuthorized(context.actor, 'clinical_records.write', {
-    organizationId: patient.organizationId,
-    patientId: patient.id,
-    assignedProfessionalIds: patient.assignedProfessionalIds,
-  });
+  // O responsável atual registra; quem atendeu antes só complementa os
+  // próprios registros, sem alterar o original (especificação final, § 8.05).
+  const acesso = await authorizeClinicalTimelineWrite(store.timeline, context.actor, patient);
+  const complemento = acesso === 'complemento_do_autor';
 
   const recordedAt = new Date().toISOString();
   const sourceId = `manual-${context.idempotencyKey}`;
@@ -54,15 +54,24 @@ export async function createManualClinicalRecord(
     id: timelineEntryId('clinical_record_revision', sourceId, 'soap'),
     organizationId: context.actor.organizationId,
     patientId: patient.id,
-    authorizedProfessionalIds: patient.assignedProfessionalIds,
+    // Só o autor: o psicólogo acessa os prontuários que ele próprio registrou,
+    // e quem assumir o paciente depois não herda este registro (§§ 6.09 e 8.05).
+    authorizedProfessionalIds: [professionalId],
     category: 'clinical_record',
     importance: 'routine',
     occurredAt: recordedAt,
     recordedAt,
     title: input.title,
-    summary: `Evolução clínica manual — ${preenchidos.map(([, label]) => label).join(', ')}.`,
+    summary: complemento
+      ? `Complemento registrado depois do fim do vínculo — ${preenchidos.map(([, label]) => label).join(', ')}.`
+      : `Evolução clínica manual — ${preenchidos.map(([, label]) => label).join(', ')}.`,
     evidenceExcerpt: manualSoapExcerpt(input),
-    tags: ['prontuario-manual', 'soap', ...preenchidos.map(([, label]) => label)],
+    tags: [
+      'prontuario-manual',
+      'soap',
+      ...(complemento ? ['complemento'] : []),
+      ...preenchidos.map(([, label]) => label),
+    ],
     evidence: {
       sourceType: 'clinical_record_revision',
       sourceId,
@@ -136,4 +145,16 @@ export async function getClinicalTimeline(
     normalizedTerms: [],
     entries: entries.map((e) => ({ ...e, score: undefined, matchedTerms: [] })),
   };
+}
+
+/**
+ * Pacientes de vínculos encerrados em que o psicólogo registrou prontuário.
+ * Só identificação e nome: dá acesso aos próprios registros, não ao cadastro.
+ */
+export async function listFormerTimelinePatients(context: RequestContext) {
+  const store = getApplicationStore();
+  return listFormerTimelinePatientsForStaff(
+    { timelines: store.timeline, identities: store.identities },
+    context.actor
+  );
 }

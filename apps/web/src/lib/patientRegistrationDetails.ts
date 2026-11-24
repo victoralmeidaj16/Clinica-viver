@@ -46,8 +46,18 @@ export type PatientRegistrationValidation =
   | { ok: true; data: PatientRegistrationDetails }
   | { ok: false; error: string };
 
-/** Validação compartilhada pela criação e pela edição cadastral. */
-export function validatePatientRegistrationDetails(body: Record<string, unknown>): PatientRegistrationValidation {
+/**
+ * Validação compartilhada pela criação e pela edição cadastral.
+ *
+ * `cpfOpcional` vale para o menor identificado pelo CPF do responsável e para
+ * o vínculo coletivo, cujos CPFs ficam no responsável e nos participantes
+ * (especificação final, 6.03, 6.04 e seção 15). Quem decide é o servidor, a
+ * partir do vínculo — nunca o navegador.
+ */
+export function validatePatientRegistrationDetails(
+  body: Record<string, unknown>,
+  options: { cpfOpcional?: boolean } = {},
+): PatientRegistrationValidation {
   const accessibility = validatePatientAccessibility(body.acessibilidade);
   if (!accessibility.ok) return accessibility;
   const rawAddress = body.address && typeof body.address === 'object'
@@ -71,7 +81,7 @@ export function validatePatientRegistrationDetails(body: Record<string, unknown>
   if (!legalName) return { ok: false, error: 'O nome completo é obrigatório.' };
   if (phone.length < 10) return { ok: false, error: 'Informe um telefone brasileiro válido.' };
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, error: 'Informe um e-mail válido.' };
-  if (!validCpf(cpf)) return { ok: false, error: 'Informe um CPF válido.' };
+  if (cpf ? !validCpf(cpf) : !options.cpfOpcional) return { ok: false, error: 'Informe um CPF válido.' };
   if (address.cep.length !== 8) return { ok: false, error: 'Informe um CEP com 8 dígitos.' };
   if (!address.logradouro || !address.numero || !address.bairro || !address.cidade || !/^[A-Z]{2}$/.test(address.uf)) {
     return { ok: false, error: 'Complete rua, número, bairro, cidade e estado.' };

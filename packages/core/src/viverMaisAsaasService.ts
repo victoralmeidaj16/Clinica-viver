@@ -13,9 +13,8 @@ export interface CriarCobrancaParams {
  * Calcula a divisão 70/30 (70% para abatimento de mensalidade do aluno, 30% margem da clínica).
  */
 export function calcularSplit7030(valorTotal: number): { creditoAluno: number; receitaClinica: number } {
-  const creditoAluno = Math.round(valorTotal * 0.7 * 100) / 100;
-  const receitaClinica = Math.round((valorTotal - creditoAluno) * 100) / 100;
-  return { creditoAluno, receitaClinica };
+  const split = dividirSplit7030Centavos(Math.round(valorTotal * 100));
+  return { creditoAluno: split.creditoPsicologoCents / 100, receitaClinica: split.receitaClinicaCents / 100 };
 }
 
 /**
@@ -31,7 +30,7 @@ export function dividirSplit7030Centavos(valorCentavos: number): {
   creditoPsicologoCents: number;
   receitaClinicaCents: number;
 } {
-  const creditoPsicologoCents = Math.round(valorCentavos * 0.7);
+  const creditoPsicologoCents = Math.round((valorCentavos * 7) / 10);
   return { creditoPsicologoCents, receitaClinicaCents: valorCentavos - creditoPsicologoCents };
 }
 

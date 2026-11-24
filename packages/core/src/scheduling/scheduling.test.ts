@@ -13,6 +13,7 @@ import {
   cancelAppointment,
   completeGoogleCalendarConnection,
   confirmAppointment,
+  confirmAppointmentCommand,
   rescheduleAppointment,
   rescheduleAppointmentCommand,
   scheduleAppointment,
@@ -72,6 +73,11 @@ function identities() {
 }
 
 describe('appointment aggregate', () => {
+  it('preserva o público da reserva', () => {
+    const { appointment } = scheduleAppointment(input({ serviceKey: 'PSICOTERAPIA', audience: 'Grupo' }), metadata('2026-08-01T10:00:00.000Z'));
+    expect(appointment.audience).toBe('Grupo');
+  });
+
   it('preserva o vencimento da cobrança e rejeita uma data inválida', () => {
     const dueAt = '2026-08-02T15:00:00.000Z';
     expect(scheduleAppointment(input({ chargeDueAt: dueAt }), metadata('2026-08-01T10:00:00.000Z')).appointment.chargeDueAt).toBe(dueAt);
@@ -118,6 +124,36 @@ describe('appointment aggregate', () => {
 });
 
 describe('appointment commands', () => {
+  it('só repete a criação para o mesmo agendamento, paciente e profissional autorizados', async () => {
+    const dependencies = { appointments: new InMemoryAppointmentRepository(), identities: identities() };
+    const command = { ...metadata('2026-08-01T10:00:00.000Z'), commandId: 'criar' };
+    await scheduleAppointmentCommand(dependencies, actor, input(), command);
+
+    for (const alteracao of [{ id: 'outro-agendamento' }, { patientId: 'outro-paciente' }, { professionalId: 'outro-psicologo' }]) {
+      await expect(scheduleAppointmentCommand(dependencies, actor, input(alteracao), command)).rejects.toThrow('Conflito');
+    }
+    const outroPsicologo = { ...actor, professionalProfileId: 'outro-psicologo' };
+    await expect(scheduleAppointmentCommand(dependencies, outroPsicologo, input(), command)).rejects.toThrow('Acesso negado');
+    expect(dependencies.appointments.listOutboxEvents()).toHaveLength(1);
+  });
+
+  it('só repete a transição no atendimento original e com permissão de escrita atual', async () => {
+    const dependencies = { appointments: new InMemoryAppointmentRepository(), identities: identities() };
+    const meta = metadata('2026-08-01T10:00:00.000Z');
+    const solicitacao = input();
+    await scheduleAppointmentCommand(dependencies, actor, solicitacao, { ...meta, commandId: 'criar' });
+    const command = { ...meta, commandId: 'confirmar' };
+    await confirmAppointmentCommand(dependencies, actor, solicitacao.id, command);
+
+    const repetido = await confirmAppointmentCommand(dependencies, actor, solicitacao.id, command);
+    expect(repetido.idempotentReplay).toBe(true);
+    expect(repetido.appointment.status).toBe('confirmed');
+    await expect(confirmAppointmentCommand(dependencies, actor, 'outro-agendamento', command)).rejects.toThrow('Conflito');
+    await expect(confirmAppointmentCommand(dependencies, { ...actor, roles: ['billing'] }, solicitacao.id, command))
+      .rejects.toThrow('Acesso negado');
+    expect(dependencies.appointments.listOutboxEvents()).toHaveLength(2);
+  });
+
   it('impede conflitos de profissional e repete comandos com segurança', async () => {
     const appointments = new InMemoryAppointmentRepository();
     const dependencies = { appointments, identities: identities() };

@@ -1,4 +1,4 @@
-import { authenticate, startSession } from '@/server/auth';
+import { authenticate, resolveWebRole, startSession } from '@/server/auth';
 import { ApplicationError, failure, readJson, success } from '@/server/application/http';
 import { getApplicationStore } from '@/server/application/store';
 
@@ -14,7 +14,7 @@ export async function POST(request: Request) {
     if (!user) throw new ApplicationError('INVALID_CREDENTIALS', 'E-mail ou senha inválidos.', 401);
     const membership = await getApplicationStore().identities.findMembershipByUser(user.organizationId, user.userId);
     if (!membership || membership.status !== 'active') throw new ApplicationError('FORBIDDEN', 'Usuário sem vínculo ativo na clínica.', 403);
-    const role = membership.roles.some((item) => item === 'owner' || item === 'admin') ? 'admin' : 'psicologo';
+    const role = resolveWebRole(membership.roles);
     await startSession({ ...user, role });
     return success({ authenticated: true });
   } catch (error) {

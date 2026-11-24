@@ -7,6 +7,9 @@ export function reaisDeCentavos(centavos: number): string {
 /** Rótulo único para a forma de pagamento em todas as visões financeiras. */
 export function rotuloFormaPagamento(forma?: string): string {
   switch (forma) {
+    // Crédito de sessão custeada por empresa: nasce na confirmação, sem pagamento do paciente.
+    case 'convenio':
+      return 'Convênio (sessão confirmada)';
     case 'pix':
       return 'Pix';
     case 'card':

@@ -703,7 +703,11 @@ export class MysqlIdentityRepository implements IdentityRepository, PatientConta
           || current.cpf.replace(/\D/g, '') !== input.expectedCpf.replace(/\D/g, '')) {
         throw new ApplicationError('CONFLICT', 'O cadastro foi alterado. Reabra o formulário para revisar os dados atuais.', 409);
       }
-      await assertPatientCpfAvailable(connection, input.organizationId, input.patientId, input.details.cpf);
+      // Sem CPF (menor identificado pelo responsável ou vínculo coletivo), não
+      // há o que conferir — e a consulta casaria com toda triagem sem CPF.
+      if (input.details.cpf) {
+        await assertPatientCpfAvailable(connection, input.organizationId, input.patientId, input.details.cpf);
+      }
       const next = input.details;
       const pairs: Array<[string, unknown, unknown]> = [
         ['legalName', current.legalName, next.legalName], ['socialName', current.socialName, next.socialName],
@@ -731,7 +735,7 @@ export class MysqlIdentityRepository implements IdentityRepository, PatientConta
                   pa.acessibilidade = IF(?, CAST(? AS JSON), pa.acessibilidade),
                   pa.cadastro_alterado_por = ?, pa.cadastro_alterado_em = ?, pa.atualizado_em = ?
             WHERE pa.instituicao_id = ? AND o.ref_core = ? AND pa.ref_core = ?`,
-          [next.legalName, next.socialName ?? null, next.phone, next.email, next.cpf,
+          [next.legalName, next.socialName ?? null, next.phone, next.email, next.cpf || null,
             next.address.cep, next.address.logradouro, next.address.numero, next.address.complemento ?? null,
             next.address.bairro, next.address.cidade, next.address.uf, next.emergencyContactName ?? null,
             next.emergencyContactPhone ?? null, next.registrationNotes ?? null,
@@ -751,7 +755,7 @@ export class MysqlIdentityRepository implements IdentityRepository, PatientConta
       }
       // A triagem também é lida pelos links públicos; não pode guardar um CPF antigo.
       await connection.execute(
-        `UPDATE clinica_triagens_pacientes SET cpf = ?, atualizado_em = ?
+        `UPDATE clinica_triagens_pacientes SET cpf = NULLIF(?, ''), atualizado_em = ?
           WHERE instituicao_id = ? AND organizacao_ref = ? AND paciente_ref = ?`,
         [next.cpf, toSqlTimestamp(input.changedAt), instituicaoId(), input.organizationId, input.patientId]
       );

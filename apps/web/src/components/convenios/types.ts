@@ -1,4 +1,5 @@
 export interface ConvenioView {
+  valorSessaoContratoCents?: number;
   id: string; nome: string; razaoSocial?: string; cnpj?: string; emailFaturamento?: string;
   empresaPagaSessoes: boolean; pacoteSessoes?: number | null; pacoteSessoesCiclo?: 'total' | 'mensal' | null; diaVencimento?: number | null; ativo: boolean;
   pacientes: number; pacientesCusteados: number; sessoesProvisionadas: number; valorProvisionadoCents: number;
@@ -27,6 +28,7 @@ export interface ConvenioDetailView {
 }
 
 export interface ConvenioPayload {
+  valorSessaoContratoCents?: number;
   nome: string; razaoSocial?: string; cnpj?: string; emailFaturamento?: string;
   empresaPagaSessoes: boolean; pacoteSessoes?: number | null; pacoteSessoesCiclo?: 'total' | 'mensal' | null; diaVencimento?: number | null; ativo: boolean;
 }

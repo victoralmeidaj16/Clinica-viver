@@ -5,3 +5,4 @@ export * from './search';
 export * from './ports';
 export * from './inMemoryRepository';
 export * from './authorizedQueries';
+export * from './authorship';

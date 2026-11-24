@@ -99,6 +99,7 @@ export async function POST(request: Request) {
       }
       return {
         ...agendamento,
+        linkPagamento: profile?.fundedByCompany === false ? agendamento.linkPagamento : undefined,
         custeadoPelaEmpresa: profile?.fundedByCompany ?? false,
         convenioNome: profile?.companyName,
       };

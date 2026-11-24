@@ -75,8 +75,8 @@ export default function MeuFinanceiroPage() {
 
   const exportCsv = () => {
     if (!data) return;
-    const rows = [['Data', 'Paciente', 'Valor', 'Crédito 70%', 'Método'], ...data.transactions.map((item) => [
-      item.receivedAt, item.patientName, (item.amountCents / 100).toFixed(2),
+    const rows = [['Data', 'Paciente', 'Origem', 'Valor', 'Crédito 70%', 'Método'], ...data.transactions.map((item) => [
+      item.receivedAt, item.patientName, item.originLabel, (item.amountCents / 100).toFixed(2),
       (item.professionalCreditCents / 100).toFixed(2), rotuloFormaPagamento(item.method),
     ])];
     const blob = new Blob([`\uFEFF${rows.map((row) => row.join(';')).join('\n')}`], { type: 'text/csv;charset=utf-8' });
@@ -139,9 +139,9 @@ export default function MeuFinanceiroPage() {
           <button onClick={() => void load()} className="btn-primary text-xs">Atualizar</button>
           <div className="sm:ml-auto"><p className="text-xs text-muted">Crédito de {MES_POR_EXTENSO.format(new Date(`${mes}-01T12:00:00Z`))} (70%)</p><p className="text-2xl font-black text-emerald-600">{reaisDeCentavos(data?.professionalCreditCents ?? 0)}</p></div>
         </div>
-        <div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr className="text-left text-muted border-b border-line"><th className="py-3">Data</th><th>Paciente</th><th>Pagamento</th><th>Crédito 70%</th><th>Forma</th></tr></thead>
-          <tbody>{data?.transactions.map((item) => <tr key={item.id} data-foco={focoPagamento(item.id)} className="border-b border-line/70"><td className="py-3">{new Date(item.receivedAt).toLocaleDateString('pt-BR')}</td><td className="font-bold">{item.patientName}</td><td>{reaisDeCentavos(item.amountCents)}</td><td className="text-emerald-700 font-bold">{reaisDeCentavos(item.professionalCreditCents)}</td><td>{rotuloFormaPagamento(item.method)}</td></tr>)}</tbody></table>
-          {data?.transactions.length === 0 && <p className="text-center text-muted py-8">Nenhum pagamento conciliado neste mês.</p>}
+        <div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr className="text-left text-muted border-b border-line"><th className="py-3">Data</th><th>Paciente</th><th>Atendimento / Origem</th><th>Pagamento</th><th>Crédito 70%</th><th>Forma</th></tr></thead>
+          <tbody>{data?.transactions.map((item) => <tr key={item.id} data-foco={focoPagamento(item.id)} className="border-b border-line/70"><td className="py-3">{new Date(item.receivedAt).toLocaleDateString('pt-BR')}</td><td className="font-bold">{item.patientName}</td><td className="text-muted">{item.originLabel}</td><td>{reaisDeCentavos(item.amountCents)}</td><td className="text-emerald-700 font-bold">{reaisDeCentavos(item.professionalCreditCents)}</td><td>{rotuloFormaPagamento(item.method)}</td></tr>)}</tbody></table>
+          {data?.transactions.length === 0 && <p className="text-center text-muted py-8">Nenhum crédito gerado neste mês.</p>}
         </div>
       </section>
 

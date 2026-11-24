@@ -9,10 +9,12 @@ import type { PatientDirectoryEntry } from '@/server/application/patientDirector
 
 type Appointment = SessionEditableData & { profissionalNome: string };
 type Result = { appointments: Appointment[]; temMais: boolean; carregadoEm?: number };
+type FiltroStatus = 'abertas' | 'realizado' | 'cancelado' | 'todas';
 const format = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' });
 
 export default function GestaoAgendaPage() {
   const [busca, setBusca] = useState('');
+  const [statusFiltro, setStatusFiltro] = useState<FiltroStatus>('abertas');
   const [pagina, setPagina] = useState(0);
   const [resultado, setResultado] = useState<Result>();
   const [loading, setLoading] = useState(true);
@@ -34,14 +36,16 @@ export default function GestaoAgendaPage() {
     const timer = setTimeout(() => {
       setLoading(true);
       setErro('');
-      applicationRequest<Result>(`/gestao/agenda?${new URLSearchParams({ busca, pagina: String(pagina) })}`,
+      const params = new URLSearchParams({ busca, pagina: String(pagina) });
+      if (statusFiltro !== 'abertas') params.set('status', statusFiltro);
+      applicationRequest<Result>(`/gestao/agenda?${params}`,
         { signal: controller.signal })
         .then((data) => { if (!controller.signal.aborted) setResultado({ ...data, carregadoEm: Date.now() }); })
         .catch((error) => { if (!controller.signal.aborted) setErro(error instanceof Error ? error.message : 'Não foi possível carregar a agenda.'); })
         .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     }, 250);
     return () => { clearTimeout(timer); controller.abort(); };
-  }, [busca, pagina, versao]);
+  }, [busca, pagina, statusFiltro, versao]);
 
   return <main className="mx-auto max-w-6xl space-y-6 p-4 md:p-8">
     <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -49,7 +53,7 @@ export default function GestaoAgendaPage() {
         <div className="rounded-2xl bg-psi-vibrant/10 p-3 text-psi-deep"><CalendarDays className="h-6 w-6" /></div>
         <div>
           <h1 className="text-2xl font-black text-ink">Agenda da Clínica</h1>
-          <p className="text-sm text-muted">Gerencie os atendimentos agendados e confirmados de todos os profissionais.</p>
+          <p className="text-sm text-muted">Gerencie os atendimentos de todos os profissionais, inclusive sessões realizadas ou canceladas.</p>
         </div>
       </div>
       <button
@@ -61,10 +65,24 @@ export default function GestaoAgendaPage() {
       </button>
     </header>
     <section className="rounded-3xl border border-line bg-surface p-5">
-      <label htmlFor="busca-agenda" className="mb-2 block text-xs font-bold text-ink">Buscar por paciente ou psicólogo</label>
-      <div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-muted" />
-        <input id="busca-agenda" type="search" value={busca} placeholder="Digite um nome"
-          onChange={(event) => { setBusca(event.target.value); setPagina(0); }} className="input w-full pl-10" /></div>
+      <div className="grid gap-4 sm:grid-cols-[1fr_220px]">
+        <div>
+          <label htmlFor="busca-agenda" className="mb-2 block text-xs font-bold text-ink">Buscar por paciente ou psicólogo</label>
+          <div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-muted" />
+            <input id="busca-agenda" type="search" value={busca} placeholder="Digite um nome"
+              onChange={(event) => { setBusca(event.target.value); setPagina(0); }} className="input w-full pl-10" /></div>
+        </div>
+        <div>
+          <label htmlFor="filtro-status-agenda" className="mb-2 block text-xs font-bold text-ink">Situação</label>
+          <select id="filtro-status-agenda" value={statusFiltro}
+            onChange={(event) => { setStatusFiltro(event.target.value as FiltroStatus); setPagina(0); }} className="input w-full">
+            <option value="abertas">Agendadas e confirmadas</option>
+            <option value="realizado">Realizadas</option>
+            <option value="cancelado">Canceladas</option>
+            <option value="todas">Todas</option>
+          </select>
+        </div>
+      </div>
     </section>
     <section className="overflow-hidden rounded-3xl border border-line bg-surface">
       <div className="border-b border-line p-5"><h2 className="font-extrabold text-ink">Sessões e confirmações</h2>
@@ -80,10 +98,14 @@ export default function GestaoAgendaPage() {
             {item.convenioNome && <p className="text-xs font-semibold text-psi-deep">{item.convenioNome} · {item.custeadoPelaEmpresa ? 'Pago pela empresa' : 'Pago pelo paciente'}</p>}
             {!item.custeadoPelaEmpresa && item.vencimentoCobrancaEm && <p className="text-xs text-muted">Vencimento: {format.format(new Date(item.vencimentoCobrancaEm))}</p>}
           </div>
-          <div className="flex flex-wrap items-center gap-3">{item.fim && new Date(item.fim).getTime() < (resultado.carregadoEm ?? 0)
-            ? <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800">Aguardando conclusão</span>
-            : <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-bold text-sky-800">{item.status === 'confirmado' ? 'Confirmada' : 'Agendada'}</span>}
-            {!item.custeadoPelaEmpresa && !['paid', 'partially_paid', 'refunded'].includes(item.pagamentoStatus ?? '') &&
+          <div className="flex flex-wrap items-center gap-3">{item.status === 'realizado'
+            ? <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800">Realizada</span>
+            : item.status === 'cancelado'
+              ? <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-bold text-rose-800">Cancelada</span>
+              : item.fim && new Date(item.fim).getTime() < (resultado.carregadoEm ?? 0)
+                ? <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800">Aguardando conclusão</span>
+                : <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-bold text-sky-800">{item.status === 'confirmado' ? 'Confirmada' : 'Agendada'}</span>}
+            {!['realizado', 'cancelado'].includes(item.status ?? '') && !item.custeadoPelaEmpresa && !['paid', 'partially_paid', 'refunded'].includes(item.pagamentoStatus ?? '') &&
               <button type="button" className="btn-outline gap-2 text-xs" onClick={() => setVencimento(item)} aria-label={`Editar vencimento de ${item.pacienteNome}`}><CalendarClock className="h-3.5 w-3.5" />Editar vencimento</button>}
             <button type="button" className="btn-outline gap-2 text-xs" onClick={() => setEdicao(item)} aria-label={`Editar sessão de ${item.pacienteNome}`}><Pencil className="h-3.5 w-3.5" />Editar</button></div>
         </li>)}</ul>}

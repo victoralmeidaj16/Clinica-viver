@@ -9,7 +9,7 @@ import DemoNotice from '@/components/layout/DemoNotice';
 export default function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [auth, setAuth] = useState<{ role: 'admin' | 'psicologo'; displayName: string } | null>(null);
+  const [auth, setAuth] = useState<{ role: 'admin' | 'financeiro' | 'psicologo'; displayName: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [menuAberto, setMenuAberto] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -51,7 +51,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
     fetch('/api/auth/me', { cache: 'no-store' })
       .then(async (response) => {
         if (!response.ok) throw new Error('unauthenticated');
-        const envelope = await response.json() as { data: { role: 'admin' | 'psicologo'; displayName: string } };
+        const envelope = await response.json() as { data: { role: 'admin' | 'financeiro' | 'psicologo'; displayName: string } };
         setAuth(envelope.data);
       })
       .catch(() => router.replace('/login'))
@@ -61,9 +61,22 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   useEffect(() => {
     if (!auth || isPublicPage) return;
     const adminPage = ['/gestao', '/relatorios', '/convenios', '/configuracoes', '/ajuda'].some((prefix) => pathname.startsWith(prefix));
+    const financeiroPage = ['/gestao/financeiro', '/convenios', '/ajuda'].some((prefix) => pathname.startsWith(prefix));
     const professionalPage = ['/meu-cadastro', '/pacientes', '/meu-financeiro', '/agenda', '/sessao', '/linha-do-tempo', '/relatorios', '/ajuda'].some((prefix) => pathname.startsWith(prefix));
-    const allowed = auth.role === 'admin' ? adminPage : professionalPage;
-    if (!allowed) router.replace(auth.role === 'admin' ? '/gestao/cockpit' : '/pacientes');
+    const allowed = auth.role === 'admin'
+      ? adminPage
+      : auth.role === 'financeiro'
+        ? financeiroPage
+        : professionalPage;
+    if (!allowed) {
+      router.replace(
+        auth.role === 'admin'
+          ? '/gestao/cockpit'
+          : auth.role === 'financeiro'
+            ? '/gestao/financeiro'
+            : '/pacientes'
+      );
+    }
   }, [auth, isPublicPage, pathname, router]);
 
   useEffect(() => {

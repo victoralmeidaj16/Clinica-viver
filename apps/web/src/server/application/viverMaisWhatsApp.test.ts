@@ -113,6 +113,20 @@ describe('mensagens de WhatsApp para o psicólogo', () => {
     expect(msg).toContain('O valor para Psicoterapia de Casal Particular é de R$ 260,00 por sessão.');
   });
 
+  it('adapta o aviso de aceite para sessão custeada por convênio sem prometer cobrança individual (§§ 10.02 e 12.01)', () => {
+    const msg = textoParaPaciente(leadStub, { custeadoPelaEmpresa: true, convenioNome: 'Empresa Fictícia' });
+    expect(msg).toContain('convênio Empresa Fictícia');
+    expect(msg).toContain('sem envio de link de cobrança individual');
+    expect(msg).not.toContain('O(a) psicólogo(a) enviará o link de pagamento para você');
+    expect(msg).not.toContain('R$ 75,00');
+  });
+
+  it('informa o valor personalizado acordado quando o paciente possui preço diferenciado (§ 9.01)', () => {
+    const msg = textoParaPaciente(leadStub, { custeadoPelaEmpresa: false, valorPersonalizadoCentavos: 9500 });
+    expect(msg).toContain('O valor acordado para Psicoterapia Individual é de R$ 95,00 por sessão.');
+    expect(msg).not.toContain('R$ 75,00');
+  });
+
   it('envia o acolhimento exato sem antecipar orientações', () => {
     expect(textoRecebimentoPaciente()).toBe([
       'Olá! Seja bem-vindo(a) à Viver Mais Psicologia! 🫂', '',
@@ -145,7 +159,16 @@ describe('mensagens de WhatsApp para o psicólogo', () => {
     expect(textos).toEqual([textoRecebimentoPaciente(), textoParaPaciente(lead)]);
   });
 
-  it.each(['sla_vencido', 'encaminhamento_voluntario', 'reatribuicao_gestao'] as const)(
+  it('aplica opções de pagador e valor personalizado em avisarConfirmacaoPaciente', async () => {
+    const fetchMock = prepararEnvio();
+    const lead = { ...leadStub, id: 'flow-personalizado' };
+    await avisarConfirmacaoPaciente(lead, { custeadoPelaEmpresa: false, valorPersonalizadoCentavos: 11000 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.text).toContain('O valor acordado para Psicoterapia Individual é de R$ 110,00 por sessão.');
+  });
+
+  it.each(['sla_vencido', 'encaminhamento_voluntario', 'reatribuicao_gestao', 'limite_atingido'] as const)(
     'não envia mensagem ao paciente na alocação nem no encaminhamento %s', async (motivo) => {
       const fetchMock = prepararEnvio();
       await avisarAlocacao({ ...leadStub, id: `alocacao-${motivo}` }, psicologoStub);

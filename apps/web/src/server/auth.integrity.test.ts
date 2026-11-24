@@ -3,7 +3,7 @@ vi.mock('server-only', () => ({}));
 const mocks = vi.hoisted(() => ({ query: vi.fn(), get: vi.fn(), set: vi.fn() }));
 vi.mock('next/headers', () => ({ cookies: async () => ({ get: mocks.get, set: mocks.set }) }));
 vi.mock('@/server/oci/runtime', () => ({ isMysqlConfigured: () => true, getMysqlPool: () => ({ query: mocks.query }) }));
-import { readSession, startSession } from './auth';
+import { readSession, resolveWebRole, startSession } from './auth';
 
 const account = { userId: 'user-1', organizationId: 'org', role: 'psicologo' as const };
 
@@ -32,5 +32,24 @@ describe('sessão com identidade exclusiva', () => {
     await startSession({ ...account, role: 'admin' });
     expect(mocks.query).not.toHaveBeenCalled();
     expect(mocks.set).toHaveBeenCalled();
+  });
+
+  it('resolve o papel web separando Gestão, Financeiro dedicado e Psicólogo', () => {
+    expect(resolveWebRole(['owner'])).toBe('admin');
+    expect(resolveWebRole(['admin', 'billing'])).toBe('admin');
+    expect(resolveWebRole(['billing'])).toBe('financeiro');
+    expect(resolveWebRole(['professional', 'billing'])).toBe('psicologo');
+    expect(resolveWebRole(['professional'])).toBe('psicologo');
+  });
+
+  it('mantém sessão do perfil Financeiro quando o vínculo tem billing e invalida ao perder o papel', async () => {
+    const finAccount = { userId: 'fin-1', organizationId: 'org', role: 'financeiro' as const };
+    await startSession(finAccount);
+    mocks.get.mockReturnValue({ value: mocks.set.mock.calls[0][1] });
+    mocks.query.mockResolvedValue([[{ membro_status: 'active', papeis: 'billing', usuario_status: 'active', senha_definida_em: null }]]);
+    expect(await readSession()).toMatchObject(finAccount);
+
+    mocks.query.mockResolvedValue([[{ membro_status: 'active', papeis: 'professional', usuario_status: 'active', senha_definida_em: null }]]);
+    expect(await readSession()).toBeNull();
   });
 });

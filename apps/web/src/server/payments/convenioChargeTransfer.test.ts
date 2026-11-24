@@ -12,7 +12,7 @@ describe('transferência de cobrança para empresa', () => {
     mocks.query.mockResolvedValueOnce([[{ id: 'a1' }], []]).mockResolvedValueOnce([[{ custeado: 1 }], []]).mockResolvedValueOnce([[{ id: 'a1' }], []]);
     mocks.execute.mockResolvedValue([{ affectedRows: 1 }, []]);
     mocks.cancel.mockResolvedValue('cancelled');
-    mocks.connectionQuery.mockResolvedValueOnce([[{ status: 'realizado', convenio_ref: 'empresa', sessao_clinica_ref: 's1', valor_centavos: 10000, inicio: '2026-10-01T12:00:00Z' }], []]).mockResolvedValueOnce([[{ custeado: 1 }], []]);
+    mocks.connectionQuery.mockResolvedValueOnce([[{ status: 'realizado', convenio_ref: 'empresa', sessao_clinica_ref: 's1', valor_sessao_contrato_centavos: 10000, confirmada_em: '2026-10-01T12:00:00Z', inicio: '2026-10-01T12:00:00Z' }], []]).mockResolvedValueOnce([[{ custeado: 1 }], []]);
     mocks.connectionExecute.mockRejectedValue(new Error('falha fictícia'));
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
@@ -74,7 +74,7 @@ describe('transferência de cobrança para empresa', () => {
       ? [[{ id: 'a4' }], []] : sql.includes('AS custeado') ? [[{ custeado: 1 }], []] : [[{ id: 'a4' }], []]);
     mocks.execute.mockResolvedValue([{ affectedRows: 1 }, []]);
     mocks.cancel.mockResolvedValue('cancelled');
-    mocks.connectionQuery.mockResolvedValueOnce([[{ status: 'realizado', convenio_ref: 'empresa', sessao_clinica_ref: 's1', valor_centavos: 10000, inicio: '2026-10-01T12:00:00Z' }], []]).mockResolvedValueOnce([[{ custeado: 1 }], []]);
+    mocks.connectionQuery.mockResolvedValueOnce([[{ status: 'realizado', convenio_ref: 'empresa', sessao_clinica_ref: 's1', valor_sessao_contrato_centavos: 10000, confirmada_em: '2026-10-01T12:00:00Z', inicio: '2026-10-01T12:00:00Z' }], []]).mockResolvedValueOnce([[{ custeado: 1 }], []]);
     mocks.connectionExecute.mockImplementation(async (sql: string) => {
       if (sql.includes('SET custeado_pela_empresa = 1')) transferred = true;
       return [{ affectedRows: 1 }, []];

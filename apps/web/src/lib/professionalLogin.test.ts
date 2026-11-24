@@ -40,7 +40,7 @@ describe('professionalLogin', () => {
     await expect(professionalLogin(credentials)).rejects.toThrow(unavailable);
   });
 
-  it.each(['admin', 'psicologo'] as const)('retorna o perfil %s apenas após confirmar a sessão', async (role) => {
+  it.each(['admin', 'financeiro', 'psicologo'] as const)('retorna o perfil %s apenas após confirmar a sessão', async (role) => {
     vi.stubGlobal('fetch', vi.fn()
       .mockResolvedValueOnce(Response.json({ ok: true }))
       .mockResolvedValueOnce(Response.json({ ok: true, data: { role } })));

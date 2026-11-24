@@ -2,10 +2,11 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { createStaffAccessContext, InMemoryAppointmentRepository, InMemoryIdentityRepository } from '@thats-life/core';
 import type { RequestContext } from './context';
 vi.mock('server-only', () => ({}));
-const mocks = vi.hoisted(() => ({ store: vi.fn(), guarantee: vi.fn(), contacts: vi.fn(), notify: vi.fn(), mysql: false, accessibility: vi.fn() }));
+const mocks = vi.hoisted(() => ({ publico: vi.fn(), store: vi.fn(), guarantee: vi.fn(), contacts: vi.fn(), notify: vi.fn(), mysql: false, accessibility: vi.fn() }));
 vi.mock('@/server/persistence/mysql/patientAccessibility', () => ({ savePatientAccessibility: mocks.accessibility }));
+vi.mock('@/server/scheduling/publicoDoVinculo', () => ({ publicoDoVinculo: mocks.publico }));
 vi.mock('./store', () => ({ getApplicationStore: mocks.store, persistApplicationState: async () => {} }));
-vi.mock('@/server/scheduling/agendaRepository', () => ({ getProfessionalAgendaProfile: async () => ({ servicosHabilitados: ['PSICOTERAPIA'] }), getContatosDaSessao: mocks.contacts }));
+vi.mock('@/server/scheduling/agendaRepository', () => ({ getProfessionalAgendaProfile: async () => ({ servicosHabilitados: ['PSICOTERAPIA', 'ORIENTACAO_PARENTAL'] }), getContatosDaSessao: mocks.contacts }));
 vi.mock('@/server/scheduling/agendaAvisos', () => ({ avisarPacienteSessaoMarcada: mocks.notify }));
 vi.mock('@/server/oci/runtime', () => ({ isMysqlConfigured: () => mocks.mysql }));
 vi.mock('@/server/payments/sessionCharge', () => ({ garantirCobrancaDaSessao: mocks.guarantee }));
@@ -20,6 +21,7 @@ const dueAt = '2099-01-09T15:00:00Z';
 let appointments: InMemoryAppointmentRepository;
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.publico.mockReset();
   mocks.mysql = false;
   appointments = new InMemoryAppointmentRepository();
   const identities = new InMemoryIdentityRepository({ professionals: [{ id: 'pro-test', organizationId: 'org-test',
@@ -53,6 +55,16 @@ it('retorna falha parcial da cobrança e preserva o vencimento no agendamento', 
   expect(result).toMatchObject({ charge: { status: 'failed', dueAt } });
   expect(await appointments.getById('org-test', input.id)).toMatchObject({ chargeDueAt: dueAt });
 });
+it('grava Orientação Parental em família com o serviço original e 90 minutos reservados', async () => {
+  mocks.publico.mockResolvedValueOnce('Criança');
+  const endsAt = '2099-01-10T15:30:00Z';
+  mocks.guarantee.mockResolvedValue('created');
+  await createAppointmentFlow(context, { ...input, endsAt }, dueAt, 'ORIENTACAO_PARENTAL');
+  const session = await appointments.getById('org-test', input.id);
+  expect(session?.audience).toBe('Família');
+  expect(session?.serviceKey).toBe('ORIENTACAO_PARENTAL');
+  expect(Date.parse(session!.endsAt) - Date.parse(session!.startsAt)).toBe(90 * 60_000);
+});
 it('retenta a cobrança sem duplicar a sessão nem substituir o vencimento original', async () => {
   mocks.guarantee.mockResolvedValueOnce('failed').mockResolvedValueOnce('created');
   await createAppointmentFlow(context, input, dueAt, 'PSICOTERAPIA');
@@ -78,5 +90,22 @@ it('não altera acessibilidade de paciente não vinculado ao psicólogo', async 
   mocks.mysql = true;
   await expect(createAppointmentFlow(context, { ...input, patientId: 'patient-other' }, dueAt,
     'PSICOTERAPIA', { necessita: false })).rejects.toBeDefined();
+  expect(mocks.publico).not.toHaveBeenCalled();
   expect(mocks.accessibility).not.toHaveBeenCalled();
+});
+
+it('recusa 90 minutos em psicoterapia para adulto antes de criar a sessão', async () => {
+  mocks.publico.mockResolvedValueOnce('Adulto');
+  await expect(createAppointmentFlow(context, { ...input, endsAt: '2099-01-10T15:30:00Z' }, dueAt, 'PSICOTERAPIA'))
+    .rejects.toMatchObject({ status: 400, message: expect.stringMatching(/Adulto.*50 minutos/) });
+  expect(await appointments.list({ organizationId: 'org-test' })).toHaveLength(0);
+});
+it('grava psicoterapia coletiva de 90 minutos e preserva o público no replay', async () => {
+  mocks.publico.mockResolvedValueOnce('Grupo').mockResolvedValueOnce('Adulto');
+  const groupInput = { ...input, endsAt: '2099-01-10T15:30:00Z' };
+  await createAppointmentFlow(context, groupInput, dueAt, 'PSICOTERAPIA');
+  expect(mocks.publico).toHaveBeenCalledWith('org-test', 'patient-test');
+  expect(await appointments.getById('org-test', input.id)).toMatchObject({ audience: 'Grupo' });
+  await expect(createAppointmentFlow(context, groupInput, dueAt, 'PSICOTERAPIA'))
+    .resolves.toMatchObject({ idempotentReplay: true, appointment: { audience: 'Grupo' } });
 });

@@ -7,6 +7,9 @@ import { validateGender } from '@/lib/gender';
 import { atendimentoPermitido, type HabilitacaoAtendimento } from '@/lib/patientCareOptions';
 import { PatientRegistrationFields } from './PatientRegistrationFields';
 import { EMPTY_PATIENT_REGISTRATION, serviceName, validCpf, type PatientRegistrationForm } from './patientRegistration';
+import { pacienteMenorDeIdade } from '@/lib/responsavelFinanceiro';
+import { ResponsavelMenorCampos, erroResponsavelMenor } from '@/components/forms/ResponsavelMenorCampos';
+import { RESPONSAVEL_VAZIO, responsavelParaEnvio, type ResponsavelForm } from './ResponsavelFinanceiroCampos';
 
 interface Props {
   isOpen: boolean;
@@ -23,6 +26,8 @@ export default function NewPatientModal({ isOpen, onClose, onPatientCreated }: P
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [habilitacao, setHabilitacao] = useState<HabilitacaoAtendimento | null>(null);
+  const [responsavel, setResponsavel] = useState<ResponsavelForm>(RESPONSAVEL_VAZIO);
+  const [menorSemCpf, setMenorSemCpf] = useState(false);
   const command = useRef<ReturnType<typeof commandHeaders> | null>(null);
 
   useEffect(() => {
@@ -36,8 +41,12 @@ export default function NewPatientModal({ isOpen, onClose, onPatientCreated }: P
         const cadastro = body.data;
         if (active) {
           setHabilitacao(cadastro);
-          setForm((current) => atendimentoPermitido(cadastro, current.servicoKey, current.modalidade)
-            ? current : { ...current, servicoKey: '', modalidade: '' });
+          setForm((current) => {
+            if (!atendimentoPermitido(cadastro, current.servicoKey, current.modalidade, current.paraQuemE)) {
+              return { ...current, servicoKey: '', modalidade: '', paraQuemE: '', paraQuemEOutro: '' };
+            }
+            return current;
+          });
         }
       })
       .catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : 'Não foi possível consultar suas habilitações.'); });
@@ -69,15 +78,22 @@ export default function NewPatientModal({ isOpen, onClose, onPatientCreated }: P
   }, [isOpen]);
 
   if (!isOpen) return null;
+  const menor = pacienteMenorDeIdade({ dataNascimento: form.dataNascimento, idade: form.idade, paraQuemE: form.paraQuemE });
 
   const close = () => { if (!saving) { command.current = null; onClose(); } };
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (saving) return;
-    if (!atendimentoPermitido(habilitacao, form.servicoKey, form.modalidade)) return setError('Selecione um serviço e uma modalidade habilitados no seu perfil pela clínica.');
+    const paraQuemE = form.paraQuemE === 'Outro' ? `Outro: ${form.paraQuemEOutro.trim()}` : form.paraQuemE;
+    if (!atendimentoPermitido(habilitacao, form.servicoKey, form.modalidade, paraQuemE)) {
+      return setError('Selecione serviço, modalidade e público habilitados no seu perfil pela clínica.');
+    }
     if (form.whatsapp !== form.whatsappConfirmacao) return setError('Os números de telefone não coincidem.');
     if (!validateGender(form.genero, form.generoOutro)) return setError('Selecione o gênero e detalhe a opção “Outro”, se necessário.');
-    if (!validCpf(form.cpf)) return setError('Informe um CPF válido.');
+    const semCpfProprio = menor && menorSemCpf;
+    if (!semCpfProprio && !validCpf(form.cpf)) return setError('Informe um CPF válido.');
+    const erroResponsavel = menor ? erroResponsavelMenor(responsavel, form.cpf, semCpfProprio) : null;
+    if (erroResponsavel) return setError(erroResponsavel);
 
     setSaving(true);
     setError(null);
@@ -101,10 +117,14 @@ export default function NewPatientModal({ isOpen, onClose, onPatientCreated }: P
           especificarNecessidades: form.especificarNecessidades,
           necessidadesPaciente: form.necessidadesPaciente,
           idade: form.idade || undefined,
+          ...(menor ? { responsavelFinanceiro: responsavelParaEnvio(responsavel) } : {}),
+          ...(semCpfProprio ? { menorSemCpf: true, cpf: '' } : {}),
         }),
       });
       await onPatientCreated();
       setForm(EMPTY_PATIENT_REGISTRATION);
+      setResponsavel(RESPONSAVEL_VAZIO);
+      setMenorSemCpf(false);
       setTemNomeSocial(false);
       command.current = null;
       onClose();
@@ -121,7 +141,8 @@ export default function NewPatientModal({ isOpen, onClose, onPatientCreated }: P
         <div><h2 id="new-patient-title" className="text-base font-extrabold text-ink">Cadastrar novo paciente</h2><p className="text-xs text-muted">O paciente será vinculado automaticamente ao seu perfil.</p></div>
       </div>
       <form onSubmit={submit} className="space-y-5 text-xs">
-        <PatientRegistrationFields form={form} setForm={setForm} habilitacao={habilitacao} convenios={convenios} conveniosCarregando={conveniosCarregando} conveniosIndisponiveis={conveniosIndisponiveis} temNomeSocial={temNomeSocial} onTemNomeSocialChange={(checked) => { setTemNomeSocial(checked); if (!checked) setForm((current) => ({ ...current, nomeSocial: '' })); }} />
+        <PatientRegistrationFields cpfOpcional={menor && menorSemCpf} form={form} setForm={setForm} habilitacao={habilitacao} convenios={convenios} conveniosCarregando={conveniosCarregando} conveniosIndisponiveis={conveniosIndisponiveis} temNomeSocial={temNomeSocial} onTemNomeSocialChange={(checked) => { setTemNomeSocial(checked); if (!checked) setForm((current) => ({ ...current, nomeSocial: '' })); }} />
+        {menor && <ResponsavelMenorCampos idPrefixo="novo-paciente-responsavel" semCpf={menorSemCpf} onSemCpfChange={setMenorSemCpf} responsavel={responsavel} onResponsavelChange={setResponsavel} />}
         {error && <p className="rounded-xl border border-rose-200 bg-rose-50 p-3 font-semibold text-rose-700">{error}</p>}
         <div className="flex flex-col-reverse gap-2 border-t border-line pt-4 sm:flex-row sm:justify-end"><button type="button" onClick={close} className="btn-ghost min-h-11 justify-center" disabled={saving}>Cancelar</button><button type="submit" className="btn-primary min-h-11 justify-center" disabled={saving || !habilitacao}><Save className="h-4 w-4" />{saving ? 'Salvando…' : 'Salvar paciente'}</button></div>
       </form>

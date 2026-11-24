@@ -40,6 +40,8 @@ const POS_COM_OPCOES_AMPLAS_DE_ATENDIMENTO: readonly string[] = [
   'Formação e Pós-graduação em Terapia Familiar Sistêmica',
   'Formação e Pós-graduação em Psicodrama Didata e Psicoterapeuta do Aluno - Nível II',
   'Formação e Pós-graduação em Psicodrama Didata Orientador e Supervisor - Nível III',
+  'Pós-graduação em Inovações e Atualizações em Psicologia Clínica',
+  'Pós-graduação em Psicopatologia e Neurodivergências',
 ];
 
 const POS_COM_OPCOES_RESTRITAS_DE_ATENDIMENTO: readonly string[] = [
@@ -98,25 +100,36 @@ export const PUBLICO_ALVO: readonly string[] = [
 /**
  * Regras de atendimento supervisionado por pós-graduação.
  *
- * Psicologia Perinatal e Parentalidade pertence ao grupo restrito. Quando há
- * uma segunda pós do grupo amplo, a configuração ampla tem precedência.
+ * Psicologia Perinatal e Parentalidade pertence ao grupo restrito. Quando o
+ * profissional possui duas pós-graduações válidas, os serviços e públicos
+ * autorizados pelas duas formações são somados (§§ 2.01–2.02).
  */
 export function opcoesAtendimentoDaPos(
   posGraduacao?: string,
   segundaPosGraduacao?: string
 ): OpcoesAtendimentoDaPos | null {
   const pos = [posGraduacao, segundaPosGraduacao].filter((curso): curso is string => Boolean(curso));
-  const tempos = pos.some((curso) => POS_COM_OPCOES_DE_AVALIACAO.includes(curso)) ? [] : TEMPOS_ATENDIMENTO_POS;
-  if (pos.some((curso) => POS_COM_OPCOES_AMPLAS_DE_ATENDIMENTO.includes(curso))) {
-    return { tempos, servicos: SERVICOS_POS_AMPLAS, publico: PUBLICO_ALVO };
+  const temAmpla = pos.some((curso) => POS_COM_OPCOES_AMPLAS_DE_ATENDIMENTO.includes(curso));
+  const temRestrita = pos.some((curso) => POS_COM_OPCOES_RESTRITAS_DE_ATENDIMENTO.includes(curso));
+  const temAvaliacao = pos.some((curso) => POS_COM_OPCOES_DE_AVALIACAO.includes(curso));
+  if (!temAmpla && !temRestrita && !temAvaliacao) return null;
+
+  const servicos = new Set<string>();
+  const publico = new Set<string>();
+  if (temAmpla) {
+    SERVICOS_POS_AMPLAS.forEach((item) => servicos.add(item));
+    PUBLICO_ALVO.forEach((item) => publico.add(item));
   }
-  if (pos.some((curso) => POS_COM_OPCOES_RESTRITAS_DE_ATENDIMENTO.includes(curso))) {
-    return { tempos, servicos: SERVICOS_POS_RESTRITAS, publico: PUBLICO_ALVO };
+  if (temRestrita) {
+    SERVICOS_POS_RESTRITAS.forEach((item) => servicos.add(item));
+    PUBLICO_ALVO.forEach((item) => publico.add(item));
   }
-  if (pos.some((curso) => POS_COM_OPCOES_DE_AVALIACAO.includes(curso))) {
-    return { tempos, servicos: SERVICOS_POS_AVALIACAO, publico: PUBLICO_POS_AVALIACAO };
+  if (temAvaliacao) {
+    SERVICOS_POS_AVALIACAO.forEach((item) => servicos.add(item));
+    PUBLICO_POS_AVALIACAO.forEach((item) => publico.add(item));
   }
-  return null;
+  const tempos = temAvaliacao ? [] : TEMPOS_ATENDIMENTO_POS;
+  return { tempos, servicos: [...servicos], publico: [...publico] };
 }
 
 export const MODALIDADES_ATENDIMENTO: readonly Opcao[] = [
@@ -150,6 +163,8 @@ export const POS_GRADUACOES_VIVER_MAIS: readonly string[] = [
   'Formação e Pós-graduação em Terapia Familiar Sistêmica',
   'Formação e Pós-graduação em Psicodrama Didata e Psicoterapeuta do Aluno - Nível II',
   'Formação e Pós-graduação em Psicodrama Didata Orientador e Supervisor - Nível III',
+  'Pós-graduação em Inovações e Atualizações em Psicologia Clínica',
+  'Pós-graduação em Psicopatologia e Neurodivergências',
 ];
 
 /** A segunda pós também precisa ser um curso ofertado pela Viver Mais. */

@@ -54,9 +54,30 @@ describe('envio do comprovante do Termo de Adesão', () => {
     delete process.env.TERMO_ADESAO_EMAIL_CLINICA;
   });
 
-  it('envia apenas a via da clínica enquanto o cadastro aguarda aprovação', async () => {
-    const corpoEnviado = provedor();
+  it('recusa o envio por e-mail enquanto o cadastro aguarda aprovação', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
     const envio = await enviarComprovanteTermoAdesao(cadastro, comprovante, agora);
+
+    expect(envio).toEqual({
+      situacao: 'falha',
+      tentadoEm: agora.toISOString(),
+      paraProfissional: false,
+      paraClinica: false,
+      detalhe: 'Comprovante definitivo disponível para envio apenas após aprovação.',
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('envia apenas a via da clínica para cadastro aprovado quando somenteClinica está ativo', async () => {
+    const corpoEnviado = provedor();
+    const envio = await enviarComprovanteTermoAdesao(
+      { ...cadastro, status: 'APROVADO' },
+      comprovante,
+      agora,
+      undefined,
+      { somenteClinica: true }
+    );
 
     expect(envio).toEqual({
       situacao: 'enviada',
@@ -71,6 +92,7 @@ describe('envio do comprovante do Termo de Adesão', () => {
     expect(corpo.attachments).toEqual([
       { filename: comprovante.arquivo, content: comprovante.pdf.toString('base64') },
     ]);
+    expect(corpo.text).toContain('via da clínica do Termo de Adesão');
     expect(corpo.text).toContain(comprovante.sha256);
     expect(corpo.text).toContain(comprovante.codigoVerificacao);
     expect(corpo.text).not.toContain('Esta mesma mensagem foi enviada');
@@ -79,7 +101,9 @@ describe('envio do comprovante do Termo de Adesão', () => {
   it('usa a caixa própria da clínica quando configurada', async () => {
     process.env.TERMO_ADESAO_EMAIL_CLINICA = 'termos@example.com';
     const corpoEnviado = provedor();
-    await enviarComprovanteTermoAdesao(cadastro, comprovante, agora);
+    await enviarComprovanteTermoAdesao({ ...cadastro, status: 'APROVADO' }, comprovante, agora, undefined, {
+      somenteClinica: true,
+    });
     expect(corpoEnviado().to).toEqual(['termos@example.com']);
   });
 
@@ -91,9 +115,13 @@ describe('envio do comprovante do Termo de Adesão', () => {
     expect(corpoEnviado().cc).toEqual(['clinica@example.com']);
   });
 
-  it('entrega a via da clínica mesmo sem e-mail válido do profissional', async () => {
+  it('entrega a via da clínica após aprovação mesmo sem e-mail válido do profissional', async () => {
     const corpoEnviado = provedor();
-    const envio = await enviarComprovanteTermoAdesao({ ...cadastro, email: 'invalido' }, comprovante, agora);
+    const envio = await enviarComprovanteTermoAdesao(
+      { ...cadastro, status: 'APROVADO', email: 'invalido' },
+      comprovante,
+      agora
+    );
     expect(envio).toMatchObject({ situacao: 'enviada', paraProfissional: false, paraClinica: true });
     expect(corpoEnviado().to).toEqual(['clinica@example.com']);
     expect(corpoEnviado().cc).toBeUndefined();
@@ -101,12 +129,14 @@ describe('envio do comprovante do Termo de Adesão', () => {
 
   it('registra a recusa do provedor sem vazar endereços', async () => {
     provedor(422, { message: 'Invalid to: profissional@example.com' });
-    const envio = await enviarComprovanteTermoAdesao(cadastro, comprovante, agora);
+    const envio = await enviarComprovanteTermoAdesao({ ...cadastro, status: 'APROVADO' }, comprovante, agora);
     expect(envio.situacao).toBe('falha');
     expect(envio.detalhe).toBe('HTTP 422 — Invalid to: [email oculto]');
   });
 
   it('escapa o nome no HTML', () => {
-    expect(conteudoComprovanteTermo(cadastro, comprovante).html).toContain('Profissional &lt;teste&gt;');
+    expect(conteudoComprovanteTermo({ ...cadastro, status: 'APROVADO' }, comprovante).html).toContain(
+      'Profissional &lt;teste&gt;'
+    );
   });
 });

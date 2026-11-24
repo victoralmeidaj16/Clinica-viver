@@ -1,9 +1,11 @@
+import { publicoAlvoCompativel } from '@thats-life/core';
 import { normalizarModalidade } from './modalidade';
 
 export interface HabilitacaoAtendimento {
   status: string;
   servicosHabilitados?: readonly string[];
   modalidadesAtendidas?: readonly string[];
+  publicoAlvo?: readonly string[];
 }
 
 export function servicesForRegistration(habilitacao: HabilitacaoAtendimento | null) {
@@ -13,12 +15,34 @@ export function servicesForRegistration(habilitacao: HabilitacaoAtendimento | nu
     || (key === 'PSICOTERAPIA_CASAL' && servicos.includes('PSICOTERAPIA')));
 }
 
+export function publicoPermitido(
+  habilitacao: HabilitacaoAtendimento | null,
+  servicoKey: string,
+  modalidade: string,
+  paraQuemE?: string | null,
+): boolean {
+  if (habilitacao?.status !== 'APROVADO') return false;
+  if (!habilitacao.publicoAlvo?.length) return true;
+  if (paraQuemE?.trim() && !publicoAlvoCompativel(habilitacao.publicoAlvo, paraQuemE)) return false;
+  if (servicoKey === 'PSICOTERAPIA_CASAL' && !publicoAlvoCompativel(habilitacao.publicoAlvo, 'Casal')) {
+    return false;
+  }
+  if (modalidade.startsWith('FAMILIA_') && !publicoAlvoCompativel(habilitacao.publicoAlvo, 'Família')) {
+    return false;
+  }
+  return true;
+}
+
 export function atendimentoPermitido(
   habilitacao: HabilitacaoAtendimento | null,
   servicoKey: string,
   modalidade: string,
+  paraQuemE?: string | null,
 ): boolean {
-  return modalitiesForService(servicoKey, habilitacao).some(([value]) => value === modalidade);
+  return (
+    modalitiesForService(servicoKey, habilitacao).some(([value]) => value === modalidade) &&
+    publicoPermitido(habilitacao, servicoKey, modalidade, paraQuemE)
+  );
 }
 
 export const PATIENT_SERVICES = [

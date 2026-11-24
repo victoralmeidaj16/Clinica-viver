@@ -14,6 +14,11 @@ import {
   avisarTriagemRecebidaPorEmail,
 } from '@/server/application/triagemEmail';
 import { ehGestao, exigirGestao, NaoAutorizadoError } from '@/server/viverMaisGestaoAuth';
+import { executarListaDeEspera } from '@/server/application/listaEsperaExecucao';
+import { expiracaoDaOferta, prazoDaOferta } from '@/lib/prazoOferta';
+import { posicaoNaListaDeEspera } from '@/lib/listaEspera';
+import { extrairPreferencias } from '@/lib/preferenciasSolicitacao';
+import { normalizarPedidoColetivo } from '@/server/application/pedidoColetivo';
 import { rateLimited } from '@/server/http/publicRequest';
 import {
   LIMITE_CORPO_BYTES,
@@ -77,7 +82,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const validacao = validarSubmissaoTriagem(corpo, { exigirCompatibilidadeVitrine: true });
+    const validacao = validarSubmissaoTriagem(corpo, { exigirCompatibilidadeVitrine: true, exigirResponsavelDeMenor: true });
     if (!validacao.ok) {
       return NextResponse.json({ success: false, error: validacao.erro }, { status: validacao.status });
     }
@@ -115,6 +120,9 @@ export async function POST(request: Request) {
       servico: dados.servico,
       servicoKey: dados.servicoKey,
       modalidade: dados.modalidade,
+      formatoAtendimento: dados.formatoAtendimento,
+      abordagemDesejada: dados.abordagemDesejada,
+      duracaoSessaoMinutos: dados.duracaoSessaoMinutos,
       paraQuemE: dados.paraQuemE,
       preferenciaGeneroPsicologo: dados.preferenciaGeneroPsicologo,
       especificarNecessidades: dados.especificarNecessidades,
@@ -125,7 +133,15 @@ export async function POST(request: Request) {
       generoOutro: dados.generoOutro,
       status: 'PENDENTE_ATRIBUICAO',
       criadoEm: new Date().toISOString(),
+      ...(dados.responsavelFinanceiro ? { responsavelFinanceiro: dados.responsavelFinanceiro } : {}),
+      ...(dados.identificadoPeloResponsavel ? { identificadoPeloResponsavel: true } : {}),
     };
+    // O que o site enviou fica guardado como chegou (4.04).
+    novaTriagem.preferenciasOriginais = extrairPreferencias(
+      novaTriagem, 'SITE', novaTriagem.criadoEm, dados.psicologoPreferidoId
+    );
+    // Casal, família ou grupo: um vínculo só, com o CPF no responsável (6.04).
+    Object.assign(novaTriagem, normalizarPedidoColetivo(novaTriagem));
 
     // A alocação decide dentro da mutação: ler a fila, escolher o profissional
     // da vez e gravar precisam acontecer sem que outro formulário entre no meio
@@ -189,7 +205,7 @@ export async function POST(request: Request) {
       // psicólogo não recebe o WhatsApp.
       const notificacoes = await Promise.allSettled([
         avisarAlocacao(resultado.lead, resultado.psicologo),
-        avisarTriagemRecebidaPorEmail(resultado.lead, resultado.psicologo),
+        avisarTriagemRecebidaPorEmail(resultado.lead),
         avisarAlocacaoPsicologoPorEmail(
           resultado.lead,
           resultado.psicologo,
@@ -261,17 +277,29 @@ export async function GET() {
     await desvincularPacientesTransbordados(varrido.transbordos, varrido.snapshot.cadastrosPsicologos ?? []).catch((erro) =>
       console.error('[triagem] Falha ao desvincular pacientes transbordados:', erro)
     );
+    // Quem abre a fila também move a lista de espera automática, como move o SLA.
+    const ofertasListaEspera = await executarListaDeEspera(repositorio).catch((erro) => {
+      console.error('[triagem] Falha ao processar a lista de espera:', erro);
+      return 0;
+    });
+    const estadoFinal = ofertasListaEspera ? captureStateAsSnapshot(await repositorio.read()) : varrido.snapshot;
+    const triagens = estadoFinal.triagensPacientes ?? [];
 
-    const fila = (varrido.snapshot.triagensPacientes ?? []).map((lead) => ({
+    const fila = triagens.map((lead) => ({
       ...lead,
-      slaStatus: classificarSla(lead.alocadoEm),
+      slaStatus: classificarSla(lead.alocadoEm, new Date(), prazoDaOferta(lead)),
       horasDecorridas: horasDesdeAlocacao(lead.alocadoEm),
+      prazoRespostaHoras: prazoDaOferta(lead),
+      expiraEm: expiracaoDaOferta(lead),
+      posicaoListaEspera: posicaoNaListaDeEspera(triagens, lead.id),
     }));
 
     return NextResponse.json({
       success: true,
       data: fila,
+      prazoOfertaHoras: estadoFinal.prazoOfertaHoras ?? varrido.snapshot.prazoOfertaHoras ?? 24,
       transbordosExecutados: varrido.transbordos.length,
+      ofertasListaEspera,
     });
   } catch (error) {
     if (error instanceof NaoAutorizadoError) {

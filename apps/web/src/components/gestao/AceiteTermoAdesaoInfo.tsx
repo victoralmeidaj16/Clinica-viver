@@ -68,7 +68,11 @@ export function AceiteTermoAdesaoInfo({ psicologo }: { psicologo: PsicologoItem 
             <code className="mt-1 block break-all font-mono text-[10px] text-slate-500">{aceite.cadeiaIp}</code>
           </details>
         )}
-        <ComprovanteTermoAdesao psicologoId={psicologo.id} aceite={aceite} />
+        <ComprovanteTermoAdesao
+          psicologoId={psicologo.id}
+          aceite={aceite}
+          aprovado={psicologo.status === 'APROVADO'}
+        />
       </div>
     </details>
   );

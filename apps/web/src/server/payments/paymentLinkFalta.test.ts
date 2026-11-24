@@ -15,7 +15,8 @@ beforeEach(() => {
 /** O link continua em poder do paciente depois que o profissional isenta a falta. */
 it('não reserva cobrança nova para falta sem cobrança ativa', async () => {
   expect(await reserveAppointmentCharge({ token: 'fake-token', cpf: 'fake-cpf' })).toBeNull();
-  const [sql] = db.query.mock.calls[0];
+  // A primeira consulta pode ser a detecção da coluna do responsável financeiro.
+  const sql = db.query.mock.calls.map(([texto]) => String(texto)).find((texto) => texto.includes('agendamento_ref'));
   expect(sql).toContain("a.status <> 'faltou' OR EXISTS");
   expect(sql).toContain("falta_fc.status <> 'cancelled'");
   expect(db.execute).not.toHaveBeenCalled();

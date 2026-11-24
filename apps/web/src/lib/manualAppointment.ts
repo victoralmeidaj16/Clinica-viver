@@ -31,15 +31,22 @@ export interface ClinicalServiceOption {
   label: string;
   /** Duração sugerida; nos serviços de duração variável é só o ponto de partida. */
   durationMinutes: number;
+  durationOptions?: readonly { minutes: 50 | 90; label: string }[];
   /** O profissional informa a duração de cada agendamento. */
   variableDuration?: boolean;
 }
+
+const individualOrCollectiveDurations = [
+  { minutes: 50, label: 'Individual · 50 min' },
+  { minutes: 90, label: 'Casal, família ou grupo · 1h30' },
+] as const;
 
 export const CLINICAL_SERVICES: readonly ClinicalServiceOption[] = [
   {
     key: 'PSICOTERAPIA',
     label: 'Atendimento Psicológico (Psicoterapia Individual)',
     durationMinutes: 50,
+    durationOptions: individualOrCollectiveDurations,
   },
   {
     key: 'AVALIACAO',
@@ -51,16 +58,22 @@ export const CLINICAL_SERVICES: readonly ClinicalServiceOption[] = [
     key: 'ORIENTACAO_PARENTAL',
     label: 'Orientação Parental',
     durationMinutes: 50,
+    durationOptions: [
+      { minutes: 50, label: 'Individual · 50 min' },
+      { minutes: 90, label: 'Em família · 1h30' },
+    ],
   },
   {
     key: 'ORIENTACAO_VOCACIONAL',
     label: 'Orientação Vocacional',
     durationMinutes: 50,
+    durationOptions: individualOrCollectiveDurations,
   },
   {
     key: 'ORIENTACAO_PROFISSIONAL',
     label: 'Orientação Profissional',
     durationMinutes: 50,
+    durationOptions: individualOrCollectiveDurations,
   },
   {
     key: 'PSICOTERAPIA_CASAL',
@@ -79,10 +92,11 @@ export function hasVariableDuration(serviceKey: string): boolean {
 }
 
 export function validServiceDuration(serviceKey: string, durationMinutes: number): boolean {
-  if (!CLINICAL_SERVICES.some((item) => item.key === serviceKey)) return false;
-  return hasVariableDuration(serviceKey)
-    ? isValidAppointmentDuration(durationMinutes)
-    : durationMinutes === getServiceDuration(serviceKey);
+  const service = CLINICAL_SERVICES.find((item) => item.key === serviceKey);
+  if (!service) return false;
+  if (service.variableDuration) return isValidAppointmentDuration(durationMinutes);
+  if (service.durationOptions) return service.durationOptions.some((option) => option.minutes === durationMinutes);
+  return durationMinutes === service.durationMinutes;
 }
 
 function addCivilDays(date: string, days: number): string {

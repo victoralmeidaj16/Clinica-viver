@@ -1,13 +1,25 @@
 import { NextResponse } from 'next/server';
+import { readSession } from '@/server/auth';
 import { getCaptureRepository } from '@/server/persistence/captureRepository';
 import { MysqlCaptureRepository } from '@/server/persistence/mysql/captureRepository';
 import { isMysqlConfigured } from '@/server/oci/runtime';
+import { cadastroDaSessao, SemAcessoError } from '@/server/application/psychologistSelf';
 import { exigirGestao, NaoAutorizadoError } from '@/server/viverMaisGestaoAuth';
 import { montarComprovanteTermoAdesao } from '@/server/application/termoAdesaoComprovantePdf';
 import { enviarComprovanteTermoAdesao } from '@/server/application/termoAdesaoComprovanteEmail';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+async function autorizarLeituraComprovante(id: string): Promise<void> {
+  const session = await readSession();
+  if (!session) throw new NaoAutorizadoError(401, 'Faça login para continuar.');
+  if (session.role === 'admin') return;
+  const proprio = await cadastroDaSessao(session);
+  if (!proprio || proprio.id !== id) {
+    throw new NaoAutorizadoError(403, 'Você só pode baixar o comprovante do seu próprio cadastro.');
+  }
+}
 
 async function cadastroComAceite(id: string) {
   const cadastro = (await getCaptureRepository().read()).cadastrosPsicologos.find((item) => item.id === id);
@@ -24,7 +36,7 @@ async function cadastroComAceite(id: string) {
 }
 
 function falha(error: unknown, acao: string) {
-  if (error instanceof NaoAutorizadoError) {
+  if (error instanceof NaoAutorizadoError || error instanceof SemAcessoError) {
     return NextResponse.json({ success: false, error: error.message }, { status: error.status });
   }
   console.error(`Erro ao ${acao} o comprovante do Termo de Adesão:`, error);
@@ -38,8 +50,9 @@ function falha(error: unknown, acao: string) {
  */
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await exigirGestao();
-    const { cadastro, erro } = await cadastroComAceite((await params).id);
+    const { id } = await params;
+    await autorizarLeituraComprovante(id);
+    const { cadastro, erro } = await cadastroComAceite(id);
     if (erro) return erro;
     const comprovante = await montarComprovanteTermoAdesao(cadastro);
     const registrado = cadastro.aceiteTermoAdesao?.comprovante?.sha256;
@@ -63,6 +76,12 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
     await exigirGestao();
     const { cadastro, erro } = await cadastroComAceite((await params).id);
     if (erro) return erro;
+    if (cadastro.status !== 'APROVADO') {
+      return NextResponse.json(
+        { success: false, error: 'O comprovante definitivo só pode ser enviado por e-mail após a aprovação do cadastro.' },
+        { status: 409 }
+      );
+    }
     const comprovante = await montarComprovanteTermoAdesao(cadastro);
     const envio = await enviarComprovanteTermoAdesao(cadastro, comprovante, new Date(), `reenvio-${Date.now()}`);
     if (isMysqlConfigured()) await new MysqlCaptureRepository().registrarEnvioComprovanteTermo(cadastro.id, envio);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import Image from 'next/image';
 import { Check, Copy, CreditCard, Loader2, QrCode } from 'lucide-react';
 import { sessionBatchPaymentRule, sessionPaymentMonth } from '@/lib/sessionBatchPayment';
@@ -8,7 +8,7 @@ import { reaisDeCentavos } from '@/lib/modalidadesPagamento';
 
 interface Session {
   inicio: string;
-  linkPagamento: string;
+  linkPagamento?: string;
   custeadoPelaEmpresa?: boolean;
   convenioNome?: string;
 }
@@ -24,18 +24,20 @@ const tokenFromLink = (link: string) => link.split('/').filter(Boolean).at(-1) ?
 export function BookedSessionsPayment({ sessions, cpf, hidePatientPayerBadge = false }: {
   sessions: readonly Session[]; cpf: string; hidePatientPayerBadge?: boolean;
 }) {
-  const [selected, setSelected] = useState(() => new Set(sessions.filter((session) =>
-    !session.custeadoPelaEmpresa
-    && sessionPaymentMonth(session.inicio) === sessionPaymentMonth(new Date())
-  ).map((session) => session.linkPagamento)));
+  const payable = sessions.filter((session): session is Session & { linkPagamento: string } =>
+    !session.custeadoPelaEmpresa && Boolean(session.linkPagamento));
+  const currentMonthLinks = () => new Set(payable
+    .filter((session) => sessionPaymentMonth(session.inicio) === sessionPaymentMonth(new Date()))
+    .map((session) => session.linkPagamento));
+  const [selected, setSelected] = useState(currentMonthLinks);
   const [method, setMethod] = useState<'PIX' | 'CREDIT_CARD'>('PIX');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
   const [payment, setPayment] = useState<PaymentResult>();
   const [copied, setCopied] = useState(false);
-  const selectedSessions = useMemo(() => sessions.filter((session) => selected.has(session.linkPagamento)), [selected, sessions]);
+  const selectedSessions = payable.filter((session) => selected.has(session.linkPagamento));
   const companyFundedCount = sessions.filter((session) => session.custeadoPelaEmpresa).length;
-  const individuallyPaidCount = sessions.length - companyFundedCount;
+  const individuallyPaidCount = payable.length;
 
   const rule = sessionBatchPaymentRule(selectedSessions.map((session) => session.inicio));
 
@@ -91,7 +93,7 @@ export function BookedSessionsPayment({ sessions, cpf, hidePatientPayerBadge = f
       <p className="mt-1">Não há pagamento individual para estas {sessions.length} sessões reservadas.</p>
       <div className="mt-3 space-y-1.5 border-t border-emerald-200 pt-3 text-xs font-semibold">
         {sessions.map((session) => (
-          <p key={session.linkPagamento} className="capitalize">{label(session.inicio)} · Empresa paga</p>
+          <p key={session.inicio} className="capitalize">{label(session.inicio)} · Empresa paga</p>
         ))}
       </div>
     </div>
@@ -113,13 +115,14 @@ export function BookedSessionsPayment({ sessions, cpf, hidePatientPayerBadge = f
       )}
       <div className="flex items-center justify-between gap-3">
         <div><p className="text-sm font-black text-ink">Quais sessões deseja pagar agora?</p><p className="text-[10px] text-muted">Pague 4 ou mais sessões do mês vigente juntas, em 1x, e ganhe 10% de desconto.</p></div>
-        <button type="button" disabled={loading || individuallyPaidCount === 0} onClick={() => setSelected(new Set(sessions.filter((item) => !item.custeadoPelaEmpresa && sessionPaymentMonth(item.inicio) === sessionPaymentMonth(new Date())).map((item) => item.linkPagamento)))} className="text-[10px] font-black text-psi-deep hover:underline disabled:opacity-40">Selecionar mês vigente</button>
+        <button type="button" disabled={loading || individuallyPaidCount === 0} onClick={() => setSelected(currentMonthLinks())} className="text-[10px] font-black text-psi-deep hover:underline disabled:opacity-40">Selecionar mês vigente</button>
       </div>
       <div className="space-y-2">
         {sessions.map((session) => {
-          const active = selected.has(session.linkPagamento);
+          const link = session.linkPagamento;
+          const active = !!link && !session.custeadoPelaEmpresa && selected.has(link);
           const funded = Boolean(session.custeadoPelaEmpresa);
-          return <button key={session.linkPagamento} type="button" disabled={loading || funded} onClick={() => toggle(session.linkPagamento)} aria-pressed={active}
+          return <button key={link ?? session.inicio} type="button" disabled={loading || funded || !link} onClick={() => link && toggle(link)} aria-pressed={active}
             className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-xs font-bold transition ${funded ? 'cursor-default border-emerald-200 bg-emerald-50 text-emerald-900' : active ? 'border-psi-vibrant bg-psi-light text-psi-deep' : 'border-line bg-white text-muted'}`}>
             <span className={`flex h-5 w-5 items-center justify-center rounded-md border ${active ? 'border-psi-vibrant bg-psi-vibrant text-white' : 'border-line'}`}>{active && <Check className="h-3 w-3" />}</span>
             <span className="flex-1 capitalize">{label(session.inicio)}</span>

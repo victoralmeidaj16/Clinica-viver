@@ -12,11 +12,18 @@ vi.mock('@/server/declaracao/declaracaoHorasRepository', () => ({
 
 import { emitirDeclaracao, previaDeclaracao } from './declaracaoHorasService';
 
-function sessao(id: string, status: ClinicalSessionStatus, professionalId = 'pro-ficticio', organizationId = 'org-ficticia') {
+function sessao(
+  id: string,
+  status: ClinicalSessionStatus,
+  professionalId = 'pro-ficticio',
+  organizationId = 'org-ficticia',
+  scheduledStart = '2026-10-02T12:00:00Z'
+) {
   const criadoEm = '2026-10-01T12:00:00Z';
+  const scheduledEnd = new Date(Date.parse(scheduledStart) + 50 * 60_000).toISOString();
   return { ...scheduleClinicalSession({ id, organizationId, patientId: 'paciente-ficticio',
     primaryProfessionalId: professionalId, assignedProfessionalIds: [professionalId], mode: 'video',
-    scheduledStart: '2026-10-02T12:00:00Z', scheduledEnd: '2026-10-02T12:50:00Z', createdAt: criadoEm,
+    scheduledStart, scheduledEnd, createdAt: criadoEm,
     automationPlan: { transcription: false, patientHandoff: false, billing: false, receipt: false, notification: false },
   }, { actorUserId: 'user-ficticio', occurredAt: criadoEm, correlationId: 'teste' }).session,
   status, artifacts: { chargeId: `cobranca-${id}` } };
@@ -67,5 +74,53 @@ describe('sessões confirmadas na declaração de estágio', () => {
     ]) });
     await expect(emitirDeclaracao('org-ficticia', 'gestor-ficticio', 'cad-ficticio')).rejects.toMatchObject({ status: 422 });
     expect(mocks.registrar).not.toHaveBeenCalled();
+  });
+
+  it('filtra prévia e emissão pelo período selecionado, recusando período inválido ou sem sessões', async () => {
+    const sessions = new InMemoryClinicalSessionRepository([
+      sessao('sessao-set', 'completed', 'pro-ficticio', 'org-ficticia', '2026-09-15T12:00:00Z'),
+      sessao('sessao-out-1', 'completed', 'pro-ficticio', 'org-ficticia', '2026-10-05T12:00:00Z'),
+      sessao('sessao-out-2', 'completed', 'pro-ficticio', 'org-ficticia', '2026-10-20T12:00:00Z'),
+      sessao('sessao-nov', 'completed', 'pro-ficticio', 'org-ficticia', '2026-11-10T12:00:00Z'),
+    ]);
+    mocks.store.mockReturnValue({ sessions, financial: { getLedger: mocks.ledger } });
+
+    await expect(
+      previaDeclaracao('org-ficticia', 'cad-ficticio', { inicio: '2026-10-01', fim: '2026-10-31' })
+    ).resolves.toMatchObject({
+      totalSessoes: 2,
+      totalHoras: 2,
+      periodoInicio: '2026-10-05',
+      periodoFim: '2026-10-20',
+    });
+
+    await expect(
+      previaDeclaracao('org-ficticia', 'cad-ficticio', { inicio: '2026-11-01', fim: '2026-10-01' })
+    ).rejects.toMatchObject({ status: 400 });
+
+    await expect(
+      previaDeclaracao('org-ficticia', 'cad-ficticio', { inicio: '2026-12-01', fim: '2026-12-31' })
+    ).rejects.toMatchObject({ status: 422 });
+
+    await emitirDeclaracao('org-ficticia', 'gestor-ficticio', 'cad-ficticio', {
+      psicologoNome: 'Profissional fictício',
+      psicologoCrp: '00/00000',
+      tratamento: 'Pós-Graduando(a)',
+      curso: 'Curso fictício — Turma Turma fictícia',
+      periodoInicio: '2026-10-01',
+      periodoFim: '2026-10-31',
+      totalHoras: 2,
+      coordenadora: 'COORDENADORA TESTE',
+    });
+    expect(mocks.registrar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        totalSessoes: 2,
+        totalHoras: 2,
+        periodoInicio: '2026-10-01',
+        periodoFim: '2026-10-31',
+        sessaoIds: ['sessao-out-1', 'sessao-out-2'],
+      }),
+      expect.any(Function)
+    );
   });
 });

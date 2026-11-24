@@ -1,6 +1,6 @@
 import { commandHeaders } from '@/lib/applicationApi';
 import type { CusteioCiclo } from '@/lib/convenioBilling';
-import type { ManagedPatient } from './managementTypes';
+import type { ManagedPatient, ReassignOptions } from './managementTypes';
 import type { SessionPricingCategory } from './patientSessionPricingView';
 
 /** Mensagem do corpo de erro das rotas de gestão, que vem como texto ou `{ message }`. */
@@ -20,6 +20,7 @@ export async function reassignManagedPatient(
   patient: ManagedPatient,
   professionalId: string,
   reason: string,
+  options?: ReassignOptions,
 ): Promise<void> {
   const isLead = !patient.patientId && Boolean(patient.leadId);
   const response = await fetch(
@@ -28,7 +29,13 @@ export async function reassignManagedPatient(
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', ...(isLead ? commandHeaders() : {}) },
       body: JSON.stringify(isLead
-        ? { leadId: patient.leadId, professionalId, motivo: reason }
+        ? {
+            leadId: patient.leadId,
+            professionalId,
+            motivo: reason,
+            ...(options?.modo ? { modo: options.modo } : {}),
+            ...(options?.excederLimite ? { excederLimite: true, justificativaExcesso: options.justificativaExcesso } : {}),
+          }
         : { id: patient.patientId, professionalId, motivo: reason }),
     },
   );

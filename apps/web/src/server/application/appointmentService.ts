@@ -9,6 +9,8 @@ import {
   garantirCobrancaDaSessao,
 } from '@/server/payments/sessionCharge';
 import { isFutureChargeDueAt } from '@/lib/chargeDue';
+import { duracaoCompativelComPublico, publicoColetivo, publicoDaSessao } from '@/lib/publicoDuracaoSessao';
+import { publicoDoVinculo } from '@/server/scheduling/publicoDoVinculo';
 import { validServiceDuration } from '@/lib/manualAppointment';
 import { getContatosDaSessao, getProfessionalAgendaProfile } from '@/server/scheduling/agendaRepository';
 import { avisarPacienteSessaoMarcada } from '@/server/scheduling/agendaAvisos';
@@ -75,7 +77,15 @@ export async function createAppointmentFlow(context: RequestContext, input: Sche
   if (!isFutureChargeDueAt(effectiveDueAt)) {
     throw new ApplicationError('INVALID_INPUT', 'O vencimento da cobrança deve estar no futuro.', 400);
   }
-  const result = await scheduleAppointmentCommand({ appointments: store.appointments, identities: store.identities }, context.actor,
+  const resolveAudience = async () => {
+    const publico = await publicoDoVinculo(context.actor.organizationId, input.patientId);
+    if (!duracaoCompativelComPublico(serviceKey.trim(), durationMinutes, publico, 'manual')) {
+      const duracao = publicoColetivo(publico) ? '1h30' : '50 minutos';
+      throw new ApplicationError('INVALID_INPUT', `Pelo público cadastrado (${publico}), este atendimento é de ${duracao}.`, 400);
+    }
+    return publicoDaSessao({ serviceKey: serviceKey.trim(), duracaoMin: durationMinutes, publicoDoVinculo: publico });
+  };
+  const result = await scheduleAppointmentCommand({ appointments: store.appointments, identities: store.identities, resolveAudience }, context.actor,
     { ...resolvedInput, chargeDueAt: effectiveDueAt },
     { actorUserId: context.actor.userId, occurredAt: resolvedInput.createdAt, correlationId: context.correlationId, commandId: context.idempotencyKey! });
   if (isMysqlConfigured() && accessibility.data !== undefined) {

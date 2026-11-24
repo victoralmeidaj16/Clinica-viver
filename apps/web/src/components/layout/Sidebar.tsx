@@ -28,6 +28,12 @@ const psicologoItems = [
   { label: 'Ajuda', href: '/ajuda', icon: HelpCircle },
 ];
 
+const financeiroItems = [
+  { label: 'Financeiro & Repasses', href: '/gestao/financeiro', icon: CreditCard },
+  { label: 'Convênios PJ', href: '/convenios', icon: Briefcase },
+  { label: 'Ajuda', href: '/ajuda', icon: HelpCircle },
+];
+
 const gestaoItems = [
   { label: 'Agenda da Clínica', href: '/gestao/agenda', icon: CalendarDays },
   { label: 'Gestão de Psicólogos', href: '/gestao/psicologos', icon: UserCheck },
@@ -51,7 +57,7 @@ export default function Sidebar({
   isCollapsed = false,
   onToggleCollapse,
 }: {
-  role: 'admin' | 'psicologo';
+  role: 'admin' | 'financeiro' | 'psicologo';
   onLogout: () => void;
   aberto: boolean;
   onFechar: () => void;
@@ -60,7 +66,11 @@ export default function Sidebar({
 }) {
   const pathname = usePathname();
   const isProfessional = role === 'psicologo';
-  const navItems = isProfessional ? psicologoItems : gestaoItems;
+  const navItems = isProfessional
+    ? psicologoItems
+    : role === 'financeiro'
+      ? financeiroItems
+      : gestaoItems;
   const colapsado = isCollapsed;
 
   return (
@@ -111,7 +121,9 @@ export default function Sidebar({
         <div className={`p-3 border-b border-white/10 ${colapsado ? 'lg:hidden' : ''}`}>
           <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
             <p className="text-[10px] uppercase tracking-widest text-psi-soft/50">Perfil ativo</p>
-            <p className="mt-1 text-xs font-bold text-white">{isProfessional ? 'Psicólogo da clínica' : 'Administrador da clínica'}</p>
+            <p className="mt-1 text-xs font-bold text-white">
+              {isProfessional ? 'Psicólogo da clínica' : role === 'financeiro' ? 'Financeiro da clínica' : 'Administrador da clínica'}
+            </p>
           </div>
         </div>
 
@@ -122,7 +134,7 @@ export default function Sidebar({
               colapsado ? 'lg:hidden' : ''
             }`}
           >
-            <span>{isProfessional ? 'Portal do Psicólogo' : 'Painel da clínica'}</span>
+            <span>{isProfessional ? 'Portal do Psicólogo' : role === 'financeiro' ? 'Painel Financeiro' : 'Painel da clínica'}</span>
           </div>
           {navItems.map((item) => {
             const isActive = pathname === item.href;

@@ -120,8 +120,8 @@ export function PsicologoCardDetalhes({ p, trabalhando, onReenviarConvite }: Pro
           {/* Tags de Serviços, Públicos e Necessidades */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
             {Boolean(p.servicosPrestados?.length) && (
-              <div className="space-y-1 bg-slate-50 p-3 rounded-2xl border border-slate-100">
-                <span className="text-[11px] font-bold text-slate-500 block">Serviços Prestados:</span>
+              <div className="space-y-1 bg-white p-3 rounded-2xl border border-slate-200">
+                <span className="text-[11px] font-bold text-slate-700 block">Serviços Prestados:</span>
                 <div className="flex flex-wrap gap-1">
                   {p.servicosPrestados?.map((s) => (
                     <span
@@ -136,13 +136,13 @@ export function PsicologoCardDetalhes({ p, trabalhando, onReenviarConvite }: Pro
             )}
 
             {Boolean(p.publicoAlvo?.length || p.publicoAlvoOutro) && (
-              <div className="space-y-1 bg-purple-50/50 p-3 rounded-2xl border border-purple-100">
-                <span className="text-[11px] font-bold text-slate-500 block">Público Alvo:</span>
+              <div className="space-y-1 bg-white p-3 rounded-2xl border border-slate-200">
+                <span className="text-[11px] font-bold text-slate-700 block">Público Alvo:</span>
                 <div className="flex flex-wrap gap-1">
                   {[...(p.publicoAlvo ?? []), ...(p.publicoAlvoOutro ? [p.publicoAlvoOutro] : [])].map((pa) => (
                     <span
                       key={pa}
-                      className="text-[10px] font-bold bg-purple-50 text-purple-800 px-2 py-0.5 rounded-md border border-purple-100"
+                      className="text-[10px] font-bold bg-white text-slate-700 px-2 py-0.5 rounded-md border border-slate-200"
                     >
                       {pa}
                     </span>
@@ -152,14 +152,14 @@ export function PsicologoCardDetalhes({ p, trabalhando, onReenviarConvite }: Pro
             )}
 
             {Boolean(p.necessidadesAtendidas?.length || p.necessidadesOutro) && (
-              <div className="space-y-1 bg-teal-50/50 p-3 rounded-2xl border border-teal-100">
-                <span className="text-[11px] font-bold text-slate-500 block">Demandas Atendidas:</span>
+              <div className="space-y-1 bg-white p-3 rounded-2xl border border-slate-200">
+                <span className="text-[11px] font-bold text-slate-700 block">Demandas Atendidas:</span>
                 <div className="flex flex-wrap gap-1">
                   {[...(p.necessidadesAtendidas ?? []), ...(p.necessidadesOutro ? [p.necessidadesOutro] : [])].map(
                     (n) => (
                       <span
                         key={n}
-                        className="text-[10px] font-bold bg-teal-50 text-teal-800 px-2 py-0.5 rounded-md border border-teal-100"
+                        className="text-[10px] font-bold bg-white text-slate-700 px-2 py-0.5 rounded-md border border-slate-200"
                       >
                         {n}
                       </span>

@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { GraduationCap } from 'lucide-react';
+import { CheckCircle2, Clock3, GraduationCap, XCircle } from 'lucide-react';
 import { formatarDataCurta } from '@/lib/turmaEncerrada';
 import { ROTULO_SITUACAO_TURMA, rotuloRestante } from '@/lib/turmasCiclo';
 import { origemDosServicos, ROTULO_STATUS_VINCULO, type PapelVinculo, type SituacaoVinculo } from '@/lib/vinculoAcademico';
 import { useCatalogoCursos } from '@/components/forms/useCatalogoCursos';
 import { chamarGestao } from './gestaoApi';
 import type { PsicologoItem } from './types';
+import { TagStatus } from './TagStatus';
 
 const MOTIVO: Record<NonNullable<SituacaoVinculo['motivoInvalido']>, string> = {
   NAO_APROVADO: 'não libera atendimento',
@@ -15,11 +16,12 @@ const MOTIVO: Record<NonNullable<SituacaoVinculo['motivoInvalido']>, string> = {
   VALIDADE_VENCIDA: 'validade vencida',
 };
 
-const COR: Record<SituacaoVinculo['status'], string> = {
-  APROVADO: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-  PENDENTE: 'border-amber-200 bg-amber-50 text-amber-800',
-  RECUSADO: 'border-rose-200 bg-rose-50 text-rose-800',
-};
+// Tag neutra com a cor só no ícone, como os demais status da ficha.
+const ICONE_STATUS = {
+  APROVADO: { icone: CheckCircle2, cor: 'positivo' },
+  PENDENTE: { icone: Clock3, cor: 'atencao' },
+  RECUSADO: { icone: XCircle, cor: 'negativo' },
+} as const satisfies Record<SituacaoVinculo['status'], { icone: typeof CheckCircle2; cor: 'positivo' | 'atencao' | 'negativo' }>;
 
 /**
  * Vínculos acadêmicos do psicólogo na Gestão (especificação final, 1.01 passo
@@ -60,11 +62,12 @@ export function VinculosAcademicosPainel({ p, onAlterado }: { p: PsicologoItem; 
         <GraduationCap className="h-3.5 w-3.5 text-psi-vibrant" /> Vínculos acadêmicos
       </h4>
       {situacao.vinculos.map((vinculo) => (
-        <div key={vinculo.papel} className="space-y-1.5 rounded-xl border border-line p-2.5 text-xs">
+        // Cada curso é uma linha da seção, não um card dentro do card.
+        <div key={vinculo.papel} className="space-y-1.5 border-t border-line pt-2.5 text-xs first-of-type:border-t-0 first-of-type:pt-0">
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="font-bold text-ink">{vinculo.posGraduacao}</span>
             <span className="text-muted">· Turma {vinculo.turma ?? 'não informada'}{vinculo.papel === 'SEGUNDA' ? ' · 2ª pós' : ''}</span>
-            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black ${COR[vinculo.status]}`}>{ROTULO_STATUS_VINCULO[vinculo.status]}</span>
+            <TagStatus icone={ICONE_STATUS[vinculo.status].icone} cor={ICONE_STATUS[vinculo.status].cor}>{ROTULO_STATUS_VINCULO[vinculo.status]}</TagStatus>
             {!vinculo.valido && vinculo.motivoInvalido && vinculo.status === 'APROVADO' && (
               <span className="rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-700">Sem validade: {MOTIVO[vinculo.motivoInvalido]}</span>
             )}

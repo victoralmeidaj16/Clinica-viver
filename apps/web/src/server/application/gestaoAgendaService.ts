@@ -12,10 +12,36 @@ import {
   profissionalDoAgendamentoGestao,
   convenioDoAgendamentoGestao,
   type FiltroStatusAgendaGestao,
+  type PeriodoAgendaGestao,
 } from '@/server/scheduling/gestaoAgendaRepository';
+import { toSqlTimestamp } from '@/server/persistence/mysql/mappers';
 import type { UpdateAppointmentInput } from '@/server/scheduling/agendaRepository';
 
 const STATUS_FILTRO_VALIDOS: readonly FiltroStatusAgendaGestao[] = ['abertas', 'realizado', 'cancelado', 'todas'];
+
+const DATA = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Converte as datas do filtro (dias do calendário de Brasília) nos limites em
+ * UTC do início da sessão: de 00h do primeiro dia até 00h do dia seguinte ao
+ * último. Brasília está em UTC−3 o ano todo desde o fim do horário de verão.
+ */
+export function periodoDaAgenda(desde?: string, ate?: string): PeriodoAgendaGestao {
+  const valida = (data: string) => DATA.test(data) && !Number.isNaN(Date.parse(`${data}T00:00:00-03:00`));
+  if ((desde && !valida(desde)) || (ate && !valida(ate))) {
+    throw new ApplicationError('INVALID_INPUT', 'Data do filtro inválida.', 400);
+  }
+  if (desde && ate && desde > ate) {
+    throw new ApplicationError('INVALID_INPUT', 'A data inicial do filtro é posterior à final.', 400);
+  }
+  const periodo: PeriodoAgendaGestao = {};
+  if (desde) periodo.inicioDesde = toSqlTimestamp(`${desde}T00:00:00-03:00`);
+  if (ate) {
+    const diaSeguinte = new Date(Date.parse(`${ate}T00:00:00-03:00`) + 86_400_000);
+    periodo.inicioAntesDe = toSqlTimestamp(diaSeguinte.toISOString());
+  }
+  return periodo;
+}
 
 function exigirAdmin(context: RequestContext) {
   if (!context.actor.roles.some((role) => role === 'admin' || role === 'owner')) {
@@ -27,7 +53,8 @@ export async function getGestaoAgenda(
   context: RequestContext,
   busca = '',
   pagina = 0,
-  statusFiltro?: string
+  statusFiltro?: string,
+  filtroData: { desde?: string; ate?: string } = {}
 ) {
   exigirAdmin(context);
   if (!Number.isSafeInteger(pagina) || pagina < 0 || pagina > 100000) {
@@ -37,6 +64,11 @@ export async function getGestaoAgenda(
     throw new ApplicationError('INVALID_INPUT', 'Filtro de status inválido.', 400);
   }
   const termo = busca.trim().slice(0, 150);
+  const periodo = periodoDaAgenda(filtroData.desde || undefined, filtroData.ate || undefined);
+  if (periodo.inicioDesde || periodo.inicioAntesDe) {
+    return listarAgendaGestao(context.actor.organizationId, termo, pagina,
+      (statusFiltro ?? 'abertas') as FiltroStatusAgendaGestao, periodo);
+  }
   return statusFiltro && statusFiltro !== 'abertas'
     ? listarAgendaGestao(context.actor.organizationId, termo, pagina, statusFiltro as FiltroStatusAgendaGestao)
     : listarAgendaGestao(context.actor.organizationId, termo, pagina);

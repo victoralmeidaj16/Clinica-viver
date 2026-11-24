@@ -18,7 +18,7 @@ vi.mock('@/server/scheduling/gestaoAgendaRepository', () => ({
   profissionalDoAgendamentoGestao: vi.fn(async () => 'pro-from-appointment'),
   convenioDoAgendamentoGestao: vi.fn(async () => ({ pacienteId: 'patient-from-appointment', convenioId: 'conv-1', pacoteSessoes: undefined as number | undefined })),
 }));
-import { getGestaoAgenda, editGestaoAppointment, updateGestaoChargeDue, updateGestaoMonthlyCoverage } from './gestaoAgendaService';
+import { getGestaoAgenda, editGestaoAppointment, updateGestaoChargeDue, updateGestaoMonthlyCoverage, periodoDaAgenda } from './gestaoAgendaService';
 import { editAgendaAppointment, updateAgendaAppointmentChargeDue } from './agendaService';
 import { updatePatientConvenio } from './convenioService';
 import { listarAgendaGestao, profissionalDoAgendamentoGestao, convenioDoAgendamentoGestao } from '@/server/scheduling/gestaoAgendaRepository';
@@ -129,4 +129,17 @@ it.each([
   await expect(editGestaoAppointment(context, 'apt', input)).rejects.toMatchObject({ status: 400 });
   expect(profissionalDoAgendamentoGestao).not.toHaveBeenCalled();
   expect(editAgendaAppointment).not.toHaveBeenCalled();
+});
+
+it('filtra por período em dias de Brasília, com o último dia inteiro incluído', async () => {
+  await getGestaoAgenda(context, '', 0, undefined, { desde: '2026-11-01', ate: '2026-11-24' });
+  expect(listarAgendaGestao).toHaveBeenCalledWith('org-1', '', 0, 'abertas', {
+    inicioDesde: '2026-11-01 03:00:00.000', inicioAntesDe: '2026-11-25 03:00:00.000',
+  });
+  expect(periodoDaAgenda('2026-11-10')).toEqual({ inicioDesde: '2026-11-10 03:00:00.000' });
+});
+it('rejeita data malformada ou período invertido', async () => {
+  await expect(getGestaoAgenda(context, '', 0, undefined, { desde: '10/11/2026' })).rejects.toMatchObject({ status: 400 });
+  await expect(getGestaoAgenda(context, '', 0, undefined, { desde: '2026-11-24', ate: '2026-11-01' })).rejects.toMatchObject({ status: 400 });
+  expect(listarAgendaGestao).not.toHaveBeenCalled();
 });

@@ -19,6 +19,13 @@ const VENCIMENTO_EFETIVO = `COALESCE((SELECT c.vence_em FROM financeiro_cobranca
 
 export type FiltroStatusAgendaGestao = 'abertas' | 'realizado' | 'cancelado' | 'todas';
 
+export interface PeriodoAgendaGestao {
+  /** Início mínimo da sessão, inclusivo (timestamp SQL em UTC). */
+  inicioDesde?: string;
+  /** Início máximo da sessão, exclusivo (timestamp SQL em UTC). */
+  inicioAntesDe?: string;
+}
+
 function clausulaStatusAgendaGestao(statusFiltro: FiltroStatusAgendaGestao): string {
   if (statusFiltro === 'realizado') return "a.status = 'realizado'";
   if (statusFiltro === 'cancelado') return "a.status = 'cancelado'";
@@ -30,8 +37,12 @@ export async function listarAgendaGestao(
   organizationId: string,
   busca: string,
   pagina: number,
-  statusFiltro: FiltroStatusAgendaGestao = 'abertas'
+  statusFiltro: FiltroStatusAgendaGestao = 'abertas',
+  periodo: PeriodoAgendaGestao = {}
 ) {
+  // Período pelo início da sessão; os limites já chegam em UTC (`YYYY-MM-DD HH:MM:SS.mmm`).
+  const clausulaPeriodo = `${periodo.inicioDesde ? ' AND a.inicio >= ?' : ''}${periodo.inicioAntesDe ? ' AND a.inicio < ?' : ''}`;
+  const parametrosPeriodo = [periodo.inicioDesde, periodo.inicioAntesDe].filter((valor): valor is string => Boolean(valor));
   const [rows] = await getMysqlPool().query<RowDataPacket[]>(
     `SELECT a.id, a.versao, a.inicio, a.fim, a.modalidade, a.servico_key, a.status,
       COALESCE(pa.nome_social, pa.nome) AS paciente_nome, pr.nome AS profissional_nome,
@@ -50,14 +61,14 @@ export async function listarAgendaGestao(
       ${custeioDoAgendamentoSql({ agendamento: 'a', paciente: 'pa', convenio: 'conv' })} AS custeado
       ${JOINS}
       WHERE a.instituicao_id = ? AND o.ref_core = ? AND ${clausulaStatusAgendaGestao(statusFiltro)}
-        AND (COALESCE(pa.nome_social, pa.nome) LIKE ? OR pr.nome LIKE ?)
+        AND (COALESCE(pa.nome_social, pa.nome) LIKE ? OR pr.nome LIKE ?)${clausulaPeriodo}
       -- Próximas sessões primeiro (da mais perto para a mais longe); as já
       -- encerradas sem conclusão vão para o fim, das mais recentes às antigas.
       ORDER BY a.fim < UTC_TIMESTAMP(3),
         CASE WHEN a.fim >= UTC_TIMESTAMP(3) THEN a.inicio END,
         a.inicio DESC, a.id
       LIMIT 51 OFFSET ?`,
-    [instituicaoId(), organizationId, `%${busca}%`, `%${busca}%`, pagina * 50]
+    [instituicaoId(), organizationId, `%${busca}%`, `%${busca}%`, ...parametrosPeriodo, pagina * 50]
   );
   return {
     temMais: rows.length > 50,

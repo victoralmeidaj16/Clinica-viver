@@ -15,6 +15,8 @@ const format = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle:
 export default function GestaoAgendaPage() {
   const [busca, setBusca] = useState('');
   const [statusFiltro, setStatusFiltro] = useState<FiltroStatus>('abertas');
+  const [desde, setDesde] = useState('');
+  const [ate, setAte] = useState('');
   const [pagina, setPagina] = useState(0);
   const [resultado, setResultado] = useState<Result>();
   const [loading, setLoading] = useState(true);
@@ -38,6 +40,8 @@ export default function GestaoAgendaPage() {
       setErro('');
       const params = new URLSearchParams({ busca, pagina: String(pagina) });
       if (statusFiltro !== 'abertas') params.set('status', statusFiltro);
+      if (desde) params.set('desde', desde);
+      if (ate) params.set('ate', ate);
       applicationRequest<Result>(`/gestao/agenda?${params}`,
         { signal: controller.signal })
         .then((data) => { if (!controller.signal.aborted) setResultado({ ...data, carregadoEm: Date.now() }); })
@@ -45,7 +49,7 @@ export default function GestaoAgendaPage() {
         .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     }, 250);
     return () => { clearTimeout(timer); controller.abort(); };
-  }, [busca, pagina, statusFiltro, versao]);
+  }, [busca, pagina, statusFiltro, desde, ate, versao]);
 
   return <main className="mx-auto max-w-6xl space-y-6 p-4 md:p-8">
     <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -65,7 +69,7 @@ export default function GestaoAgendaPage() {
       </button>
     </header>
     <section className="rounded-3xl border border-line bg-surface p-5">
-      <div className="grid gap-4 sm:grid-cols-[1fr_220px]">
+      <div className="grid gap-4 md:grid-cols-[1fr_220px_160px_160px]">
         <div>
           <label htmlFor="busca-agenda" className="mb-2 block text-xs font-bold text-ink">Buscar por paciente ou psicólogo</label>
           <div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-muted" />
@@ -82,7 +86,23 @@ export default function GestaoAgendaPage() {
             <option value="todas">Todas</option>
           </select>
         </div>
+        <div>
+          <label htmlFor="filtro-desde-agenda" className="mb-2 block text-xs font-bold text-ink">De</label>
+          <input id="filtro-desde-agenda" type="date" value={desde} max={ate || undefined}
+            onChange={(event) => { setDesde(event.target.value); setPagina(0); }} className="input w-full" />
+        </div>
+        <div>
+          <label htmlFor="filtro-ate-agenda" className="mb-2 block text-xs font-bold text-ink">Até</label>
+          <input id="filtro-ate-agenda" type="date" value={ate} min={desde || undefined}
+            onChange={(event) => { setAte(event.target.value); setPagina(0); }} className="input w-full" />
+        </div>
       </div>
+      {(desde || ate) && (
+        <button type="button" onClick={() => { setDesde(''); setAte(''); setPagina(0); }}
+          className="mt-3 text-xs font-bold text-psi-deep underline underline-offset-2 hover:text-psi-darkest">
+          Limpar datas
+        </button>
+      )}
     </section>
     <section className="overflow-hidden rounded-3xl border border-line bg-surface">
       <div className="border-b border-line p-5"><h2 className="font-extrabold text-ink">Sessões e confirmações</h2>
@@ -90,7 +110,7 @@ export default function GestaoAgendaPage() {
       {erro ? <div role="alert" className="space-y-3 p-6 text-sm text-rose-700"><p>{erro}</p>
         <button className="btn-outline" onClick={() => setVersao((value) => value + 1)}>Tentar novamente</button></div>
         : loading ? <div role="status" className="flex items-center gap-2 p-8 text-muted"><Loader2 className="h-4 w-4 animate-spin" /> Carregando sessões…</div>
-        : !resultado?.appointments.length ? <p className="p-8 text-sm text-muted">Nenhuma sessão agendada ou confirmada encontrada.</p>
+        : !resultado?.appointments.length ? <p className="p-8 text-sm text-muted">{desde || ate ? 'Nenhuma sessão encontrada nesse período.' : 'Nenhuma sessão agendada ou confirmada encontrada.'}</p>
         : <ul className="divide-y divide-line">{resultado.appointments.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-4 p-5">
           <div className="space-y-1"><p className="font-extrabold text-ink">{item.pacienteNome}</p>
             <p className="text-xs text-muted">{format.format(new Date(item.inicio))} · {item.modalidade === 'presencial' ? 'Presencial' : item.modalidade === 'telefone' ? 'Telefone' : 'Online'}</p>

@@ -10,7 +10,8 @@ export async function GET(request: Request) {
       context,
       params.get('busca') ?? '',
       Number(params.get('pagina') ?? 0),
-      params.get('status') ?? undefined
+      params.get('status') ?? undefined,
+      { desde: params.get('desde') ?? undefined, ate: params.get('ate') ?? undefined }
     ));
   } catch (error) { return failure(error); }
 }

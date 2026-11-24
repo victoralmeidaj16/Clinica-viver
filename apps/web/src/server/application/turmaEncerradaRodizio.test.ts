@@ -21,14 +21,20 @@ const cadastro = (mudancas: Partial<CadastroPsicologoRecord> = {}): CadastroPsic
 });
 
 describe('turma encerrada no rodízio', () => {
-  it('sai da fila assim que a turma é encerrada', () => {
-    const turmaEncerrada = {
-      turma: '24A',
-      posGraduacao: 'Formação e Pós-graduação em Psicodrama',
-      encerradaEm: '2026-09-17',
-    };
-    expect(desligadoPorTurma(turmaEncerrada)).toBe(true);
-    expect(paraPsicologoPerfil(cadastro({ turmaEncerrada })).pausadoNoRodizio).toBe(true);
+  const posGraduacao = 'Formação e Pós-graduação em Psicodrama';
+
+  it('continua na fila durante os três meses seguintes ao encerramento', () => {
+    const turmaEncerrada = { turma: '24A', posGraduacao, encerradaEm: hojeEmBrasilia() };
+    expect(desligadoPorTurma(turmaEncerrada)).toBe(false);
+    expect(paraPsicologoPerfil(cadastro({ turmaEncerrada })).pausadoNoRodizio).toBe(false);
+  });
+
+  it('todo encerramento, inclusive o antigo sem data de saída, sai no fim do prazo padrão', () => {
+    const turmaEncerrada = { turma: '24A', posGraduacao, encerradaEm: '2026-09-17' };
+    expect(desligadoPorTurma(turmaEncerrada, '2026-12-16')).toBe(false);
+    expect(desligadoPorTurma(turmaEncerrada, '2026-12-17')).toBe(true);
+    const antiga = { ...turmaEncerrada, encerradaEm: '2020-01-10' };
+    expect(paraPsicologoPerfil(cadastro({ turmaEncerrada: antiga })).pausadoNoRodizio).toBe(true);
   });
 
   it('sem encerramento não afeta ninguém', () => {
@@ -48,7 +54,7 @@ describe('turma encerrada no rodízio', () => {
         id: 'psi-psicanalise',
         posGraduacaoViverMais: 'Programa de Estudos e Pós-graduação em Psicanálise',
       }),
-    ], [{ turma: '24A', posGraduacao: cursoEncerrado, encerradaEm: '2026-09-17' }]);
+    ], [{ turma: '24A', posGraduacao: cursoEncerrado, encerradaEm: '2020-01-10' }]);
 
     expect(paraPsicologoPerfil(psicodrama).pausadoNoRodizio).toBe(true);
     expect(paraPsicologoPerfil(psicanalise).pausadoNoRodizio).toBe(false);

@@ -6,6 +6,7 @@ import { avisarAlocacaoPsicologoPorEmail } from '@/server/application/triagemEma
 import { exigirVarreduraAutorizada, NaoAutorizadoError } from '@/server/viverMaisGestaoAuth';
 import { desvincularPacientesTransbordados, reconciliarPacientes } from '@/server/application/patientPromotion';
 import { executarListaDeEspera } from '@/server/application/listaEsperaExecucao';
+import { enviarAvisosDeSaidaPorWhatsApp } from '@/server/application/avisosSaidaTurma';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -69,10 +70,17 @@ export async function POST(request: Request) {
       return 0;
     });
 
+    // Contagem de saída das turmas encerradas: WhatsApp só se a Gestão ligou (1.03).
+    const avisosDeTurma = leadId ? 0 : await enviarAvisosDeSaidaPorWhatsApp().catch((erro) => {
+      console.error('[turmas] Falha ao enviar avisos de saída:', erro);
+      return 0;
+    });
+
     return NextResponse.json({
       success: true,
       transbordosExecutados: resultado.transbordos.length,
       ofertasListaEspera,
+      avisosDeTurma,
       pacientesPromovidos,
       leads: resultado.transbordos.map((item) => ({
         protocolo: item.lead.protocolo,

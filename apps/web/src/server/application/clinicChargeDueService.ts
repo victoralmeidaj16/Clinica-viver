@@ -20,9 +20,10 @@ export async function updateClinicChargeDue(context: RequestContext, chargeId: s
     organizationId: context.actor.organizationId, chargeId, dueAt: new Date(dueAt).toISOString(),
   });
   if (outcome === 'not_found') throw new ApplicationError('NOT_FOUND', 'Cobrança não encontrada.', 404);
+  if (outcome === 'rejected') throw new ApplicationError('BANK_DUE_REJECTED', 'A instituição não confirmou o saldo e o prazo solicitados.', 409);
   if (outcome === 'paid') throw new ApplicationError('CHARGE_SETTLED', 'O vencimento não pode ser alterado após o pagamento.', 409);
   if (outcome === 'invalid') throw new ApplicationError('INVALID_INPUT', 'O vencimento deve estar no futuro.', 400);
   if (outcome === 'covered') throw new ApplicationError('INVALID_STATE', 'Esta sessão é paga pelo convênio. O prazo é o da fatura do convênio.', 409);
-  // 'queued': o prazo está gravado e o cancelamento no provedor é retomado pela varredura.
-  return { updated: true, pending: outcome === 'queued' };
+  // Um pedido pendente conserva o vencimento vigente até a confirmação bancária.
+  return { updated: outcome === 'updated', pending: outcome === 'queued' };
 }

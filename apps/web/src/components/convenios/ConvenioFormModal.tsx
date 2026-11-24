@@ -1,12 +1,13 @@
 'use client';
 
+import { politicaPadrao, type PoliticaConvenio } from '@/lib/politicaConvenio';
 import { useState } from 'react';
 import { Building2, Loader2, X } from 'lucide-react';
 import type { ConvenioPayload, ConvenioView } from './types';
 
 export function ConvenioFormModal({ convenio, onClose, onSave }: { convenio?: ConvenioView; onClose: () => void; onSave: (payload: ConvenioPayload) => Promise<void> }) {
   const [form, setForm] = useState<ConvenioPayload>({
-    nome: convenio?.nome ?? '', razaoSocial: convenio?.razaoSocial ?? '', cnpj: convenio?.cnpj ?? '',
+    politica: convenio?.politica, nome: convenio?.nome ?? '', razaoSocial: convenio?.razaoSocial ?? '', cnpj: convenio?.cnpj ?? '',
     emailFaturamento: convenio?.emailFaturamento ?? '', empresaPagaSessoes: convenio?.empresaPagaSessoes ?? false,
     pacoteSessoes: convenio?.pacoteSessoes, pacoteSessoesCiclo: convenio?.pacoteSessoesCiclo ?? 'total', diaVencimento: convenio?.diaVencimento, ativo: convenio?.ativo ?? true,
   });
@@ -15,14 +16,16 @@ export function ConvenioFormModal({ convenio, onClose, onSave }: { convenio?: Co
   const [valorContrato, setValorContrato] = useState(
     convenio?.valorSessaoContratoCents == null ? '' : (convenio.valorSessaoContratoCents / 100).toFixed(2)
   );
+  const politica = form.politica ?? politicaPadrao;
+  const definir = (v: Partial<PoliticaConvenio>) => setForm({ ...form, politica: { ...politica, ...v } });
   const pacote = form.pacoteSessoes ?? 0;
   const sessoes = pacote === 1 ? '1 sessão' : `${pacote} sessões`;
   const explicacaoPacote = !form.empresaPagaSessoes
     ? 'O pacote só vale quando a empresa paga as sessões.'
     : pacote < 1 ? 'Sem pacote, a empresa paga todas as sessões.'
       : form.pacoteSessoesCiclo === 'mensal'
-        ? `A empresa paga até ${sessoes} por mês para cada paciente; a partir daí, no mesmo mês, o paciente recebe a cobrança.`
-        : `A empresa paga as ${pacote === 1 ? 'primeira sessão' : `${pacote} primeiras sessões`} de cada paciente; depois disso, o paciente recebe a cobrança.`;
+        ? `A empresa paga até ${sessoes} por mês para cada paciente.`
+        : `A empresa paga as ${pacote === 1 ? 'primeira sessão' : `${pacote} primeiras sessões`} de cada paciente.`;
   const submit = async (event: React.FormEvent) => {
     event.preventDefault(); setSaving(true); setError('');
     try {
@@ -54,6 +57,15 @@ export function ConvenioFormModal({ convenio, onClose, onSave }: { convenio?: Co
           <Field label="Pacote de sessões"><input type="number" min={1} value={form.pacoteSessoes ?? ''} onChange={(e) => setForm({ ...form, pacoteSessoes: e.target.value ? Number(e.target.value) : null })} className="input text-xs" /></Field>
           <Field label="Contagem do pacote"><select value={form.pacoteSessoesCiclo ?? 'total'} onChange={(e) => setForm({ ...form, pacoteSessoesCiclo: e.target.value === 'mensal' ? 'mensal' : 'total' })} className="input text-xs"><option value="total">No total, por paciente</option><option value="mensal">Por mês, por paciente</option></select></Field>
           <p className="text-[11px] leading-relaxed text-muted sm:col-span-2">{explicacaoPacote}</p>
+          <label><input type="checkbox" checked={politica.consumirFalta} onChange={e => definir({ consumirFalta:e.target.checked })} /> Falta consome cota</label>
+          <label><input type="checkbox" checked={politica.consumirCancelamento} onChange={e => definir({ consumirCancelamento:e.target.checked })} /> Cancelamento consome cota</label>
+          <Field label="Ao esgotar a cota"><select value={politica.excedente} onChange={e => definir({ excedente:e.target.value as PoliticaConvenio['excedente'] })}>
+            <option value="funcionario">Cobrar o funcionário</option><option value="bloquear">Bloquear a reserva</option>
+            <option value="autorizar">Solicitar autorização da Gestão</option></select></Field>
+          <Field label="Base do faturamento"><select value={politica.base} onChange={e => definir({ base:e.target.value as PoliticaConvenio['base'] })}>
+            <option value="realizadas">Sessões realizadas</option><option value="agendadas">Sessões agendadas</option><option value="fixa">Quantidade fixa</option></select></Field>
+          {politica.base === 'fixa' && <Field label="Quantidade fixa por competência"><input required type="number" min="1" max="65535" value={politica.quantidadeFixa ?? ''}
+            onChange={e => definir({ quantidadeFixa:Number(e.target.value) })} /></Field>}
           <Field label="Dia de vencimento (1 a 28)"><input type="number" min={1} max={28} value={form.diaVencimento ?? ''} onChange={(e) => setForm({ ...form, diaVencimento: e.target.value ? Number(e.target.value) : null })} className="input text-xs" /></Field>
           <label className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 sm:col-span-2"><input type="checkbox" checked={form.empresaPagaSessoes} onChange={(e) => setForm({ ...form, empresaPagaSessoes: e.target.checked })} className="h-4 w-4 accent-emerald-700" /><span><span className="block text-sm font-black text-emerald-900">Empresa paga as sessões</span><span className="text-xs text-emerald-800/75">Pacientes vinculados herdam esta regra, salvo exceção administrativa.</span></span></label>
           <label className="flex items-center gap-3 text-xs font-bold text-ink"><input type="checkbox" checked={form.ativo} onChange={(e) => setForm({ ...form, ativo: e.target.checked })} className="h-4 w-4 accent-psi-deep" /> Convênio ativo na vitrine</label>

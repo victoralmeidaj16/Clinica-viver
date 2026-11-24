@@ -54,7 +54,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const resultado = await bookAppointments(paciente, inicios, new Date(), accessibility.data);
+    const resultado = await bookAppointments(paciente, inicios, new Date(), accessibility.data, body.usarPacote === true);
     if (!resultado.ok) {
       return NextResponse.json(
         {
@@ -89,6 +89,7 @@ export async function POST(request: Request) {
     // sessões fazia uma mensagem sobre uma data custeada parecer valer para o
     // lote inteiro, mesmo quando a cota cobria somente as duas primeiras.
     const sessoes = await Promise.all(resultado.agendamentos.map(async (agendamento) => {
+      if (!agendamento.linkPagamento) return { ...agendamento, cobertoPorPacote: !agendamento.aguardandoConvenio, custeadoPelaEmpresa: false };
       const paymentToken = agendamento.linkPagamento.split('/').filter(Boolean).at(-1) ?? '';
       let profile;
       try {
@@ -122,7 +123,10 @@ export async function POST(request: Request) {
       { headers: { 'Cache-Control': 'private, no-store' } }
     );
   } catch (error) {
-    console.error('[agenda] Falha ao agendar:', error instanceof Error ? error.message : error);
+    if (error instanceof Error && (error.name === 'SaldoPacoteInsuficiente' || ('code' in error && error.code === 'CONVENIO_QUOTA'))) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+    console.error('[agenda] Falha ao agendar.');
     return NextResponse.json({ error: 'Não foi possível concluir o agendamento agora.' }, { status: 500 });
   }
 }

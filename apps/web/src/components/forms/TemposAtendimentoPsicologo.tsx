@@ -1,15 +1,17 @@
 import React from 'react';
-import { opcoesAtendimentoDaPos } from './opcoesPsicologo';
+import { opcoesAtendimentoDaPos, type CursoPos } from './opcoesPsicologo';
 
 interface Props {
   posGraduacao?: string;
   segundaPosGraduacao?: string;
+  /** Catálogo configurado pela Gestão; sem ele vale o padrão. */
+  catalogo?: readonly CursoPos[];
   value: readonly number[];
   onChange: (value: number[]) => void;
 }
 
-export function TemposAtendimentoPsicologo({ posGraduacao, segundaPosGraduacao, value, onChange }: Props) {
-  const tempos = opcoesAtendimentoDaPos(posGraduacao, segundaPosGraduacao)?.tempos ?? [];
+export function TemposAtendimentoPsicologo({ posGraduacao, segundaPosGraduacao, catalogo, value, onChange }: Props) {
+  const tempos = opcoesAtendimentoDaPos(posGraduacao, segundaPosGraduacao, catalogo)?.tempos ?? [];
   if (!tempos.length) return null;
   const selecionados = value.filter((tempo) => tempos.includes(tempo));
   return <fieldset className="space-y-2">

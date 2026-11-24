@@ -266,7 +266,8 @@ describe('destino das notificações do psicólogo', () => {
         turmaEncerrada: {
           turma: '25A',
           posGraduacao: 'Formação e Pós-graduação em Psicodrama',
-          encerradaEm: '2026-09-17',
+          encerradaEm: '2026-06-10',
+          saidaEm: '2026-09-10',
         },
       }),
       AGORA
@@ -275,7 +276,8 @@ describe('destino das notificações do psicólogo', () => {
     expect(aviso.titulo).toBe(
       'Sua turma 25A de Formação e Pós-graduação em Psicodrama foi encerrada'
     );
-    expect(aviso.chave).toBe('turma-encerrada:cad-1:2026-09-17');
+    expect(aviso.chave).toBe('turma-encerrada:cad-1:2026-06-10');
+    expect(aviso.descricao).toContain('o prazo de saída terminou em 10/09/2026');
   });
 });
 

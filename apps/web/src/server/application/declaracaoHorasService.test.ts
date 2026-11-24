@@ -17,10 +17,11 @@ function sessao(
   status: ClinicalSessionStatus,
   professionalId = 'pro-ficticio',
   organizationId = 'org-ficticia',
-  scheduledStart = '2026-10-02T12:00:00Z'
+  scheduledStart = '2026-10-02T12:00:00Z',
+  duracaoMin = 50
 ) {
   const criadoEm = '2026-10-01T12:00:00Z';
-  const scheduledEnd = new Date(Date.parse(scheduledStart) + 50 * 60_000).toISOString();
+  const scheduledEnd = new Date(Date.parse(scheduledStart) + duracaoMin * 60_000).toISOString();
   return { ...scheduleClinicalSession({ id, organizationId, patientId: 'paciente-ficticio',
     primaryProfessionalId: professionalId, assignedProfessionalIds: [professionalId], mode: 'video',
     scheduledStart, scheduledEnd, createdAt: criadoEm,
@@ -52,19 +53,27 @@ describe('sessões confirmadas na declaração de estágio', () => {
     return sessions;
   }
 
-  it('inclui as confirmadas pagas ou não pagas na prévia, respeitando profissional e organização', async () => {
+  it('inclui as confirmadas pagas ou não pagas na prévia, somando a duração real das sessões', async () => {
     const sessions = carteira();
     const list = vi.spyOn(sessions, 'list');
-    await expect(previaDeclaracao('org-ficticia', 'cad-ficticio')).resolves.toMatchObject({ totalSessoes: 2, totalHoras: 2 });
+    await expect(previaDeclaracao('org-ficticia', 'cad-ficticio')).resolves.toMatchObject({
+      totalSessoes: 2,
+      totalMinutos: 100,
+      totalHoras: 1,
+    });
     expect(list).toHaveBeenCalledWith({ organizationId: 'org-ficticia', professionalId: 'pro-ficticio', statuses: ['completed'] });
     expect(mocks.ledger).not.toHaveBeenCalled();
   });
 
-  it('registra na emissão somente os ids de atendimentos confirmados', async () => {
+  it('registra na emissão somente os ids e minutos reais de atendimentos confirmados', async () => {
     carteira();
     await emitirDeclaracao('org-ficticia', 'gestor-ficticio', 'cad-ficticio');
-    expect(mocks.registrar).toHaveBeenCalledWith(expect.objectContaining({ totalSessoes: 2, totalHoras: 2,
-      sessaoIds: ['confirmada-nao-paga', 'confirmada-paga'] }), expect.any(Function));
+    expect(mocks.registrar).toHaveBeenCalledWith(expect.objectContaining({
+      totalSessoes: 2,
+      totalMinutos: 100,
+      totalHoras: 1,
+      sessaoIds: ['confirmada-nao-paga', 'confirmada-paga'],
+    }), expect.any(Function));
     expect(mocks.ledger).not.toHaveBeenCalled();
   });
 
@@ -76,12 +85,12 @@ describe('sessões confirmadas na declaração de estágio', () => {
     expect(mocks.registrar).not.toHaveBeenCalled();
   });
 
-  it('filtra prévia e emissão pelo período selecionado, recusando período inválido ou sem sessões', async () => {
+  it('filtra prévia e emissão pelo período selecionado, somando 50min + 90min = 140min (2h20)', async () => {
     const sessions = new InMemoryClinicalSessionRepository([
-      sessao('sessao-set', 'completed', 'pro-ficticio', 'org-ficticia', '2026-09-15T12:00:00Z'),
-      sessao('sessao-out-1', 'completed', 'pro-ficticio', 'org-ficticia', '2026-10-05T12:00:00Z'),
-      sessao('sessao-out-2', 'completed', 'pro-ficticio', 'org-ficticia', '2026-10-20T12:00:00Z'),
-      sessao('sessao-nov', 'completed', 'pro-ficticio', 'org-ficticia', '2026-11-10T12:00:00Z'),
+      sessao('sessao-set', 'completed', 'pro-ficticio', 'org-ficticia', '2026-09-15T12:00:00Z', 50),
+      sessao('sessao-out-1', 'completed', 'pro-ficticio', 'org-ficticia', '2026-10-05T12:00:00Z', 50),
+      sessao('sessao-out-2', 'completed', 'pro-ficticio', 'org-ficticia', '2026-10-20T12:00:00Z', 90),
+      sessao('sessao-nov', 'completed', 'pro-ficticio', 'org-ficticia', '2026-11-10T12:00:00Z', 50),
     ]);
     mocks.store.mockReturnValue({ sessions, financial: { getLedger: mocks.ledger } });
 
@@ -89,6 +98,7 @@ describe('sessões confirmadas na declaração de estágio', () => {
       previaDeclaracao('org-ficticia', 'cad-ficticio', { inicio: '2026-10-01', fim: '2026-10-31' })
     ).resolves.toMatchObject({
       totalSessoes: 2,
+      totalMinutos: 140,
       totalHoras: 2,
       periodoInicio: '2026-10-05',
       periodoFim: '2026-10-20',
@@ -110,12 +120,14 @@ describe('sessões confirmadas na declaração de estágio', () => {
       periodoInicio: '2026-10-01',
       periodoFim: '2026-10-31',
       totalHoras: 2,
+      totalMinutos: 140,
       coordenadora: 'COORDENADORA TESTE',
     });
     expect(mocks.registrar).toHaveBeenCalledWith(
       expect.objectContaining({
         totalSessoes: 2,
         totalHoras: 2,
+        totalMinutos: 140,
         periodoInicio: '2026-10-01',
         periodoFim: '2026-10-31',
         sessaoIds: ['sessao-out-1', 'sessao-out-2'],

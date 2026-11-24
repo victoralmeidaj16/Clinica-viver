@@ -1,3 +1,5 @@
+import { CATALOGO_CURSOS_PADRAO } from '@/components/forms/opcoesPsicologo';
+import { obterCatalogoCursos } from '@/server/application/catalogoCursos';
 import { NextResponse } from 'next/server';
 import { assertCadastroUnico, CadastroDuplicadoError } from '@/server/application/psychologistUniqueness';
 import { isMysqlConfigured } from '@/server/oci/runtime';
@@ -115,6 +117,7 @@ export async function PATCH(request: Request) {
 
     const corpo = (await request.json()) as Record<string, unknown>;
     await validarCorpo(corpo, CAMPOS_DO_PROPRIO_PSICOLOGO);
+    const catalogo = await obterCatalogoCursos().catch(() => [...CATALOGO_CURSOS_PADRAO]);
 
     const solicitacao = corpo.solicitacaoAlteracaoGestao;
     if (solicitacao !== undefined && solicitacao !== null && (
@@ -127,7 +130,7 @@ export async function PATCH(request: Request) {
     const { antes, atualizado } = await getCaptureRepository().mutate((state) => {
       const antes = state.cadastrosPsicologos.find((psi) => psi.id === cadastro.id && psi.usuarioRef === session.userId);
       if (!antes) throw new SemAcessoError('Cadastro não está mais vinculado a esta conta.', 409);
-      const atualizado = aplicarMudancas(antes, corpo, CAMPOS_DO_PROPRIO_PSICOLOGO);
+      const atualizado = aplicarMudancas(antes, corpo, CAMPOS_DO_PROPRIO_PSICOLOGO, catalogo);
       assertCadastroUnico(atualizado, state.cadastrosPsicologos);
       return { next: { ...state, cadastrosPsicologos: state.cadastrosPsicologos.map((psi) =>
         psi.id === atualizado.id ? atualizado : psi) }, result: { antes, atualizado } };

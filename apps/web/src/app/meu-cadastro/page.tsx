@@ -15,7 +15,8 @@ import {
 import { formatBrazilPhone, maskBrazilPhoneInput, normalizeBrazilPhone } from '@/lib/brazilPhone';
 import { maskCrpInput } from '@/lib/crp';
 import { formatGender } from '@/lib/gender';
-import { LISTA_NECESSIDADES } from '@/components/forms/necessidades';
+import { useCatalogoCursos } from '@/components/forms/useCatalogoCursos';
+import { demandasParaSelecao, useDemandasClinicas } from '@/components/forms/useDemandasClinicas';
 import {
   MODALIDADES_ATENDIMENTO,
   PUBLICO_ALVO,
@@ -37,6 +38,8 @@ import { FocoDeNotificacao } from '@/components/layout/FocoDeNotificacao';
 import { FOCO_SECAO } from '@/lib/focoNotificacao';
 import { ModalTermosParceria } from '@/components/forms/ModalTermosParceria';
 import type { SolicitacaoGestaoFormValues } from '@/components/meu-cadastro/ModalSolicitacaoGestao';
+import { CardVinculosAcademicos } from '@/components/meu-cadastro/CardVinculosAcademicos';
+import type { SituacaoAcademica } from '@/lib/vinculoAcademico';
 
 interface Cadastro {
   reconfiguracaoAtendimentoPendente?: boolean;
@@ -76,10 +79,14 @@ interface Cadastro {
   turmaViverMais?: string;
   posGraduacaoViverMais?: string;
   segundaPosGraduacao?: string;
+  segundaTurmaViverMais?: string;
+  situacaoAcademica?: SituacaoAcademica;
+  avisoSaidaTurma?: { textoPsicologo: string };
   solicitacaoAlteracaoGestao?: {
     turmaViverMais?: string;
     posGraduacaoViverMais?: string;
     segundaPosGraduacao?: string;
+    segundaTurmaViverMais?: string;
     servicosPrestados?: string[];
     limitePacientesAtivos?: number;
     justificativa?: string;
@@ -181,6 +188,8 @@ function Chips({ itens }: { itens?: string[] }) {
 }
 
 export default function MeuCadastroPage() {
+  const catalogoCursos = useCatalogoCursos();
+  const demandasClinicas = useDemandasClinicas();
   const [cadastro, setCadastro] = useState<Cadastro | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
@@ -249,7 +258,7 @@ export default function MeuCadastroPage() {
       setAviso('Selecione ao menos um turno — é por ele que os encaminhamentos chegam até você.');
       return;
     }
-    const opcoesDaPos = opcoesAtendimentoDaPos(cadastro?.posGraduacaoViverMais, cadastro?.segundaPosGraduacao);
+    const opcoesDaPos = opcoesAtendimentoDaPos(cadastro?.posGraduacaoViverMais, cadastro?.segundaPosGraduacao, catalogoCursos.cursos);
     if (opcoesDaPos?.tempos.length && rascunho.temposAtendimento.length === 0) {
       setAviso('Selecione ao menos um tempo de atendimento.');
       return;
@@ -499,7 +508,7 @@ export default function MeuCadastroPage() {
           <div>
             <label className="text-[10px] uppercase tracking-wider font-extrabold text-muted block mb-2">Público que atendo</label>
             <div className="flex flex-wrap gap-2">
-              {(opcoesAtendimentoDaPos(cadastro.posGraduacaoViverMais, cadastro.segundaPosGraduacao)?.publico ?? comValoresRegistrados(PUBLICO_ALVO, rascunho.publicoAlvo)).map((publico) => (
+              {(opcoesAtendimentoDaPos(cadastro.posGraduacaoViverMais, cadastro.segundaPosGraduacao, catalogoCursos.cursos)?.publico ?? comValoresRegistrados(PUBLICO_ALVO, rascunho.publicoAlvo)).map((publico) => (
                 <label key={publico} className={chipClasse(rascunho.publicoAlvo.includes(publico))}>
                   <input type="checkbox" className="sr-only" checked={rascunho.publicoAlvo.includes(publico)} onChange={() => setRascunho({ ...rascunho, publicoAlvo: alternar(rascunho.publicoAlvo, publico) })} />
                   {publico}
@@ -525,7 +534,7 @@ export default function MeuCadastroPage() {
             {rascunho.especificarNecessidades && (
               <>
                 <div className="flex flex-wrap gap-2">
-                  {LISTA_NECESSIDADES.map((necessidade) => (
+                  {demandasParaSelecao(demandasClinicas, rascunho.necessidadesAtendidas).map((necessidade) => (
                     <label key={necessidade} className={chipClasse(rascunho.necessidadesAtendidas.includes(necessidade))}>
                       <input type="checkbox" className="sr-only" checked={rascunho.necessidadesAtendidas.includes(necessidade)} onChange={() => setRascunho({ ...rascunho, necessidadesAtendidas: alternar(rascunho.necessidadesAtendidas, necessidade) })} />
                       {necessidade}
@@ -629,7 +638,7 @@ export default function MeuCadastroPage() {
                   )}
                 </div>
                 <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Público que atendo</p><Chips itens={[...(cadastro.publicoAlvo ?? []), ...(cadastro.publicoAlvoOutro ? [cadastro.publicoAlvoOutro] : [])]} /></div>
-                {Boolean(opcoesAtendimentoDaPos(cadastro.posGraduacaoViverMais, cadastro.segundaPosGraduacao)?.tempos.length) && cadastro.temposAtendimento?.length ?
+                {Boolean(opcoesAtendimentoDaPos(cadastro.posGraduacaoViverMais, cadastro.segundaPosGraduacao, catalogoCursos.cursos)?.tempos.length) && cadastro.temposAtendimento?.length ?
                   <div><p className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Tempo de atendimento</p>
                     <Chips itens={cadastro.temposAtendimento.map((tempo) => tempo === 90 ? '1h30min' : '50min')} /></div> : null}
                 {(cadastro.especificarNecessidades || cadastro.necessidadesAtendidas?.length || cadastro.necessidadesOutro) && (
@@ -643,6 +652,8 @@ export default function MeuCadastroPage() {
               onSalvarSolicitacao={salvarSolicitacaoGestao}
               onCancelarSolicitacao={cancelarSolicitacaoGestao}
             />
+
+            <CardVinculosAcademicos situacao={cadastro.situacaoAcademica} textoAviso={cadastro.avisoSaidaTurma?.textoPsicologo} />
 
             <CardTermoAdesao
               cadastroId={cadastro.id}

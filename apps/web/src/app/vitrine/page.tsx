@@ -5,7 +5,7 @@ import { VitrineCarrossel, PsicologoVitrineItem } from '@/components/vitrineCarr
 import { GenderFields } from '@/components/forms/GenderFields';
 import { CadastroPsicologoForm } from '@/components/forms/CadastroPsicologoForm';
 import { TurnoPreferenceField } from '@/components/forms/TurnoPreferenceField';
-import { LISTA_NECESSIDADES } from '@/components/forms/necessidades';
+import { demandasParaSelecao, useDemandasClinicas } from '@/components/forms/useDemandasClinicas';
 import { validateGender, type GenderValue } from '@/lib/gender';
 import { CAMPO_ARMADILHA } from '@/lib/triagemSubmissao';
 import { maskCpf, validCpf } from '@/lib/cpf';
@@ -116,6 +116,8 @@ export default function ViverMaisLandingPage() {
   const [secaoVitrineAtiva, setSecaoVitrineAtiva] = useState<SecaoVitrine>('SERVICOS');
   
   const [temNomeSocialPaciente, setTemNomeSocialPaciente] = useState(false);
+  // Demandas mantidas pela Gestão (3.4); sem a API, a lista inicial.
+  const demandasClinicas = useDemandasClinicas();
   // Criança ou adolescente: responsável e, sem CPF próprio, o CPF dele (6.03 e seção 15).
   const [responsavelMenor, setResponsavelMenor] = useState<ResponsavelForm>(RESPONSAVEL_VAZIO);
   const [menorSemCpf, setMenorSemCpf] = useState(false);
@@ -1014,7 +1016,7 @@ export default function ViverMaisLandingPage() {
                 <legend className="text-sm font-black text-ink">2. Qual é a sua queixa ou necessidade? <span className="font-normal text-muted text-xs">(opcional)</span></legend>
                 <p className="text-[11px] text-muted">Selecione uma ou mais opções.</p>
                 <div className="grid max-h-72 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
-                  {LISTA_NECESSIDADES.map((necessidade) => {
+                  {demandasParaSelecao(demandasClinicas, form.necessidadesPaciente).map((necessidade) => {
                     const selecionada = form.necessidadesPaciente.includes(necessidade);
                     return (
                       <button

@@ -23,7 +23,8 @@ describe.skipIf(!sqlite)('pagador histórico das sessões', () => {
       CREATE TABLE clinica_organizacoes (id TEXT, ref_core TEXT);
       INSERT INTO clinica_convenios (instituicao_id, organizacao_ref, ref_core, empresa_paga_sessoes) VALUES ('inst','org','anterior',1), ('inst','org','novo',1);
       INSERT INTO clinica_pacientes VALUES ('p','inst','pac','Paciente fictício',NULL,'novo',1,NULL,NULL);
-      INSERT INTO clinica_agendamentos VALUES ('a','inst','ag','sess','realizado',1,'p','2026-10-10','o','anterior');
+      ALTER TABLE clinica_agendamentos ADD COLUMN cota_ocorrencia_ref TEXT;
+      INSERT INTO clinica_agendamentos VALUES ('a','inst','ag','sess','realizado',1,'p','2026-10-10','o','anterior',NULL);
       INSERT INTO clinica_sessoes VALUES ('inst','org','sess','completed','2026-10-10','2026-10-10');
       INSERT INTO clinica_profissionais VALUES ('inst','prof','Profissional fictício');
       INSERT INTO financeiro_cobrancas VALUES ('inst','org','pac','charge','sess','prof',10000,'pending',NULL,'anterior','2026-10-10');

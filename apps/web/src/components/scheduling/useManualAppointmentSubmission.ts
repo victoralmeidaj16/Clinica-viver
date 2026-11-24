@@ -7,6 +7,7 @@ import { civilDaysBetween, clinicDateTimeToIso, manualAppointmentTimes, shiftCiv
 import { FUSO_CLINICA } from '@/lib/sessionReference';
 
 interface Input {
+  usarPacote?: boolean;
   acessibilidade?: PatientAccessibility | null;
   patientId: string;
   professionalId?: string;
@@ -25,7 +26,7 @@ interface Input {
   onScheduled?: () => void | Promise<void>;
 }
 
-export function useManualAppointmentSubmission({ acessibilidade, patientId, professionalId, adminMode, recurrenceDates, date, time,
+export function useManualAppointmentSubmission({ usarPacote, acessibilidade, patientId, professionalId, adminMode, recurrenceDates, date, time,
   durationMinutes, validDuration, chargeDueDate, chargeDueTime, companyFunded = false, mode, serviceKey, onScheduled }: Input) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ kind: 'error' | 'success' | 'warning'; text: string }>();
@@ -80,6 +81,7 @@ export function useManualAppointmentSubmission({ acessibilidade, patientId, prof
           headers: occurrence.headers,
           body: JSON.stringify({
             id: occurrence.id,
+            usarPacote,
             patientId,
             acessibilidade,
             ...(professionalId

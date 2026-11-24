@@ -58,7 +58,7 @@ it('altera cobrança legada sem agenda usando a chave física da cobrança', asy
 
 it.each([
   ['inexistente ou de outra organização', () => { state.charges = []; }, 'not_found'],
-  ['já paga', () => { state.charges[0].possui_pagamento = 1; }, 'paid'],
+  ['já paga', () => { state.charges[0].status = 'paid'; }, 'paid'],
   ['custeada pela empresa', () => { state.coverage = [{ custeado: 1, fatura_convenio_ref: null }]; }, 'covered'],
   ['faturada ao convênio', () => { state.coverage = [{ custeado: 0, fatura_convenio_ref: 'invoice' }]; }, 'covered'],
 ] as const)('não grava nada para cobrança %s', async (_, arrange, outcome) => {

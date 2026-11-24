@@ -19,7 +19,8 @@ export const CADASTRO_PSICOLOGO_INICIAL = {
     bairro: '',
     genero: '' as GenderValue | '',
     generoOutro: '',
-    turmaViverMais: '22A',
+    // Vazio até a pessoa escolher: a lista vem das turmas abertas do curso.
+    turmaViverMais: '',
     posGraduacaoViverMais: POS_GRADUACOES_VIVER_MAIS[0],
     servicosPrestados: ['Atendimento Psicológico'] as string[],
     temposAtendimento: [50] as number[],

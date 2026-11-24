@@ -96,6 +96,7 @@ export default function GestaoAgendaPage() {
             <p className="text-xs text-muted">{format.format(new Date(item.inicio))} · {item.modalidade === 'presencial' ? 'Presencial' : item.modalidade === 'telefone' ? 'Telefone' : 'Online'}</p>
             <p className="text-xs text-muted">Psicólogo: {item.profissionalNome}</p>
             {item.convenioNome && <p className="text-xs font-semibold text-psi-deep">{item.convenioNome} · {item.custeadoPelaEmpresa ? 'Pago pela empresa' : 'Pago pelo paciente'}</p>}
+            {item.prazoSolicitado && <p className="text-xs">Aguardando confirmação bancária para {format.format(new Date(item.prazoSolicitado))}</p>}
             {!item.custeadoPelaEmpresa && item.vencimentoCobrancaEm && <p className="text-xs text-muted">Vencimento: {format.format(new Date(item.vencimentoCobrancaEm))}</p>}
           </div>
           <div className="flex flex-wrap items-center gap-3">{item.status === 'realizado'
@@ -105,7 +106,7 @@ export default function GestaoAgendaPage() {
               : item.fim && new Date(item.fim).getTime() < (resultado.carregadoEm ?? 0)
                 ? <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800">Aguardando conclusão</span>
                 : <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-bold text-sky-800">{item.status === 'confirmado' ? 'Confirmada' : 'Agendada'}</span>}
-            {!['realizado', 'cancelado'].includes(item.status ?? '') && !item.custeadoPelaEmpresa && !['paid', 'partially_paid', 'refunded'].includes(item.pagamentoStatus ?? '') &&
+            {!['realizado', 'cancelado'].includes(item.status ?? '') && !item.custeadoPelaEmpresa && !['paid', 'refunded'].includes(item.pagamentoStatus ?? '') &&
               <button type="button" className="btn-outline gap-2 text-xs" onClick={() => setVencimento(item)} aria-label={`Editar vencimento de ${item.pacienteNome}`}><CalendarClock className="h-3.5 w-3.5" />Editar vencimento</button>}
             <button type="button" className="btn-outline gap-2 text-xs" onClick={() => setEdicao(item)} aria-label={`Editar sessão de ${item.pacienteNome}`}><Pencil className="h-3.5 w-3.5" />Editar</button></div>
         </li>)}</ul>}

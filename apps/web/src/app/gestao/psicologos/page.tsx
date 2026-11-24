@@ -17,13 +17,8 @@ import { PsicologoCard } from '@/components/gestao/PsicologoCard';
 import { ModalMotivo } from '@/components/gestao/ModalMotivo';
 import { ModalEdicao } from '@/components/gestao/ModalEdicao';
 import { ModalLimitePacientes } from '@/components/gestao/ModalLimitePacientes';
-import { PainelTurmas } from '@/components/gestao/PainelTurmas';
-import {
-  chaveTurma,
-  desligadoPorTurma,
-  type IdentidadeTurma,
-  type TurmaEncerrada,
-} from '@/lib/turmaEncerrada';
+import Link from 'next/link';
+import { foraPorVinculoAcademico } from '@/lib/turmaEncerrada';
 import { ausenciaEmCurso } from '@/lib/ausenciaAgenda';
 import { FocoDeNotificacao } from '@/components/layout/FocoDeNotificacao';
 
@@ -67,7 +62,6 @@ export default function GestaoPsicologosPage() {
   const [motivoAlvo, setMotivoAlvo] = useState<PsicologoItem | null>(null);
   const [editando, setEditando] = useState<PsicologoItem | null>(null);
   const [limiteAlvo, setLimiteAlvo] = useState<PsicologoItem | 'TODOS' | null>(null);
-  const [turmasEncerradas, setTurmasEncerradas] = useState<TurmaEncerrada[]>([]);
 
   const handleCopyFormLink = () => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -93,55 +87,13 @@ export default function GestaoPsicologosPage() {
     }
   };
 
-  const loadTurmas = async () => {
-    try {
-      const resp = await fetch('/api/application/turmas-encerradas', { cache: 'no-store' });
-      const body = (await resp.json()) as { success: boolean; data?: TurmaEncerrada[] };
-      if (resp.ok && body.success) setTurmasEncerradas(Array.isArray(body.data) ? body.data : []);
-    } catch {
-      // O painel de turmas é acessório: sem ele a lista da equipe segue utilizável.
-    }
-  };
-
   useEffect(() => {
     void Promise.resolve().then(async () => {
       // A leitura da equipe também converte o arquivo legado de encerramentos;
       // o painel só deve pedir as turmas depois dessa migração local.
       await loadPsicologos();
-      await loadTurmas();
     });
   }, []);
-
-  const alterarTurma = async (identidade: IdentidadeTurma, metodo: 'POST' | 'DELETE') => {
-    setOcupado(`turma:${chaveTurma(identidade)}`);
-    try {
-      const query = new URLSearchParams({
-        turma: identidade.turma,
-        posGraduacao: identidade.posGraduacao,
-      });
-      const resp = await fetch(
-        metodo === 'POST'
-          ? '/api/application/turmas-encerradas'
-          : `/api/application/turmas-encerradas?${query.toString()}`,
-        {
-          method: metodo,
-          headers: { 'Content-Type': 'application/json' },
-          body: metodo === 'POST' ? JSON.stringify(identidade) : undefined,
-        }
-      );
-      const body = (await resp.json()) as { success: boolean; error?: string };
-      if (!resp.ok || !body.success) {
-        alert(body.error ?? 'Não foi possível atualizar a turma.');
-        return;
-      }
-      // A saída aparece nos cards da equipe, que vêm do credenciamento.
-      await Promise.all([loadTurmas(), loadPsicologos()]);
-    } catch {
-      alert('Falha de conexão ao atualizar a turma.');
-    } finally {
-      setOcupado(null);
-    }
-  };
 
   const atualizar = async (
     id: string,
@@ -298,6 +250,7 @@ export default function GestaoPsicologosPage() {
     if (sol.turmaViverMais !== undefined) mudancas.turmaViverMais = sol.turmaViverMais;
     if (sol.posGraduacaoViverMais !== undefined) mudancas.posGraduacaoViverMais = sol.posGraduacaoViverMais;
     if (sol.segundaPosGraduacao !== undefined) mudancas.segundaPosGraduacao = sol.segundaPosGraduacao;
+    if (sol.segundaTurmaViverMais !== undefined) mudancas.segundaTurmaViverMais = sol.segundaTurmaViverMais;
     if (sol.servicosPrestados !== undefined) mudancas.servicosPrestados = sol.servicosPrestados;
     if (sol.limitePacientesAtivos !== undefined) mudancas.limitePacientesAtivos = sol.limitePacientesAtivos;
 
@@ -338,7 +291,7 @@ export default function GestaoPsicologosPage() {
           : statusFilter === 'PAUSADO'
           ? p.status === 'APROVADO' && Boolean(p.pausadoNoRodizio)
           : statusFilter === 'APROVADO'
-            ? p.status === 'APROVADO' && !p.pausadoNoRodizio && !desligadoPorTurma(p.turmaEncerrada)
+            ? p.status === 'APROVADO' && !p.pausadoNoRodizio && !foraPorVinculoAcademico(p)
             : p.status === statusFilter);
 
     return matchesSearch && matchesStatus;
@@ -356,12 +309,12 @@ export default function GestaoPsicologosPage() {
   const ausentes = aprovados.filter((p) => Boolean(ausenciaEmCurso(p.ausenciasAgenda)));
   // Mesma lógica para a turma encerrada: a pessoa está fora da fila mesmo sem
   // pausa manual.
-  const desligadosPorTurma = aprovados.filter((p) => desligadoPorTurma(p.turmaEncerrada));
+  const desligadosPorTurma = aprovados.filter((p) => foraPorVinculoAcademico(p));
   const noRodizio = aprovados.filter(
     (p) =>
       !p.pausadoNoRodizio &&
       !ausenciaEmCurso(p.ausenciasAgenda) &&
-      !desligadoPorTurma(p.turmaEncerrada)
+      !foraPorVinculoAcademico(p)
   );
   const pendentes = psicologos.filter((p) => p.status === 'EM_ANALISE').length;
   const pausados = aprovados.filter((p) => p.pausadoNoRodizio).length;
@@ -585,18 +538,20 @@ export default function GestaoPsicologosPage() {
               onReenviarConvite={(item) => void reenviarConvite(item)}
               onAprovarSolicitacaoGestao={aprovarSolicitacaoGestao}
               onRecusarSolicitacaoGestao={recusarSolicitacaoGestao}
+              onVinculoAlterado={loadPsicologos}
             />
           ))}
         </div>
       )}
 
-      <PainelTurmas
-        psicologos={psicologos}
-        encerradas={turmasEncerradas}
-        ocupado={ocupado}
-        onEncerrar={(identidade) => alterarTurma(identidade, 'POST')}
-        onReabrir={(identidade) => alterarTurma(identidade, 'DELETE')}
-      />
+      {/* Turmas, prazo de saída e cursos ficam numa área própria (1.01–1.05 e 2.01). */}
+      <Link
+        href="/gestao/cursos?aba=turmas"
+        className="flex items-center justify-between gap-3 rounded-3xl border border-line bg-surface p-5 text-sm font-extrabold text-ink shadow-card hover:bg-slate-50"
+      >
+        <span>Turmas, prazo de saída da vitrine e cursos</span>
+        <span className="text-xs font-bold text-psi-deep">Abrir Cursos e turmas →</span>
+      </Link>
 
       {motivoAlvo && (
         <ModalMotivo

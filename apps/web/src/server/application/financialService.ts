@@ -230,11 +230,13 @@ export async function getMyFinancialData(
   // Gestão: pagamento do paciente no mês do recebimento; sessão custeada por
   // empresa no mês da confirmação, sem novo crédito na quitação do boleto
   // (especificação final, §§ 10.07, 11.01 e 11.04).
-  const transactions = listEducationalCreditLines(ledger, {
+  const filtroCredito = {
     startDate: filter.startDate,
     endDate: filter.endDate,
     professionalIds: [professionalId],
-  }).map((linha) => {
+  };
+  const creditos = store.financial.listPersistedCredits ? await store.financial.listPersistedCredits(organizationId, filtroCredito) : listEducationalCreditLines(ledger, filtroCredito);
+  const transactions = creditos.map((linha) => {
     const charge = charges.get(linha.chargeId);
     const apt = appointmentsMap.get(linha.sessionId);
     return {
@@ -242,12 +244,12 @@ export async function getMyFinancialData(
       chargeId: linha.chargeId,
       sessionId: linha.sessionId,
       sessionStartsAt: apt?.startsAt,
-      originLabel: descreverOrigemDoCredito(charge, apt, linha.chargeId),
+      originLabel: linha.source === 'package' ? 'Pacote antecipado' : linha.source === 'adjustment' ? 'Decisão da Gestão · ' + linha.justification : descreverOrigemDoCredito(charge, apt, linha.chargeId),
       patientName: names.get(linha.patientId) ?? 'Paciente',
       receivedAt: linha.occurredAt,
       amountCents: linha.baseCents,
       professionalCreditCents: linha.creditCents,
-      clinicRevenueCents: linha.baseCents - linha.creditCents,
+      clinicRevenueCents: linha.source === 'adjustment' ? 0 : linha.baseCents - linha.creditCents,
       method: linha.source === 'company_session' ? 'convenio' : linha.paymentMethod ?? 'other',
     };
   });
@@ -285,7 +287,8 @@ export async function getMyFinancialData(
         paymentLink: apt?.paymentLink,
         amountCents: receivable.netAmountCents,
         receivedCents: Math.max(receivable.paidAmountCents - receivable.refundedAmountCents, 0),
-        outstandingCents: receivable.outstandingAmountCents,
+        outstandingCents: receivable.chargeStatus === 'paid' && charges.get(receivable.chargeId)?.companyInvoiceId
+          ? 0 : receivable.outstandingAmountCents,
       };
     })
     .sort((left, right) => right.dueAt.localeCompare(left.dueAt));

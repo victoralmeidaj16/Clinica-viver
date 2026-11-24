@@ -13,7 +13,8 @@ vi.mock('@/server/persistence/mysql/mappers', async (original) => ({
 }));
 vi.mock('./sessionChargeCancellation', () => ({ cancelRemote: vi.fn(), remoteCancellationState: vi.fn() }));
 import { cancelRemote, remoteCancellationState } from './sessionChargeCancellation';
-import { atualizarVencimentoCobrancaSessao } from './sessionChargeDue';
+import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
+import { atualizarVencimentoCobrancaSessao, enqueueChargeDuePlan } from './sessionChargeDue';
 import { processAppointmentChargeDue } from './sessionChargeDueWorker';
 const input = { organizationId: 'org', professionalId: 'pro', appointmentId: 'appt', dueAt: '2099-01-01T12:00:00Z' };
 
@@ -47,6 +48,13 @@ beforeEach(() => {
   vi.mocked(remoteCancellationState).mockImplementation(async () => { expect(state.transaction).toBe(false); return 'pending'; });
   vi.mocked(cancelRemote).mockImplementation(async () => { expect(state.transaction).toBe(false); return true; });
 });
+async function expirarGrupo() {
+  await state.connection.beginTransaction();
+  await enqueueChargeDuePlan(state.connection as unknown as PoolConnection,'appt',input.dueAt,
+    { operation:'expire',charges:state.charges as RowDataPacket[],checkouts:state.checkouts as RowDataPacket[],remotes:state.checkouts.map(x => ({provider:String(x.provedor),id:String(x.provedor_pagamento_ref)})) });
+  await state.connection.commit();
+  return processAppointmentChargeDue('appt');
+}
 function secondPayment() {
   state.checkouts.push({ ...state.checkouts[0], id: 'checkout-2', referencia_externa: 'VM-2', provedor_pagamento_ref: 'pay-2' });
 }
@@ -75,26 +83,24 @@ describe('ajuste financeiro após liberar a agenda', () => {
   });
 
   it('grava a intenção antes de acessar a rede e libera todas as sessões do grupo', async () => {
-    expect(await atualizarVencimentoCobrancaSessao(input)).toBe('updated');
+    expect(await expirarGrupo()).toBe('updated');
     expect(state.job?.situacao).toBe('completed');
     expect(JSON.parse(state.job!.plano).affectedChargeIds).toEqual(['charge', 'other-charge', 'group-member']);
     expect(state.connection.execute).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM financeiro_checkout_cobrancas'), ['inst', 'VM-old']);
-    expect(state.connection.execute).toHaveBeenCalledWith(expect.stringContaining('SET vence_em = ?'), [input.dueAt, 'inst', 'org', 'charge']);
+    expect(state.connection.execute).toHaveBeenCalledWith(expect.stringContaining("SET status = 'overdue'"), ['inst','org','charge']);
     expect(state.connection.commit.mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(cancelRemote).mock.invocationCallOrder[0]);
   });
   it('não cancela nenhum pagamento se o segundo já estiver pago na pré-consulta', async () => {
     secondPayment();
     vi.mocked(remoteCancellationState).mockResolvedValueOnce('pending').mockResolvedValueOnce('paid');
-    const aposAlteracao = vi.fn();
-    expect(await atualizarVencimentoCobrancaSessao({ ...input, aposAlteracao })).toBe('paid');
-    expect(aposAlteracao).not.toHaveBeenCalled();
+    expect(await expirarGrupo()).toBe('paid');
     expect(cancelRemote).not.toHaveBeenCalled();
     expect(state.job?.situacao).toBe('paid');
   });
   it('preserva a limpeza do primeiro cancelamento se o segundo for pago durante a operação', async () => {
     secondPayment();
     vi.mocked(cancelRemote).mockResolvedValueOnce(true).mockResolvedValueOnce(false);
-    expect(await atualizarVencimentoCobrancaSessao(input)).toBe('paid');
+    expect(await expirarGrupo()).toBe('paid');
     expect(state.connection.execute).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM financeiro_checkout_cobrancas'), ['inst', 'VM-old']);
     expect(JSON.parse(state.job!.plano).remotes).toEqual([{ provider: 'asaas', id: 'pay-2' }]);
     expect(state.connection.commit.mock.invocationCallOrder[1]).toBeLessThan(vi.mocked(cancelRemote).mock.invocationCallOrder[1]);
@@ -103,7 +109,7 @@ describe('ajuste financeiro após liberar a agenda', () => {
     secondPayment();
     vi.mocked(cancelRemote).mockResolvedValueOnce(true).mockRejectedValueOnce(new Error('rede indisponível'));
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect(await atualizarVencimentoCobrancaSessao(input)).toBe('queued');
+    expect(await expirarGrupo()).toBe('queued');
     expect(state.job?.situacao).toBe('pending');
     expect(JSON.parse(state.job!.plano).remotes).toEqual([{ provider: 'asaas', id: 'pay-2' }]);
     vi.mocked(cancelRemote).mockClear();
@@ -118,7 +124,7 @@ describe('ajuste financeiro após liberar a agenda', () => {
       return execute(sql, values);
     });
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect(await atualizarVencimentoCobrancaSessao(input)).toBe('queued');
+    expect(await expirarGrupo()).toBe('queued');
     expect(state.job?.situacao).toBe('pending');
     expect(JSON.parse(state.job!.plano).remotes).toHaveLength(1);
     expect(state.connection.rollback).toHaveBeenCalled();
@@ -129,22 +135,26 @@ describe('ajuste financeiro após liberar a agenda', () => {
   it('limpa remoção já feita numa tentativa anterior mesmo se o segundo pagamento foi liquidado', async () => {
     secondPayment();
     vi.mocked(remoteCancellationState).mockResolvedValueOnce('cancelled').mockResolvedValueOnce('paid');
-    expect(await atualizarVencimentoCobrancaSessao(input)).toBe('paid');
+    expect(await expirarGrupo()).toBe('paid');
     expect(cancelRemote).not.toHaveBeenCalled();
     expect(state.connection.execute).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM financeiro_checkout_cobrancas'), ['inst', 'VM-old']);
     expect(JSON.parse(state.job!.plano).remotes).toEqual([{ provider: 'asaas', id: 'pay-2' }]);
   });
   it('atualiza várias cobranças da sessão usando parâmetros escalares no comando preparado', async () => {
     state.charges.push({ ...state.charges[0], ref_core: 'charge-2' });
-    expect(await atualizarVencimentoCobrancaSessao(input)).toBe('updated');
+    expect(await expirarGrupo()).toBe('updated');
     expect(state.connection.execute).toHaveBeenCalledWith(expect.stringContaining('c.ref_core IN (?, ?)'),
-      [input.dueAt, 'inst', 'org', 'charge', 'charge-2']);
+      ['inst', 'org', 'charge', 'charge-2']);
   });
   it('preserva pagamento confirmado localmente', async () => {
-    state.charges[0].possui_pagamento = 1;
+    state.charges[0].status = 'paid';
     expect(await atualizarVencimentoCobrancaSessao(input)).toBe('paid');
     expect(cancelRemote).not.toHaveBeenCalled();
     expect(state.connection.execute).not.toHaveBeenCalled();
+  });
+  it('preserva o grupo emitido ao solicitar novo vencimento para um membro', async () => {
+    await expect(atualizarVencimentoCobrancaSessao(input)).rejects.toThrow('agrupa');
+    expect(cancelRemote).not.toHaveBeenCalled();
   });
   it('recusa checkout em emissão antes de salvar a intenção', async () => {
     state.checkouts[0].provedor_pagamento_ref = null;

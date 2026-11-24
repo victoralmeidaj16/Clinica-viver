@@ -33,6 +33,8 @@ describe.skipIf(!sqlite)('CPF atual prevalece sobre a triagem nos links público
       INSERT INTO clinica_pacientes VALUES ('patient-row','patient','inst','Paciente fictício',NULL,'pro-row','11144477735',NULL,NULL,NULL,NULL,NULL,NULL);
       INSERT INTO clinica_triagens_pacientes VALUES ('inst','org','patient','52998224725','SOCIAL','Psicoterapia Individual',NULL,'Adulto','2026-09-22',NULL,NULL);
       INSERT INTO clinica_agendamentos VALUES ('appt','inst','org-row','patient-row','pro-row','2099-01-01T15:00:00Z','payment-token','agendado',10000,NULL,0,NULL);
+      ALTER TABLE clinica_agendamentos ADD COLUMN pacote_id TEXT;
+      ALTER TABLE clinica_agendamentos ADD COLUMN custeio_aguarda_autorizacao INT DEFAULT 0;
     `);
     state.query.mockImplementation(async (sql: string, values: string[]) => [db.prepare(sql.replaceAll('UTC_TIMESTAMP(3)', 'CURRENT_TIMESTAMP').replace(' FOR UPDATE', '')).all(...values), []]);
   });

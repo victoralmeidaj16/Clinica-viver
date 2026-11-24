@@ -113,7 +113,7 @@ describe('sessoesDoConvenio', () => {
 });
 
 describe('fecharFatura', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => { vi.clearAllMocks(); connection.query.mockResolvedValueOnce([[{ politica:null }],[]] as never); });
 
   it('recusa a seleção quando um atendimento não está mais disponível', async () => {
     connection.query.mockResolvedValueOnce([[{ ref_core: 'charge-1', valor_centavos: 10000 }], []] as never);
@@ -135,7 +135,7 @@ describe('fecharFatura', () => {
       })
     ).rejects.toThrow(/Nenhum atendimento/);
 
-    const [sql, values] = connection.query.mock.calls[0] as unknown as [string, unknown[]];
+    const [sql, values] = connection.query.mock.calls[1] as unknown as [string, unknown[]];
     // A decisão gravada na sessão vence o vínculo do paciente: sob cota, o
     // mesmo paciente tem sessões da empresa e sessões dele, e só as primeiras
     // entram no boleto.
@@ -168,7 +168,7 @@ describe('fecharFatura', () => {
       cobrancaRefs: ['charge-2'],
     });
 
-    const [buscaAbertaSql, buscaAbertaValues] = connection.query.mock.calls[1] as unknown as [string, unknown[]];
+    const [buscaAbertaSql, buscaAbertaValues] = connection.query.mock.calls[2] as unknown as [string, unknown[]];
     expect(buscaAbertaSql).toContain("AND status = 'aberta'");
     expect(buscaAbertaValues).toEqual(['inst-1', 'org-1', 'conv-1', '2026-09']);
     const writes = connection.execute.mock.calls as unknown as Array<[string, unknown[]]>;
@@ -289,11 +289,12 @@ describe('cancelamentos no faturamento de convênios', () => {
   });
 
   it('bloqueia cobrança pendente de consulta cancelada mesmo com seleção explícita', async () => {
+    connection.query.mockResolvedValueOnce([[{ politica:null }],[]] as never);
     await expect(fecharFatura('org-1', 'conv-1', {
       competencia: '2026-09', periodoInicio: '2026-09-01', periodoFim: '2026-09-30',
       cobrancaRefs: ['cancelled-appointment-charge'],
     })).rejects.toThrow(/Nenhum atendimento/);
-    const [sql, values] = connection.query.mock.calls[0] as unknown as [string, unknown[]];
+    const [sql, values] = connection.query.mock.calls[1] as unknown as [string, unknown[]];
     expectCancellationGuard(sql, 'fc');
     expect(sql).toContain('fc.fatura_convenio_ref IS NULL');
     expect(sql).toContain("fc.status IN ('pending','overdue')");

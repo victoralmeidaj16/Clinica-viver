@@ -1,4 +1,6 @@
 import 'server-only';
+import { listEducationalCreditLines } from '@thats-life/core';
+import { lerCreditos } from './educationalCreditRepository';
 
 import type { RowDataPacket } from 'mysql2';
 import type { Pool } from 'mysql2/promise';
@@ -70,6 +72,7 @@ function toCharge(row: CobrancaRow): FinancialCharge {
     providerReference: row.provedor_ref ?? undefined,
     // Cobrança da empresa: nasce com o convênio na confirmação da sessão ou
     // entra numa fatura. A do paciente não tem nenhum dos dois.
+    companyInvoiceId: row.fatura_convenio_ref ?? undefined,
     payer: row.convenio_ref || row.fatura_convenio_ref ? 'company' : 'patient',
     createdAt: fromSqlTimestamp(row.criado_em) ?? new Date(0).toISOString(),
     updatedAt: fromSqlTimestamp(row.atualizado_em) ?? new Date(0).toISOString(),
@@ -85,6 +88,12 @@ const COBRANCA_SELECT = `
 
 export class MysqlFinancialRepository implements FinancialRepository {
   constructor(private readonly pool: Pick<Pool, 'query' | 'execute'> = getMysqlPool()) {}
+
+  async listPersistedCredits(organizationId: string, filter: FinancialFilter) {
+    const [ready] = await this.pool.query<RowDataPacket[]>("SELECT 1 FROM schema_migrations WHERE versao='099' AND nome='099_conferencia_creditos.sql'");
+    if (!ready.length) return listEducationalCreditLines(await this.getLedger({ organizationId }),filter);
+    return lerCreditos(organizationId, filter, this.pool);
+  }
 
   /**
    * Monta o razão do período.

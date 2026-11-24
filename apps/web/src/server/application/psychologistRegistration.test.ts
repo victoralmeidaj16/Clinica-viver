@@ -51,8 +51,18 @@ describe('estado operacional do psicólogo', () => {
   it('reinicia as escolhas ao alterar ou remover a segunda pós, mas não ao reenviar os mesmos cursos', () => {
     const base = cadastro({ posGraduacaoViverMais: psicanalise, segundaPosGraduacao: avaliacao, publicoAlvo: ['Criança'] });
     expect(aplicarMudancas(base, { segundaPosGraduacao: '' }, CAMPOS_DA_GESTAO).reconfiguracaoAtendimentoPendente).toBe(true);
-    expect(aplicarMudancas(base, { segundaPosGraduacao: psicanalise }, CAMPOS_DA_GESTAO).reconfiguracaoAtendimentoPendente).toBe(true);
+    expect(aplicarMudancas(base, { segundaPosGraduacao: 'Formação e Pós-graduação em Psicodrama' }, CAMPOS_DA_GESTAO).reconfiguracaoAtendimentoPendente).toBe(true);
+    expect(() => aplicarMudancas(base, { segundaPosGraduacao: psicanalise }, CAMPOS_DA_GESTAO)).toThrow(/diferente da principal/);
     expect(aplicarMudancas(base, { posGraduacaoViverMais: psicanalise, segundaPosGraduacao: avaliacao }, CAMPOS_DA_GESTAO).publicoAlvo).toEqual(['Criança']);
+  });
+
+  it('acrescentar a segunda pós não interrompe os atendimentos já autorizados (1.01)', () => {
+    const base = cadastro({ posGraduacaoViverMais: psicanalise, publicoAlvo: ['Criança'],
+      servicosPrestados: ['Atendimento Psicológico'], servicosHabilitados: ['PSICOTERAPIA'] });
+    const comSegunda = aplicarMudancas(base, { segundaPosGraduacao: avaliacao, segundaTurmaViverMais: 'turma 26b' }, CAMPOS_DA_GESTAO);
+    expect(comSegunda).toMatchObject({ reconfiguracaoAtendimentoPendente: false, publicoAlvo: ['Criança'],
+      servicosHabilitados: ['PSICOTERAPIA'], segundaPosGraduacao: avaliacao, segundaTurmaViverMais: '26B' });
+    expect(aplicarMudancas(comSegunda, { segundaPosGraduacao: '' }, CAMPOS_DA_GESTAO).segundaTurmaViverMais).toBeUndefined();
   });
 
   it('inicia a pendência ao aprovar a troca solicitada e mantém Particular/Social/Ambos', () => {

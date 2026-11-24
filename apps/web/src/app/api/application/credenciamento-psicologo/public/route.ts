@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import { generoProfissional } from '@/lib/gender';
-import { desligadoPorTurma } from '@/lib/turmaEncerrada';
-import { paraPsicologoPerfil, recalcularPacientesAtivos } from '@/server/application/viverMaisRodizio';
+import { foraPorVinculoAcademico } from '@/lib/turmaEncerrada';
+import {
+  paraPsicologoPerfil,
+  publicoEfetivo,
+  recalcularPacientesAtivos,
+  servicosEfetivos,
+} from '@/server/application/viverMaisRodizio';
 import { captureStateAsSnapshot, getCaptureRepository } from '@/server/persistence/captureRepository';
 
 export const runtime = 'nodejs';
@@ -13,13 +18,14 @@ export async function GET() {
     const state = recalcularPacientesAtivos(captureStateAsSnapshot(await getCaptureRepository().read()));
     const agora = new Date();
     const data = (state.cadastrosPsicologos ?? [])
-      // Turma encerrada: o perfil some da vitrine junto com a saída do rodízio.
+      // Sem vínculo acadêmico válido (turma fora do prazo e nenhuma outra pós
+      // aprovada), o perfil some da vitrine junto com a saída do rodízio (1.04).
       .filter(
         (item) =>
           item.status === 'APROVADO' &&
           !item.reconfiguracaoAtendimentoPendente &&
           item.exibirNaVitrine !== false &&
-          !desligadoPorTurma(item.turmaEncerrada)
+          !foraPorVinculoAcademico(item)
       )
       .map((item) => ({
         id: item.id,
@@ -33,7 +39,8 @@ export async function GET() {
         posGraduacaoViverMais: item.posGraduacaoViverMais,
         segundaPosGraduacao: item.segundaPosGraduacao,
         especialidades: item.especialidade ? [item.especialidade] : [],
-        servicosHabilitados: item.servicosHabilitados ?? [],
+        // Só o que os vínculos válidos permitem no catálogo atual (2.01–2.02).
+        servicosHabilitados: servicosEfetivos(item),
         temposAtendimento: item.temposAtendimento ?? [],
         turnosDisponiveis: item.turnosDisponiveis ?? [],
         modalidadesAtendidas: item.modalidadesAtendidas ?? [],
@@ -41,7 +48,7 @@ export async function GET() {
         // Só o suficiente para o paciente filtrar por psicólogo ou psicóloga na
         // recomendação: quem não se declarou em um dos dois não expõe nada.
         generoProfissional: generoProfissional(item.genero),
-        publicoAlvo: item.publicoAlvo ?? [],
+        publicoAlvo: publicoEfetivo(item) ?? [],
         necessidadesAtendidas: item.necessidadesAtendidas ?? [],
         disponivelParaNovosPacientes:
           !paraPsicologoPerfil(item, agora).pausadoNoRodizio &&

@@ -8,17 +8,21 @@ import {
   Plane,
   UserX,
 } from 'lucide-react';
-import { desligadoPorTurma, formatarDataCurta } from '@/lib/turmaEncerrada';
+import { foraPorVinculoAcademico, formatarDataCurta } from '@/lib/turmaEncerrada';
+import { rotuloRestante } from '@/lib/turmasCiclo';
 import { ausenciaEmCurso, periodoAusencia } from '@/lib/ausenciaAgenda';
 import { rotuloTurno } from '@/components/forms/opcoesPsicologo';
 import { PsicologoItem } from './types';
 import { PsicologoCardDetalhes } from './PsicologoCardDetalhes';
+import { VinculosAcademicosPainel } from './VinculosAcademicosPainel';
 import { PsicologoCardAcoes } from './PsicologoCardAcoes';
 import { BannerSolicitacaoAlteracaoGestao } from './BannerSolicitacaoAlteracaoGestao';
 import { focoPsicologo } from '@/lib/focoNotificacao';
 import { PsicologoPosicaoRodizio } from './PsicologoPosicaoRodizio';
 
 export interface PsicologoCardProps {
+  /** Recarrega a lista depois de uma decisão sobre vínculo acadêmico. */
+  onVinculoAlterado?: () => void | Promise<void>;
   p: PsicologoItem;
   ocupado: string | null;
   onAprovar: (p: PsicologoItem) => void;
@@ -46,6 +50,7 @@ export function PsicologoCard({
   onReenviarConvite,
   onAprovarSolicitacaoGestao,
   onRecusarSolicitacaoGestao,
+  onVinculoAlterado,
 }: PsicologoCardProps) {
   const [expanded, setExpanded] = useState(false);
 
@@ -67,7 +72,9 @@ export function PsicologoCard({
     ? p.ausenciasAgenda?.find((item) => Date.parse(item.inicio) > agora.getTime())
     : undefined;
   const encerramento = p.turmaEncerrada;
-  const desligado = desligadoPorTurma(encerramento);
+  // Fora só quando nenhum vínculo acadêmico aprovado continua válido (1.04).
+  const desligado = foraPorVinculoAcademico(p);
+  const emSaida = p.situacaoAcademica?.emSaida;
   const trabalhando = ocupado === p.id;
   const temSolicitacaoPendente = p.solicitacaoAlteracaoGestao?.status === 'PENDENTE';
 
@@ -109,6 +116,15 @@ export function PsicologoCard({
                 Turma {p.turmaViverMais || '—'}
               </span>
 
+              {emSaida?.saidaEm && (
+                <span
+                  className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200"
+                  title={`Turma ${emSaida.turma} de ${emSaida.posGraduacao} encerrada. Sai da vitrine por este vínculo em ${formatarDataCurta(emSaida.saidaEm)}.`}
+                >
+                  Saída {formatarDataCurta(emSaida.saidaEm)} · {rotuloRestante(emSaida.diasRestantes ?? 0)}
+                </span>
+              )}
+
               {temSolicitacaoPendente && (
                 <span className="text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 bg-purple-100 text-purple-900 border border-purple-300 animate-pulse">
                   <Bell className="w-3 h-3 text-purple-700" /> Alteração solicitada
@@ -126,7 +142,9 @@ export function PsicologoCard({
               ) : desligado ? (
                 <span
                   className="text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 bg-rose-50 text-rose-700 border border-rose-200"
-                  title={`Turma ${encerramento!.turma} encerrada em ${formatarDataCurta(encerramento!.encerradaEm)}. Fora do rodízio e da vitrine; reabra a turma para desfazer.`}
+                  title={encerramento
+                    ? `Turma ${encerramento.turma} encerrada em ${formatarDataCurta(encerramento.encerradaEm)}${encerramento.saidaEm ? ` e fora da vitrine desde ${formatarDataCurta(encerramento.saidaEm)}` : ''}. Sem outro vínculo acadêmico válido. Reabra a turma ou prorrogue a saída para desfazer.`
+                    : 'Nenhum vínculo acadêmico aprovado continua válido. Fora do rodízio e da vitrine.'}
                 >
                   <UserX className="w-3 h-3" /> Fora · turma encerrada
                 </span>
@@ -213,7 +231,10 @@ export function PsicologoCard({
 
       {/* Detalhes Expandidos da Linha */}
       {expanded && (
-        <PsicologoCardDetalhes p={p} trabalhando={trabalhando} onReenviarConvite={onReenviarConvite} />
+        <>
+          <PsicologoCardDetalhes p={p} trabalhando={trabalhando} onReenviarConvite={onReenviarConvite} />
+          {onVinculoAlterado && <VinculosAcademicosPainel p={p} onAlterado={onVinculoAlterado} />}
+        </>
       )}
     </div>
   );

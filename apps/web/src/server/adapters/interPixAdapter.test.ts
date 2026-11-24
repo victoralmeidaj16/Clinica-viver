@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   dynamicPixPayload,
   interTxid,
+  revisarPrazoPix,
   isInterPixSettled,
   parseInterPixSettlements,
 } from './interPixAdapter';
@@ -49,4 +50,19 @@ describe('adaptador Pix do Banco Inter', () => {
     }]);
     expect(parseInterPixSettlements([{ valor: 'inválido' }])).toEqual([]);
   });
+});
+
+it('consulta a alteração aplicada depois de timeout sem repetir a ordem ao banco', async () => {
+  const cob = { txid:'pix-teste',status:'ATIVA',calendario:{ criacao:'2099-02-01T11:00:00Z',expiracao:600 },valor:{ original:'100.00' } };
+  const ler = vi.fn(async () => cob);
+  const alterar = vi.fn(async (expiracao: number, original: string) => {
+    cob.calendario.expiracao = expiracao;
+    cob.valor.original = original;
+    throw new Error('timeout');
+  });
+  const solicitar = () => revisarPrazoPix(cob.txid,'2099-02-01T12:30:00Z',6000,ler,alterar);
+  await expect(solicitar()).rejects.toThrow('timeout');
+  expect(await solicitar()).toBe('updated');
+  expect(alterar.mock.calls).toEqual([[5400,'60.00']]);
+  expect(ler).toHaveBeenCalledTimes(2);
 });

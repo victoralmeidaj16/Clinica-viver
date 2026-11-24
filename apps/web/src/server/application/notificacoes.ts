@@ -1,7 +1,7 @@
 import { rotuloTurnoPreferencia } from '@/lib/turnos';
 import 'server-only';
 
-import { formatarDataCurta } from '@/lib/turmaEncerrada';
+import { foraPorVinculoAcademico, formatarDataCurta } from '@/lib/turmaEncerrada';
 import type { CadastroPsicologoRecord, TriagemPacienteRecord } from './persistence';
 import type { CaptureState } from '@/server/persistence/captureRepository';
 import type { CobrancaVencida, PagamentoRecebido } from '@/server/payments/paymentLinkRepository';
@@ -499,14 +499,31 @@ function notificacoesDoCadastro(cadastro: CadastroPsicologoRecord): NotificacaoD
     });
   }
 
-  if (cadastro.status === 'APROVADO' && cadastro.turmaEncerrada) {
+  // Contagem regressiva da saída (1.02–1.03): um aviso novo a cada marco
+  // configurado pela Gestão, com o texto dela.
+  if (cadastro.status === 'APROVADO' && cadastro.avisoSaidaTurma) {
+    const aviso = cadastro.avisoSaidaTurma;
+    itens.push({
+      chave: `turma-saida:${cadastro.id}:${aviso.posGraduacao}:${aviso.turma}:${aviso.encerradaEm}:${aviso.marco}`,
+      tipo: 'turma-saida',
+      titulo: `Turma ${aviso.turma}: saída da vitrine em ${formatarDataCurta(aviso.saidaEm)}`,
+      descricao: aviso.textoPsicologo,
+      ocorridoEm: new Date(`${aviso.encerradaEm}T12:00:00-03:00`).toISOString(),
+      severidade: aviso.diasRestantes <= 7 ? 'CRITICO' : 'ATENCAO',
+      href: comFoco('/meu-cadastro', FOCO_SECAO.statusCredenciamento),
+      pendente: true,
+    });
+  }
+
+  // Saiu de fato: nenhum vínculo acadêmico aprovado continua válido (1.04).
+  if (cadastro.status === 'APROVADO' && cadastro.turmaEncerrada && foraPorVinculoAcademico(cadastro)) {
     const encerramento = cadastro.turmaEncerrada;
     itens.push({
       // A data entra na chave: reabrir e encerrar de novo em outro dia é um aviso novo.
       chave: `turma-encerrada:${cadastro.id}:${encerramento.encerradaEm}`,
       tipo: 'turma-encerrada',
       titulo: `Sua turma ${encerramento.turma} de ${encerramento.posGraduacao} foi encerrada`,
-      descricao: `A gestão encerrou a turma em ${formatarDataCurta(encerramento.encerradaEm)}. Você saiu da vitrine e não receberá novos encaminhamentos; seus pacientes atuais seguem com você.`,
+      descricao: `A gestão encerrou a turma em ${formatarDataCurta(encerramento.encerradaEm)}${encerramento.saidaEm ? ` e o prazo de saída terminou em ${formatarDataCurta(encerramento.saidaEm)}` : ''}. Você saiu da vitrine e não receberá novos encaminhamentos; seus pacientes atuais seguem com você.`,
       ocorridoEm: new Date(`${encerramento.encerradaEm}T12:00:00-03:00`).toISOString(),
       severidade: 'ATENCAO',
       href: comFoco('/meu-cadastro', FOCO_SECAO.statusCredenciamento),
@@ -761,7 +778,33 @@ export function notificacoesDaGestao(
     }
   }
 
-  return itens;
+  return [...itens, ...notificacoesDeSaidaDeTurma(state)];
+}
+
+/**
+ * Turmas em contagem de saída (1.02–1.03), uma por turma e marco, com o texto
+ * configurado pela Gestão e quantos psicólogos ainda dependem daquele vínculo.
+ */
+function notificacoesDeSaidaDeTurma(state: CaptureState): NotificacaoDerivada[] {
+  const porTurma = new Map<string, { aviso: NonNullable<CadastroPsicologoRecord['avisoSaidaTurma']>; nomes: string[] }>();
+  for (const cadastro of state.cadastrosPsicologos) {
+    const aviso = cadastro.status === 'APROVADO' ? cadastro.avisoSaidaTurma : undefined;
+    if (!aviso) continue;
+    const chave = `${aviso.posGraduacao}:${aviso.turma}:${aviso.encerradaEm}:${aviso.marco}`;
+    const grupo = porTurma.get(chave) ?? { aviso, nomes: [] };
+    grupo.nomes.push(nomeDeExibicao(cadastro));
+    porTurma.set(chave, grupo);
+  }
+  return [...porTurma.entries()].map(([chave, { aviso, nomes }]) => ({
+    chave: `turma-saida-gestao:${chave}`,
+    tipo: 'turma-saida',
+    titulo: `Turma ${aviso.turma} sai da vitrine em ${formatarDataCurta(aviso.saidaEm)}`,
+    descricao: `${aviso.textoGestao} Psicólogos afetados: ${nomes.length} (${nomes.slice(0, 5).join(', ')}${nomes.length > 5 ? '…' : ''}).`,
+    ocorridoEm: new Date(`${aviso.encerradaEm}T12:00:00-03:00`).toISOString(),
+    severidade: aviso.diasRestantes <= 7 ? 'CRITICO' : 'ATENCAO',
+    href: '/gestao/cursos?aba=turmas',
+    pendente: true,
+  }));
 }
 
 /**

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { normalizeBrazilPhone } from '@/lib/brazilPhone';
 import { validateGender } from '@/lib/gender';
 import { opcoesAtendimentoDaPos } from './opcoesPsicologo';
+import { useCatalogoCursos } from './useCatalogoCursos';
 import { VERSAO_TERMOS_PARCERIA } from './ModalTermosParceria';
 import { CADASTRO_PSICOLOGO_INICIAL } from './cadastroPsicologoFormState';
 import type { CadastroPsicologoCriado } from './CadastroPsicologoForm';
@@ -10,6 +11,8 @@ export function useCadastroPsicologoForm(onSucesso: (cadastro: CadastroPsicologo
   const [temNomeSocialPsicologo, setTemNomeSocialPsicologo] = useState(false);
   const [temSegundaPos, setTemSegundaPos] = useState(false);
   const [segundaPosGraduacao, setSegundaPosGraduacao] = useState('');
+  const [segundaTurma, setSegundaTurma] = useState('');
+  const catalogo = useCatalogoCursos();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [cadastroExistente, setCadastroExistente] = useState<string | null>(null);
   const [modalTermosAberto, setModalTermosAberto] = useState(false);
@@ -43,8 +46,17 @@ export function useCadastroPsicologoForm(onSucesso: (cadastro: CadastroPsicologo
     }
     const opcoesAtendimento = opcoesAtendimentoDaPos(
       formPsicologo.posGraduacaoViverMais,
-      temSegundaPos ? segundaPosGraduacao : undefined
+      temSegundaPos ? segundaPosGraduacao : undefined,
+      catalogo.cursos
     );
+    if (!formPsicologo.turmaViverMais) {
+      alert('Selecione a sua turma.');
+      return;
+    }
+    if (temSegundaPos && (!segundaPosGraduacao || !segundaTurma)) {
+      alert('Selecione a segunda pós-graduação e a turma dela.');
+      return;
+    }
     const servicosSelecionados = opcoesAtendimento
       ? formPsicologo.servicosPrestados.filter((servico) => opcoesAtendimento.servicos.includes(servico))
       : formPsicologo.servicosPrestados;
@@ -88,6 +100,7 @@ export function useCadastroPsicologoForm(onSucesso: (cadastro: CadastroPsicologo
               }
             : {}),
           segundaPosGraduacao: temSegundaPos ? segundaPosGraduacao : undefined,
+          segundaTurmaViverMais: temSegundaPos ? segundaTurma : undefined,
           aceitouTermos: true,
           aceitouTermosEm: new Date().toISOString(),
           versaoTermos: VERSAO_TERMOS_PARCERIA,
@@ -111,6 +124,7 @@ export function useCadastroPsicologoForm(onSucesso: (cadastro: CadastroPsicologo
 
   return { formPsicologo, setFormPsicologo, temNomeSocialPsicologo, setTemNomeSocialPsicologo,
     temSegundaPos, setTemSegundaPos, segundaPosGraduacao, setSegundaPosGraduacao,
+    segundaTurma, setSegundaTurma, catalogo,
     isSubmitting, cadastroExistente, modalTermosAberto, setModalTermosAberto,
     aceitouTermos, setAceitouTermos, handleSubmitPsicologo };
 }

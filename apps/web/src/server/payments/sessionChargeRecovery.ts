@@ -39,7 +39,7 @@ export async function recuperarCobrancasPosSessaoPendentes(limit = 100): Promise
          ON conv.instituicao_id = pa.instituicao_id AND conv.organizacao_ref = o.ref_core
         AND conv.ref_core = pa.convenio_ref
       WHERE a.instituicao_id = ?
-        AND a.valor_centavos > 0 AND a.ref_core IS NOT NULL
+        AND a.pacote_id IS NULL AND a.custeio_aguarda_autorizacao=0 AND a.valor_centavos > 0 AND a.ref_core IS NOT NULL
         AND ((a.status = 'realizado' AND a.realizado_em IS NOT NULL)
           OR a.status IN ('agendado', 'confirmado'))
         AND ${custeioDoAgendamentoSql({ agendamento: 'a', paciente: 'pa', convenio: 'conv' })} = 0

@@ -16,12 +16,15 @@ it.each(['draft', 'pending', 'overdue'] as const)('oferece a edição de vencime
 
 it.each([
   ['paga', { status: 'paid' as const, recebidoCents: 10000, emAbertoCents: 0 }],
-  ['parcialmente paga', { status: 'partially_paid' as const, recebidoCents: 4000 }],
   ['cancelada', { status: 'cancelled' as const }],
   ['custeada pela empresa', { custeadoPelaEmpresa: true }],
   ['faturada ao convênio', { faturaConvenioId: 'invoice-test' }],
 ])('não oferece a edição em cobrança %s', (_, item) => {
   expect(render(item)).not.toContain('Editar vencimento');
+});
+
+it('oferece edição sobre os R$ 60 restantes', () => {
+  expect(render({ status:'partially_paid', recebidoCents:4000, emAbertoCents:6000 })).toContain('Editar vencimento');
 });
 
 it('não oferece a edição a quem não é da administração', () => {

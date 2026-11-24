@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import { Globe, Phone } from 'lucide-react';
+import { formatarCargaHorariaExtenso } from '@thats-life/core';
 /**
  * A declaração de horas como documento — a folha A4 que vai para a impressora.
  *
@@ -23,6 +24,7 @@ export interface DeclaracaoImpressa {
   periodoInicio: string;
   periodoFim: string;
   totalHoras: number;
+  totalMinutos?: number;
   coordenadora: string;
   emitidoEm: string;
 }
@@ -149,7 +151,7 @@ export function DocumentoDeclaracao({ declaracao }: { declaracao: DeclaracaoImpr
             horária de estágio em atendimento psicológico, que {declaracao.psicologoNome}, CRP{' '}
             {declaracao.psicologoCrp}, {declaracao.tratamento} em {declaracao.curso}, realizou atendimentos
             psicológicos no período de {mesAno(declaracao.periodoInicio)} a {mesAno(declaracao.periodoFim)},
-            totalizando {declaracao.totalHoras} horas de atendimento clínico nesta instituição.
+            totalizando {formatarCargaHorariaExtenso(declaracao.totalMinutos ?? declaracao.totalHoras * 60)} de atendimento clínico nesta instituição.
           </p>
         </div>
       </div>

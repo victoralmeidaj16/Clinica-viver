@@ -11,6 +11,7 @@ const REQUEST_TIMEOUT_MS = 15_000;
 
 interface TokenResponse { access_token: string; expires_in?: number; }
 interface InterCobResponse {
+  calendario?: { criacao?: string; expiracao?: number };
   txid: string;
   status: string;
   location?: string;
@@ -255,4 +256,34 @@ export async function cancelInterPixCharge(txid: string): Promise<void> {
 
 export function isInterPixSettled(status: string): boolean {
   return status === 'CONCLUIDA';
+}
+
+/** A expiração de uma Cob imediata conta segundos desde a criação no PSP. */
+export async function confirmarPrazoInterPix(txid: string, dueAt: string, saldoCentavos: number) {
+  const path = '/pix/v2/cob/' + encodeURIComponent(txid);
+  const token = await accessToken();
+  return revisarPrazoPix(txid, dueAt, saldoCentavos,
+    () => interRequest<InterCobResponse>(path, { token }),
+    (expiracao, valor) => interRequest(path, { method:'PATCH', token,
+      body:JSON.stringify({ calendario:{ expiracao }, valor:{ original:valor } }) }));
+}
+
+export async function revisarPrazoPix(txid: string, dueAt: string, saldoCentavos: number,
+  ler: () => Promise<InterCobResponse>, alterar: (expiracao: number, valor: string) => Promise<unknown>) {
+  const prazo = Date.parse(dueAt);
+  const confere = (c: InterCobResponse) => {
+    const vence = Date.parse(c.calendario?.criacao ?? '') + Number(c.calendario?.expiracao) * 1000;
+    return c.txid === txid && c.status === 'ATIVA' && Math.floor(vence / 1000) === Math.floor(prazo / 1000)
+      && Math.round(Number(c.valor?.original) * 100) === saldoCentavos;
+  };
+  const antes = await ler();
+  if (antes.txid !== txid) return 'rejected';
+  if (isInterPixSettled(antes.status)) return 'paid';
+  if (confere(antes)) return 'updated';
+  const expiracao = Math.floor(prazo / 1000) - Math.floor(Date.parse(antes.calendario?.criacao ?? '') / 1000);
+  if (antes.status !== 'ATIVA' || !Number.isSafeInteger(expiracao) || expiracao <= 0 || prazo <= Date.now()) return 'rejected';
+  await alterar(expiracao, (saldoCentavos / 100).toFixed(2));
+  const depois = await ler();
+  if (depois.txid === txid && isInterPixSettled(depois.status)) return 'paid';
+  return confere(depois) ? 'updated' : 'rejected';
 }

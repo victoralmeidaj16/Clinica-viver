@@ -1,3 +1,4 @@
+import { prazoSolicitadoSql } from '@/server/payments/sessionChargeDueQueue';
 import { lerResponsavelFinanceiro, type ResponsavelFinanceiro } from '@/lib/responsavelFinanceiro';
 import { responsavelFinanceiroDisponivel } from '@/server/persistence/mysql/responsavelFinanceiroSql';
 import {
@@ -25,9 +26,10 @@ import { ambienteNfse, type AmbienteNfse } from '@/server/fiscal/sefinNacional';
 import { NfseRepository, type StatusEmissaoNfse } from '@/server/fiscal/nfseRepository';
 import { isMysqlConfigured } from '@/server/oci/runtime';
 import { getMysqlPool } from '@/server/oci/runtime';
+import { caixaDosContratos } from '@/server/persistence/mysql/clinicContractFinance';
 import { custeioDoAgendamentoSql } from '@/server/persistence/mysql/custeioSql';
 import { quitadaPelaEmpresa } from '@/lib/convenioBilling';
-import { instituicaoId } from '@/server/persistence/mysql/mappers';
+import { fromSqlTimestamp, instituicaoId } from '@/server/persistence/mysql/mappers';
 import type { RowDataPacket } from 'mysql2/promise';
 import type { PatientContactCapable, PatientRegistrationCapable } from '@/server/persistence/mysql/identityRepository';
 import { ApplicationError } from './http';
@@ -56,6 +58,7 @@ export interface AtendimentoFinanceiroClinica {
   psicologoId: string;
   psicologoNome: string;
   vencimentoEm: string;
+  prazoSolicitado?: string;
   status: ChargeStatus;
   valorLiquidoCents: number;
   recebidoCents: number;
@@ -110,7 +113,7 @@ export interface PanoramaFinanceiroClinica {
  * extrato do psicólogo: a sessão custeada por empresa gera crédito no mês da
  * confirmação, e a quitação do boleto só movimenta caixa e receita.
  */
-function recebimentosNoPeriodo(ledger: FinancialLedger, filter: FinancialFilter) {
+function recebimentosNoPeriodo(ledger: FinancialLedger, filter: FinancialFilter, creditos: ReturnType<typeof listEducationalCreditLines>) {
   const porCobranca = new Map<string, Pick<AtendimentoFinanceiroClinica, 'recebidoCents' | 'creditoPsicologoCents' | 'receitaClinicaCents'>>();
   const estornos = new Map<string, { anteriores: number; noPeriodo: number }>();
   const inicio = filter.startDate ? Date.parse(filter.startDate) : undefined;
@@ -140,7 +143,7 @@ function recebimentosNoPeriodo(ledger: FinancialLedger, filter: FinancialFilter)
     }
     porCobranca.set(payment.chargeId, total);
   }
-  for (const linha of listEducationalCreditLines(ledger, { startDate: filter.startDate, endDate: filter.endDate })) {
+  for (const linha of creditos) {
     const total = porCobranca.get(linha.chargeId) ?? { recebidoCents: 0, creditoPsicologoCents: 0, receitaClinicaCents: 0 };
     total.creditoPsicologoCents += linha.creditCents;
     porCobranca.set(linha.chargeId, total);
@@ -176,17 +179,19 @@ async function resolverNomes(
 
 async function metadadosConvenios(organizationId: string, chargeIds: readonly string[]) {
   if (!isMysqlConfigured() || chargeIds.length === 0) {
-    return new Map<string, { nome?: string; custeado: boolean; faturaId?: string }>();
+    return new Map<string, { nome?: string; custeado: boolean; faturaId?: string; contratual?: boolean; situacaoFatura?: string; prazoSolicitado?: string }>();
   }
   const [rows] = await getMysqlPool().query<RowDataPacket[]>(
     // A cobrança sozinha não diz quem paga: com cota personalizada, duas sessões
     // do mesmo paciente têm pagadores diferentes. Por isso o custeio vem da
     // sessão que originou a cobrança, e o vínculo do paciente só responde
     // enquanto aquela sessão ainda não foi decidida.
-    `SELECT fc.ref_core, conv.nome, fc.fatura_convenio_ref,
+    `SELECT fc.ref_core, conv.nome, fc.fatura_convenio_ref, f.composicao_contratual IS NOT NULL AS contratual, f.status AS situacao_fatura,
+            ${prazoSolicitadoSql('fc.instituicao_id','COALESCE(ag.id,fc.id)')} AS solicitado,
             ${custeioDoAgendamentoSql({ agendamento: 'ag', paciente: 'p', convenio: 'conv' })} AS custeado
        FROM financeiro_cobrancas fc
        JOIN clinica_pacientes p ON p.instituicao_id = fc.instituicao_id AND p.ref_core = fc.paciente_ref
+       LEFT JOIN financeiro_faturas_convenio f ON f.instituicao_id=fc.instituicao_id AND f.organizacao_ref=fc.organizacao_ref AND f.ref_core=fc.fatura_convenio_ref
        LEFT JOIN clinica_agendamentos ag ON ag.instituicao_id = fc.instituicao_id
         AND fc.sessao_ref IN (ag.ref_core, ag.sessao_clinica_ref)
        LEFT JOIN clinica_convenios conv ON conv.instituicao_id = fc.instituicao_id
@@ -196,7 +201,7 @@ async function metadadosConvenios(organizationId: string, chargeIds: readonly st
   );
   return new Map(rows.map((row) => [String(row.ref_core), {
     nome: row.nome ? String(row.nome) : undefined, custeado: Boolean(row.custeado),
-    faturaId: row.fatura_convenio_ref ? String(row.fatura_convenio_ref) : undefined,
+    prazoSolicitado:fromSqlTimestamp(row.solicitado), contratual:Boolean(row.contratual), situacaoFatura:row.situacao_fatura, faturaId: row.fatura_convenio_ref ? String(row.fatura_convenio_ref) : undefined,
   }]));
 }
 
@@ -217,7 +222,8 @@ export async function getClinicFinanceOverview(
   );
 
   const issuedChargeIds = new Set(bundle.receivables.map((item) => item.chargeId));
-  const receivedByCharge = recebimentosNoPeriodo(ledger, filter);
+  const creditos = store.financial.listPersistedCredits ? await store.financial.listPersistedCredits(organizationId, filter) : listEducationalCreditLines(ledger, filter);
+  const receivedByCharge = recebimentosNoPeriodo(ledger, filter, creditos);
   // Exibe também cobranças antigas que movimentaram caixa no mês selecionado.
   const receivables = reconcileSessionReceivables(ledger)
     .filter((item) => issuedChargeIds.has(item.chargeId) || receivedByCharge.has(item.chargeId));
@@ -231,6 +237,12 @@ export async function getClinicFinanceOverview(
     metadadosConvenios(organizationId, chargeIds),
   ]);
 
+  const caixa = isMysqlConfigured() ? await caixaDosContratos(organizationId,filter,bundle.summary.generatedAt)
+    : { recebido:0,receita:0,faturado:0,aberto:0,vencido:0 };
+  const vinculadas = bundle.receivables.filter(r => convenios.get(r.chargeId)?.contratual);
+  const faturadoCents = bundle.summary.netBilledCents + caixa.faturado - vinculadas.reduce((n,r) => n+r.netAmountCents,0);
+  const aberto = bundle.summary.outstandingCents + caixa.aberto - vinculadas.reduce((n,r) => n+r.outstandingAmountCents,0);
+  const vencido = bundle.summary.overdueCents + caixa.vencido - vinculadas.reduce((n,r) => n+(r.chargeStatus==='overdue' ? r.outstandingAmountCents : 0),0);
   const atendimentos = receivables.map((receivable): AtendimentoFinanceiroClinica => {
     const { recebidoCents, creditoPsicologoCents, receitaClinicaCents } = receivedByCharge.get(receivable.chargeId)
       ?? { recebidoCents: 0, creditoPsicologoCents: 0, receitaClinicaCents: 0 };
@@ -245,10 +257,11 @@ export async function getClinicFinanceOverview(
       psicologoId: receivable.professionalId,
       psicologoNome: nomes.psicologos.get(receivable.professionalId) ?? receivable.professionalId,
       vencimentoEm: receivable.dueAt,
-      status: deriveChargeStatus(receivable, bundle.summary.generatedAt),
+      prazoSolicitado: convenios.get(receivable.chargeId)?.prazoSolicitado,
+      status: convenios.get(receivable.chargeId)?.contratual ? (convenios.get(receivable.chargeId)?.situacaoFatura === 'paga' ? 'paid' : 'pending') : deriveChargeStatus(receivable, bundle.summary.generatedAt),
       valorLiquidoCents: receivable.netAmountCents,
       recebidoCents,
-      emAbertoCents: receivable.outstandingAmountCents,
+      emAbertoCents: convenios.get(receivable.chargeId)?.contratual ? 0 : receivable.outstandingAmountCents,
       creditoPsicologoCents,
       receitaClinicaCents,
       nfseStatus: emissoes.get(receivable.chargeId)?.status ?? 'none',
@@ -291,7 +304,7 @@ export async function getClinicFinanceOverview(
   const somar = (selecionar: (item: AtendimentoFinanceiroClinica) => number) =>
     atendimentos.reduce((total, item) => total + selecionar(item), 0);
 
-  const recebidoCents = somar((item) => item.recebidoCents);
+  const recebidoCents = somar((item) => item.recebidoCents) + caixa.recebido;
 
   return {
     periodo: { inicio: filter.startDate, fim: filter.endDate },
@@ -300,14 +313,14 @@ export async function getClinicFinanceOverview(
       atendimentos: bundle.summary.chargeCount,
       liquidados: bundle.summary.settledChargeCount,
       vencidos: bundle.summary.overdueChargeCount,
-      faturadoCents: bundle.summary.netBilledCents,
+      faturadoCents,
       recebidoCents,
-      emAbertoCents: bundle.summary.outstandingCents,
-      vencidoCents: bundle.summary.overdueCents,
-      inadimplencia: bundle.summary.delinquencyRate,
+      emAbertoCents: aberto,
+      vencidoCents: vencido,
+      inadimplencia: vinculadas.length || caixa.faturado ? (faturadoCents ? vencido / faturadoCents : 0) : bundle.summary.delinquencyRate,
       creditoPsicologosCents: somar((item) => item.creditoPsicologoCents),
-      receitaClinicaCents: somar((item) => item.receitaClinicaCents),
-      provisionadoConvenioCents: somar((item) => item.custeadoPelaEmpresa && issuedChargeIds.has(item.chargeId) ? item.emAbertoCents : 0),
+      receitaClinicaCents: somar((item) => item.receitaClinicaCents) + caixa.receita,
+      provisionadoConvenioCents: caixa.aberto + somar((item) => item.custeadoPelaEmpresa && issuedChargeIds.has(item.chargeId) ? item.emAbertoCents : 0),
     },
     atendimentos,
     porPsicologo,

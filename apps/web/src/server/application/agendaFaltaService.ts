@@ -30,12 +30,12 @@ async function renovarVencimentoSePreciso(
     throw falhaNaCobranca('o vencimento da cobrança não pôde ser renovado');
   }
   // `paid`: o pagamento chegou nesse meio-tempo. `queued`: o ajuste será retomado.
-  if (resultado === 'not_found' || resultado === 'invalid') {
+  if (resultado === 'not_found' || resultado === 'invalid' || resultado === 'rejected') {
     throw falhaNaCobranca('o vencimento da cobrança não pôde ser renovado');
   }
 }
 
-const RECUSAS: Record<Exclude<ResultadoRegistroFalta, 'recorded'>, [code: string, message: string, status: number]> = {
+const RECUSAS: Record<Exclude<ResultadoRegistroFalta, 'recorded' | 'covered'>, [code: string, message: string, status: number]> = {
   not_found: ['NOT_FOUND', 'Agendamento não encontrado.', 404],
   stale: ['APPOINTMENT_CHANGED', 'A sessão foi alterada enquanto você registrava a falta. Atualize a agenda e tente de novo.', 409],
   too_early: ['APPOINTMENT_NOT_STARTED', 'A falta só pode ser registrada depois do horário de início da sessão.', 409],
@@ -62,12 +62,12 @@ export async function registrarFaltaNaAgenda(
   }
 
   const resultado = await registrarFaltaDoAgendamento(organizationId, professionalId, appointmentId, input);
-  if (resultado !== 'recorded') {
+  if (resultado !== 'recorded' && resultado !== 'covered') {
     const [code, message, status] = RECUSAS[resultado];
     throw new ApplicationError(code, message, status);
   }
 
-  if (input.cobrar) {
+  if (input.cobrar && resultado !== 'covered') {
     const vencimento = new Date(Date.now() + PRAZO_COBRANCA_FALTA_MS).toISOString();
     const cobranca = await garantirCobrancaDaSessao(appointmentId, vencimento);
     if (cobranca === 'failed' || cobranca === 'skipped') throw falhaNaCobranca('a cobrança não pôde ser criada');

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   apurarHorasClinicas,
   calcularHashDeclaracao,
+  formatarCargaHorariaCurta,
+  formatarCargaHorariaExtenso,
   gerarCodigoVerificacao,
   normalizarCodigoVerificacao,
   type ConteudoDeclaracao,
@@ -98,11 +100,41 @@ describe('apurarHorasClinicas', () => {
     expect(apurarHorasClinicas(sessoes, { inicio: '2026-10-01', fim: '2026-10-31' })).toEqual({
       sessaoIds: ['s-out-1', 's-out-2'],
       totalSessoes: 2,
+      totalMinutos: 120,
       totalHoras: 2,
       periodoInicio: '2026-10-01',
       periodoFim: '2026-10-31',
     });
     expect(apurarHorasClinicas(sessoes, { inicio: '2026-12-01', fim: '2026-12-31' })).toBeNull();
+  });
+
+  it('soma a duração real das sessões (ex.: 50min + 90min = 2h20)', () => {
+    const apuracao = apurarHorasClinicas([
+      {
+        id: 's-50',
+        status: 'completed',
+        scheduledStart: '2026-10-01T13:00:00.000Z',
+        scheduledEnd: '2026-10-01T13:50:00.000Z',
+      },
+      {
+        id: 's-90',
+        status: 'completed',
+        scheduledStart: '2026-10-02T14:00:00.000Z',
+        scheduledEnd: '2026-10-02T15:30:00.000Z',
+      },
+    ]);
+    expect(apuracao).toEqual({
+      sessaoIds: ['s-50', 's-90'],
+      totalSessoes: 2,
+      totalMinutos: 140,
+      totalHoras: 2,
+      periodoInicio: '2026-10-01',
+      periodoFim: '2026-10-02',
+    });
+    expect(formatarCargaHorariaCurta(apuracao!.totalMinutos)).toBe('2h20');
+    expect(formatarCargaHorariaExtenso(apuracao!.totalMinutos)).toBe('2 horas e 20 minutos');
+    expect(formatarCargaHorariaCurta(50)).toBe('50min');
+    expect(formatarCargaHorariaExtenso(60)).toBe('1 hora');
   });
 });
 

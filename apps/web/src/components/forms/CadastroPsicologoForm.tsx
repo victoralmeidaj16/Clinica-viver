@@ -77,7 +77,8 @@ export function CadastroPsicologoForm({
           onChange={(acessibilidade) => setFormPsicologo((current) => ({ ...current, acessibilidade }))} />
         <CadastroPsicologoFormacao formPsicologo={formPsicologo} setFormPsicologo={setFormPsicologo}
           temSegundaPos={form.temSegundaPos} setTemSegundaPos={form.setTemSegundaPos}
-          segundaPosGraduacao={form.segundaPosGraduacao} setSegundaPosGraduacao={form.setSegundaPosGraduacao} />
+          segundaPosGraduacao={form.segundaPosGraduacao} setSegundaPosGraduacao={form.setSegundaPosGraduacao}
+          segundaTurma={form.segundaTurma} setSegundaTurma={form.setSegundaTurma} catalogo={form.catalogo} />
         <CadastroPsicologoPreferencias formPsicologo={formPsicologo} setFormPsicologo={setFormPsicologo} />
 
         {/* Termo de Adesão e Condições de Uso */}

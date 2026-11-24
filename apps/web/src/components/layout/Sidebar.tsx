@@ -18,6 +18,7 @@ import {
   LogOut,
   X,
   HelpCircle,
+  GraduationCap,
 } from 'lucide-react';
 
 const psicologoItems = [
@@ -37,6 +38,7 @@ const financeiroItems = [
 const gestaoItems = [
   { label: 'Agenda da Clínica', href: '/gestao/agenda', icon: CalendarDays },
   { label: 'Gestão de Psicólogos', href: '/gestao/psicologos', icon: UserCheck },
+  { label: 'Cursos, Turmas e Demandas', href: '/gestao/cursos', icon: GraduationCap },
   { label: 'Gestão de Pacientes', href: '/gestao/pacientes', icon: Users },
   { label: 'Painel da clínica', href: '/gestao/cockpit', icon: Shield },
   { label: 'Financeiro & Repasses', href: '/gestao/financeiro', icon: CreditCard },

@@ -86,6 +86,8 @@ export async function POST(request: Request) {
         });
       await bindProviderPayment(checkout, pix.id, 'pix', 'inter');
       await reconcileSettledInterPixCharge(pix);
+      if (pix.status !== 'ATIVA' || Math.round(pix.value * 100) !== checkout.amountCents)
+        throw new SessionChargeUnavailableError('Confira o saldo e o estado do Pix antes de pagar.');
       return NextResponse.json({
         success: true,
         provider: 'inter',

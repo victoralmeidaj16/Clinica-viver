@@ -2,26 +2,38 @@ import React from 'react';
 import type { CamposCadastroPsicologoProps } from './cadastroPsicologoFormState';
 import { maskCrpInput } from '@/lib/crp';
 import { TemposAtendimentoPsicologo } from './TemposAtendimentoPsicologo';
-import { POS_GRADUACOES_VIVER_MAIS, SEGUNDAS_POS_GRADUACOES, TURMAS_VIVER_MAIS, opcoesAtendimentoDaPos } from './opcoesPsicologo';
+import { opcoesAtendimentoDaPos } from './opcoesPsicologo';
+import { CATALOGO_CLIENTE_PADRAO, cursosParaSelecao, turmasParaSelecao, type CatalogoCursosCliente } from './useCatalogoCursos';
 
 interface Props extends CamposCadastroPsicologoProps {
   temSegundaPos: boolean;
   setTemSegundaPos: React.Dispatch<React.SetStateAction<boolean>>;
   segundaPosGraduacao: string;
   setSegundaPosGraduacao: React.Dispatch<React.SetStateAction<string>>;
+  segundaTurma?: string;
+  setSegundaTurma?: React.Dispatch<React.SetStateAction<string>>;
+  catalogo?: CatalogoCursosCliente;
 }
 
-export function CadastroPsicologoFormacao({ formPsicologo, setFormPsicologo, temSegundaPos, setTemSegundaPos, segundaPosGraduacao, setSegundaPosGraduacao }: Props) {
+/**
+ * Pós-graduação e turma (especificação final, 1.01 passos 1–4, 3.2 e 3.3): o
+ * curso traz só as turmas abertas dele e as permissões configuradas pela
+ * Gestão. Cada vínculo depende de aprovação antes de liberar atendimento.
+ */
+export function CadastroPsicologoFormacao({ formPsicologo, setFormPsicologo, temSegundaPos, setTemSegundaPos, segundaPosGraduacao, setSegundaPosGraduacao, segundaTurma = '', setSegundaTurma = () => {}, catalogo = CATALOGO_CLIENTE_PADRAO }: Props) {
+  const cursos = cursosParaSelecao(catalogo);
+  const turmas = turmasParaSelecao(catalogo, formPsicologo.posGraduacaoViverMais);
+  const turmasSegunda = segundaPosGraduacao ? turmasParaSelecao(catalogo, segundaPosGraduacao) : [];
   return <>
         {/* Pós-Graduação Principal Viver Mais */}
         <div>
           <label className="font-bold text-slate-700 block mb-1">Pós-Graduação na Viver Mais Psicologia <span className="text-rose-500">*</span></label>
           <select
             value={formPsicologo.posGraduacaoViverMais}
-            onChange={(e) => setFormPsicologo({ ...formPsicologo, posGraduacaoViverMais: e.target.value })}
+            onChange={(e) => setFormPsicologo({ ...formPsicologo, posGraduacaoViverMais: e.target.value, turmaViverMais: '' })}
             className="w-full border border-slate-300 bg-white rounded-xl p-3 focus:outline-none focus:border-purple-600 font-medium"
           >
-            {POS_GRADUACOES_VIVER_MAIS.map((pos) => (
+            {cursos.map((pos) => (
               <option key={pos} value={pos}>{pos}</option>
             ))}
           </select>
@@ -31,11 +43,13 @@ export function CadastroPsicologoFormacao({ formPsicologo, setFormPsicologo, tem
           <div>
             <label className="font-bold text-slate-700 block mb-1">Turma Viver Mais <span className="text-rose-500">*</span></label>
             <select
+              required
               value={formPsicologo.turmaViverMais}
               onChange={(e) => setFormPsicologo({ ...formPsicologo, turmaViverMais: e.target.value })}
               className="w-full border border-slate-300 bg-white rounded-xl p-3 focus:outline-none focus:border-purple-600 font-bold"
             >
-              {TURMAS_VIVER_MAIS.map((turma) => (
+              <option value="" disabled>{turmas.length ? 'Selecione a turma' : 'Nenhuma turma aberta para este curso'}</option>
+              {turmas.map((turma) => (
                 <option key={turma} value={turma}>Turma {turma}</option>
               ))}
             </select>
@@ -67,8 +81,9 @@ export function CadastroPsicologoFormacao({ formPsicologo, setFormPsicologo, tem
                   setTemSegundaPos(checked);
                   if (!checked) {
                     setSegundaPosGraduacao('');
+                    setSegundaTurma('');
                   } else if (!segundaPosGraduacao) {
-                    setSegundaPosGraduacao(POS_GRADUACOES_VIVER_MAIS[0]);
+                    setSegundaPosGraduacao(cursos.find((curso) => curso !== formPsicologo.posGraduacaoViverMais) ?? '');
                   }
                 }}
                 className="w-4 h-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500 accent-purple-600 cursor-pointer"
@@ -86,20 +101,32 @@ export function CadastroPsicologoFormacao({ formPsicologo, setFormPsicologo, tem
             </label>
             <select
               value={segundaPosGraduacao}
-              onChange={(e) => setSegundaPosGraduacao(e.target.value)}
+              onChange={(e) => { setSegundaPosGraduacao(e.target.value); setSegundaTurma(''); }}
               className="w-full border border-purple-200 bg-white rounded-xl p-3 focus:outline-none focus:border-purple-600 font-medium text-slate-800"
             >
-              {SEGUNDAS_POS_GRADUACOES.map((pos) => (
+              {cursos.filter((pos) => pos !== formPsicologo.posGraduacaoViverMais).map((pos) => (
                 <option key={pos} value={pos}>{pos}</option>
               ))}
             </select>
+            <label className="font-bold text-purple-900 block mb-1">Turma da segunda pós <span className="text-rose-500">*</span></label>
+            <select
+              required
+              value={segundaTurma}
+              onChange={(e) => setSegundaTurma(e.target.value)}
+              className="w-full border border-purple-200 bg-white rounded-xl p-3 focus:outline-none focus:border-purple-600 font-bold text-slate-800"
+            >
+              <option value="" disabled>{turmasSegunda.length ? 'Selecione a turma' : 'Nenhuma turma aberta para este curso'}</option>
+              {turmasSegunda.map((turma) => <option key={turma} value={turma}>Turma {turma}</option>)}
+            </select>
+            <p className="text-[11px] text-purple-800">Cada pós-graduação é conferida e aprovada pela Gestão antes de liberar atendimentos.</p>
           </div>
         )}
 
         {(() => {
           const opcoesAtendimento = opcoesAtendimentoDaPos(
             formPsicologo.posGraduacaoViverMais,
-            temSegundaPos ? segundaPosGraduacao : undefined
+            temSegundaPos ? segundaPosGraduacao : undefined,
+            catalogo.cursos
           );
           if (!opcoesAtendimento) return null;
           return <>
@@ -137,7 +164,7 @@ export function CadastroPsicologoFormacao({ formPsicologo, setFormPsicologo, tem
           </div>
         </div>
 
-        <TemposAtendimentoPsicologo posGraduacao={formPsicologo.posGraduacaoViverMais}
+        <TemposAtendimentoPsicologo posGraduacao={formPsicologo.posGraduacaoViverMais} catalogo={catalogo.cursos}
           segundaPosGraduacao={temSegundaPos ? segundaPosGraduacao : undefined} value={formPsicologo.temposAtendimento}
           onChange={(temposAtendimento) => setFormPsicologo((current) => ({ ...current, temposAtendimento }))} />
 

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { opcoesAtendimentoDaPos } from '@/components/forms/opcoesPsicologo';
+import { useCatalogoCursos } from '@/components/forms/useCatalogoCursos';
 
 interface Props {
   posGraduacao?: string;
@@ -15,7 +16,8 @@ export function ReconfiguracaoAtendimento({ posGraduacao, segundaPosGraduacao, o
   const [publicoOutro, setPublicoOutro] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
-  const opcoes = opcoesAtendimentoDaPos(posGraduacao, segundaPosGraduacao);
+  const catalogoCursos = useCatalogoCursos();
+  const opcoes = opcoesAtendimentoDaPos(posGraduacao, segundaPosGraduacao, catalogoCursos.cursos);
   const alternar = (lista: string[], valor: string) => lista.includes(valor)
     ? lista.filter((item) => item !== valor) : [...lista, valor];
 

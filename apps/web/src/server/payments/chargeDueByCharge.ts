@@ -4,9 +4,11 @@ import { getMysqlPool } from '@/server/oci/runtime';
 import { instituicaoId } from '@/server/persistence/mysql/mappers';
 import { custeioDoAgendamentoSql } from '@/server/persistence/mysql/custeioSql';
 import { isFutureChargeDueAt } from '@/lib/chargeDue';
-import { enqueueChargeDuePlan, resetAppointmentChargeDue, type UpdateChargeDueOutcome } from './sessionChargeDue';
+import { enqueueChargeDuePlan, type UpdateChargeDueOutcome } from './sessionChargeDue';
 import { readChargeResetPlan } from './sessionChargeDuePlan';
 import { processAppointmentChargeDue } from './sessionChargeDueWorker';
+
+import { saldoAbertoSql } from './chargeDueBalance';
 
 export type ChargeDueByChargeOutcome = UpdateChargeDueOutcome | 'covered';
 
@@ -40,7 +42,7 @@ export async function atualizarVencimentoPorCobranca(input: {
       );
     }
     const [charges] = await connection.query<RowDataPacket[]>(
-      `SELECT c.id, c.ref_core, c.status, c.provedor_ref, c.organizacao_ref,
+      `SELECT c.id, c.ref_core, c.status, c.provedor_ref, c.organizacao_ref, ${saldoAbertoSql} AS saldo_centavos,
               EXISTS(SELECT 1 FROM financeiro_pagamentos p
                 WHERE p.instituicao_id = c.instituicao_id AND p.organizacao_ref = c.organizacao_ref
                   AND p.cobranca_ref = c.ref_core AND p.status = 'confirmed') AS possui_pagamento
@@ -64,19 +66,11 @@ export async function atualizarVencimentoPorCobranca(input: {
       [instituicaoId(), input.organizationId, input.chargeId]
     );
     if (coverage.some((row) => row.custeado || row.fatura_convenio_ref)) { await connection.rollback(); return 'covered'; }
-    if (appointmentId) {
-      jobKey = appointmentId;
-      result = await resetAppointmentChargeDue(connection, appointmentId, input.dueAt);
-    } else {
-      const plan = await readChargeResetPlan(connection, charges);
-      if (!plan) { await connection.rollback(); return 'not_found'; }
-      if (plan.paid) { await connection.rollback(); return 'paid'; }
-      // Cobranças legadas sem agenda usam sua própria chave física para a retomada.
-      jobKey = String(charges[0].id);
-      await enqueueChargeDuePlan(connection, jobKey, input.dueAt, plan);
-      result = 'queued';
-    }
-    if (result === 'paid') { await connection.rollback(); return 'paid'; }
+    const plan = await readChargeResetPlan(connection, charges, true);
+    if (!plan || plan.paid) { await connection.rollback(); return plan ? 'paid' : 'not_found'; }
+    jobKey = appointmentId ?? String(charges[0].id);
+    await enqueueChargeDuePlan(connection, jobKey, input.dueAt, plan);
+    result = 'queued';
     await connection.commit();
   } catch (error) {
     await connection.rollback();

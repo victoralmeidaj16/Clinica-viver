@@ -1,69 +1,16 @@
 'use client';
 
+import { DEMANDAS_PADRAO } from '@/lib/demandasPadrao';
+import { demandasParaSelecao, useDemandasClinicas } from './useDemandasClinicas';
+
 /**
  * Lista de necessidades e o seletor compartilhado entre o formulário de
  * triagem do paciente, o cadastro de psicólogo e as telas de gestão. Ficava
  * dentro de `app/vitrine/page.tsx`; foi movido para cá para que o formulário de
  * cadastro de psicólogo pudesse virar componente sem import circular.
  */
-export const LISTA_NECESSIDADES = [
-  'Depressão',
-  'Transtornos de Ansiedade',
-  'Traumas',
-  'Luto',
-  'Autoconhecimento',
-  'Violência doméstica e abuso sexual',
-  'Transtorno Borderline',
-  'Desregulação de humor',
-  'Sofrimento Psíquico Importante',
-  'Maternidade',
-  'Autoestima',
-  'Burnout',
-  'Relacionamentos',
-  'Transtornos Alimentares',
-  'TDAH',
-  'Dependência emocional',
-  'Dependência química',
-  'Transtorno Disfórico Pré-menstrual',
-  'Transtorno Bipolar',
-  'Transtornos de personalidade',
-  'Transtorno de Humor',
-  'Ansiedade',
-  'Toxicomania',
-  'Transtorno do Espectro Autista (TEA)',
-  'Psicodiagnóstico e Avaliação Psicológica em Adultos e Idosos',
-  'Fobia Social',
-  'Relacionamento abusivo',
-  'Sexualidade',
-  'Conflitos Familiares',
-  'Pacientes e familiares oncológicos',
-  'Distúrbios de sono',
-  'Agressividade',
-  'Dificuldades de Aprendizagem',
-  'Estresse',
-  'Empoderamento feminino',
-  'Inteligência Emocional',
-  'Autoconfiança',
-  'Brasileiros no exterior e adaptação cultural',
-  'Nômades digitais',
-  'Habilidades sociais',
-  'Transtornos do desenvolvimento global',
-  'Violências sexuais',
-  'Desenvolvimento pessoal',
-  'Autonomia emocional',
-  'Construção de sentido à existência',
-  'Racismo',
-  'Dificuldade na tomada de decisões',
-  'Regulação emocional',
-  'Dificuldades comportamentais',
-  'Questões de Gênero',
-  'Demandas adotivas de filhos por adoção, pretendentes e adotantes',
-  'Menopausa',
-  'Envelhecimento',
-  'Paternidade',
-  'Masculinidade',
-  'Outros',
-] as const;
+/** Lista inicial de demandas. A Gestão mantém a lista vigente no painel (3.4). */
+export const LISTA_NECESSIDADES = DEMANDAS_PADRAO;
 
 export const OPCOES_AVALIACAO_PSICOLOGICA = [
   'Avaliação psicológica - Cirurgia Bariátrica',
@@ -94,6 +41,7 @@ export function NecessidadesSelector({
   selecionados: readonly string[];
   onSelecionadosChange: (lista: string[]) => void;
 }) {
+  const demandasClinicas = useDemandasClinicas();
   return (
     <div className="space-y-3 p-4 bg-slate-50 border border-slate-200 rounded-2xl">
       <div>
@@ -136,7 +84,7 @@ export function NecessidadesSelector({
       {especificar && (
         <div className="pt-3 border-t border-slate-200/80 space-y-3 animate-in fade-in duration-200">
           <div className="max-h-64 overflow-y-auto pr-1 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-            {LISTA_NECESSIDADES.map((item) => {
+            {demandasParaSelecao(demandasClinicas, selecionados).map((item) => {
               const checked = selecionados.includes(item);
               return (
                 <label

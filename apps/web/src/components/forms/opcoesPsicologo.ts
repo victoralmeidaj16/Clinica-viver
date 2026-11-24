@@ -98,38 +98,76 @@ export const PUBLICO_ALVO: readonly string[] = [
 ];
 
 /**
+ * Configuração de atendimento de uma pós-graduação (especificação final,
+ * 1.01 e 2.01). O catálogo efetivo é o padrão abaixo com os ajustes que a
+ * Gestão grava no painel; alterar um curso não altera os outros.
+ */
+export interface CursoPos {
+  nome: string;
+  servicos: readonly string[];
+  publicos: readonly string[];
+  /** Durações fixas oferecidas (50 e/ou 90 minutos). */
+  tempos: readonly number[];
+  /** Avaliação: duração variável, informada no agendamento (2.04). */
+  duracaoVariavel: boolean;
+  /** Formatos permitidos. Vazio é sem restrição. */
+  formatos: readonly ('ONLINE' | 'PRESENCIAL')[];
+  /** Inativo some do cadastro novo; quem já está vinculado mantém as permissões. */
+  ativo: boolean;
+}
+
+function cursoPadrao(nome: string): CursoPos {
+  if (POS_COM_OPCOES_DE_AVALIACAO.includes(nome)) {
+    return { nome, servicos: SERVICOS_POS_AVALIACAO, publicos: PUBLICO_POS_AVALIACAO, tempos: [], duracaoVariavel: true, formatos: [], ativo: true };
+  }
+  if (POS_COM_OPCOES_RESTRITAS_DE_ATENDIMENTO.includes(nome)) {
+    return { nome, servicos: SERVICOS_POS_RESTRITAS, publicos: PUBLICO_ALVO, tempos: TEMPOS_ATENDIMENTO_POS, duracaoVariavel: false, formatos: [], ativo: true };
+  }
+  return { nome, servicos: SERVICOS_POS_AMPLAS, publicos: PUBLICO_ALVO, tempos: TEMPOS_ATENDIMENTO_POS, duracaoVariavel: false, formatos: [], ativo: true };
+}
+
+function unir(listas: readonly (readonly string[])[]): string[] {
+  const resultado = new Set<string>();
+  // Do curso com mais opções para o com menos: é a ordem em que os grupos
+  // amplo, restrito e de avaliação sempre apareceram na tela.
+  [...listas].sort((a, b) => b.length - a.length).forEach((lista) => lista.forEach((item) => resultado.add(item)));
+  return [...resultado];
+}
+
+/**
  * Regras de atendimento supervisionado por pós-graduação.
  *
- * Psicologia Perinatal e Parentalidade pertence ao grupo restrito. Quando o
- * profissional possui duas pós-graduações válidas, os serviços e públicos
- * autorizados pelas duas formações são somados (§§ 2.01–2.02).
+ * Quando o profissional possui duas pós-graduações, os serviços e públicos
+ * autorizados pelas duas são somados (§§ 2.01–2.02). Curso com duração
+ * variável (Avaliação) dispensa a escolha de tempo fixo, como sempre foi.
  */
 export function opcoesAtendimentoDaPos(
   posGraduacao?: string,
-  segundaPosGraduacao?: string
+  segundaPosGraduacao?: string,
+  catalogo: readonly CursoPos[] = CATALOGO_CURSOS_PADRAO
 ): OpcoesAtendimentoDaPos | null {
-  const pos = [posGraduacao, segundaPosGraduacao].filter((curso): curso is string => Boolean(curso));
-  const temAmpla = pos.some((curso) => POS_COM_OPCOES_AMPLAS_DE_ATENDIMENTO.includes(curso));
-  const temRestrita = pos.some((curso) => POS_COM_OPCOES_RESTRITAS_DE_ATENDIMENTO.includes(curso));
-  const temAvaliacao = pos.some((curso) => POS_COM_OPCOES_DE_AVALIACAO.includes(curso));
-  if (!temAmpla && !temRestrita && !temAvaliacao) return null;
+  return opcoesDosCursos(
+    [posGraduacao, segundaPosGraduacao].filter((curso): curso is string => Boolean(curso)),
+    catalogo
+  );
+}
 
-  const servicos = new Set<string>();
-  const publico = new Set<string>();
-  if (temAmpla) {
-    SERVICOS_POS_AMPLAS.forEach((item) => servicos.add(item));
-    PUBLICO_ALVO.forEach((item) => publico.add(item));
-  }
-  if (temRestrita) {
-    SERVICOS_POS_RESTRITAS.forEach((item) => servicos.add(item));
-    PUBLICO_ALVO.forEach((item) => publico.add(item));
-  }
-  if (temAvaliacao) {
-    SERVICOS_POS_AVALIACAO.forEach((item) => servicos.add(item));
-    PUBLICO_POS_AVALIACAO.forEach((item) => publico.add(item));
-  }
-  const tempos = temAvaliacao ? [] : TEMPOS_ATENDIMENTO_POS;
-  return { tempos, servicos: [...servicos], publico: [...publico] };
+/** Mesma soma de permissões para qualquer quantidade de cursos. */
+export function opcoesDosCursos(
+  nomes: readonly string[],
+  catalogo: readonly CursoPos[] = CATALOGO_CURSOS_PADRAO
+): OpcoesAtendimentoDaPos | null {
+  const cursos = nomes
+    .map((nome) => catalogo.find((curso) => curso.nome === nome))
+    .filter((curso): curso is CursoPos => Boolean(curso));
+  if (!cursos.length) return null;
+  const variavel = cursos.some((curso) => curso.duracaoVariavel);
+  const tempos = variavel ? [] : [...new Set(cursos.flatMap((curso) => curso.tempos))].sort((a, b) => a - b);
+  return {
+    tempos,
+    servicos: unir(cursos.map((curso) => curso.servicos)),
+    publico: unir(cursos.map((curso) => curso.publicos)),
+  };
 }
 
 export const MODALIDADES_ATENDIMENTO: readonly Opcao[] = [
@@ -169,6 +207,19 @@ export const POS_GRADUACOES_VIVER_MAIS: readonly string[] = [
 
 /** A segunda pós também precisa ser um curso ofertado pela Viver Mais. */
 export const SEGUNDAS_POS_GRADUACOES = POS_GRADUACOES_VIVER_MAIS;
+
+/** Catálogo inicial: os 17 cursos com as permissões informadas pela Gestão (§ 14). */
+export const CATALOGO_CURSOS_PADRAO: readonly CursoPos[] = POS_GRADUACOES_VIVER_MAIS.map(cursoPadrao);
+
+/** Cursos oferecidos em cadastro novo. */
+export function nomesDosCursosAtivos(catalogo: readonly CursoPos[] = CATALOGO_CURSOS_PADRAO): string[] {
+  return catalogo.filter((curso) => curso.ativo).map((curso) => curso.nome);
+}
+
+/** Curso existente no catálogo, ativo ou não — vale para quem já está vinculado. */
+export function cursoNoCatalogo(nome: string | undefined, catalogo: readonly CursoPos[] = CATALOGO_CURSOS_PADRAO): boolean {
+  return Boolean(nome && catalogo.some((curso) => curso.nome === nome));
+}
 
 export function rotuloTurno(valor: string): string {
   return rotuloTurnoPreferencia(valor);

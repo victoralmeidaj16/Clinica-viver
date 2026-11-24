@@ -76,7 +76,14 @@ export class FileCaptureRepository implements CaptureRepository {
       triagensPacientes: change.next.triagensPacientes,
       // O encerramento da turma é derivado a cada leitura; gravado no arquivo,
       // sobreviveria à reabertura da turma.
-      cadastrosPsicologos: change.next.cadastrosPsicologos.map((cadastro) => ({ ...cadastro, turmaEncerrada: undefined })),
+      cadastrosPsicologos: change.next.cadastrosPsicologos.map((cadastro) => ({
+        ...cadastro,
+        turmaEncerrada: undefined,
+        situacaoAcademica: undefined,
+        permissoesEfetivas: undefined,
+        formatosPermitidos: undefined,
+        avisoSaidaTurma: undefined,
+      })),
     });
 
     return change.result;

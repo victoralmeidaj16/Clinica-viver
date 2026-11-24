@@ -23,7 +23,8 @@ vi.mock('@/server/oci/runtime', () => ({
   isMysqlConfigured: () => true,
   getMysqlPool: () => ({ getConnection: async () => connection }),
 }));
-vi.mock('@/server/persistence/mysql/mappers', () => ({
+vi.mock('@/server/persistence/mysql/mappers', async (original) => ({
+  ...await original<typeof import('@/server/persistence/mysql/mappers')>(),
   instituicaoId: () => 'inst-1',
   rowId: (prefix: string, ref: string) => `${prefix}:${ref}`,
 }));
@@ -150,6 +151,7 @@ describe('listAppointments', () => {
 });
 
 const PARA_CONCLUIR: Linha = {
+  id: 'apt-1',
   ref_core: 'apt-ref-1',
   sessao_clinica_ref: null,
   status: 'agendado',

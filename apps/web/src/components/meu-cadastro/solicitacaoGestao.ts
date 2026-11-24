@@ -2,6 +2,7 @@ export interface SolicitacaoGestaoFormValues {
   turmaViverMais?: string;
   posGraduacaoViverMais?: string;
   segundaPosGraduacao?: string;
+  segundaTurmaViverMais?: string;
   servicosPrestados: string[];
   justificativa?: string;
 }
@@ -11,6 +12,7 @@ export interface ModalSolicitacaoGestaoProps {
     turmaViverMais?: string;
     posGraduacaoViverMais?: string;
     segundaPosGraduacao?: string;
+    segundaTurmaViverMais?: string;
     servicosPrestados?: string[];
     limitePacientesAtivos?: number;
   };
@@ -18,6 +20,7 @@ export interface ModalSolicitacaoGestaoProps {
     turmaViverMais?: string;
     posGraduacaoViverMais?: string;
     segundaPosGraduacao?: string;
+    segundaTurmaViverMais?: string;
     servicosPrestados?: string[];
     limitePacientesAtivos?: number;
     justificativa?: string;

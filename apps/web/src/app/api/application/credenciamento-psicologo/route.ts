@@ -18,7 +18,10 @@ import {
   derivarModalidadesAtendidas,
   derivarServicosHabilitados,
 } from '@/server/application/psychologistRegistration';
-import { opcoesAtendimentoDaPos } from '@/components/forms/opcoesPsicologo';
+import { CATALOGO_CURSOS_PADRAO, opcoesAtendimentoDaPos } from '@/components/forms/opcoesPsicologo';
+import { normalizarCodigoTurma } from '@/lib/turmasCiclo';
+import { obterCatalogoCursos } from '@/server/application/catalogoCursos';
+import { turmasAbertasPorCurso } from '@/server/application/turmasGestao';
 import { avisarCadastroRecebidoPorEmail } from '@/server/application/psychologistRegistrationEmail';
 import { registrarAceiteTermoAdesao } from '@/server/application/termoAdesaoAceite';
 import type { ComprovanteGerado } from '@/server/application/termoAdesaoComprovante';
@@ -180,10 +183,28 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Selecione ao menos um turno de atendimento.' }, { status: 400 });
     }
 
-    const opcoesAtendimento = opcoesAtendimentoDaPos(
-      typeof body.posGraduacaoViverMais === 'string' ? body.posGraduacaoViverMais : undefined,
-      typeof body.segundaPosGraduacao === 'string' ? body.segundaPosGraduacao : undefined
-    );
+    // Curso e turma do catálogo da Gestão (1.01 e 3.2). Sem o catálogo ou
+    // as turmas no banco, valem o padrão e a lista anterior.
+    const catalogo = await obterCatalogoCursos().catch(() => [...CATALOGO_CURSOS_PADRAO]);
+    const turmasAbertas = await turmasAbertasPorCurso(catalogo).catch(() => ({} as Record<string, string[]>));
+    const posPrincipal = typeof body.posGraduacaoViverMais === 'string' ? body.posGraduacaoViverMais.trim() : '';
+    const segundaPos = typeof body.segundaPosGraduacao === 'string' ? body.segundaPosGraduacao.trim() : '';
+    const cursoAtivo = (nome: string) => catalogo.some((curso) => curso.nome === nome && curso.ativo);
+    if (posPrincipal && !cursoAtivo(posPrincipal)) {
+      return NextResponse.json({ success: false, error: 'Selecione uma pós-graduação da lista da Viver Mais.' }, { status: 400 });
+    }
+    if (segundaPos && (!cursoAtivo(segundaPos) || segundaPos === posPrincipal)) {
+      return NextResponse.json({ success: false, error: 'Selecione uma segunda pós-graduação diferente da principal.' }, { status: 400 });
+    }
+    const turmaPrincipal = body.turmaViverMais ? normalizarCodigoTurma(body.turmaViverMais) : undefined;
+    const turmaSegunda = segundaPos && body.segundaTurmaViverMais ? normalizarCodigoTurma(body.segundaTurmaViverMais) : undefined;
+    const turmaAberta = (curso: string, turma: string | undefined) =>
+      !turma || !turmasAbertas[curso] || turmasAbertas[curso].includes(turma);
+    if ((body.turmaViverMais && !turmaPrincipal) || !turmaAberta(posPrincipal, turmaPrincipal)
+      || (body.segundaTurmaViverMais && segundaPos && !turmaSegunda) || !turmaAberta(segundaPos, turmaSegunda)) {
+      return NextResponse.json({ success: false, error: 'Selecione uma turma aberta do curso escolhido.' }, { status: 400 });
+    }
+    const opcoesAtendimento = opcoesAtendimentoDaPos(posPrincipal || undefined, segundaPos || undefined, catalogo);
     const servicosPrestados = Array.isArray(body.servicosPrestados)
       ? body.servicosPrestados.filter((servico: unknown): servico is string =>
           typeof servico === 'string' && (!opcoesAtendimento || opcoesAtendimento.servicos.includes(servico))
@@ -243,9 +264,10 @@ export async function POST(request: Request) {
       servicosHabilitados: servicosPrestados.length > 0
         ? derivarServicosHabilitados(servicosPrestados)
         : (Array.isArray(body.servicosHabilitados) ? body.servicosHabilitados : []),
-      turmaViverMais: body.turmaViverMais || undefined,
-      posGraduacaoViverMais: body.posGraduacaoViverMais || undefined,
-      segundaPosGraduacao: body.segundaPosGraduacao || undefined,
+      turmaViverMais: turmaPrincipal,
+      posGraduacaoViverMais: posPrincipal || undefined,
+      segundaPosGraduacao: segundaPos || undefined,
+      ...(turmaSegunda ? { segundaTurmaViverMais: turmaSegunda } : {}),
       aceitouTermos: true,
       aceitouTermosEm: aceite.aceitoEm,
       versaoTermos: aceite.versao,

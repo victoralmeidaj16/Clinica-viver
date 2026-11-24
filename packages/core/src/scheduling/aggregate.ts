@@ -13,6 +13,7 @@ export interface ScheduleAppointmentInput {
   mode: Appointment['mode'];
   serviceKey?: string;
   audience?: string;
+  usePatientPackage?: boolean;
   chargeDueAt?: string;
   reminders: readonly AppointmentReminder[];
   createdAt: string;
@@ -54,6 +55,7 @@ export function scheduleAppointment(
     mode: input.mode,
     serviceKey: input.serviceKey,
     audience: input.audience,
+    usePatientPackage: input.usePatientPackage,
     chargeDueAt: input.chargeDueAt ? requireSchedulingIsoDate(input.chargeDueAt, 'chargeDueAt') : undefined,
     status: 'scheduled',
     reminders: validateReminders(input.reminders),

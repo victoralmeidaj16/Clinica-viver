@@ -1,3 +1,5 @@
+import { CATALOGO_CURSOS_PADRAO } from '@/components/forms/opcoesPsicologo';
+import { obterCatalogoCursos } from '@/server/application/catalogoCursos';
 import { NextResponse } from 'next/server';
 import { CadastroDuplicadoError, assertCadastroUnico } from '@/server/application/psychologistUniqueness';
 import { readSnapshot, writeSnapshot } from '@/server/application/persistence';
@@ -41,13 +43,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const corpo = await request.json();
 
     await validarCorpo(corpo);
+    const catalogo = await obterCatalogoCursos().catch(() => [...CATALOGO_CURSOS_PADRAO]);
 
     if (isMysqlConfigured()) {
       const atualizado = await new MysqlCaptureRepository().mutate((state) => {
         const existente = state.cadastrosPsicologos.find((psi) => psi.id === id);
         if (!existente) return { next: state, result: null };
         assertDecisaoDoPedidoAtual(existente, corpo);
-        const next = aplicarMudancas(existente, corpo, CAMPOS_DA_GESTAO);
+        const next = aplicarMudancas(existente, corpo, CAMPOS_DA_GESTAO, catalogo);
         if (next.status === 'APROVADO') validateApprovalAccess(next);
         return {
           next: {
@@ -90,7 +93,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ success: false, error: 'Cadastro não encontrado.' }, { status: 404 });
     }
 
-    const atualizado = aplicarMudancas(existente, corpo, CAMPOS_DA_GESTAO);
+    const atualizado = aplicarMudancas(existente, corpo, CAMPOS_DA_GESTAO, catalogo);
     assertCadastroUnico(atualizado, snapshot.cadastrosPsicologos ?? []);
 
     await writeSnapshot({

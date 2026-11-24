@@ -134,11 +134,12 @@ export default function AgendaPage() {
   };
 
   const atualizarVencimento = async (id: string, dueAt: string) => {
-    const resposta = await applicationRequest<{ appointments: AgendamentoResumo[] }>(
+    const resposta = await applicationRequest<{ appointments: AgendamentoResumo[]; pending?: boolean }>(
       `/agenda/agendamentos/${encodeURIComponent(id)}`,
       { method: 'PATCH', body: JSON.stringify({ action: 'update_charge_due', dueAt }) }
     );
     setDados((atual) => (atual ? { ...atual, appointments: resposta.appointments } : atual));
+    return Boolean(resposta.pending);
   };
 
   const reagendarSessao = async (id: string, startsAt: string, endsAt: string, expectedVersion?: number) => {

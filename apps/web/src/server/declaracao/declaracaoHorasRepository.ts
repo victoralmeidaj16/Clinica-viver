@@ -30,6 +30,7 @@ export interface DeclaracaoHoras {
   periodoFim: string;
   totalSessoes: number;
   totalHoras: number;
+  totalMinutos: number;
   sessaoIds: readonly string[];
   conteudoHash: string;
   coordenadora: string;
@@ -52,6 +53,7 @@ interface DeclaracaoRow extends RowDataPacket {
   periodo_fim: string;
   total_sessoes: number;
   total_horas: number;
+  total_minutos?: number | null;
   sessoes_ref: unknown;
   conteudo_hash: string;
   coordenadora: string;
@@ -93,6 +95,7 @@ function toDeclaracao(row: DeclaracaoRow): DeclaracaoHoras {
     periodoFim: row.periodo_fim.slice(0, 10),
     totalSessoes: Number(row.total_sessoes),
     totalHoras: Number(row.total_horas),
+    totalMinutos: row.total_minutos == null ? Number(row.total_horas) * 60 : Number(row.total_minutos),
     sessaoIds: sessoes(row.sessoes_ref),
     conteudoHash: row.conteudo_hash,
     coordenadora: row.coordenadora,
@@ -129,6 +132,7 @@ export interface NovaDeclaracao {
   periodoFim: string;
   totalSessoes: number;
   totalHoras: number;
+  totalMinutos: number;
   sessaoIds: readonly string[];
   coordenadora: string;
   supervisora?: string;
@@ -136,24 +140,31 @@ export interface NovaDeclaracao {
 }
 
 export class DeclaracaoHorasRepository {
+  private totalMinutosColuna?: Promise<boolean>;
+
   constructor(private readonly pool: Pool = getMysqlPool()) {}
 
-  /**
-   * Grava a declaração, resolvendo a colisão de código na própria escrita.
-   *
-   * O código vem de 8 caracteres sorteados, e a chance de repetir é ínfima —
-   * mas "ínfima" não é "impossível", e a consequência de ignorá-la seria uma
-   * conferência devolvendo a declaração de outra pessoa. A unicidade é do
-   * banco; aqui só se sorteia de novo quando ele recusa.
-   *
-   * `emitidoEm` e o hash entram prontos porque o hash cobre o instante: quem
-   * calcula os dois precisa ser o mesmo, e é quem chama.
-   */
+  private temColunaTotalMinutos(): Promise<boolean> {
+    if (!this.totalMinutosColuna) {
+      this.totalMinutosColuna = this.pool
+        .query<RowDataPacket[]>(
+          `SELECT 1 FROM information_schema.columns
+            WHERE table_schema = DATABASE() AND table_name = 'clinica_declaracoes_horas'
+              AND column_name = 'total_minutos' LIMIT 1`
+        )
+        .then(([rows]) => rows.length > 0)
+        .catch(() => false);
+    }
+    return this.totalMinutosColuna;
+  }
+
   async registrar(
     input: NovaDeclaracao,
     calcularHash: (codigo: string, emitidoEm: string) => Promise<string>
   ): Promise<DeclaracaoHoras> {
     const emitidoEm = new Date().toISOString();
+    const totalMinutos = input.totalMinutos ?? input.totalHoras * 60;
+    const comMinutos = await this.temColunaTotalMinutos();
 
     for (let tentativa = 0; tentativa < 5; tentativa += 1) {
       const codigo = gerarCodigoVerificacao();
@@ -161,28 +172,46 @@ export class DeclaracaoHorasRepository {
       const conteudoHash = await calcularHash(codigo, emitidoEm);
 
       try {
-        await this.pool.query<ResultSetHeader>(
-          `INSERT INTO clinica_declaracoes_horas
-            (id, instituicao_id, organizacao_ref, codigo, psicologo_cadastro_ref, profissional_ref,
-             psicologo_nome, psicologo_crp, curso, periodo_inicio, periodo_fim, total_sessoes,
-             total_horas, sessoes_ref, conteudo_hash, coordenadora, supervisora,
-             emitido_por_usuario_ref, emitido_em)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON), ?, ?, ?, ?, ?)`,
-          [
-            id, instituicaoId(), input.organizationId, codigo, input.psicologoCadastroId,
-            input.profissionalId, input.psicologoNome, input.psicologoCrp, input.curso,
-            input.periodoInicio, input.periodoFim, input.totalSessoes, input.totalHoras,
-            JSON.stringify([...input.sessaoIds]), conteudoHash, input.coordenadora,
-            input.supervisora ?? null, input.emitidoPor, toSqlTimestamp(emitidoEm),
-          ]
-        );
+        if (comMinutos) {
+          await this.pool.query<ResultSetHeader>(
+            `INSERT INTO clinica_declaracoes_horas
+              (id, instituicao_id, organizacao_ref, codigo, psicologo_cadastro_ref, profissional_ref,
+               psicologo_nome, psicologo_crp, curso, periodo_inicio, periodo_fim, total_sessoes,
+               total_horas, total_minutos, sessoes_ref, conteudo_hash, coordenadora, supervisora,
+               emitido_por_usuario_ref, emitido_em)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON), ?, ?, ?, ?, ?)`,
+            [
+              id, instituicaoId(), input.organizationId, codigo, input.psicologoCadastroId,
+              input.profissionalId, input.psicologoNome, input.psicologoCrp, input.curso,
+              input.periodoInicio, input.periodoFim, input.totalSessoes, input.totalHoras,
+              totalMinutos, JSON.stringify([...input.sessaoIds]), conteudoHash, input.coordenadora,
+              input.supervisora ?? null, input.emitidoPor, toSqlTimestamp(emitidoEm),
+            ]
+          );
+        } else {
+          await this.pool.query<ResultSetHeader>(
+            `INSERT INTO clinica_declaracoes_horas
+              (id, instituicao_id, organizacao_ref, codigo, psicologo_cadastro_ref, profissional_ref,
+               psicologo_nome, psicologo_crp, curso, periodo_inicio, periodo_fim, total_sessoes,
+               total_horas, sessoes_ref, conteudo_hash, coordenadora, supervisora,
+               emitido_por_usuario_ref, emitido_em)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON), ?, ?, ?, ?, ?)`,
+            [
+              id, instituicaoId(), input.organizationId, codigo, input.psicologoCadastroId,
+              input.profissionalId, input.psicologoNome, input.psicologoCrp, input.curso,
+              input.periodoInicio, input.periodoFim, input.totalSessoes, input.totalHoras,
+              JSON.stringify([...input.sessaoIds]), conteudoHash, input.coordenadora,
+              input.supervisora ?? null, input.emitidoPor, toSqlTimestamp(emitidoEm),
+            ]
+          );
+        }
 
         return {
           id, codigo, psicologoCadastroId: input.psicologoCadastroId,
           profissionalId: input.profissionalId, psicologoNome: input.psicologoNome,
           psicologoCrp: input.psicologoCrp, curso: input.curso,
           periodoInicio: input.periodoInicio, periodoFim: input.periodoFim,
-          totalSessoes: input.totalSessoes, totalHoras: input.totalHoras,
+          totalSessoes: input.totalSessoes, totalHoras: input.totalHoras, totalMinutos,
           sessaoIds: [...input.sessaoIds], conteudoHash, coordenadora: input.coordenadora,
           supervisora: input.supervisora, emitidoPor: input.emitidoPor, emitidoEm,
         };
@@ -201,8 +230,12 @@ export class DeclaracaoHorasRepository {
     organizationId: string,
     psicologoCadastroId: string
   ): Promise<readonly DeclaracaoHoras[]> {
+    const comMinutos = await this.temColunaTotalMinutos();
+    const selectSql = comMinutos
+      ? SELECT.replace('total_horas,', 'total_horas, total_minutos,')
+      : SELECT;
     const [rows] = await this.pool.query<DeclaracaoRow[]>(
-      `${SELECT} WHERE instituicao_id = ? AND organizacao_ref = ? AND psicologo_cadastro_ref = ?
+      `${selectSql} WHERE instituicao_id = ? AND organizacao_ref = ? AND psicologo_cadastro_ref = ?
        ORDER BY emitido_em DESC`,
       [instituicaoId(), organizationId, psicologoCadastroId]
     );

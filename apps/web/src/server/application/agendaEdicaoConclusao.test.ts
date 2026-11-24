@@ -95,8 +95,12 @@ describe('editAgendaAppointment', () => {
 
   it('repassa a autoria administrativa à transação que realiza a sessão', async () => {
     const autor = { usuarioRef: adminContext.actor.userId, nome: 'Gestão' };
+    vi.mocked(updateAppointmentDetails).mockResolvedValueOnce('completed');
     await editAgendaAppointment(adminContext, 'apt-1', { status: 'realizado' }, { registrarAlteracaoGestao: autor });
-    expect(completeAppointment).toHaveBeenCalledWith('org-1', 'pro-1', 'apt-1', expect.any(Date), autor);
+    expect(updateAppointmentDetails).toHaveBeenCalledWith('org-1', 'pro-1', 'apt-1', { status: undefined },
+      expect.objectContaining({ registrarAlteracaoGestao: autor, concluirDepois: true }));
+    expect(completeAppointment).not.toHaveBeenCalled();
+    expect(garantirCobrancaDaSessao).toHaveBeenCalledOnce();
   });
 
   it('recusa concluir uma sessão que ainda não terminou', async () => {

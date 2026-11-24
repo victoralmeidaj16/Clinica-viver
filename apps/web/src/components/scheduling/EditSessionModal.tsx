@@ -14,6 +14,7 @@ import { applicationRequest } from '@/lib/applicationApi';
 import { HistoricoAlteracoesSessao } from './HistoricoAlteracoesSessao';
 import { EditSessionFields, type StatusEdicao } from './EditSessionFields';
 import { SessionPayerField } from './SessionPayerField';
+import { SessionValueField, formatarReaisEntrada, lerCentavosEntrada } from './SessionValueField';
 import { SessionMonthlyCoverageModal } from './SessionMonthlyCoverageModal';
 import { camposIniciais, erroDoNovoHorario, type SessionEditableData } from './editSessionModel';
 
@@ -57,6 +58,7 @@ function FormularioEdicao({
   const [modalidade, setModalidade] = useState<'online' | 'presencial' | 'telefone'>(iniciais.modalidade);
   const [status, setStatus] = useState<StatusEdicao>(iniciais.status);
   const [pagadorEmpresa, setPagadorEmpresa] = useState(Boolean(session.custeadoPelaEmpresa));
+  const [valorTexto, setValorTexto] = useState(() => formatarReaisEntrada(session.valorCentavos));
   const [monthlyCoverage, setMonthlyCoverage] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
@@ -67,6 +69,7 @@ function FormularioEdicao({
   const statusInicial = iniciais.status;
   const statusPendente = session.status === 'confirmado' ? 'confirmado' : 'agendado';
   const statusEncerrado = session.status === 'realizado' || session.status === 'completed' || session.status === 'cancelado';
+  const cobrancaQuitada = ['paid', 'partially_paid', 'refunded'].includes(session.pagamentoStatus ?? '');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,6 +94,11 @@ function FormularioEdicao({
       setError('Informe a duração entre 15 e 240 minutos.');
       return;
     }
+    const valorCentavos = admin && session.status !== 'cancelado' && !cobrancaQuitada ? lerCentavosEntrada(valorTexto) : undefined;
+    if (Number.isNaN(valorCentavos)) {
+      setError('Informe um valor de sessão válido em reais.');
+      return;
+    }
 
     const endsAtDate = new Date(startsAtDate.getTime() + duracaoMin * 60_000);
     const endsAtIso = endsAtDate.toISOString();
@@ -110,8 +118,9 @@ function FormularioEdicao({
             expectedEndsAt: session.fim,
             expectedVersion: session.versao,
             modalidade: modalidade === iniciais.modalidade ? undefined : modalidade,
-            custeadoPelaEmpresa: admin && session.convenioNome && pagadorEmpresa !== Boolean(session.custeadoPelaEmpresa)
+            custeadoPelaEmpresa: admin && session.convenioNome && session.status !== 'cancelado' && pagadorEmpresa !== Boolean(session.custeadoPelaEmpresa)
               ? pagadorEmpresa : undefined,
+            valorCentavos: valorCentavos !== undefined && valorCentavos !== session.valorCentavos ? valorCentavos : undefined,
             status: status === statusInicial ? undefined : status,
 
           }),
@@ -200,7 +209,8 @@ function FormularioEdicao({
             setData={setData} setHora={setHora} setDuracaoMin={setDuracaoMin} setModalidade={setModalidade} setStatus={setStatus}
           />
 
-          {admin && session.convenioNome && !statusEncerrado && <SessionPayerField
+          {admin && session.status !== 'cancelado' && <SessionValueField value={valorTexto} onChange={setValorTexto} disabled={cobrancaQuitada} />}
+          {admin && session.convenioNome && session.status !== 'cancelado' && <SessionPayerField
             value={pagadorEmpresa} onChange={setPagadorEmpresa} convenio={session.convenioNome}
             onMonthlyCoverage={() => setMonthlyCoverage(true)}
             monthlyLimit={session.pacoteSessoes ? (session.pacoteSessoesCiclo === 'mensal' ? session.pacoteSessoes : undefined)

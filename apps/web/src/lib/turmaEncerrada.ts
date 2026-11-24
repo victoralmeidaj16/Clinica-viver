@@ -1,10 +1,14 @@
+import { PRAZO_SAIDA_PADRAO, somarPrazo } from './turmasCiclo';
+
+export { formatarDataCurta } from './turmasCiclo';
+
 /**
  * Encerramento de turma.
  *
  * A clínica atende com os alunos das pós-graduações da Viver Mais em curso.
- * Quando a gestão encerra uma turma, os psicólogos dela saem do rodízio e da
- * vitrine na hora — sem ninguém precisar pausar um por um — e voltam se a turma
- * for reaberta.
+ * Quando a gestão encerra uma turma, os psicólogos dela continuam no rodízio e
+ * na vitrine até o fim do prazo de saída (padrão de três meses, 1.02) — sem
+ * ninguém precisar pausar um por um — e voltam se a turma for reaberta.
  *
  * Módulo sem dependência de servidor: o rodízio, a vitrine pública e o card da
  * gestão precisam responder "está fora?" pelo mesmo critério, ou a tela
@@ -23,6 +27,10 @@ export interface IdentidadeTurma {
 export interface TurmaEncerrada extends IdentidadeTurma {
   /** Data do encerramento, `AAAA-MM-DD`. */
   encerradaEm: string;
+  /** Data prevista para sair da vitrine (1.02). Ausente: encerramento mais o prazo padrão de três meses. */
+  saidaEm?: string;
+  /** Retirada interrompida pela Gestão (1.05): continua na vitrine. */
+  retiradaInterrompida?: boolean;
 }
 
 export function normalizarIdentidadeTurma(identidade: IdentidadeTurma): IdentidadeTurma {
@@ -38,15 +46,27 @@ export function chaveTurma(identidade: IdentidadeTurma): string {
   return JSON.stringify([normalizada.posGraduacao, normalizada.turma]);
 }
 
-/** Turma encerrada: fora do rodízio e da vitrine. */
-export function desligadoPorTurma(encerramento: TurmaEncerrada | undefined): boolean {
-  return Boolean(encerramento);
+/**
+ * O vínculo desta turma já saiu da vitrine? Só depois da data de saída
+ * (1.02–1.04) e nunca com a retirada interrompida. Registro sem data de saída
+ * usa o prazo padrão a partir do encerramento: todo encerramento tem prazo.
+ */
+export function desligadoPorTurma(encerramento: TurmaEncerrada | undefined, hoje: string = hojeEmBrasilia()): boolean {
+  if (!encerramento) return false;
+  if (encerramento.retiradaInterrompida) return false;
+  return hoje >= (encerramento.saidaEm ?? somarPrazo(encerramento.encerradaEm, PRAZO_SAIDA_PADRAO));
 }
 
-/** `AAAA-MM-DD` ou ISO → `DD/MM/AAAA`, sem passar por fuso. */
-export function formatarDataCurta(valor: string): string {
-  const [ano, mes, dia] = valor.slice(0, 10).split('-');
-  return `${dia}/${mes}/${ano}`;
+/**
+ * Fora da vitrine e do rodízio pela situação acadêmica: todos os vínculos
+ * aprovados perderam a validade. Com a situação derivada ausente (leitura sem
+ * turmas), vale o encerramento da turma principal.
+ */
+export function foraPorVinculoAcademico(cadastro: {
+  situacaoAcademica?: { desligado: boolean };
+  turmaEncerrada?: TurmaEncerrada;
+}): boolean {
+  return cadastro.situacaoAcademica ? cadastro.situacaoAcademica.desligado : desligadoPorTurma(cadastro.turmaEncerrada);
 }
 
 /** Hoje em Brasília, `AAAA-MM-DD`. Brasília não tem horário de verão desde 2019. */

@@ -1,6 +1,7 @@
 import 'server-only';
 
 import type { RowDataPacket } from 'mysql2';
+import { custeioDoAgendamentoSql } from '@/server/persistence/mysql/custeioSql';
 import { getMysqlPool } from '@/server/oci/runtime';
 import { fromSqlTimestamp, instituicaoId, rowId } from '@/server/persistence/mysql/mappers';
 import {
@@ -9,7 +10,7 @@ import {
 } from '@/server/persistence/mysql/patientSessionPricing';
 
 export type ResultadoRegistroFalta =
-  | 'recorded'
+  | 'recorded' | 'covered'
   | 'not_found'
   | 'stale'
   /** A falta só existe depois do início agendado: antes disso o paciente ainda pode chegar. */
@@ -43,8 +44,7 @@ function valorDaFalta(row: RowDataPacket): number | null {
 /**
  * Registra a falta e prepara a linha para a decisão de cobrança.
  *
- * A falta nunca entra na fatura da empresa nem consome a cota do convênio: se a
- * sessão for cobrada, a cobrança é individual do paciente. O movimento financeiro
+ * A política do contrato decide se a falta consome cota. O movimento financeiro
  * em si acontece depois do commit, porque cobrança e provedor travam esta mesma
  * linha. Repetir o registro retoma o financeiro e permite rever a decisão, por
  * isso uma falta já gravada não confere a versão vista pelo formulário.
@@ -61,7 +61,9 @@ export async function registrarFaltaDoAgendamento(
     await connection.beginTransaction();
     const [rows] = await connection.query<RowDataPacket[]>(
       `SELECT a.id, a.ref_core, a.status, a.versao, a.modalidade, a.inicio, a.sessao_clinica_ref,
-              a.valor_centavos, a.cobranca_vence_em,
+              a.valor_centavos, a.cobranca_vence_em, a.pacote_id, a.cota_ocorrencia_ref,
+              IF(a.pacote_id IS NULL AND JSON_EXTRACT(conv.politica,'$.consumirFalta')=TRUE
+                AND ${custeioDoAgendamentoSql({ agendamento:'a',paciente:'pa',convenio:'conv' })}=1,conv.ref_core,NULL) AS falta_contratual,
               COALESCE(a.fim, DATE_ADD(a.inicio, INTERVAL a.duracao_min MINUTE)) AS fim,
               p.ref_core AS profissional_ref, p.valor_sessao_centavos, p.valor_social_centavos,
               o.ref_core AS organizacao_ref,
@@ -74,6 +76,7 @@ export async function registrarFaltaDoAgendamento(
          JOIN clinica_profissionais p ON p.id = a.profissional_id
          JOIN clinica_organizacoes o ON o.id = p.organizacao_id
          JOIN clinica_pacientes pa ON pa.id = a.paciente_id
+         LEFT JOIN clinica_convenios conv ON conv.instituicao_id=a.instituicao_id AND conv.organizacao_ref=o.ref_core AND conv.ref_core=COALESCE(a.custeio_convenio_ref,pa.convenio_ref)
         WHERE a.instituicao_id = ? AND o.ref_core = ? AND p.ref_core = ?
           AND (a.id = ? OR a.ref_core = ?)
         LIMIT 1 FOR UPDATE`,
@@ -107,11 +110,12 @@ export async function registrarFaltaDoAgendamento(
     );
     const possuiPagamento = cobrancas.some((cobranca) => Boolean(cobranca.possui_pagamento)
       || ['paid', 'partially_paid', 'refunded'].includes(String(cobranca.status)));
-    if (!input.cobrar && possuiPagamento) return await recusar('charge_settled');
+    const coberta = Boolean(agendamento.pacote_id || (jaRegistrada ? agendamento.cota_ocorrencia_ref : agendamento.falta_contratual));
+    if ((!input.cobrar || coberta) && possuiPagamento) return await recusar('charge_settled');
 
     const campos: string[] = [];
     const valores: (string | number)[] = [];
-    if (input.cobrar && cobrancas.length === 0) {
+    if (input.cobrar && !coberta && cobrancas.length === 0) {
       if (agendamento.valor_centavos === null || agendamento.valor_centavos === undefined) {
         const valor = valorDaFalta(agendamento);
         if (valor === null) return await recusar('missing_amount');
@@ -126,6 +130,10 @@ export async function registrarFaltaDoAgendamento(
     }
 
     if (!jaRegistrada) {
+      if (agendamento.falta_contratual) {
+        campos.push('cota_ocorrencia_ref = ?');
+        valores.push(agendamento.falta_contratual);
+      }
       campos.push("status = 'faltou'", 'custeado_pela_empresa = 0', 'custeio_convenio_ref = NULL', 'sessao_clinica_ref = ?', 'versao = versao + 1');
       valores.push(sessionRef);
       // Sem conteúdo clínico: é o fato da ausência, contado nos indicadores mensais.
@@ -161,7 +169,7 @@ export async function registrarFaltaDoAgendamento(
       );
     }
     await connection.commit();
-    return 'recorded';
+    return coberta ? 'covered' : 'recorded';
   } catch (error) {
     await connection.rollback();
     throw error;

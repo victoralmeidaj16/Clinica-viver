@@ -41,7 +41,8 @@ export type FinalidadeMensagem =
   | 'agenda_solicitacao_reagendamento_psicologo'
   | 'agenda_recusa_reagendamento_paciente'
   | 'agenda_cancelamento_paciente'
-  | 'confirmacao_triagem_paciente';
+  | 'confirmacao_triagem_paciente'
+  | 'aviso_saida_turma';
 
 export interface ResultadoEnvio {
   finalidade: FinalidadeMensagem;

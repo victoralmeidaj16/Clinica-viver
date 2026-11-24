@@ -38,6 +38,8 @@ export interface SessaoContabilizavel {
   id: string;
   status: ClinicalSessionStatus;
   scheduledStart: string;
+  scheduledEnd?: string;
+  actualStart?: string;
   actualEnd?: string;
 }
 
@@ -52,10 +54,57 @@ export interface ApuracaoDeHoras {
   /** Ids das sessões contadas, ordenados — é a evidência do total. */
   sessaoIds: readonly string[];
   totalSessoes: number;
+  /** Total de minutos reais somados das sessões realizadas (§ 8.03). */
+  totalMinutos: number;
+  /** Parte inteira em horas (`Math.floor(totalMinutos / 60)`). */
   totalHoras: number;
   /** `AAAA-MM-DD` da primeira e da última sessão contada. */
   periodoInicio: string;
   periodoFim: string;
+}
+
+/**
+ * Duração real da sessão em minutos (§ 8.03).
+ *
+ * Usa `actualStart`/`actualEnd` quando ambos existem, senão o intervalo
+ * agendado (`scheduledStart`/`scheduledEnd`), ou `scheduledStart`/`actualEnd`.
+ * Só recorre ao padrão de 60 minutos em registros legados sem horário final.
+ */
+export function duracaoSessaoMinutos(sessao: SessaoContabilizavel): number {
+  const pares: Array<[string | undefined, string | undefined]> = [
+    [sessao.actualStart, sessao.actualEnd],
+    [sessao.scheduledStart, sessao.scheduledEnd],
+    [sessao.scheduledStart, sessao.actualEnd],
+  ];
+  for (const [inicioIso, fimIso] of pares) {
+    if (!inicioIso || !fimIso) continue;
+    const inicio = Date.parse(inicioIso);
+    const fim = Date.parse(fimIso);
+    if (Number.isFinite(inicio) && Number.isFinite(fim) && fim > inicio) {
+      return Math.max(1, Math.round((fim - inicio) / 60_000));
+    }
+  }
+  return HORAS_POR_SESSAO * 60;
+}
+
+/** Formata carga horária de forma curta (ex.: `2h20`, `2h`, `50min`). */
+export function formatarCargaHorariaCurta(totalMinutos: number): string {
+  const minutosSeguros = Math.max(0, Math.round(totalMinutos));
+  const horas = Math.floor(minutosSeguros / 60);
+  const minutos = minutosSeguros % 60;
+  if (horas === 0) return `${minutos}min`;
+  return minutos > 0 ? `${horas}h${String(minutos).padStart(2, '0')}` : `${horas}h`;
+}
+
+/** Formata carga horária por extenso para o documento impresso (ex.: `2 horas e 20 minutos`). */
+export function formatarCargaHorariaExtenso(totalMinutos: number): string {
+  const minutosSeguros = Math.max(0, Math.round(totalMinutos));
+  const horas = Math.floor(minutosSeguros / 60);
+  const minutos = minutosSeguros % 60;
+  const textoHoras = horas === 1 ? '1 hora' : `${horas} horas`;
+  const textoMinutos = minutos === 1 ? '1 minuto' : `${minutos} minutos`;
+  if (horas === 0) return textoMinutos;
+  return minutos > 0 ? `${textoHoras} e ${textoMinutos}` : textoHoras;
 }
 
 /**
@@ -92,11 +141,13 @@ export function apurarHorasClinicas(
   if (contadas.length === 0) return null;
 
   const instantes = contadas.map(instanteDaSessao).sort();
+  const totalMinutos = contadas.reduce((soma, sessao) => soma + duracaoSessaoMinutos(sessao), 0);
 
   return {
     sessaoIds: contadas.map((sessao) => sessao.id).sort(),
     totalSessoes: contadas.length,
-    totalHoras: contadas.length * HORAS_POR_SESSAO,
+    totalMinutos,
+    totalHoras: Math.floor(totalMinutos / 60),
     periodoInicio: instantes[0].slice(0, 10),
     periodoFim: instantes[instantes.length - 1].slice(0, 10),
   };
@@ -168,6 +219,7 @@ export interface ConteudoDeclaracao {
   periodoFim: string;
   totalSessoes: number;
   totalHoras: number;
+  totalMinutos?: number;
   emitidoEm: string;
   sessaoIds: readonly string[];
 }
@@ -181,7 +233,7 @@ export interface ConteudoDeclaracao {
  * dispara sozinho é pior que alarme nenhum, porque ensina a ignorá-lo.
  */
 export function canonicalizarDeclaracao(conteudo: ConteudoDeclaracao): string {
-  return JSON.stringify([
+  const base: unknown[] = [
     conteudo.codigo,
     conteudo.psicologoNome,
     conteudo.psicologoCrp,
@@ -192,7 +244,11 @@ export function canonicalizarDeclaracao(conteudo: ConteudoDeclaracao): string {
     conteudo.totalHoras,
     conteudo.emitidoEm,
     [...conteudo.sessaoIds].sort(),
-  ]);
+  ];
+  if (conteudo.totalMinutos !== undefined && conteudo.totalMinutos !== conteudo.totalHoras * 60) {
+    base.push(conteudo.totalMinutos);
+  }
+  return JSON.stringify(base);
 }
 
 /**

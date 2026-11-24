@@ -36,6 +36,7 @@ import { lerVinculoColetivo } from '@/lib/vinculoColetivo';
 import { prazoOfertaValido } from '@/lib/prazoOferta';
 import type { AlteracaoPreferencias, PreferenciasSolicitacao } from '@/lib/preferenciasSolicitacao';
 import { lerPrazoOfertaConfigurado } from './configuracaoGestaoRepository';
+import { lerDecisoesVinculos } from '@/lib/vinculoAcademico';
 
 export interface CaptureState {
   triagensPacientes: readonly TriagemPacienteRecord[];
@@ -185,6 +186,8 @@ interface PsicologoRow extends RowDataPacket {
   segunda_pos_graduacao_viver_mais: string | null;
   solicitacao_alteracao_gestao?: unknown;
   aceite_termo_adesao?: unknown;
+  segunda_turma_viver_mais?: string | null;
+  vinculos_academicos?: unknown;
   criado_em: string;
 }
 
@@ -414,6 +417,8 @@ function toPsychologist(row: PsicologoRow): CadastroPsicologoRecord {
       }
     })(),
     ...aceiteDaLinha(row.aceite_termo_adesao),
+    ...(row.segunda_turma_viver_mais ? { segundaTurmaViverMais: row.segunda_turma_viver_mais } : {}),
+    ...(lerDecisoesVinculos(row.vinculos_academicos) ? { vinculosAcademicos: lerDecisoesVinculos(row.vinculos_academicos) } : {}),
   };
 }
 
@@ -640,6 +645,23 @@ export class MysqlCaptureRepository {
   }
 
   private static suporteFluxo: SuporteFluxo | null = null;
+  private static temColunasVinculos = false;
+
+  /** Colunas da migration 093 (turma da segunda pós e decisões por vínculo). */
+  private async suportaVinculos(connection: Pool | PoolConnection): Promise<boolean> {
+    if (MysqlCaptureRepository.temColunasVinculos) return true;
+    try {
+      const [rows] = await connection.query<RowDataPacket[]>(
+        `SELECT COUNT(*) AS total FROM information_schema.columns
+          WHERE table_schema = DATABASE() AND table_name = 'clinica_cadastros_psicologos'
+            AND column_name IN ('segunda_turma_viver_mais', 'vinculos_academicos')`
+      );
+      MysqlCaptureRepository.temColunasVinculos = Number(rows[0]?.total ?? 0) === 2;
+    } catch {
+      return false;
+    }
+    return MysqlCaptureRepository.temColunasVinculos;
+  }
 
   /**
    * Quais colunas da migration 088 existem. Uma consulta para todas; só o
@@ -682,6 +704,7 @@ export class MysqlCaptureRepository {
     const temProjetoAcolhe = await this.supportsProjetoAcolheColumn(connection);
     const temRecusas = await this.supportsRecusasColumn(connection);
     const fluxo = await this.suporteFluxo(connection);
+    const temVinculos = await this.suportaVinculos(connection);
     const colunasFluxo = COLUNAS_FLUXO.filter((coluna) => fluxo.colunas.has(coluna)).map((coluna) => ` ${coluna},`).join('');
     const campoNomeSocial = temNomeSocial ? 'nome_social' : 'NULL AS nome_social';
     const [leadRows] = await connection.query<TriagemRow[]>(
@@ -711,7 +734,7 @@ export class MysqlCaptureRepository {
               limite_pacientes_ativos, pacientes_ativos_count, exibir_na_vitrine,
               pausado_no_rodizio, motivo_pausa_rodizio, motivo_desativacao, ultimo_lead_recebido_em, turma_viver_mais,
               pos_graduacao_viver_mais, segunda_pos_graduacao_viver_mais,
-              solicitacao_alteracao_gestao,${temReconfiguracao ? ' reconfiguracao_atendimento_pendente,' : ''}${temAceiteTermo ? ' aceite_termo_adesao,' : ''} criado_em
+              solicitacao_alteracao_gestao,${temReconfiguracao ? ' reconfiguracao_atendimento_pendente,' : ''}${temAceiteTermo ? ' aceite_termo_adesao,' : ''}${temVinculos ? ' segunda_turma_viver_mais, vinculos_academicos,' : ''} criado_em
          FROM clinica_cadastros_psicologos
         WHERE instituicao_id = ? AND organizacao_ref = ?
         ORDER BY criado_em${lock}`,
@@ -950,7 +973,8 @@ export class MysqlCaptureRepository {
         JSON.stringify(psych.acessibilidade) !== JSON.stringify(before.acessibilidade) ||
         Boolean(psych.reconfiguracaoAtendimentoPendente) !== Boolean(before.reconfiguracaoAtendimentoPendente) ||
         JSON.stringify(params) !== JSON.stringify(MysqlCaptureRepository.psychValues(before)) ||
-        Boolean(psych.aceiteTermoAdesao && !before.aceiteTermoAdesao);
+        Boolean(psych.aceiteTermoAdesao && !before.aceiteTermoAdesao) ||
+        vinculosDoCadastroMudaram(psych, before);
       if (!changed) continue;
       const temAcessibilidade = await this.supportsAcessibilidadeColumn(connection);
       const temReconfiguracao = await this.supportsReconfiguracaoColumn(connection);
@@ -1023,6 +1047,16 @@ export class MysqlCaptureRepository {
           [asNullableJson(psych.acessibilidade), rowId('cadastro_psicologo', psych.id)]
         );
       }
+      // Turma da segunda pós e aprovação por vínculo (migration 093). Sem as
+      // colunas, uma decisão nova não pode sumir em silêncio.
+      if (await this.suportaVinculos(connection)) {
+        await connection.execute(
+          'UPDATE clinica_cadastros_psicologos SET segunda_turma_viver_mais = ?, vinculos_academicos = ? WHERE id = ?',
+          [psych.segundaTurmaViverMais ?? null, asNullableJson(psych.vinculosAcademicos ?? null), rowId('cadastro_psicologo', psych.id)]
+        );
+      } else if (before && vinculosDoCadastroMudaram(psych, before)) {
+        throw new Error('A turma da segunda pós e a aprovação por vínculo requerem a migration 093_vinculos_academicos.sql.');
+      }
       // A prova do aceite é gravada uma única vez: `IS NULL` impede que uma
       // edição posterior do cadastro troque a data, o IP ou o hash registrados.
       if (psych.aceiteTermoAdesao && (await this.supportsAceiteTermoColumn(connection))) {
@@ -1075,6 +1109,12 @@ export class MysqlCaptureRepository {
       );
     }
   }
+}
+
+function vinculosDoCadastroMudaram(psych: CadastroPsicologoRecord, before: CadastroPsicologoRecord | undefined): boolean {
+  if (!before) return Boolean(psych.segundaTurmaViverMais || psych.vinculosAcademicos);
+  return (psych.segundaTurmaViverMais ?? null) !== (before.segundaTurmaViverMais ?? null)
+    || JSON.stringify(psych.vinculosAcademicos ?? null) !== JSON.stringify(before.vinculosAcademicos ?? null);
 }
 
 /** Valor de cada coluna da migration 088, na forma que o MySQL grava. */

@@ -16,7 +16,7 @@ import type { FinancialFilter, FinancialLedger, PaymentMethod } from './types';
  */
 export interface EducationalCreditLine {
   id: string;
-  source: 'payment' | 'company_session';
+  source: 'payment' | 'company_session' | 'package' | 'adjustment';
   chargeId: string;
   sessionId: string;
   patientId: string;
@@ -26,6 +26,13 @@ export interface EducationalCreditLine {
   baseCents: number;
   creditCents: number;
   paymentMethod?: PaymentMethod;
+  originalId?: string;
+  justification?: string;
+  eventRef?: string;
+  authorId?: string;
+  receiptRef?: string;
+  receiptUrl?: string;
+  refundRefs?: string[];
 }
 
 export function listEducationalCreditLines(

@@ -125,6 +125,7 @@ export interface PreviaDeclaracao {
   periodoFim: string;
   totalSessoes: number;
   totalHoras: number;
+  totalMinutos: number;
   coordenadora: string;
 }
 
@@ -137,6 +138,7 @@ export interface AjustesDeclaracao {
   periodoInicio: string;
   periodoFim: string;
   totalHoras: number;
+  totalMinutos?: number;
   coordenadora: string;
 }
 
@@ -164,17 +166,20 @@ function dataObrigatoria(valor: unknown, rotulo: string): string {
   return data;
 }
 
-function validarAjustes(ajustes: AjustesDeclaracao): AjustesDeclaracao {
+function validarAjustes(ajustes: AjustesDeclaracao): AjustesDeclaracao & { totalMinutos: number } {
   const periodoInicio = dataObrigatoria(ajustes.periodoInicio, 'início do período');
   const periodoFim = dataObrigatoria(ajustes.periodoFim, 'fim do período');
   if (periodoInicio > periodoFim) {
     throw new ApplicationError('INVALID_INPUT', 'O início do período não pode ser posterior ao fim.', 400);
   }
 
-  const totalHoras = Number(ajustes.totalHoras);
-  if (!Number.isInteger(totalHoras) || totalHoras <= 0 || totalHoras > 10000) {
-    throw new ApplicationError('INVALID_INPUT', 'Informe um total de horas inteiro entre 1 e 10.000.', 400);
+  const totalMinutos = ajustes.totalMinutos !== undefined
+    ? Number(ajustes.totalMinutos)
+    : Number(ajustes.totalHoras) * 60;
+  if (!Number.isInteger(totalMinutos) || totalMinutos <= 0 || totalMinutos > 600_000) {
+    throw new ApplicationError('INVALID_INPUT', 'Informe uma carga horária válida entre 1 minuto e 10.000 horas.', 400);
   }
+  const totalHoras = Math.floor(totalMinutos / 60);
 
   return {
     psicologoNome: textoObrigatorio(ajustes.psicologoNome, 'nome', 180),
@@ -184,6 +189,7 @@ function validarAjustes(ajustes: AjustesDeclaracao): AjustesDeclaracao {
     periodoInicio,
     periodoFim,
     totalHoras,
+    totalMinutos,
     coordenadora: textoObrigatorio(ajustes.coordenadora, 'coordenadora', 180),
   };
 }
@@ -240,6 +246,7 @@ export async function previaDeclaracao(
     periodoFim: apuracao.periodoFim,
     totalSessoes: apuracao.totalSessoes,
     totalHoras: apuracao.totalHoras,
+    totalMinutos: apuracao.totalMinutos,
     coordenadora: SIGNATARIOS_DECLARACAO.coordenadora,
   };
 }
@@ -274,6 +281,7 @@ export async function emitirDeclaracao(
     periodoInicio: apuracao.periodoInicio,
     periodoFim: apuracao.periodoFim,
     totalHoras: apuracao.totalHoras,
+    totalMinutos: apuracao.totalMinutos,
     coordenadora: SIGNATARIOS_DECLARACAO.coordenadora,
   };
 
@@ -289,6 +297,7 @@ export async function emitirDeclaracao(
       periodoFim: valores.periodoFim,
       totalSessoes: apuracao.totalSessoes,
       totalHoras: valores.totalHoras,
+      totalMinutos: valores.totalMinutos,
       sessaoIds: apuracao.sessaoIds,
       coordenadora: valores.coordenadora,
       emitidoPor: usuarioId,
@@ -303,6 +312,7 @@ export async function emitirDeclaracao(
         periodoFim: valores.periodoFim,
         totalSessoes: apuracao.totalSessoes,
         totalHoras: valores.totalHoras,
+        totalMinutos: valores.totalMinutos,
         emitidoEm,
         sessaoIds: apuracao.sessaoIds,
       })

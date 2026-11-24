@@ -1,5 +1,8 @@
 import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
+import { getMysqlPool } from '@/server/oci/runtime';
+import { instituicaoId, rowId } from '@/server/persistence/mysql/mappers';
+import { registrarEstornoPaciente } from '@/server/payments/patientRefund';
 import { reconcileAsaasPayment } from '@/server/payments/paymentLinkRepository';
 import { reconcileConvenioInvoicePayment, reconcileConvenioInvoiceRefund } from '@/server/persistence/mysql/convenioRepository';
 
@@ -31,6 +34,12 @@ export async function POST(request: Request) {
     if (!paymentId || !eventType) {
       return NextResponse.json({ error: 'Evento inválido.' }, { status: 400 });
     }
+    if (['PAYMENT_CHARGEBACK_REQUESTED','PAYMENT_CHARGEBACK_DISPUTE','PAYMENT_AWAITING_CHARGEBACK_REVERSAL'].includes(eventType)) {
+      const evento = String(payload.id || eventType + ':' + paymentId);
+      await getMysqlPool().execute(`INSERT INTO financeiro_webhooks_asaas (id,instituicao_id,evento_ref,evento_tipo,provedor_pagamento_ref)
+        VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE id=id`,[rowId('asaas_event',evento),instituicaoId(),evento,eventType,paymentId]);
+      return NextResponse.json({ received:true });
+    }
     if (['PAYMENT_REFUNDED', 'PAYMENT_PARTIALLY_REFUNDED'].includes(eventType)) {
       const refunds = Array.isArray(payment?.refunds) ? payment.refunds : [];
       const refundCents = refunds.reduce((sum: number, item: unknown) => {
@@ -41,12 +50,14 @@ export async function POST(request: Request) {
       if ((!Number.isSafeInteger(refundCents) || refundCents <= 0) && String(payment?.externalReference ?? '').startsWith('VMPJ-')) {
         return NextResponse.json({ error: 'Estorno confirmado sem valor para conciliação.' }, { status: 503 });
       }
-      const result = await reconcileConvenioInvoiceRefund({
+      const dados = {
         eventId: String(payload.id || `${eventType}:${paymentId}:${refundCents}`), eventType, paymentId,
         refundCents: Number.isSafeInteger(refundCents) ? refundCents : 0,
         receivedAt: new Date().toISOString(),
-      });
-      if (result === 'unknown' && String(payment?.externalReference ?? '').startsWith('VMPJ-')) {
+      };
+      let result = await reconcileConvenioInvoiceRefund(dados);
+      if (result === 'unknown') result = await registrarEstornoPaciente(dados);
+      if (result === 'unknown' && /^(?:VMPJ|VM)-/.test(String(payment?.externalReference ?? ''))) {
         return NextResponse.json({ error: 'A fatura ainda não está pronta para conciliação.' }, { status: 503 });
       }
       return NextResponse.json({ received: true, duplicate: result === 'duplicate', ignored: result === 'unknown' });
@@ -67,6 +78,7 @@ export async function POST(request: Request) {
       paymentId,
       amountCents,
       receivedAt,
+      ...(typeof payment?.transactionReceiptUrl === 'string' ? { receiptUrl:payment.transactionReceiptUrl } : {}),
       billingType: String(payment?.billingType || 'UNDEFINED'),
     });
     if (result === 'unknown') {
@@ -76,15 +88,15 @@ export async function POST(request: Request) {
       });
     }
     if (result === 'unknown') {
-      if (String(payment?.externalReference ?? '').startsWith('VMPJ-')) {
+      if (/^(?:VMPJ|VM)-/.test(String(payment?.externalReference ?? ''))) {
         return NextResponse.json({ error: 'A fatura ainda não está pronta para conciliação.' }, { status: 503 });
       }
       // 200 evita reentregas infinitas de cobranças que não nasceram nesta aplicação.
       return NextResponse.json({ received: true, ignored: true });
     }
     return NextResponse.json({ received: true, duplicate: result === 'duplicate' });
-  } catch (error) {
-    console.error('[asaas-webhook] Falha ao conciliar:', error instanceof Error ? error.message : error);
+  } catch {
+    console.error('[asaas-webhook] Falha ao conciliar o evento.');
     return NextResponse.json({ error: 'Falha ao processar webhook.' }, { status: 500 });
   }
 }

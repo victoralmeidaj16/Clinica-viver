@@ -12,6 +12,7 @@ export interface Atendimento {
   psicologoId: string;
   psicologoNome: string;
   vencimentoEm: string;
+  prazoSolicitado?: string;
   status: 'draft' | 'paid' | 'pending' | 'partially_paid' | 'overdue' | 'refunded' | 'cancelled';
   valorLiquidoCents: number;
   recebidoCents: number;
@@ -29,7 +30,7 @@ export interface Atendimento {
 const dinheiro = (centavos: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(centavos / 100);
 const dataBr = (iso: string) =>
-  new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo' }).format(new Date(iso));
+  new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle:'short', timeStyle:'short' }).format(new Date(iso));
 
 const rotuloStatus: Record<Atendimento['status'], string> = {
   draft: 'Rascunho',
@@ -53,7 +54,7 @@ const estiloStatus: Record<Atendimento['status'], string> = {
 
 /** Após qualquer recebimento o prazo fica travado; sessão do convênio segue o prazo da fatura. */
 export const podeEditarVencimento = (item: Atendimento) =>
-  ['draft', 'pending', 'overdue'].includes(item.status) && item.recebidoCents === 0
+  ['draft', 'pending', 'overdue', 'partially_paid'].includes(item.status) && item.emAbertoCents > 0
   && !item.custeadoPelaEmpresa && !item.faturaConvenioId;
 
 export function ClinicReceivablesTable({ atendimentos, eAdmin, abrirPreviaNfse, onPaymentSaved }: {
@@ -104,6 +105,7 @@ export function ClinicReceivablesTable({ atendimentos, eAdmin, abrirPreviaNfse, 
                   <td className="px-6 py-4 font-semibold text-ink">{item.psicologoNome}</td>
                   <td className="px-6 py-4 text-muted">
                     {dataBr(item.vencimentoEm)}
+                    {item.prazoSolicitado && <p>Aguardando confirmação bancária para {dataBr(item.prazoSolicitado)}</p>}
                     {eAdmin && podeEditarVencimento(item) && (
                       <ChargeDueButton chargeId={item.chargeId} patientName={item.pacienteNome}
                         dueAt={item.vencimentoEm} onSaved={onPaymentSaved} />

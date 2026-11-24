@@ -6,11 +6,12 @@ export interface EstadoAuditavel {
   modalidade?: string;
   status?: string;
   custeadoPelaEmpresa?: boolean;
+  valorCentavos?: number;
   venceEm?: string;
 }
 
 export interface MudancaAgendamento {
-  campo: 'horario' | 'formato' | 'situacao' | 'pagador' | 'vencimento';
+  campo: 'horario' | 'formato' | 'situacao' | 'pagador' | 'valor' | 'vencimento';
   rotulo: string;
   de: string;
   para: string;
@@ -45,6 +46,11 @@ function pagador(empresa?: boolean) {
   return empresa ? 'Empresa (convênio)' : 'Paciente';
 }
 
+const moeda = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+function valor(centavos?: number) {
+  return centavos == null ? 'Não informado' : moeda.format(centavos / 100);
+}
+
 export function diferencasDoAgendamento(antes: EstadoAuditavel, depois: EstadoAuditavel): MudancaAgendamento[] {
   const mudancas: MudancaAgendamento[] = [];
   const comparar = (campo: MudancaAgendamento['campo'], rotulo: string, de: string, para: string) => {
@@ -61,6 +67,9 @@ export function diferencasDoAgendamento(antes: EstadoAuditavel, depois: EstadoAu
   }
   if (depois.custeadoPelaEmpresa !== undefined) {
     comparar('pagador', 'Responsável pelo pagamento', pagador(antes.custeadoPelaEmpresa), pagador(depois.custeadoPelaEmpresa));
+  }
+  if (depois.valorCentavos !== undefined) {
+    comparar('valor', 'Valor da sessão', valor(antes.valorCentavos), valor(depois.valorCentavos));
   }
   if (depois.venceEm !== undefined) {
     comparar('vencimento', 'Vencimento da cobrança', antes.venceEm ? dataHoraSessao(antes.venceEm) : 'Não informado', dataHoraSessao(depois.venceEm));

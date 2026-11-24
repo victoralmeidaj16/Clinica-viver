@@ -19,6 +19,7 @@ interface SolicitacaoGestaoData {
   turmaViverMais?: string;
   posGraduacaoViverMais?: string;
   segundaPosGraduacao?: string;
+  segundaTurmaViverMais?: string;
   servicosPrestados?: readonly string[];
   limitePacientesAtivos?: number;
   justificativa?: string;
@@ -33,6 +34,7 @@ interface CardDefinidoPelaGestaoProps {
     turmaViverMais?: string;
     posGraduacaoViverMais?: string;
     segundaPosGraduacao?: string;
+    segundaTurmaViverMais?: string;
     servicosPrestados?: string[];
     limitePacientesAtivos?: number;
     pacientesAtivosCount?: number;

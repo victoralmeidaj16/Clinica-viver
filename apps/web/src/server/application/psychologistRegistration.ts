@@ -6,7 +6,13 @@ import { isBrazilUf } from '@/lib/brazilLocations';
 import { municipioPertenceAoEstado } from './brazilLocalities';
 import { validateGender } from '@/lib/gender';
 import { limitePacientesValido, mensagemLimitePacientesInvalido } from '@/lib/psychologistCapacity';
-import { opcoesAtendimentoDaPos, POS_GRADUACOES_VIVER_MAIS } from '@/components/forms/opcoesPsicologo';
+import {
+  CATALOGO_CURSOS_PADRAO,
+  cursoNoCatalogo,
+  opcoesAtendimentoDaPos,
+  type CursoPos,
+} from '@/components/forms/opcoesPsicologo';
+import { normalizarCodigoTurma } from '@/lib/turmasCiclo';
 
 /**
  * Regras de edição do cadastro de psicólogo, num lugar só.
@@ -38,7 +44,7 @@ export const CAMPOS_DA_GESTAO = new Set([
   'especificarNecessidades', 'necessidadesAtendidas', 'necessidadesOutro',
   'limitePacientesAtivos', 'exibirNaVitrine', 'motivoDesativacao',
   'pausadoNoRodizio', 'motivoPausaRodizio',
-  'turmaViverMais', 'posGraduacaoViverMais', 'segundaPosGraduacao',
+  'turmaViverMais', 'posGraduacaoViverMais', 'segundaPosGraduacao', 'segundaTurmaViverMais',
   'ultimoLeadRecebidoEm', 'solicitacaoAlteracaoGestao',
 ]);
 
@@ -249,16 +255,25 @@ export async function validarCorpo(
 export function aplicarMudancas(
   existente: CadastroPsicologoRecord,
   corpo: Record<string, unknown>,
-  permitidos: ReadonlySet<string>
+  permitidos: ReadonlySet<string>,
+  catalogo: readonly CursoPos[] = CATALOGO_CURSOS_PADRAO
 ): CadastroPsicologoRecord {
   const gestao = permitidos.has('posGraduacaoViverMais');
   const enviado = (campo: string) => permitidos.has(campo) && corpo[campo] !== undefined;
   const posGraduacaoViverMais = enviado('posGraduacaoViverMais') ? texto(corpo.posGraduacaoViverMais) : existente.posGraduacaoViverMais;
   const segundaPosGraduacao = enviado('segundaPosGraduacao') ? texto(corpo.segundaPosGraduacao) : existente.segundaPosGraduacao;
-  const mudouPos = posGraduacaoViverMais !== existente.posGraduacaoViverMais || segundaPosGraduacao !== existente.segundaPosGraduacao;
-  if (mudouPos && (!posGraduacaoViverMais || !POS_GRADUACOES_VIVER_MAIS.includes(posGraduacaoViverMais)
-    || (segundaPosGraduacao && !POS_GRADUACOES_VIVER_MAIS.includes(segundaPosGraduacao)))) {
+  const mudouAlgumaPos = posGraduacaoViverMais !== existente.posGraduacaoViverMais || segundaPosGraduacao !== existente.segundaPosGraduacao;
+  // Um vínculo novo não interrompe os atendimentos já autorizados (1.01): só
+  // trocar a principal, ou trocar/remover a segunda, pede nova seleção.
+  const somenteAcrescentouSegunda = posGraduacaoViverMais === existente.posGraduacaoViverMais
+    && !existente.segundaPosGraduacao && Boolean(segundaPosGraduacao);
+  const mudouPos = mudouAlgumaPos && !somenteAcrescentouSegunda;
+  if (mudouAlgumaPos && (!posGraduacaoViverMais || !cursoNoCatalogo(posGraduacaoViverMais, catalogo)
+    || (segundaPosGraduacao && !cursoNoCatalogo(segundaPosGraduacao, catalogo)))) {
     throw new CorpoInvalidoError('Selecione uma pós-graduação da lista da Viver Mais.');
+  }
+  if (segundaPosGraduacao && segundaPosGraduacao === posGraduacaoViverMais) {
+    throw new CorpoInvalidoError('A segunda pós-graduação precisa ser diferente da principal.');
   }
   const reiniciarEscolhas = gestao && (mudouPos || Boolean(existente.reconfiguracaoAtendimentoPendente));
   const pode = (campo: string) => enviado(campo)
@@ -269,7 +284,7 @@ export function aplicarMudancas(
     if (!pode('publicoAlvo') || !pode('servicosPrestados')) {
       throw new CorpoInvalidoError('Selecione novamente os públicos e serviços da nova pós-graduação.');
     }
-    if (!opcoesAtendimentoDaPos(posGraduacaoViverMais, segundaPosGraduacao)) {
+    if (!opcoesAtendimentoDaPos(posGraduacaoViverMais, segundaPosGraduacao, catalogo)) {
       throw new CorpoInvalidoError('A gestão precisa definir uma pós-graduação válida antes da nova seleção.');
     }
     reconfiguracaoAtendimentoPendente = false;
@@ -331,7 +346,7 @@ export function aplicarMudancas(
       ? listaDeTexto(corpo.modalidadesAtendidas) ?? existente.modalidadesAtendidas
       : existente.modalidadesAtendidas;
 
-  const opcoes = opcoesAtendimentoDaPos(posGraduacaoViverMais, segundaPosGraduacao);
+  const opcoes = opcoesAtendimentoDaPos(posGraduacaoViverMais, segundaPosGraduacao, catalogo);
 
   if (pode('solicitacaoAlteracaoGestao') && solicitacaoAlteracaoGestao?.status === 'PENDENTE' && solicitacaoAlteracaoGestao.servicosPrestados !== undefined) {
     const posPedido = solicitacaoAlteracaoGestao.posGraduacaoViverMais !== undefined
@@ -340,9 +355,9 @@ export function aplicarMudancas(
     const segundaPosPedido = solicitacaoAlteracaoGestao.segundaPosGraduacao !== undefined
       ? texto(solicitacaoAlteracaoGestao.segundaPosGraduacao)
       : segundaPosGraduacao;
-    const opcoesPedido = opcoesAtendimentoDaPos(posPedido, segundaPosPedido);
-    if ((solicitacaoAlteracaoGestao.posGraduacaoViverMais !== undefined && (!posPedido || !POS_GRADUACOES_VIVER_MAIS.includes(posPedido)))
-      || (segundaPosPedido && !POS_GRADUACOES_VIVER_MAIS.includes(segundaPosPedido))) {
+    const opcoesPedido = opcoesAtendimentoDaPos(posPedido, segundaPosPedido, catalogo);
+    if ((solicitacaoAlteracaoGestao.posGraduacaoViverMais !== undefined && (!posPedido || !cursoNoCatalogo(posPedido, catalogo)))
+      || (segundaPosPedido && !cursoNoCatalogo(segundaPosPedido, catalogo))) {
       throw new CorpoInvalidoError('Selecione uma pós-graduação da lista da Viver Mais.');
     }
     const servicosPedido = listaDeTexto(solicitacaoAlteracaoGestao.servicosPrestados);
@@ -468,6 +483,12 @@ export function aplicarMudancas(
       : existente.turmaViverMais,
     posGraduacaoViverMais,
     segundaPosGraduacao,
+    // Turma da segunda pós (3.2). Some junto com a pós.
+    segundaTurmaViverMais: !segundaPosGraduacao
+      ? undefined
+      : pode('segundaTurmaViverMais')
+        ? normalizarCodigoTurma(corpo.segundaTurmaViverMais) ?? undefined
+        : segundaPosGraduacao === existente.segundaPosGraduacao ? existente.segundaTurmaViverMais : undefined,
     solicitacaoAlteracaoGestao,
   };
 }

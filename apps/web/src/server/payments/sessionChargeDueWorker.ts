@@ -4,13 +4,14 @@ import type { RowDataPacket } from 'mysql2';
 import type { PoolConnection } from 'mysql2/promise';
 import { getMysqlPool } from '@/server/oci/runtime';
 import { instituicaoId } from '@/server/persistence/mysql/mappers';
+import { aplicarVencimentoSolicitado } from './confirmedChargeDue';
 import { remoteCancellationState, cancelRemote } from './sessionChargeCancellation';
 import type { DueResetPlan } from './sessionChargeDuePlan';
 import { getInterPixCharge } from '@/server/adapters/interPixAdapter';
 import { reconcileSettledInterPixCharge } from './paymentLinkRepository';
 
 type Plan = DueResetPlan & { affectedChargeIds: string[] };
-type Outcome = 'updated' | 'queued' | 'paid' | 'not_found';
+type Outcome = 'rejected' | 'updated' | 'queued' | 'paid' | 'not_found';
 
 async function reconcilePaidExpiry(plan: Plan, remote: { provider: string; id: string }) {
   if (plan.operation === 'expire' && remote.provider === 'inter') {
@@ -32,7 +33,7 @@ async function resetCheckout(connection: PoolConnection, checkout: RowDataPacket
   );
 }
 
-async function setOutcome(connection: PoolConnection, id: string, status: 'paid' | 'completed') {
+async function setOutcome(connection: PoolConnection, id: string, status: 'paid' | 'completed' | 'rejected') {
   await connection.execute(
     'UPDATE financeiro_ajustes_vencimento SET situacao = ? WHERE instituicao_id = ? AND id = ?',
     [status, instituicaoId(), id]
@@ -68,6 +69,18 @@ async function checkpointCancellation(connection: PoolConnection, job: RowDataPa
 
 async function processJob(connection: PoolConnection, job: RowDataPacket): Promise<Outcome> {
   let plan: Plan = typeof job.plano === 'string' ? JSON.parse(job.plano) : job.plano;
+  if (plan.operation === 'change_due') return aplicarVencimentoSolicitado(connection, job, plan);
+  if (plan.operation !== 'expire') {
+    // Uma solicitação criada pela versão que cancelava o instrumento não contém confirmação do novo prazo.
+    await connection.beginTransaction();
+    try {
+      await connection.execute(`UPDATE clinica_agendamentos a JOIN financeiro_cobrancas c ON c.instituicao_id=a.instituicao_id
+        AND c.organizacao_ref=? AND c.ref_core=? SET a.cobranca_vence_em=c.vence_em WHERE a.instituicao_id=? AND a.id=?`,
+      [plan.charges[0].organizacao_ref,plan.charges[0].ref_core,instituicaoId(),job.agendamento_id]);
+      await setOutcome(connection,String(job.id),'rejected');
+      await connection.commit(); return 'rejected';
+    } catch (error) { await connection.rollback(); throw error; }
+  }
   let paid = false;
   // Consulta o lote inteiro antes de cancelar. Uma remoção já concluída em
   // uma tentativa anterior precisa ser conciliada mesmo se outro item foi pago.
@@ -92,7 +105,6 @@ async function processJob(connection: PoolConnection, job: RowDataPacket): Promi
   try {
     for (const checkout of plan.checkouts) await resetCheckout(connection, checkout);
     const refs = plan.charges.map((c) => String(c.ref_core));
-    if (plan.operation === 'expire') {
       await connection.execute(
         `UPDATE financeiro_cobrancas c SET status = 'overdue', atualizado_em = CURRENT_TIMESTAMP(3)
           WHERE c.instituicao_id = ? AND c.organizacao_ref = ? AND c.ref_core IN (${refs.map(() => '?').join(', ')})
@@ -101,15 +113,6 @@ async function processJob(connection: PoolConnection, job: RowDataPacket): Promi
               AND p.organizacao_ref = c.organizacao_ref AND p.cobranca_ref = c.ref_core AND p.status = 'confirmed')`,
         [instituicaoId(), plan.charges[0].organizacao_ref, ...refs]
       );
-    } else await connection.execute(
-      `UPDATE financeiro_cobrancas c SET vence_em = ?, status = 'pending', provedor_ref = NULL,
-          forma_pagamento = NULL, atualizado_em = CURRENT_TIMESTAMP(3)
-        WHERE c.instituicao_id = ? AND c.organizacao_ref = ? AND c.ref_core IN (${refs.map(() => '?').join(', ')})
-          AND c.status IN ('draft', 'pending', 'overdue')
-          AND NOT EXISTS (SELECT 1 FROM financeiro_pagamentos p WHERE p.instituicao_id = c.instituicao_id
-            AND p.organizacao_ref = c.organizacao_ref AND p.cobranca_ref = c.ref_core AND p.status = 'confirmed')`,
-      [job.vence_em, instituicaoId(), plan.charges[0].organizacao_ref, ...refs]
-    );
     await setOutcome(connection, String(job.id), 'completed');
     await connection.commit();
     return 'updated';
@@ -127,15 +130,15 @@ export async function processAppointmentChargeDue(appointmentId: string): Promis
     acquired = Number(locks[0]?.acquired) === 1;
     if (!acquired) return 'queued';
     const [jobs] = await connection.query<RowDataPacket[]>(
-      `SELECT id, plano, vence_em FROM financeiro_ajustes_vencimento
+      `SELECT id, plano, vence_em, agendamento_id FROM financeiro_ajustes_vencimento
         WHERE instituicao_id = ? AND agendamento_id = ? AND situacao = 'pending' ORDER BY criado_em`,
       [instituicaoId(), appointmentId]
     );
     let result: Outcome = 'not_found';
     for (const job of jobs) result = await processJob(connection, job);
     return result;
-  } catch (error) {
-    console.error('[financeiro] Ajuste de vencimento pendente; será retomado:', error);
+  } catch {
+    console.error('[financeiro] Ajuste de vencimento pendente para nova tentativa.');
     return 'queued';
   } finally {
     if (acquired) await connection?.query('SELECT RELEASE_LOCK(?)', [lock]).catch(() => undefined);

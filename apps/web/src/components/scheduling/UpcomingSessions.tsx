@@ -33,6 +33,7 @@ export interface AgendamentoResumo {
   pagamentoStatus?: string;
   formaPagamento?: string;
   vencimentoCobrancaEm?: string;
+  prazoSolicitado?: string;
   custeadoPelaEmpresa: boolean;
   convenioNome?: string;
   podeConfirmarRealizacao: boolean;
@@ -45,7 +46,7 @@ interface Props {
   onCancelar: (id: string, motivo: string) => Promise<void>;
   onConfirmarRealizacao: (id: string) => Promise<void>;
   onRegistrarFalta?: (id: string, cobrar: boolean, expectedVersion?: number) => Promise<void>;
-  onAtualizarVencimento: (id: string, dueAt: string) => Promise<void>;
+  onAtualizarVencimento: (id: string, dueAt: string) => Promise<boolean | void>;
   onReagendar?: (id: string, startsAt: string, endsAt: string, expectedVersion?: number) => Promise<void>;
   onRecarregar?: () => Promise<void>;
   onDecidirReagendamento?: (requestId: string, decision: 'accept' | 'reject') => Promise<void>;
@@ -89,7 +90,8 @@ export function UpcomingSessions({ agendamentos, filtroPaciente, onCancelar, onC
     event.preventDefault(); if (!editandoVencimento) return;
     setSalvandoVencimento(true); setErro(undefined);
     try {
-      await onAtualizarVencimento(editandoVencimento.id, futureChargeDueIso(vencimentoData, vencimentoHora));
+      const pendente = await onAtualizarVencimento(editandoVencimento.id, futureChargeDueIso(vencimentoData, vencimentoHora));
+      if (pendente) setErro('Aguardando confirmação do novo prazo pelo banco.');
       setEditandoVencimento(undefined);
     } catch (cause) { setErro(cause instanceof Error ? cause.message : 'Não foi possível alterar o vencimento.'); }
     finally { setSalvandoVencimento(false); }
@@ -168,7 +170,7 @@ export function UpcomingSessions({ agendamentos, filtroPaciente, onCancelar, onC
             <div><p className="text-[10px] font-black uppercase tracking-[.18em] text-amber-700">Cobrança da sessão</p><h2 className="text-lg font-black text-ink">Editar vencimento</h2><p className="mt-1 text-xs text-muted">{editandoVencimento.pacienteNome} · {FORMATO.format(new Date(editandoVencimento.inicio))}</p></div>
             <ChargeDueFields date={vencimentoData} time={vencimentoHora} disabled={salvandoVencimento} onDateChange={setVencimentoData} onTimeChange={setVencimentoHora} />
             {erro && <p className="rounded-xl bg-rose-50 p-3 text-[11px] font-bold text-rose-700">{erro}</p>}
-            <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] text-amber-900">Se já existir um Pix pendente, ele será invalidado e recriado no próximo acesso.</p>
+            <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] text-amber-900">Para um Pix já emitido, o vencimento vigente só muda após o banco confirmar o saldo e o novo horário.</p>
             <div className="flex gap-2"><button type="button" onClick={() => { setEditandoVencimento(undefined); setErro(undefined); }} className="btn-outline flex-1 justify-center">Voltar</button><button type="submit" disabled={salvandoVencimento} className="btn-primary flex-1 justify-center">{salvandoVencimento ? 'Salvando…' : 'Salvar'}</button></div>
           </form>
         </div>
@@ -341,9 +343,10 @@ export function UpcomingSessions({ agendamentos, filtroPaciente, onCancelar, onC
                       {item.formaPagamento ? ` · ${rotuloFormaPagamento(item.formaPagamento)}` : ''}
                     </span>
                   )}
-                  {pagamentoDisponivel && item.pagamentoStatus !== 'partially_paid' && (
+                  {pagamentoDisponivel && (
                     <button type="button" onClick={() => abrirVencimento(item)} className="flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-900 hover:bg-amber-100"><CalendarClock className="h-3.5 w-3.5" /> Editar vencimento</button>
                   )}
+                  {item.prazoSolicitado && <span>Aguardando confirmação bancária para {FORMATO.format(new Date(item.prazoSolicitado))}</span>}
                   {pagamentoDisponivel && item.vencimentoCobrancaEm && <span className="self-center text-[10px] font-semibold text-muted">Vence {FORMATO.format(new Date(item.vencimentoCobrancaEm))}</span>}
                 </div>
               )}

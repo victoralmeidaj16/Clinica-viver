@@ -32,6 +32,7 @@ export interface FinancialCharge {
    * educacional (especificação final, §§ 10.07 e 11.04).
    */
   payer?: 'patient' | 'company';
+  companyInvoiceId?: string;
   createdAt: string;
   updatedAt: string;
 }

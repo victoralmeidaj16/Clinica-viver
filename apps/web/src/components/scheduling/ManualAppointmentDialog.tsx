@@ -94,6 +94,7 @@ export function ManualAppointmentDialog({
   const [chargeDueDate, setChargeDueDate] = useState(() => todayAtClinic());
   const [chargeDueTime, setChargeDueTime] = useState('14:00');
   const [customDue, setCustomDue] = useState(false);
+  const [usarPacote, setUsarPacote] = useState(false);
   const custeio = selectedPatient?.custeioAoAgendar;
 
   const selectedService = CLINICAL_SERVICES.find((s) => s.key === serviceKey) ?? CLINICAL_SERVICES[0];
@@ -106,7 +107,7 @@ export function ManualAppointmentDialog({
   const recurrenceDates = useMemo(() => frequency === 'custom' ? customDates : monthlyRecurrenceDates(date, frequency), [date, frequency, customDates]);
 
   const { submit, saving, message, completed } = useManualAppointmentSubmission({
-    patientId, professionalId: selectedPatient?.primaryProfessionalId, adminMode, recurrenceDates, date, time,
+    patientId, usarPacote, professionalId: selectedPatient?.primaryProfessionalId, adminMode, recurrenceDates, date, time,
     acessibilidade: accessibilityByPatient[patientId],
     durationMinutes, validDuration, chargeDueDate, chargeDueTime, companyFunded: custeio === 'empresa', mode, serviceKey, onScheduled,
   });
@@ -171,6 +172,7 @@ export function ManualAppointmentDialog({
 
           {selectedPatient && <PatientAccessibilityFields value={accessibilityByPatient[patientId] === undefined ? selectedPatient.acessibilidade : accessibilityByPatient[patientId]}
             onChange={(value) => setAccessibilityByPatient((current) => ({ ...current, [patientId]: value }))} disabled={saving || completed} />}
+          <label><input type="checkbox" checked={usarPacote} onChange={e => setUsarPacote(e.target.checked)} /> Usar saldo de pacote pago</label>
           <ManualAppointmentServiceFields services={servicosDisponiveis} selectedService={selectedService}
             onServiceChange={(value) => { setServiceKey(value); setDurationPreset(50); setCustomHours(''); setCustomMinutes(''); }}
             manualDuration={manualDuration} durationPreset={durationPreset}

@@ -307,12 +307,13 @@ export async function updateAgendaAppointmentChargeDue(
   aposAlteracao?: (anterior: VencimentoAgendamento) => Promise<void>
 ) {
   const { organizationId, professionalId } = perfilDaSessao(context);
-  const outcome = await atualizarVencimentoCobrancaSessao({ organizationId, professionalId, appointmentId, dueAt, aposAlteracao });
+  const outcome = await atualizarVencimentoCobrancaSessao({ organizationId, professionalId, appointmentId, dueAt, aposAlteracao, autor:{ usuarioRef:context.actor.userId } });
   if (outcome === 'not_found') throw new ApplicationError('NOT_FOUND', 'Cobrança da sessão não encontrada.', 404);
+  if (outcome === 'rejected') throw new ApplicationError('BANK_DUE_REJECTED', 'A instituição não confirmou o saldo e o prazo solicitados.', 409);
   if (outcome === 'paid') throw new ApplicationError('CHARGE_SETTLED', 'O vencimento não pode ser alterado após o pagamento.', 409);
   if (outcome === 'invalid') throw new ApplicationError('INVALID_INPUT', 'O vencimento deve estar no futuro.', 400);
   const desde = new Date(Date.now() - 90 * 24 * 60 * 60_000);
-  return { appointments: await listAppointments(organizationId, professionalId, desde) };
+  return { pending:outcome === 'queued', appointments: await listAppointments(organizationId, professionalId, desde) };
 }
 
 export async function rescheduleAgendaAppointment(
@@ -367,13 +368,17 @@ export async function editAgendaAppointment(
   opcoes: Pick<UpdateAppointmentOptions, 'somenteAgendadas' | 'permitirHorarioPassado' | 'permitirCorrecaoAdministrativa' | 'registrarAlteracaoGestao'> = {}
 ) {
   const { organizationId, professionalId } = perfilDaSessao(context);
-  if (input.custeadoPelaEmpresa !== undefined
+  if ((input.custeadoPelaEmpresa !== undefined || input.valorCentavos !== undefined)
     && !context.actor.roles?.some((role) => role === 'owner' || role === 'admin')) {
     throw new ApplicationError(
       'FORBIDDEN',
-      'A alteração do responsável pelo pagamento é exclusiva do perfil administrador.',
+      'A alteração de valor ou responsável pelo pagamento é exclusiva do perfil administrador.',
       403
     );
+  }
+  if (input.valorCentavos !== undefined
+    && (!Number.isSafeInteger(input.valorCentavos) || input.valorCentavos <= 0 || input.valorCentavos > 10_000_000)) {
+    throw new ApplicationError('INVALID_INPUT', 'Informe um valor de sessão válido em reais.', 400);
   }
   if (input.startsAt) {
     const startsAtDate = new Date(input.startsAt);
@@ -424,7 +429,14 @@ export async function editAgendaAppointment(
   if (outcome === 'funding_locked') {
     throw new ApplicationError(
       'APPOINTMENT_FUNDING_LOCKED',
-      'O responsável pelo pagamento não pode ser alterado porque esta cobrança já foi paga ou teve o pagamento iniciado.',
+      'O responsável pelo pagamento não pode ser alterado porque esta cobrança já foi paga, faturada ou teve o pagamento iniciado.',
+      409
+    );
+  }
+  if (outcome === 'amount_locked') {
+    throw new ApplicationError(
+      'APPOINTMENT_AMOUNT_LOCKED',
+      'O valor da sessão não pode ser alterado porque esta cobrança já foi paga, faturada ou teve o pagamento iniciado.',
       409
     );
   }
@@ -471,10 +483,10 @@ export async function editAgendaAppointment(
     );
   }
 
-  if (querRealizar) {
-    const resultado = opcoes.registrarAlteracaoGestao
-      ? await completeAppointment(organizationId, professionalId, appointmentId, new Date(), opcoes.registrarAlteracaoGestao)
-      : await completeAppointment(organizationId, professionalId, appointmentId);
+  if (outcome === 'completed') {
+    await cobrarPacienteSePreciso(appointmentId);
+  } else if (querRealizar && !opcoes.registrarAlteracaoGestao) {
+    const resultado = await completeAppointment(organizationId, professionalId, appointmentId);
     exigirConclusao(resultado);
     // `already_completed` aqui é apenas o formulário reenviando o status atual.
     if (resultado === 'completed') await cobrarPacienteSePreciso(appointmentId);

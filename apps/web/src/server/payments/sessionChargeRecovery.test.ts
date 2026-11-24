@@ -74,7 +74,7 @@ async function bancoDeRecuperacao() {
   const inst = instituicaoId();
   db.function('DATE_FORMAT', { varargs: true }, () => '2026-10');
   db.function('CONVERT_TZ', { varargs: true }, (value) => value);
-  db.exec(`CREATE TABLE clinica_agendamentos (id TEXT, instituicao_id TEXT, organizacao_id TEXT, paciente_id TEXT,
+  db.exec(`CREATE TABLE clinica_agendamentos (cota_ocorrencia_ref TEXT, pacote_id TEXT, custeio_aguarda_autorizacao INT DEFAULT 0, id TEXT, instituicao_id TEXT, organizacao_id TEXT, paciente_id TEXT,
     ref_core TEXT, sessao_clinica_ref TEXT, status TEXT, realizado_em TEXT, cobranca_vence_em TEXT, custeado_pela_empresa INT, custeio_convenio_ref TEXT, inicio TEXT,
     valor_centavos INT DEFAULT 10000, criado_em TEXT DEFAULT '2000-01-01', atualizado_em TEXT DEFAULT '2000-01-01', cobranca_recuperacao_tentada_em TEXT);
     CREATE TABLE clinica_organizacoes (id TEXT, ref_core TEXT);

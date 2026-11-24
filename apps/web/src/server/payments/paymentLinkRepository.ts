@@ -25,6 +25,8 @@ import {
   responsavelFinanceiroDisponivel,
 } from '@/server/persistence/mysql/responsavelFinanceiroSql';
 
+import { saldoAbertoSql } from './chargeDueBalance';
+
 export class SessionChargeUnavailableError extends Error {}
 
 /**
@@ -33,7 +35,7 @@ export class SessionChargeUnavailableError extends Error {}
  * condição o link público criaria uma cobrança nova ao ser aberto.
  */
 function sessaoAceitaPagamentoSql(a: string): string {
-  return `${a}.status <> 'cancelado'
+  return `${a}.pacote_id IS NULL AND ${a}.custeio_aguarda_autorizacao=0 AND ${a}.status <> 'cancelado'
         AND (${a}.status <> 'faltou' OR EXISTS (
           SELECT 1 FROM financeiro_cobrancas falta_fc
            WHERE falta_fc.instituicao_id = ${a}.instituicao_id
@@ -114,7 +116,9 @@ export async function getSessionPaymentProfile(
   token: string
 ): Promise<SessionPaymentProfile | null> {
   const [rows] = await getMysqlPool().query<RowDataPacket[]>(
-    `SELECT a.token_pagamento_sessao, a.inicio, a.valor_centavos,
+    `SELECT a.token_pagamento_sessao, a.inicio, COALESCE((SELECT ${saldoAbertoSql} FROM financeiro_cobrancas c
+      WHERE c.instituicao_id=a.instituicao_id AND c.organizacao_ref=o.ref_core
+        AND c.sessao_ref IN (a.ref_core,a.sessao_clinica_ref) AND c.status='partially_paid' LIMIT 1),a.valor_centavos) AS valor_centavos,
             p.nome AS profissional_nome, p.valor_social_centavos, p.valor_sessao_centavos,
             conv.nome AS convenio_nome,
             ${custeioDoAgendamentoSql({ agendamento: 'a', paciente: 'pa', convenio: 'conv' })}
@@ -284,7 +288,7 @@ export async function reserveAppointmentCharge(input: {
     const description = descricaoFiscalDaSessao(sessionStart);
 
     const [chargeRows] = await connection.query<RowDataPacket[]>(
-      `SELECT c.ref_core AS cobranca_ref, c.vence_em, c.status AS cobranca_status,
+      `SELECT c.ref_core AS cobranca_ref, c.vence_em, c.status AS cobranca_status, ${saldoAbertoSql} AS saldo_centavos,
               x.id AS checkout_ref, x.referencia_externa, x.provedor_pagamento_ref,
               x.provedor AS checkout_provedor
          FROM financeiro_cobrancas c
@@ -302,7 +306,10 @@ export async function reserveAppointmentCharge(input: {
       throw new SessionChargeUnavailableError('A cobrança está sendo atualizada após a remarcação. Tente novamente em instantes.');
     }
 
-    if (['paid', 'refunded', 'partially_paid'].includes(String(chargeRows[0]?.cobranca_status))) {
+    const parcial = chargeRows[0]?.cobranca_status === 'partially_paid';
+    const saldo = parcial ? Number(chargeRows[0]?.saldo_centavos) : amountCents;
+    if (['paid', 'refunded'].includes(String(chargeRows[0]?.cobranca_status)) || !Number.isSafeInteger(saldo) || saldo <= 0
+      || (parcial && (batch || (chargeRows[0]?.provedor_pagamento_ref && chargeRows[0]?.checkout_provedor !== 'inter')))) {
       throw new SessionChargeUnavailableError(
         chargeRows[0]?.cobranca_status === 'paid'
           ? 'Esta sessão já está paga. Não é necessário pagar novamente.'
@@ -391,7 +398,7 @@ export async function reserveAppointmentCharge(input: {
       patientCpf: pagador.cpf ?? '',
       patientPhone: pagador.telefone,
       patientEmail: pagador.email,
-      amountCents,
+      amountCents: saldo,
       professionalName: String(appointment.profissional_nome),
       providerPaymentId: chargeRows[0]?.provedor_pagamento_ref
         ? String(chargeRows[0].provedor_pagamento_ref)
@@ -686,6 +693,10 @@ export async function claimCheckoutProvider(
 async function providerCharges(connection: PoolConnection, providerPaymentId: string): Promise<RowDataPacket[]> {
   const [rows] = await connection.query<RowDataPacket[]>(
     `SELECT DISTINCT c.organizacao_ref, c.ref_core,
+            (SELECT k.id FROM financeiro_pacotes k WHERE k.instituicao_id=c.instituicao_id
+              AND k.organizacao_ref=c.organizacao_ref AND k.cobranca_ref=c.ref_core) AS pacote_id,
+            EXISTS(SELECT 1 FROM financeiro_pacotes k JOIN financeiro_pacote_divergencias d ON d.pacote_id=k.id
+              WHERE k.instituicao_id=c.instituicao_id AND k.organizacao_ref=c.organizacao_ref AND k.cobranca_ref=c.ref_core) AS pacote_divergente,
             COALESCE(m.valor_centavos, c.valor_centavos) AS valor_centavos,
             c.valor_centavos - COALESCE(m.valor_centavos, c.valor_centavos) AS desconto_centavos
        FROM financeiro_cobrancas c
@@ -740,6 +751,14 @@ export async function reconcileInterPix(input: {
       [rowId('inter_event', input.eventId), instituicaoId(), input.eventId,
         input.txid, input.endToEndId]
     );
+    const pacote = chargeRows.find(row => row.pacote_id);
+    if (pacote && (pacote.pacote_divergente || chargeRows.length !== 1 || Number(pacote.valor_centavos) !== input.amountCents)) {
+      await connection.execute(`INSERT INTO financeiro_pacote_divergencias
+        (pacote_id,evento_ref,recebido_centavos,recebido_em) VALUES (?,?,?,?)`,
+      [pacote.pacote_id, input.eventId, input.amountCents, toSqlTimestamp(input.receivedAt)]);
+      await connection.commit();
+      return 'processed';
+    }
     const { allocations, fullyPaid } = await allocateSettlement(connection, chargeRows,
       input.amountCents, 'inter', input.endToEndId);
     for (const allocation of allocations) {
@@ -798,6 +817,15 @@ export async function reconcileSettledInterPixCharge(charge: InterPixCharge): Pr
   return true;
 }
 
+function comprovanteAsaas(valor?: string) {
+  if (!valor || valor.length > 2048) return null;
+  try {
+    const url = new URL(valor);
+    return url.protocol === 'https:' && !url.username && !url.password && !url.port
+      && (url.hostname === 'asaas.com' || url.hostname.endsWith('.asaas.com')) ? url.href : null;
+  } catch { return null; }
+}
+
 export async function reconcileAsaasPayment(input: {
   eventId: string;
   eventType: string;
@@ -805,6 +833,7 @@ export async function reconcileAsaasPayment(input: {
   amountCents: number;
   receivedAt: string;
   billingType: string;
+  receiptUrl?: string;
 }): Promise<'processed' | 'duplicate' | 'unknown'> {
   const connection = await getMysqlPool().getConnection();
   try {
@@ -835,6 +864,14 @@ export async function reconcileAsaasPayment(input: {
       : input.billingType === 'CREDIT_CARD'
         ? 'card'
         : input.billingType === 'BOLETO' ? 'boleto' : 'other';
+    const pacote = chargeRows.find(row => row.pacote_id);
+    if (pacote && (pacote.pacote_divergente || chargeRows.length !== 1 || Number(pacote.valor_centavos) !== input.amountCents)) {
+      await connection.execute(`INSERT INTO financeiro_pacote_divergencias
+        (pacote_id,evento_ref,recebido_centavos,recebido_em) VALUES (?,?,?,?)`,
+      [pacote.pacote_id, input.eventId, input.amountCents, toSqlTimestamp(input.receivedAt)]);
+      await connection.commit();
+      return 'processed';
+    }
     const { allocations, fullyPaid } = await allocateSettlement(connection, chargeRows,
       input.amountCents, 'asaas', input.paymentId);
     for (const allocation of allocations) {
@@ -860,6 +897,11 @@ export async function reconcileAsaasPayment(input: {
         [allocation.fullyPaid ? 'paid' : 'partially_paid', paymentMethod, instituicaoId(), charge.ref_core]
       );
     }
+    const receipt = comprovanteAsaas(input.receiptUrl);
+    if (receipt) await connection.query(`UPDATE financeiro_pagamentos SET comprovante_url=?
+      WHERE instituicao_id=? AND organizacao_ref=? AND provedor='asaas' AND cobranca_ref IN (?)
+        AND SUBSTRING_INDEX(provedor_transacao_ref,':',1)=? AND comprovante_url IS NULL`,
+    [receipt,instituicaoId(),chargeRows[0].organizacao_ref,chargeRows.map(c => c.ref_core),input.paymentId]);
     await connection.execute(
       `UPDATE financeiro_checkouts_asaas SET status = ?
         WHERE instituicao_id = ? AND provedor_pagamento_ref = ?`,

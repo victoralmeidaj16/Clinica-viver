@@ -14,6 +14,26 @@ import {
   type IdentidadeTurma,
   type TurmaEncerrada,
 } from '@/lib/turmaEncerrada';
+import {
+  AVISOS_TURMA_PADRAO,
+  lerAvisosTurma,
+  lerPrazoSaida,
+  marcoDoAviso,
+  PRAZO_SAIDA_PADRAO,
+  textoDoAviso,
+  type AvisosTurma,
+  type TurmaRegistro,
+} from '@/lib/turmasCiclo';
+import type { AvisoSaidaTurma } from '@/server/application/persistence';
+import { formatosPermitidos, permissoesEfetivas, situacaoAcademica, type SituacaoVinculo } from '@/lib/vinculoAcademico';
+import { CATALOGO_CURSOS_PADRAO } from '@/components/forms/opcoesPsicologo';
+import { lerConfiguracaoGestao } from '@/server/application/configuracaoGestao';
+import { obterCatalogoCursos } from '@/server/application/catalogoCursos';
+import { getTurmasRepository } from './turmasRepository';
+
+/** Prazo de saída da vitrine depois do encerramento da turma (1.02). */
+export const CHAVE_PRAZO_SAIDA_TURMAS = 'turmas_prazo_saida';
+export const CHAVE_AVISOS_TURMAS = 'turmas_avisos';
 
 /** Encerramentos acadêmicos derivados por curso e código. Ver a migração 052. */
 export interface TurmaEncerradaRegistro extends TurmaEncerrada {
@@ -254,7 +274,49 @@ export function aplicarTurmasEncerradas(
   });
 }
 
-/** Anexa a cada cadastro somente o encerramento da combinação acadêmica dele. */
+/** Aviso do marco vigente da contagem (1.03), já com os textos da Gestão. */
+function avisoDaSaida(
+  emSaida: SituacaoVinculo | undefined,
+  avisos: AvisosTurma
+): { avisoSaidaTurma?: AvisoSaidaTurma } {
+  if (!emSaida?.turma || !emSaida.encerradaEm || !emSaida.saidaEm || emSaida.diasRestantes === undefined) return {};
+  const marco = marcoDoAviso(emSaida.diasRestantes, avisos);
+  if (marco === undefined) return {};
+  const dados = {
+    turma: emSaida.turma, curso: emSaida.posGraduacao, encerradaEm: emSaida.encerradaEm,
+    saidaEm: emSaida.saidaEm, diasRestantes: emSaida.diasRestantes,
+  };
+  return {
+    avisoSaidaTurma: {
+      turma: emSaida.turma,
+      posGraduacao: emSaida.posGraduacao,
+      encerradaEm: emSaida.encerradaEm,
+      saidaEm: emSaida.saidaEm,
+      diasRestantes: emSaida.diasRestantes,
+      marco,
+      textoPsicologo: textoDoAviso(avisos.textoPsicologo, dados),
+      textoGestao: textoDoAviso(avisos.textoGestao, dados),
+    },
+  };
+}
+
+/** Encerramentos sem cadastro de turmas (antes da 092): seguem o prazo de saída configurado. */
+function turmasDoLegado(encerradas: readonly TurmaEncerradaRegistro[]): TurmaRegistro[] {
+  return encerradas.map((item) => ({
+    id: chaveTurma(item),
+    posGraduacao: item.posGraduacao,
+    codigo: item.turma,
+    encerradaEm: item.encerradaEm,
+    historico: [],
+  }));
+}
+
+/**
+ * Anexa a cada cadastro a situação acadêmica derivada (1.02–1.04 e 2.02):
+ * o encerramento da turma principal com a data de saída, a situação de cada
+ * vínculo e as permissões que os vínculos válidos somam no catálogo atual.
+ * Nada disso é gravado — muda sozinho quando a turma, o prazo ou o curso mudam.
+ */
 export async function comTurmasEncerradas(
   cadastros: CadastroPsicologoRecord[],
   conexao?: Pool | PoolConnection,
@@ -263,8 +325,38 @@ export async function comTurmasEncerradas(
   if (cadastros.length === 0) return cadastros;
   try {
     await repositorio.migrarLegadas(cadastros);
-    const turmas = await repositorio.listar();
-    return aplicarTurmasEncerradas(cadastros, turmas);
+    const [registro, prazo, avisos, catalogo] = await Promise.all([
+      getTurmasRepository(conexao).listar().catch(() => null),
+      lerConfiguracaoGestao<unknown>(organizacaoRef(), CHAVE_PRAZO_SAIDA_TURMAS).then((lida) => lerPrazoSaida(lida.valor)).catch(() => PRAZO_SAIDA_PADRAO),
+      lerConfiguracaoGestao<unknown>(organizacaoRef(), CHAVE_AVISOS_TURMAS).then((lida) => lerAvisosTurma(lida.valor)).catch(() => AVISOS_TURMA_PADRAO),
+      obterCatalogoCursos(organizacaoRef()).catch(() => [...CATALOGO_CURSOS_PADRAO]),
+    ]);
+    const turmas = registro ?? turmasDoLegado(await repositorio.listar());
+    const hoje = hojeEmBrasilia();
+    return cadastros.map((cadastro) => {
+      const situacao = situacaoAcademica(cadastro, turmas, prazo, hoje);
+      const principal = situacao.vinculos.find((vinculo) => vinculo.papel === 'PRINCIPAL');
+      const turmaPrincipal = principal?.turma && principal.encerradaEm
+        ? turmas.find((turma) => chaveTurma({ turma: turma.codigo, posGraduacao: turma.posGraduacao })
+            === chaveTurma({ turma: principal.turma!, posGraduacao: principal.posGraduacao }))
+        : undefined;
+      return {
+        ...cadastro,
+        turmaEncerrada: principal?.turma && principal.encerradaEm
+          ? {
+              turma: principal.turma,
+              posGraduacao: principal.posGraduacao,
+              encerradaEm: principal.encerradaEm,
+              ...(principal.saidaEm ? { saidaEm: principal.saidaEm } : {}),
+              ...(turmaPrincipal?.retiradaInterrompida ? { retiradaInterrompida: true } : {}),
+            }
+          : undefined,
+        situacaoAcademica: situacao,
+        permissoesEfetivas: situacao.cursosValidos.length ? permissoesEfetivas(situacao, catalogo) : null,
+        formatosPermitidos: formatosPermitidos(situacao.cursosValidos, catalogo),
+        ...avisoDaSaida(situacao.emSaida, avisos),
+      };
+    });
   } catch (erro) {
     console.error('Erro ao ler turmas encerradas para o roster:', erro);
     return cadastros;

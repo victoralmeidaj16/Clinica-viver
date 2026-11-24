@@ -1,3 +1,4 @@
+import type { EducationalCreditLine } from './educationalCredits';
 import type {
   FinancialCharge,
   FinancialDiscount,
@@ -32,6 +33,7 @@ export interface FinancialAuditEvent {
 }
 
 export interface FinancialRepository {
+  listPersistedCredits?(organizationId: string, filter: FinancialFilter): Promise<EducationalCreditLine[]>;
   getLedger(filter: FinancialFilter): Promise<FinancialLedger>;
   getChargeById(id: string): Promise<FinancialCharge | null>;
   getChargeByProviderReference(reference: string): Promise<FinancialCharge | null>;

@@ -49,10 +49,16 @@ function numeroOpcional(value: unknown, min: number, max: number, label: string)
   return number;
 }
 
+import { pendenciasConvenio } from './convenioAutorizacao';
+import { previaContratual, type ConferenciaContrato } from '@/server/persistence/mysql/faturaContratual';
+import { validarPolitica } from '@/lib/politicaConvenio';
+
 function dadosConvenio(body: Record<string, unknown>, partial = false) {
   const nome = texto(body.nome);
   if ((!partial || body.nome !== undefined) && !nome) throw new ApplicationError('INVALID_INPUT', 'O nome do convênio é obrigatório.', 400);
   return {
+    ...(body.politica !== undefined && { politica: validarPolitica(body.politica) }),
+    ...(body.valorSessaoContratoCents !== undefined && { valorSessaoContratoCents: numeroOpcional(body.valorSessaoContratoCents,1,4294967295,'O valor contratual') }),
     ...(nome !== undefined ? { nome } : {}),
     ...(body.razaoSocial !== undefined ? { razaoSocial: texto(body.razaoSocial) } : {}),
     ...(body.cnpj !== undefined ? { cnpj: cnpj(body.cnpj) } : {}),
@@ -108,7 +114,10 @@ export async function getConvenioDetail(context: RequestContext, id: string, per
     sessoesDoConvenio(organizationId, id, periodo.inicio, periodo.fim),
     listarFaturas(organizationId, id),
   ]);
-  return { convenio, pacientes, sessoes, faturas };
+  const previa = convenio.politica && convenio.politica.base !== 'realizadas' && periodo.inicio && periodo.fim
+    ? await previaContratual(getMysqlPool(),organizationId,id,convenio.politica,Number(convenio.valorSessaoContratoCents),periodo.inicio,periodo.fim) : undefined;
+  const pendencias = convenio.politica ? await pendenciasConvenio(organizationId,id) : [];
+  return { convenio, pacientes, sessoes, faturas, previa, pendencias, podeAutorizar:context.actor.roles.some(r => r === 'admin' || r === 'owner') };
 }
 
 export async function createConvenio(context: RequestContext, body: Record<string, unknown>) {
@@ -116,7 +125,7 @@ export async function createConvenio(context: RequestContext, body: Record<strin
   const input = dadosConvenio(body) as ReturnType<typeof dadosConvenio> & { nome: string };
   try {
     return await criarConvenio(organizationId, {
-      nome: input.nome, razaoSocial: input.razaoSocial, cnpj: input.cnpj,
+      politica: input.politica, valorSessaoContratoCents: input.valorSessaoContratoCents, nome: input.nome, razaoSocial: input.razaoSocial, cnpj: input.cnpj,
       emailFaturamento: input.emailFaturamento,
       empresaPagaSessoes: input.empresaPagaSessoes ?? false,
       pacoteSessoes: input.pacoteSessoes, pacoteSessoesCiclo: input.pacoteSessoesCiclo, diaVencimento: input.diaVencimento,
@@ -179,7 +188,7 @@ function periodo(body: Record<string, unknown>) {
   if (periodoFim < periodoInicio) {
     throw new ApplicationError('INVALID_INPUT', 'O fim do período não pode ser anterior ao início.', 400);
   }
-  return { competencia, periodoInicio, periodoFim, cobrancaRefs };
+  return { competencia, periodoInicio, periodoFim, cobrancaRefs, conferencia: body.conferencia as ConferenciaContrato | undefined };
 }
 
 export async function closeConvenioInvoice(context: RequestContext, convenioId: string, body: Record<string, unknown>) {

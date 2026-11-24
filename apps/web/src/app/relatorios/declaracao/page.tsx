@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { AlertTriangle, Award, Loader2, PencilLine, Printer, RotateCcw, ShieldCheck } from 'lucide-react';
+import { formatarCargaHorariaCurta } from '@thats-life/core';
 import { DocumentoDeclaracao } from '@/components/declaracao/DocumentoDeclaracao';
 import { FiltroPeriodoDeclaracao } from '@/components/declaracao/FiltroPeriodoDeclaracao';
 import './declaracao.css';
@@ -44,6 +45,7 @@ interface Previa {
   periodoFim: string;
   totalSessoes: number;
   totalHoras: number;
+  totalMinutos: number;
   coordenadora: string;
 }
 
@@ -60,6 +62,7 @@ type CamposEditaveis = Pick<
   | 'periodoInicio'
   | 'periodoFim'
   | 'totalHoras'
+  | 'totalMinutos'
   | 'coordenadora'
 >;
 
@@ -207,8 +210,8 @@ export default function DeclaracaoHorasPage() {
     campos &&
     Object.entries(campos).every(([, valor]) => String(valor).trim()) &&
     campos.periodoInicio <= campos.periodoFim &&
-    Number.isInteger(campos.totalHoras) &&
-    campos.totalHoras > 0;
+    Number.isInteger(campos.totalMinutos) &&
+    campos.totalMinutos > 0;
 
   function editarCampo<K extends keyof CamposEditaveis>(campo: K, valor: CamposEditaveis[K]) {
     setCampos((atuais) => (atuais ? { ...atuais, [campo]: valor } : atuais));
@@ -333,18 +336,36 @@ export default function DeclaracaoHorasPage() {
                 <CampoTexto label="Coordenadora" value={campos.coordenadora} onChange={(valor) => editarCampo('coordenadora', valor)} />
                 <CampoTexto label="Início do período" type="date" value={campos.periodoInicio} onChange={(valor) => editarCampo('periodoInicio', valor)} />
                 <CampoTexto label="Fim do período" type="date" value={campos.periodoFim} onChange={(valor) => editarCampo('periodoFim', valor)} />
-                <CampoTexto
-                  label="Total de horas"
-                  type="number"
-                  min="1"
-                  max="10000"
-                  value={String(campos.totalHoras)}
-                  onChange={(valor) => editarCampo('totalHoras', Number(valor))}
-                />
+                <div className="grid grid-cols-2 gap-2">
+                  <CampoTexto
+                    label="Horas"
+                    type="number"
+                    min="0"
+                    max="10000"
+                    value={String(Math.floor(campos.totalMinutos / 60))}
+                    onChange={(valor) => {
+                      const horas = Math.max(0, Math.trunc(Number(valor) || 0));
+                      const mins = campos.totalMinutos % 60;
+                      setCampos((atuais) => (atuais ? { ...atuais, totalHoras: horas, totalMinutos: horas * 60 + mins } : atuais));
+                    }}
+                  />
+                  <CampoTexto
+                    label="Minutos"
+                    type="number"
+                    min="0"
+                    max="59"
+                    value={String(campos.totalMinutos % 60)}
+                    onChange={(valor) => {
+                      const mins = Math.min(59, Math.max(0, Math.trunc(Number(valor) || 0)));
+                      const horas = Math.floor(campos.totalMinutos / 60);
+                      setCampos((atuais) => (atuais ? { ...atuais, totalHoras: horas, totalMinutos: horas * 60 + mins } : atuais));
+                    }}
+                  />
+                </div>
               </div>
 
               <p className="text-xs text-slate-600">
-                O cadastro apurou <strong className="text-slate-900">{previa.totalHoras} horas</strong> —{' '}
+                O cadastro apurou <strong className="text-slate-900">{formatarCargaHorariaCurta(previa.totalMinutos)}</strong> —{' '}
                 {previa.totalSessoes} {previa.totalSessoes === 1 ? 'atendimento realizado' : 'atendimentos realizados'} entre{' '}
                 {mesAno(previa.periodoInicio)} e {mesAno(previa.periodoFim)}.
               </p>
@@ -365,7 +386,7 @@ export default function DeclaracaoHorasPage() {
                 Relatório emitido
               </p>
               <p className="text-[11px] text-emerald-800 mt-1">
-                {emitida.totalHoras} horas registradas para {emitida.psicologoNome}. Use o botão acima
+                {formatarCargaHorariaCurta(emitida.totalMinutos)} registrados para {emitida.psicologoNome}. Use o botão acima
                 para imprimir ou salvar em PDF.
               </p>
             </div>

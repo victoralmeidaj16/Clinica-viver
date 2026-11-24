@@ -33,6 +33,9 @@ export function FaturamentoPanel({
   const periodoPendente = loading || periodoAplicado?.inicio !== inicio || periodoAplicado?.fim !== fim;
   const setInicio = (valor: string) => onPeriodoChange({ inicio: valor, fim });
   const setFim = (valor: string) => onPeriodoChange({ inicio, fim: valor });
+  const [ajuste, setAjuste] = useState('0');
+  const [motivo, setMotivo] = useState('');
+  const previa = detail.previa;
   const [closing, setClosing] = useState(false);
   const [error, setError] = useState('');
 
@@ -85,7 +88,7 @@ export function FaturamentoPanel({
     definirSelecao(new Set());
   };
 
-  const selectedCount = selectedChargeIds.size;
+  const selectedCount = previa?.quantidade ?? selectedChargeIds.size;
   const totalSelectedCents = useMemo(() => {
     return sessoesAFaturar
       .filter((s) => selectedChargeIds.has(s.chargeId))
@@ -110,7 +113,7 @@ export function FaturamentoPanel({
           competencia,
           periodoInicio: inicio,
           periodoFim: fim,
-          cobrancaRefs: Array.from(selectedChargeIds),
+          ...(previa ? { conferencia: { ...previa, ajuste:Math.round(Number(ajuste)*100), motivo } } : { cobrancaRefs:Array.from(selectedChargeIds) }),
         }),
       });
       await onRefresh({ inicio, fim });
@@ -176,19 +179,30 @@ export function FaturamentoPanel({
         </div>
       </div>
 
+      {detail.pendencias?.map(a => <p key={a.id}>Custeio pendente · {a.nome} · {a.inicio}
+        {detail.podeAutorizar && <button className="btn-outline" onClick={async () => {
+          try { await applicationRequest('/convenios/' + encodeURIComponent(detail.convenio.id) + '/autorizar', {
+            method:'POST', headers:commandHeaders(), body:JSON.stringify({ agendamentoId:a.id }),
+          }); await onRefresh({ inicio,fim }); } catch (e) { setError(e instanceof Error ? e.message : 'Falha ao autorizar.'); }
+        }}>Autorizar sessão excedente</button>}</p>)}
+
       {/* Seleção de atendimentos para a fatura */}
       <div className="rounded-2xl border border-psi-soft/80 bg-slate-50/70 p-4 space-y-3">
-        <SelecaoAtendimentos sessoesAFaturar={sessoesAFaturar} sessoesIndividuais={sessoesIndividuais} selectedChargeIds={selectedChargeIds} selectAll={selectAll} deselectAll={deselectAll} toggleSession={toggleSession} />
+        {previa ? <div className="grid gap-2"><strong>{previa.base === 'fixa' ? 'Quantidade fixa contratada' : 'Sessões agendadas'}</strong>
+          <span>{previa.quantidade} × {money(previa.unitario)}</span>
+          <label>Ajuste em reais <input type="number" step="0.01" value={ajuste} onChange={e => setAjuste(e.target.value)} /></label>
+          {Number(ajuste) !== 0 && <label>Justificativa <input value={motivo} maxLength={500} onChange={e => setMotivo(e.target.value)} /></label>}
+        </div> : <SelecaoAtendimentos sessoesAFaturar={sessoesAFaturar} sessoesIndividuais={sessoesIndividuais} selectedChargeIds={selectedChargeIds} selectAll={selectAll} deselectAll={deselectAll} toggleSession={toggleSession} />}
 
         {periodoPendente && <p className="text-xs font-bold text-amber-700">Aplique o período para atualizar os atendimentos antes de fechar a fatura.</p>}
         {/* Barra de fechamento */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-line/70">
           <div className="text-xs">
             <span className="font-bold text-ink">
-              {selectedCount} de {sessoesAFaturar.length} {selectedCount === 1 ? 'sessão selecionada' : 'sessões selecionadas'}
+              {selectedCount} de {previa?.quantidade ?? sessoesAFaturar.length} {selectedCount === 1 ? 'sessão selecionada' : 'sessões selecionadas'}
             </span>
             <span className="text-muted ml-2">
-              Total: <strong className="text-emerald-700 font-extrabold">{money(totalSelectedCents)}</strong>
+              Total: <strong className="text-emerald-700 font-extrabold">{money(previa ? previa.total + Math.round(Number(ajuste)*100) : totalSelectedCents)}</strong>
             </span>
           </div>
 

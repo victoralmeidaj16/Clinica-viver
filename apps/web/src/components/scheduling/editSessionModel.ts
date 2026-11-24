@@ -14,7 +14,9 @@ export interface SessionEditableData {
   pacoteSessoes?: number;
   pacoteSessoesCiclo?: 'mensal' | 'total';
   vencimentoCobrancaEm?: string;
+  prazoSolicitado?: string;
   pagamentoStatus?: string;
+  valorCentavos?: number;
 }
 
 /** A gestão pode corrigir o histórico; para o psicólogo, um novo horário precisa estar no futuro. */

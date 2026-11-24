@@ -22,6 +22,8 @@ import {
   type NfseEmissao,
   type NfsePreview,
 } from '@/components/financial/NfsePreviewModal';
+import { PatientPackagePanel } from '@/components/financial/PatientPackagePanel';
+import { EducationalCreditPanel } from '@/components/financial/EducationalCreditPanel';
 import { ClinicReceivablesTable, type Atendimento } from '@/components/financial/ClinicReceivablesTable';
 
 /**
@@ -340,6 +342,8 @@ export default function FinanceiroClinicaPage() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
+      {eAdmin && <PatientPackagePanel />}
+      <EducationalCreditPanel admin={Boolean(eAdmin)} />
       {/* Cabeçalho */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

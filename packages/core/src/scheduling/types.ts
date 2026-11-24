@@ -32,6 +32,7 @@ export interface Appointment {
   mode: AppointmentMode;
   serviceKey?: string;
   audience?: string;
+  usePatientPackage?: boolean;
   chargeDueAt?: string;
   status: AppointmentStatus;
   reminders: readonly AppointmentReminder[];

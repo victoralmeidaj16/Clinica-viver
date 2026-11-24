@@ -12,6 +12,7 @@ export function SessionChargeDueModal({ session, onClose, onSaved }: {
   const [date, setDate] = useState(initial.date);
   const [time, setTime] = useState(initial.time);
   const [saving, setSaving] = useState(false);
+  const [pendente, setPendente] = useState(false);
   const [error, setError] = useState('');
 
   async function submit(event: FormEvent) {
@@ -19,11 +20,11 @@ export function SessionChargeDueModal({ session, onClose, onSaved }: {
     setSaving(true); setError('');
     try {
       const dueAt = futureChargeDueIso(date, time);
-      await applicationRequest(`/gestao/agenda/${encodeURIComponent(session.id)}`, {
+      const result = await applicationRequest<{ pending?: boolean }>(`/gestao/agenda/${encodeURIComponent(session.id)}`, {
         method: 'PATCH', body: JSON.stringify({ action: 'update_charge_due', dueAt }),
       });
       await onSaved();
-      onClose();
+      if (result.pending) setPendente(true); else onClose();
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Não foi possível alterar o vencimento.'); }
     finally { setSaving(false); }
   }
@@ -35,10 +36,11 @@ export function SessionChargeDueModal({ session, onClose, onSaved }: {
         <p className="mt-1 text-sm text-muted">{session.pacienteNome}</p></div>
       <p className="text-xs text-muted">Altere o prazo de pagamento desta sessão. Horários no fuso de Brasília.</p>
       <ChargeDueFields date={date} time={time} disabled={saving} onDateChange={setDate} onTimeChange={setTime} />
+      {pendente && <p role="status">Aguardando confirmação do banco.</p>}
       {error && <p role="alert" className="text-xs font-semibold text-rose-700">{error}</p>}
       <div className="flex justify-end gap-2 border-t border-line pt-4">
         <button type="button" disabled={saving} onClick={onClose} className="btn-outline text-xs">Cancelar</button>
-        <button type="submit" disabled={saving} className="btn-accent text-xs">{saving ? 'Salvando…' : 'Salvar vencimento'}</button>
+        <button type="submit" disabled={saving || pendente} className="btn-accent text-xs">{saving ? 'Salvando…' : 'Salvar vencimento'}</button>
       </div>
     </form>
   </div>;

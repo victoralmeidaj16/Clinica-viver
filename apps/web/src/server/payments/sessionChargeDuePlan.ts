@@ -3,17 +3,20 @@ import type { RowDataPacket } from 'mysql2';
 import type { PoolConnection } from 'mysql2/promise';
 import { instituicaoId } from '@/server/persistence/mysql/mappers';
 
+import { saldoAbertoSql } from './chargeDueBalance';
+
 export interface DueResetPlan {
-  operation?: 'expire';
+  operation?: 'expire' | 'change_due';
+  historico?: { usuarioRef:string; nome?:string; anterior?:string; profissional:string };
   paid?: boolean;
   charges: RowDataPacket[];
   checkouts: RowDataPacket[];
   remotes: Array<{ provider: string; id: string }>;
 }
 
-export async function readDueResetPlan(connection: PoolConnection, appointmentId: string): Promise<DueResetPlan | null> {
+export async function readDueResetPlan(connection: PoolConnection, appointmentId: string, changeDue = false): Promise<DueResetPlan | null> {
   const [charges] = await connection.query<RowDataPacket[]>(
-    `SELECT c.ref_core, c.status, c.provedor_ref, c.organizacao_ref,
+    `SELECT c.ref_core, c.status, c.provedor_ref, c.organizacao_ref, ${saldoAbertoSql} AS saldo_centavos,
             EXISTS(SELECT 1 FROM financeiro_pagamentos p
               WHERE p.instituicao_id = c.instituicao_id AND p.organizacao_ref = c.organizacao_ref
                 AND p.cobranca_ref = c.ref_core AND p.status = 'confirmed') AS possui_pagamento
@@ -26,12 +29,12 @@ export async function readDueResetPlan(connection: PoolConnection, appointmentId
       FOR UPDATE`,
     [instituicaoId(), appointmentId, appointmentId]
   );
-  return readChargeResetPlan(connection, charges);
+  return readChargeResetPlan(connection, charges, changeDue);
 }
 
-export async function readChargeResetPlan(connection: PoolConnection, charges: RowDataPacket[]): Promise<DueResetPlan | null> {
+export async function readChargeResetPlan(connection: PoolConnection, charges: RowDataPacket[], changeDue = false): Promise<DueResetPlan | null> {
   if (!charges.length) return null;
-  if (charges.some((c) => Boolean(c.possui_pagamento) || ['paid', 'partially_paid', 'refunded'].includes(String(c.status)))) return { paid: true as const, charges, checkouts: [], remotes: [] };
+  if (charges.some((c) => ['paid', 'refunded'].includes(String(c.status)) || (changeDue ? Number(c.saldo_centavos) <= 0 : Boolean(c.possui_pagamento) || c.status === 'partially_paid'))) return { paid: true as const, charges, checkouts: [], remotes: [] };
   const refs = charges.map((c) => String(c.ref_core));
   const [checkouts] = await connection.query<RowDataPacket[]>(
     `SELECT x.id, x.cobranca_ref, x.referencia_externa, x.provedor, x.provedor_pagamento_ref, x.status
@@ -62,5 +65,5 @@ export async function readChargeResetPlan(connection: PoolConnection, charges: R
     const id = String(charge.provedor_ref);
     remotes.set(`${provider}:${id}`, { provider, id });
   }
-  return { charges, checkouts, remotes: [...remotes.values()] };
+  return { operation: changeDue ? 'change_due' : undefined, charges, checkouts, remotes: [...remotes.values()] };
 }

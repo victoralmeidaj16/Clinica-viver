@@ -99,6 +99,7 @@ export async function POST(request: Request) {
         periodoFim: declaracao.periodoFim,
         totalSessoes: declaracao.totalSessoes,
         totalHoras: declaracao.totalHoras,
+        totalMinutos: declaracao.totalMinutos,
         coordenadora: declaracao.coordenadora,
         emitidoEm: declaracao.emitidoEm,
       },

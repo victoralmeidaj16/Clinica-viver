@@ -10,13 +10,14 @@ import { readDueResetPlan, type DueResetPlan } from './sessionChargeDuePlan';
 import { hasPendingChargeDueReset } from './sessionChargeDueQueue';
 import { processAppointmentChargeDue } from './sessionChargeDueWorker';
 
-export type UpdateChargeDueOutcome = 'updated' | 'queued' | 'not_found' | 'paid' | 'invalid';
+export type UpdateChargeDueOutcome = 'updated' | 'queued' | 'not_found' | 'paid' | 'invalid' | 'rejected';
 
 /** Só persiste a intenção. Nenhuma chamada ao provedor pode ocorrer sob a trava da agenda. */
 export async function resetAppointmentChargeDue(
-  connection: PoolConnection, appointmentId: string, dueAt: string
+  connection: PoolConnection, appointmentId: string, dueAt: string, historico?: DueResetPlan['historico'],
+  origem: 'agenda' | 'financeiro' = 'agenda'
 ): Promise<UpdateChargeDueOutcome> {
-  const plan = await readDueResetPlan(connection, appointmentId);
+  const plan = await readDueResetPlan(connection, appointmentId, true);
   if (!plan) {
     const [result] = await connection.execute<ResultSetHeader>(
       'UPDATE clinica_agendamentos SET cobranca_vence_em = ? WHERE instituicao_id = ? AND id = ?',
@@ -25,17 +26,13 @@ export async function resetAppointmentChargeDue(
     return result.affectedRows ? 'updated' : 'not_found';
   }
   if (plan.paid) return 'paid';
-  await enqueueChargeDuePlan(connection, appointmentId, dueAt, plan);
-  await connection.execute(
-    'UPDATE clinica_agendamentos SET cobranca_vence_em = ? WHERE instituicao_id = ? AND id = ?',
-    [toSqlTimestamp(dueAt), instituicaoId(), appointmentId]
-  );
-  return 'queued';
+  return enqueueChargeDuePlan(connection, appointmentId, dueAt, { ...plan, historico }, origem);
 }
 
 export async function enqueueChargeDuePlan(
-  connection: PoolConnection, appointmentId: string, dueAt: string, plan: DueResetPlan
-): Promise<void> {
+  connection: PoolConnection, appointmentId: string, dueAt: string, plan: DueResetPlan,
+  origem: 'agenda' | 'financeiro' = 'financeiro'
+): Promise<'queued' | 'rejected'> {
   const refs = plan.charges.map((c) => String(c.ref_core));
   const checkoutRefs = plan.checkouts.map((c) => String(c.referencia_externa));
   const [members] = checkoutRefs.length ? await connection.query<RowDataPacket[]>(
@@ -44,9 +41,26 @@ export async function enqueueChargeDuePlan(
     [instituicaoId(), checkoutRefs]
   ) : [[]];
   const affectedChargeIds = [...new Set([
-    ...refs, ...plan.checkouts.map((c) => String(c.cobranca_ref)),
+    ...refs, ...plan.checkouts.filter(c => c.cobranca_ref).map(c => String(c.cobranca_ref)),
     ...members.map((m) => String(m.cobranca_ref)),
   ])];
+  let motivo: string | undefined;
+  if (plan.operation === 'change_due') {
+    if (affectedChargeIds.length !== 1 || plan.remotes.length > 1) {
+      motivo = 'A instrução agrupa várias cobranças. Solicite a revisão do pagamento agrupado.';
+    } else if (plan.remotes.some(r => r.provider !== 'inter')) {
+      motivo = 'O meio de pagamento emitido aceita somente data. O horário solicitado exige confirmação bancária.';
+    }
+  }
+  if (motivo) {
+    if (origem === 'financeiro') throw new Error(motivo);
+    await connection.execute(
+      `INSERT INTO financeiro_ajustes_vencimento
+        (id, instituicao_id, agendamento_id, vence_em, plano, situacao) VALUES (?, ?, ?, ?, ?, 'rejected')`,
+      [randomUUID(), instituicaoId(), appointmentId, toSqlTimestamp(dueAt), JSON.stringify({ ...plan, affectedChargeIds, motivo })]
+    );
+    return 'rejected';
+  }
   if (await hasPendingChargeDueReset(connection, affectedChargeIds)) {
     throw new Error('A cobrança ainda está sendo atualizada. Aguarde antes de remarcar novamente.');
   }
@@ -55,10 +69,12 @@ export async function enqueueChargeDuePlan(
       (id, instituicao_id, agendamento_id, vence_em, plano) VALUES (?, ?, ?, ?, ?)`,
     [randomUUID(), instituicaoId(), appointmentId, toSqlTimestamp(dueAt), JSON.stringify({ ...plan, affectedChargeIds })]
   );
+  return 'queued';
 }
 
 export async function atualizarVencimentoCobrancaSessao(input: {
   organizationId: string; professionalId: string; appointmentId: string; dueAt: string;
+  autor?: { usuarioRef: string; nome?: string };
   aposAlteracao?: (anterior: VencimentoAgendamento) => Promise<void>;
 }): Promise<UpdateChargeDueOutcome> {
   if (!isFutureChargeDueAt(input.dueAt)) return 'invalid';
@@ -71,13 +87,13 @@ export async function atualizarVencimentoCobrancaSessao(input: {
     anterior = await vencimentoDoAgendamentoGestao(connection, input.organizationId, input.professionalId, input.appointmentId);
     if (!anterior) { await connection.rollback(); return 'not_found'; }
     appointmentId = anterior.agendamentoId;
-    result = await resetAppointmentChargeDue(connection, appointmentId, input.dueAt);
+    result = await resetAppointmentChargeDue(connection, appointmentId, input.dueAt, input.autor ? { ...input.autor, anterior:anterior.venceEm, profissional:anterior.profissionalRef } : undefined, 'financeiro');
     await connection.commit();
   } catch (error) {
     await connection.rollback();
     throw error;
   } finally { connection.release(); }
   const outcome = result === 'queued' ? await processAppointmentChargeDue(appointmentId) : result;
-  if (anterior && (outcome === 'updated' || outcome === 'queued')) await input.aposAlteracao?.(anterior);
+  if (anterior && outcome === 'updated' && (result === 'updated' || !input.autor)) await input.aposAlteracao?.(anterior);
   return outcome;
 }

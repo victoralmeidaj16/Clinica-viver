@@ -7,6 +7,9 @@ const state = vi.hoisted(() => ({
   reabrir: vi.fn(),
   listar: vi.fn(),
   migrarLegadas: vi.fn(),
+  /** `null`: sem cadastro de turmas (migration 092 pendente), vale o encerramento antigo. */
+  turmasCadastradas: null as null | Array<{ id: string; posGraduacao: string; codigo: string; historico: [] }>,
+  acaoTurma: vi.fn(),
 }));
 
 vi.mock('@/server/auth', () => ({
@@ -26,6 +29,19 @@ vi.mock('@/server/persistence/turmasEncerradas', () => ({
   },
 }));
 
+vi.mock('@/server/persistence/turmasRepository', () => ({
+  getTurmasRepository: () => ({ listar: async () => state.turmasCadastradas }),
+}));
+vi.mock('@/server/application/catalogoCursos', async () => {
+  const { CATALOGO_CURSOS_PADRAO } = await import('@/components/forms/opcoesPsicologo');
+  return { obterCatalogoCursos: async () => CATALOGO_CURSOS_PADRAO };
+});
+vi.mock('@/server/application/turmasGestao', () => ({
+  executarAcaoTurma: state.acaoTurma,
+  obterPainelTurmas: async () => ({ cadastroDisponivel: false, turmas: [] }),
+}));
+vi.mock('@/server/application/autorGestao', () => ({ nomeDoUsuario: async () => 'Gestão Fictícia' }));
+
 import { DELETE, POST } from './route';
 import { MigracaoTurmasPendenteError } from '@/server/persistence/turmasEncerradas';
 
@@ -41,6 +57,7 @@ function post(body: unknown) {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  state.turmasCadastradas = null;
   state.listar.mockResolvedValue([]);
   state.encerrar.mockResolvedValue(undefined);
   state.reabrir.mockResolvedValue(undefined);
@@ -77,6 +94,18 @@ describe('API de turmas por pós-graduação', () => {
 
     expect(response.status).toBe(400);
     expect((await response.json()).error).toContain(mensagem);
+    expect(state.encerrar).not.toHaveBeenCalled();
+  });
+
+  it('com o cadastro de turmas, encerra pela turma cadastrada e inicia o prazo de saída (1.02)', async () => {
+    state.turmasCadastradas = [{ id: 'turma-1', posGraduacao: curso, codigo: '25A', historico: [] }];
+    state.acaoTurma.mockResolvedValue({ id: 'turma-1' });
+
+    const response = await post({ turma: '25a', posGraduacao: curso });
+
+    expect(response.status).toBe(200);
+    expect(state.acaoTurma).toHaveBeenCalledWith(expect.any(String), { acao: 'ENCERRAR', id: 'turma-1' },
+      { usuarioRef: 'admin-test', nome: 'Gestão Fictícia' });
     expect(state.encerrar).not.toHaveBeenCalled();
   });
 

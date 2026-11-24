@@ -31,7 +31,7 @@ describe.skipIf(!sqlite)('projeção da cota por agendamento', () => {
         custeio_sessoes_ciclo TEXT
       );
       CREATE TABLE clinica_convenios (empresa_paga_sessoes INTEGER, pacote_sessoes INTEGER, pacote_sessoes_ciclo TEXT);
-      CREATE TABLE clinica_agendamentos (
+      CREATE TABLE clinica_agendamentos (cota_ocorrencia_ref TEXT,
         id TEXT, ref_core TEXT, instituicao_id TEXT, paciente_id TEXT, inicio TEXT,
         status TEXT, custeado_pela_empresa INTEGER, custeio_convenio_ref TEXT
       );
@@ -42,7 +42,7 @@ describe.skipIf(!sqlite)('projeção da cota por agendamento', () => {
       INSERT INTO clinica_convenios VALUES (1, NULL, NULL);
     `);
     const insert = db.prepare(`INSERT INTO clinica_agendamentos
-      VALUES (?, ?, 'i', 'p', ?, 'agendado', NULL, NULL)`);
+      VALUES (NULL, ?, ?, 'i', 'p', ?, 'agendado', NULL, NULL)`);
     for (let n = 1; n <= 4; n++) insert.run(String(n), String(n), `2026-10-${String(n * 7).padStart(2, '0')} 10:00:00`);
   });
 

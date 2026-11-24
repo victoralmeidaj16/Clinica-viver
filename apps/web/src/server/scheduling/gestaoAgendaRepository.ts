@@ -1,4 +1,5 @@
 import 'server-only';
+import { prazoSolicitadoSql } from '@/server/payments/sessionChargeDueQueue';
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import { getMysqlPool } from '@/server/oci/runtime';
 import { fromSqlTimestamp, instituicaoId } from '@/server/persistence/mysql/mappers';
@@ -37,10 +38,15 @@ export async function listarAgendaGestao(
       conv.nome AS convenio_nome, conv.pacote_sessoes, conv.pacote_sessoes_ciclo,
       pa.custeio_sessoes_cota, pa.custeio_sessoes_ciclo,
       ${VENCIMENTO_EFETIVO} AS vencimento_cobranca_em,
+      ${prazoSolicitadoSql('a.instituicao_id','a.id')} AS prazo_solicitado,
       (SELECT c.status FROM financeiro_cobrancas c
         WHERE c.instituicao_id = a.instituicao_id AND c.organizacao_ref = o.ref_core
           AND c.sessao_ref IN (a.ref_core, a.sessao_clinica_ref) AND c.status <> 'cancelled'
         ORDER BY c.criado_em DESC LIMIT 1) AS pagamento_status,
+      COALESCE((SELECT c.valor_centavos FROM financeiro_cobrancas c
+        WHERE c.instituicao_id = a.instituicao_id AND c.organizacao_ref = o.ref_core
+          AND c.sessao_ref IN (a.ref_core, a.sessao_clinica_ref) AND c.status <> 'cancelled'
+        ORDER BY c.criado_em DESC LIMIT 1), a.valor_centavos) AS valor_centavos,
       ${custeioDoAgendamentoSql({ agendamento: 'a', paciente: 'pa', convenio: 'conv' })} AS custeado
       ${JOINS}
       WHERE a.instituicao_id = ? AND o.ref_core = ? AND ${clausulaStatusAgendaGestao(statusFiltro)}
@@ -66,7 +72,9 @@ export async function listarAgendaGestao(
       pacoteSessoes: row.pacote_sessoes == null ? undefined : Number(row.pacote_sessoes),
       pacoteSessoesCiclo: row.pacote_sessoes_ciclo as 'mensal' | 'total' | undefined,
       vencimentoCobrancaEm: fromSqlTimestamp(row.vencimento_cobranca_em),
+      prazoSolicitado: fromSqlTimestamp(row.prazo_solicitado),
       pagamentoStatus: row.pagamento_status ? String(row.pagamento_status) : undefined,
+      valorCentavos: row.valor_centavos == null ? undefined : Number(row.valor_centavos),
       custeadoPelaEmpresa: Boolean(row.custeado),
     })),
   };

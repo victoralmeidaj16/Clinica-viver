@@ -107,11 +107,12 @@ export async function registerManualPayment(context: RequestContext, chargeId: s
     await connection.beginTransaction();
     // O mesmo bloqueio da cobrança é usado pelos webhooks dos provedores.
     const [charges] = await connection.query<RowDataPacket[]>(
-      `SELECT ref_core FROM financeiro_cobrancas
+      `SELECT ref_core, EXISTS(SELECT 1 FROM financeiro_pacotes k WHERE k.instituicao_id=c.instituicao_id AND k.organizacao_ref=c.organizacao_ref AND k.cobranca_ref=c.ref_core) AS pacote FROM financeiro_cobrancas c
         WHERE instituicao_id = ? AND organizacao_ref = ? AND ref_core = ? FOR UPDATE`,
       [instituicaoId(), context.actor.organizationId, chargeId],
     );
     if (!charges.length) throw new ApplicationError('NOT_FOUND', 'Cobrança não encontrada.', 404);
+    if (charges[0].pacote) throw new ApplicationError('INVALID_STATE', 'O pacote exige confirmação bancária do valor integral.', 409);
     const [coverage] = await connection.query<RowDataPacket[]>(
       `SELECT fc.fatura_convenio_ref,
               ${custeioDoAgendamentoSql({ agendamento: 'ag', paciente: 'p', convenio: 'conv' })} AS custeado

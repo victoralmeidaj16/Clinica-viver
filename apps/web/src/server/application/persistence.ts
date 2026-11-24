@@ -9,6 +9,8 @@ import type { InativacaoVinculo } from '@/lib/inativacaoVinculo';
 import type { AlteracaoPreferencias, PreferenciasSolicitacao } from '@/lib/preferenciasSolicitacao';
 import type { ResponsavelFinanceiro } from '@/lib/responsavelFinanceiro';
 import type { VinculoColetivo } from '@/lib/vinculoColetivo';
+import type { DecisoesVinculos, SituacaoAcademica } from '@/lib/vinculoAcademico';
+import type { OpcoesAtendimentoDaPos } from '@/components/forms/opcoesPsicologo';
 import type {
   Appointment,
   ClinicalRecord,
@@ -192,6 +194,7 @@ export interface SolicitacaoAlteracaoGestao {
   turmaViverMais?: string;
   posGraduacaoViverMais?: string;
   segundaPosGraduacao?: string;
+  segundaTurmaViverMais?: string;
   servicosPrestados?: readonly string[];
   limitePacientesAtivos?: number;
   justificativa?: string;
@@ -293,6 +296,20 @@ export interface CadastroPsicologoRecord {
   turmaViverMais?: string;
   posGraduacaoViverMais?: string;
   segundaPosGraduacao?: string;
+  /** Turma da segunda pós (3.2). Gravada desde a migration 093. */
+  segundaTurmaViverMais?: string;
+  /** Decisão da Gestão sobre cada vínculo acadêmico (2.02 e 3.10). */
+  vinculosAcademicos?: DecisoesVinculos;
+  /**
+   * Derivados a cada leitura (`turmasEncerradas.ts`), nunca gravados: situação
+   * de cada vínculo com a turma, o prazo de saída e as permissões que os
+   * vínculos válidos somam no catálogo atual.
+   */
+  situacaoAcademica?: SituacaoAcademica;
+  permissoesEfetivas?: OpcoesAtendimentoDaPos | null;
+  formatosPermitidos?: readonly ('ONLINE' | 'PRESENCIAL')[];
+  /** Aviso da contagem de saída no marco vigente (1.03), com os textos da Gestão. */
+  avisoSaidaTurma?: AvisoSaidaTurma;
   solicitacaoAlteracaoGestao?: SolicitacaoAlteracaoGestao;
   /** Após trocar a pós, o profissional precisa escolher públicos e serviços novamente. */
   reconfiguracaoAtendimentoPendente?: boolean;
@@ -406,6 +423,18 @@ export interface PersistedSnapshot {
   prazoOfertaHoras?: number;
   /** Configurações da Gestão no modo arquivo. No MySQL, ficam em tabela própria. */
   configuracoesGestao?: readonly ConfiguracaoGestaoRecord[];
+}
+
+export interface AvisoSaidaTurma {
+  turma: string;
+  posGraduacao: string;
+  encerradaEm: string;
+  saidaEm: string;
+  diasRestantes: number;
+  /** "Dias antes" configurado que este aviso representa. */
+  marco: number;
+  textoPsicologo: string;
+  textoGestao: string;
 }
 
 /** Valor atual de uma configuração da Gestão, com o autor da última mudança. */

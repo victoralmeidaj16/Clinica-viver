@@ -20,7 +20,9 @@ import type {
 } from './persistence';
 import { generoProfissional } from '@/lib/gender';
 import { normalizarTurnoPreferencia, normalizarTurnosPreferencia } from '@/lib/turnos';
-import { desligadoPorTurma } from '@/lib/turmaEncerrada';
+import { foraPorVinculoAcademico } from '@/lib/turmaEncerrada';
+import { PUBLICO_ALVO } from '@/components/forms/opcoesPsicologo';
+import { derivarServicosHabilitados } from './psychologistRegistration';
 import {
   LIMITE_PACIENTES_MAXIMO,
   LIMITE_PACIENTES_MINIMO,
@@ -139,6 +141,41 @@ export function ausenciaVigente(
   );
 }
 
+const SERVICOS_CONHECIDOS = new Set(derivarServicosHabilitados([
+  'Atendimento Psicológico', 'Avaliação Psicológica', 'Orientação Vocacional', 'Orientação Profissional', 'Orientação Parental',
+]));
+
+/**
+ * Serviços que o cadastro pode receber agora: os homologados, limitados ao
+ * que os vínculos acadêmicos válidos permitem no catálogo atual (2.01–2.02 e
+ * 1.04). Um curso que deixa de permitir um serviço, ou um vínculo que perde a
+ * validade, tira o serviço daqui sem apagar a homologação gravada.
+ */
+export function servicosEfetivos(record: CadastroPsicologoRecord): string[] {
+  const homologados = [...(record.servicosHabilitados ?? [])];
+  if (!record.permissoesEfetivas) return homologados;
+  const permitidos = new Set(derivarServicosHabilitados(record.permissoesEfetivas.servicos));
+  return homologados.filter((servico) => !SERVICOS_CONHECIDOS.has(servico) || permitidos.has(servico));
+}
+
+/** Públicos escolhidos, limitados aos que os vínculos válidos permitem. Valores antigos fora do vocabulário ficam. */
+export function publicoEfetivo(record: CadastroPsicologoRecord): string[] | undefined {
+  if (!record.publicoAlvo) return undefined;
+  if (!record.permissoesEfetivas) return [...record.publicoAlvo];
+  const permitidos = record.permissoesEfetivas.publico;
+  return record.publicoAlvo.filter((publico) => !PUBLICO_ALVO.includes(publico) || permitidos.includes(publico));
+}
+
+/** Formato do cadastro dentro do que os cursos válidos permitem; `null` quando não sobra nenhum. */
+function formatoEfetivo(record: CadastroPsicologoRecord): string | undefined | null {
+  const permitidos = record.formatosPermitidos ?? [];
+  const atual = record.modalidadeAtendimento;
+  if (permitidos.length !== 1) return atual;
+  const unico = permitidos[0];
+  if (!atual || atual === 'AMBOS' || atual === unico) return unico;
+  return null;
+}
+
 /**
  * Converte o cadastro do credenciamento no perfil que o motor entende.
  *
@@ -166,11 +203,15 @@ export function paraPsicologoPerfil(
     genero: generoProfissional(record.genero),
     turnosDisponiveis: normalizarLista(record.turnosDisponiveis, normalizarTurno),
     modalidadesAtendidas: normalizarLista(record.modalidadesAtendidas, normalizarModalidade),
-    modalidadeAtendimento: record.modalidadeAtendimento,
+    modalidadeAtendimento: formatoEfetivo(record) ?? record.modalidadeAtendimento,
     abordagem: record.especialidade,
-    servicosHabilitados: [...(record.servicosHabilitados ?? [])],
-    temposAtendimento: record.temposAtendimento ? [...record.temposAtendimento] : undefined,
-    publicoAlvo: record.publicoAlvo ? [...record.publicoAlvo] : undefined,
+    servicosHabilitados: servicosEfetivos(record),
+    temposAtendimento: record.temposAtendimento
+      ? record.permissoesEfetivas?.tempos.length
+        ? record.temposAtendimento.filter((tempo) => record.permissoesEfetivas!.tempos.includes(tempo))
+        : [...record.temposAtendimento]
+      : undefined,
+    publicoAlvo: publicoEfetivo(record),
     especificarNecessidades: record.especificarNecessidades,
     necessidadesAtendidas: record.necessidadesAtendidas ? [...record.necessidadesAtendidas] : undefined,
     necessidadesOutro: record.necessidadesOutro,
@@ -186,7 +227,10 @@ export function paraPsicologoPerfil(
       (record.pausadoNoRodizio ?? false) ||
       Boolean(record.reconfiguracaoAtendimentoPendente) ||
       Boolean(ausenciaVigente(record, agora)) ||
-      desligadoPorTurma(record.turmaEncerrada),
+      // Sai só quando nenhum vínculo acadêmico aprovado continua válido (1.04),
+      // ou quando o formato do cadastro não cabe em nenhum curso válido.
+      foraPorVinculoAcademico(record) ||
+      formatoEfetivo(record) === null,
     posicaoFilaRoundRobin: 0,
     ultimoLeadRecebidoEm: record.ultimoLeadRecebidoEm,
     saldoCreditoAbatimento: 0,

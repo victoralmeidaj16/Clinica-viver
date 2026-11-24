@@ -13,14 +13,14 @@ import {
   Camera,
   Upload,
 } from 'lucide-react';
-import { LISTA_NECESSIDADES } from '@/components/forms/necessidades';
+import { cursosParaSelecao, useCatalogoCursos } from '@/components/forms/useCatalogoCursos';
+import { demandasParaSelecao, useDemandasClinicas } from '@/components/forms/useDemandasClinicas';
 import {
   PUBLICO_ALVO,
   TIPOS_ATENDIMENTO,
   SERVICOS_PRESTADOS,
   TURNOS_PSICOLOGO,
   TURMAS_VIVER_MAIS,
-  POS_GRADUACOES_VIVER_MAIS,
   MODALIDADES_ATENDIMENTO,
   comValoresRegistrados,
   opcoesAtendimentoDaPos,
@@ -83,7 +83,10 @@ export function ModalEdicao({
   const [temposAtendimento, setTemposAtendimento] = useState<number[]>([...(psicologo.temposAtendimento ?? [])]);
   const [publicos, setPublicos] = useState<string[]>([...(psicologo.publicoAlvo ?? [])]);
   const [publicoOutro, setPublicoOutro] = useState(psicologo.publicoAlvoOutro ?? '');
-  const opcoesDaPos = opcoesAtendimentoDaPos(posGraduacaoViverMais || undefined, segundaPosGraduacao || undefined);
+  const catalogoCursos = useCatalogoCursos();
+  const demandasClinicas = useDemandasClinicas();
+  const turmasDoCurso = catalogoCursos.turmasPorCurso[posGraduacaoViverMais] ?? TURMAS_VIVER_MAIS;
+  const opcoesDaPos = opcoesAtendimentoDaPos(posGraduacaoViverMais || undefined, segundaPosGraduacao || undefined, catalogoCursos.cursos);
   const [especificarNecessidades, setEspecificarNecessidades] = useState<boolean>(
     Boolean(psicologo.especificarNecessidades || psicologo.necessidadesAtendidas?.length || psicologo.necessidadesOutro)
   );
@@ -476,11 +479,11 @@ export function ModalEdicao({
                     className={inputClass}
                   >
                     <option value="">Selecione a turma...</option>
-                    {turmaViverMais && !TURMAS_VIVER_MAIS.includes(turmaViverMais) && (
+                    {turmaViverMais && !turmasDoCurso.includes(turmaViverMais) && (
                       // Turma antiga gravada antes do recorte: aparece para não sumir do campo.
                       <option value={turmaViverMais}>Turma {turmaViverMais} (encerrada)</option>
                     )}
-                    {TURMAS_VIVER_MAIS.map((t) => (
+                    {turmasDoCurso.map((t) => (
                       <option key={t} value={t}>
                         Turma {t}
                       </option>
@@ -498,7 +501,7 @@ export function ModalEdicao({
                     className={inputClass}
                   >
                     <option value="">Selecione a pós-graduação...</option>
-                    {POS_GRADUACOES_VIVER_MAIS.map((p) => (
+                    {cursosParaSelecao(catalogoCursos, posGraduacaoViverMais).map((p) => (
                       <option key={p} value={p}>
                         {p}
                       </option>
@@ -516,7 +519,7 @@ export function ModalEdicao({
                     className={inputClass}
                   >
                     <option value="">Nenhuma / Não possui</option>
-                    {POS_GRADUACOES_VIVER_MAIS.map((p) => (
+                    {cursosParaSelecao(catalogoCursos, segundaPosGraduacao).filter((p) => p !== posGraduacaoViverMais).map((p) => (
                       <option key={p} value={p}>
                         {p}
                       </option>
@@ -690,7 +693,7 @@ export function ModalEdicao({
                 {especificarNecessidades && (
                   <div className="pt-3 border-t border-slate-200 space-y-3 animate-in fade-in duration-200">
                     <div className="flex flex-wrap gap-1.5 max-h-56 overflow-y-auto p-1">
-                      {LISTA_NECESSIDADES.map((necessidade) => (
+                      {demandasParaSelecao(demandasClinicas, necessidades).map((necessidade) => (
                         <label key={necessidade} className={chip(necessidades.includes(necessidade))}>
                           <input
                             type="checkbox"

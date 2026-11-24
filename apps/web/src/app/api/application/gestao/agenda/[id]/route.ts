@@ -16,7 +16,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
     if ((body.modalidade !== undefined && !['online', 'presencial'].includes(String(body.modalidade)))
       || (body.status !== undefined && !['agendado', 'confirmado', 'realizado'].includes(String(body.status)))
-      || (body.custeadoPelaEmpresa !== undefined && typeof body.custeadoPelaEmpresa !== 'boolean')) {
+      || (body.custeadoPelaEmpresa !== undefined && typeof body.custeadoPelaEmpresa !== 'boolean')
+      || (body.valorCentavos !== undefined && (typeof body.valorCentavos !== 'number' || !Number.isSafeInteger(body.valorCentavos) || body.valorCentavos <= 0))) {
       throw new ApplicationError('INVALID_INPUT', 'Dados de edição inválidos.', 400);
     }
     return success(await editGestaoAppointment(context, id, {
@@ -28,6 +29,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       modalidade: body.modalidade as UpdateAppointmentInput['modalidade'],
       status: body.status as UpdateAppointmentInput['status'],
       custeadoPelaEmpresa: body.custeadoPelaEmpresa as boolean | undefined,
+      valorCentavos: body.valorCentavos as number | undefined,
     }));
   } catch (error) { return failure(error); }
 }

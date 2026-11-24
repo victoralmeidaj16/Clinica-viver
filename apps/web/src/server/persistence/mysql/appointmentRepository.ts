@@ -1,4 +1,6 @@
 import 'server-only';
+import { reservarCotaContratual, fixarCotaAntesDeCancelar, travarPacienteParaReserva } from '@/server/persistence/mysql/politicaReserva';
+import { consumirPacote } from '@/server/scheduling/pacoteAgendamento';
 
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import type { Pool, PoolConnection } from 'mysql2/promise';
@@ -151,11 +153,17 @@ export class MysqlAppointmentRepository implements AppointmentRepository {
         return;
       }
 
+      if (input.expectedVersion === 0) await travarPacienteParaReserva(connection, rowId('paciente', appointment.patientId));
       await this.assertVersion(connection, id, input.expectedVersion);
       await this.assertNoConflict(connection, id, appointment);
       const rescheduled = input.events.some((event) => event.type === 'appointment.rescheduled');
       if (rescheduled) await assertRescheduledFundingQuota(connection, id, new Date(appointment.startsAt));
+      if (input.events.some(event => event.type === 'appointment.cancelled')) await fixarCotaAntesDeCancelar(connection, id);
       await this.upsertAppointment(connection, id, appointment);
+      if (input.expectedVersion === 0 && appointment.usePatientPackage) {
+        await consumirPacote(connection, appointment.organizationId, appointment.patientId, appointment.professionalId, id);
+      }
+      if (input.expectedVersion === 0 && !appointment.usePatientPackage) await reservarCotaContratual(connection, id);
       if (rescheduled) {
         await resetAppointmentChargeDue(connection, id, appointment.startsAt);
       }

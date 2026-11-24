@@ -88,6 +88,43 @@ describe('updateAppointmentDetails', () => {
     }
   });
 
+  const concluirPelaGestao = () => updateAppointmentDetails('org-1', 'pro-1', 'apt-ref-1',
+    { modalidade: 'presencial' }, { ...auditoria, permitirCorrecaoAdministrativa: true, concluirDepois: true },
+    new Date('2099-01-01T12:50:00Z'));
+
+  it('conclui a edição por ref_core com um commit e um histórico de formato e situação', async () => {
+    comAgendamento({ inicio: '2099-01-01 12:00:00', fim: '2099-01-01 12:50:00' });
+    expect(await concluirPelaGestao()).toBe('completed');
+    const historico = connection.execute.mock.calls.filter(([sql]) => sql.includes(insertHistorico));
+    expect(historico).toHaveLength(1);
+    expect(historico[0][1]?.[3]).toBe('apt-1');
+    expect(JSON.parse(String(historico[0][1]?.at(-1)))).toEqual([
+      { campo: 'formato', rotulo: 'Formato', de: 'On-line', para: 'Presencial' },
+      { campo: 'situacao', rotulo: 'Situação', de: 'Agendado', para: 'Realizado' },
+    ]);
+    expect(connection.query.mock.calls[0][1]?.slice(-2)).toEqual(['apt-ref-1', 'apt-ref-1']);
+    const conclusao = connection.execute.mock.calls.find(([sql]) => sql.includes("SET status = 'realizado'"));
+    expect(conclusao?.[1]?.at(-1)).toBe('apt-1');
+    expect(connection.beginTransaction).toHaveBeenCalledOnce();
+    expect(connection.commit).toHaveBeenCalledOnce();
+  });
+
+  it.each([2, 4])('desfaz toda a edição se a escrita %i (sessão ou histórico) falhar', async (escrita) => {
+    for (let i = 1; i < escrita; i++) connection.execute.mockResolvedValueOnce([{ affectedRows: 1 }, []]);
+    connection.execute.mockRejectedValueOnce(new Error('falha de gravação'));
+    await expect(concluirPelaGestao()).rejects.toThrow('falha de gravação');
+    expect(connection.rollback).toHaveBeenCalledOnce();
+    expect(connection.commit).not.toHaveBeenCalled();
+  });
+
+  it('reenvio de edição concluída preserva a sessão e o histórico', async () => {
+    comAgendamento({ status: 'realizado', sessao_clinica_ref: 'sessao', modalidade: 'presencial' });
+    expect(await concluirPelaGestao()).toBe('ok');
+    const escritas = connection.execute.mock.calls.map(([sql]) => sql);
+    expect(escritas.some(sql => sql.includes('INSERT IGNORE INTO clinica_sessoes'))).toBe(false);
+    expect(escritas.some(sql => sql.includes(insertHistorico))).toBe(false);
+  });
+
   it('grava a alteração administrativa na transação antes do commit', async () => {
     comAgendamento({ modalidade: 'presencial' });
     await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', { modalidade: 'online' }, auditoria);
@@ -417,19 +454,88 @@ describe('updateAppointmentDetails', () => {
       expect(connection.commit).toHaveBeenCalledOnce();
     });
 
-    it('mantém bloqueio para troca de status ou de custeio em sessões realizadas ou canceladas', async () => {
+    it('mantém bloqueio para troca de status em sessões realizadas ou canceladas e para financeiro em canceladas', async () => {
       comAgendamento({ status: 'realizado', sessao_clinica_ref: 'session-1' });
       expect(
         await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', { status: 'agendado' }, { permitirCorrecaoAdministrativa: true })
       ).toBe('completed_locked');
       expect(
-        await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', { custeadoPelaEmpresa: false }, { permitirCorrecaoAdministrativa: true })
+        await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', { custeadoPelaEmpresa: false })
       ).toBe('completed_locked');
 
       comAgendamento({ status: 'cancelado' });
       expect(
         await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', { status: 'agendado' }, { permitirCorrecaoAdministrativa: true })
       ).toBe('cancelled_locked');
+      expect(
+        await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', { valorCentavos: 10000 }, { permitirCorrecaoAdministrativa: true })
+      ).toBe('cancelled_locked');
+      expect(connection.execute).not.toHaveBeenCalled();
+    });
+
+    it('permite à Gestão corrigir valor de sessão realizada em aberto e audita antes/depois', async () => {
+      comAgendamento({ status: 'realizado', sessao_clinica_ref: 'session-1', valor_centavos: 12000, custeado_pela_empresa: 1, custeio_convenio_ref: 'conv-1' });
+      const previousQuery = connection.query.getMockImplementation()!;
+      connection.query.mockImplementation(async (sql, values) =>
+        sql.trimStart().startsWith('SELECT c.ref_core')
+          ? [[{ ref_core: 'charge-emp-1', status: 'pending', valor_centavos: 12000, fatura_convenio_ref: null, convenio_ref: 'conv-1', provedor_ref: null, provedor_pagamento_ref: null, possui_pagamento: 0 }], []]
+          : previousQuery(sql, values)
+      );
+
+      expect(
+        await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', { valorCentavos: 15000 }, { permitirCorrecaoAdministrativa: true, ...auditoria })
+      ).toBe('ok');
+
+      const updateCharge = connection.execute.mock.calls.find(([sql]) => sql.includes('UPDATE financeiro_cobrancas') && sql.includes('valor_centavos = ?'));
+      expect(updateCharge).toBeDefined();
+      expect(updateCharge![1]).toContain(15000);
+      const hist = connection.execute.mock.calls.find(([sql]) => sql.includes(insertHistorico));
+      expect(hist).toBeDefined();
+      expect(String(hist![1])).toContain('120,00');
+      expect(String(hist![1])).toContain('150,00');
+      expect(connection.commit).toHaveBeenCalledOnce();
+    });
+
+    it('permite à Gestão trocar pagador de sessão realizada em aberto para empresa gerando cobrança contratual', async () => {
+      comAgendamento({
+        status: 'realizado', sessao_clinica_ref: 'session-1', paciente_ref: 'pat-1',
+        convenio_ref: 'conv-1', valor_sessao_contrato_centavos: 10000, custeado_pela_empresa: 0,
+        realizado_em: '2099-01-01T13:00:00Z', custeio_disponivel: 1,
+      });
+      const previousQuery = connection.query.getMockImplementation()!;
+      connection.query.mockImplementation(async (sql, values) =>
+        sql.trimStart().startsWith('SELECT c.ref_core')
+          ? [[{ ref_core: 'charge-pat-1', status: 'pending', valor_centavos: 12000, fatura_convenio_ref: null, convenio_ref: null, provedor_ref: null, provedor_pagamento_ref: null, possui_pagamento: 0 }], []]
+          : previousQuery(sql, values)
+      );
+
+      expect(
+        await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', { custeadoPelaEmpresa: true }, { permitirCorrecaoAdministrativa: true })
+      ).toBe('ok');
+
+      expect(connection.execute.mock.calls.some(([sql]) => sql.includes("SET status = 'cancelled'"))).toBe(true);
+      const insertEmpresa = connection.execute.mock.calls.find(([sql]) => sql.includes('INSERT INTO financeiro_cobrancas'));
+      expect(insertEmpresa).toBeDefined();
+      expect(insertEmpresa![1]).toContain(10000);
+      expect(insertEmpresa![1]).toContain('conv-1');
+      expect(connection.commit).toHaveBeenCalledOnce();
+    });
+
+    it('preserva pagamento já conciliado ou faturado ao recusar alteração de valor ou pagador', async () => {
+      comAgendamento({ status: 'realizado', sessao_clinica_ref: 'session-1', valor_centavos: 12000 });
+      const previousQuery = connection.query.getMockImplementation()!;
+      connection.query.mockImplementation(async (sql, values) =>
+        sql.trimStart().startsWith('SELECT c.ref_core')
+          ? [[{ ref_core: 'charge-paid', status: 'paid', valor_centavos: 12000, fatura_convenio_ref: null, provedor_ref: 'pay_1', provedor_pagamento_ref: 'pay_1', possui_pagamento: 1 }], []]
+          : previousQuery(sql, values)
+      );
+
+      expect(
+        await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', { valorCentavos: 15000 }, { permitirCorrecaoAdministrativa: true })
+      ).toBe('amount_locked');
+      expect(
+        await updateAppointmentDetails('org-1', 'pro-1', 'apt-1', { custeadoPelaEmpresa: false }, { permitirCorrecaoAdministrativa: true })
+      ).toBe('funding_locked');
       expect(connection.execute).not.toHaveBeenCalled();
     });
   });

@@ -16,6 +16,7 @@ export function ChargeDueButton({ chargeId, patientName, dueAt, onSaved }: Props
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
   const [busy, setBusy] = useState(false);
+  const [aviso, setAviso] = useState('');
   const [error, setError] = useState('');
 
   function open() {
@@ -30,9 +31,10 @@ export function ChargeDueButton({ chargeId, patientName, dueAt, onSaved }: Props
     setBusy(true); setError('');
     try {
       const next = futureChargeDueIso(date, time);
-      await applicationRequest(`/financial/clinica/${encodeURIComponent(chargeId)}/due`, {
+      const result = await applicationRequest<{ pending: boolean }>(`/financial/clinica/${encodeURIComponent(chargeId)}/due`, {
         method: 'PATCH', body: JSON.stringify({ dueAt: next }),
       });
+      setAviso(result.pending ? "Aguardando confirmação do novo prazo pelo banco." : "Vencimento atualizado.");
       dialog.current?.close();
       onSaved();
     } catch (cause) {
@@ -46,6 +48,7 @@ export function ChargeDueButton({ chargeId, patientName, dueAt, onSaved }: Props
       aria-label={`Editar vencimento de ${patientName}`} onClick={open}>
       Editar vencimento
     </button>
+    {aviso && <span role="status">{aviso}</span>}
     <dialog ref={dialog} aria-labelledby={`due-title-${chargeId}`}
       onCancel={(event) => { if (busy) event.preventDefault(); }}
       className="m-auto w-[min(92vw,28rem)] rounded-2xl border border-line bg-white p-6 text-ink shadow-xl backdrop:bg-black/40">
@@ -53,7 +56,7 @@ export function ChargeDueButton({ chargeId, patientName, dueAt, onSaved }: Props
         <h2 id={`due-title-${chargeId}`} className="text-lg font-extrabold">Editar vencimento</h2>
         <p className="text-sm">{patientName}</p>
         <p className="text-sm text-muted">Defina o novo prazo de pagamento desta sessão, no horário de Brasília.
-          Um PIX ou boleto já emitido para esta sessão é cancelado; o próximo é gerado com o novo prazo.</p>
+          O novo prazo se aplica ao saldo em aberto. Para uma instrução já emitida, o banco precisa confirmar a alteração.</p>
         <ChargeDueFields date={date} time={time} disabled={busy} onDateChange={setDate} onTimeChange={setTime}
           labelClassName="block text-sm font-semibold" inputClassName={field} />
         {error && <p role="alert" className="text-sm text-red-700">{error}</p>}

@@ -27,7 +27,7 @@ it('usa a organização da sessão autenticada, nunca a do corpo', async () => {
 
 it('informa quando a atualização no provedor ficou pendente', async () => {
   mocks.update.mockResolvedValue('queued');
-  await expect(updateClinicChargeDue(context, 'charge-1', body)).resolves.toEqual({ updated: true, pending: true });
+  await expect(updateClinicChargeDue(context, 'charge-1', body)).resolves.toEqual({ updated: false, pending: true });
 });
 
 it.each([undefined, {}, { dueAt: 5 }, { dueAt: 'amanhã' }])('recusa vencimento inválido %j', async (invalid) => {

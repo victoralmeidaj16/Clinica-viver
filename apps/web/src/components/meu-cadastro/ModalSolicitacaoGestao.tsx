@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { cursosParaSelecao, turmasParaSelecao, useCatalogoCursos } from '@/components/forms/useCatalogoCursos';
 import { AcoesSolicitacaoGestao } from './AcoesSolicitacaoGestao';
 import {
   Lock,
@@ -12,7 +13,6 @@ import {
 } from 'lucide-react';
 import {
   TURMAS_VIVER_MAIS,
-  POS_GRADUACOES_VIVER_MAIS,
   SERVICOS_PRESTADOS,
   comValoresRegistrados,
   opcoesAtendimentoDaPos,
@@ -45,7 +45,13 @@ export function ModalSolicitacaoGestao({
 
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
-  const opcoesDaPos = opcoesAtendimentoDaPos(posGraduacaoViverMais || undefined, segundaPosGraduacao || undefined);
+  const [segundaTurma, setSegundaTurma] = useState(
+    solicitacaoPendente?.segundaTurmaViverMais ?? dadosAtuais.segundaTurmaViverMais ?? ''
+  );
+  const catalogoCursos = useCatalogoCursos();
+  const turmasDoCurso = catalogoCursos.turmasPorCurso[posGraduacaoViverMais] ?? TURMAS_VIVER_MAIS;
+  const turmasDaSegunda = segundaPosGraduacao ? turmasParaSelecao(catalogoCursos, segundaPosGraduacao, segundaTurma) : [];
+  const opcoesDaPos = opcoesAtendimentoDaPos(posGraduacaoViverMais || undefined, segundaPosGraduacao || undefined, catalogoCursos.cursos);
   const servicosDisponiveis = opcoesDaPos?.servicos ?? comValoresRegistrados(SERVICOS_PRESTADOS, servicosPrestados);
 
   const alternarServico = (servico: string) => {
@@ -73,6 +79,7 @@ export function ModalSolicitacaoGestao({
         turmaViverMais: turmaViverMais.trim() || undefined,
         posGraduacaoViverMais: posGraduacaoViverMais.trim() || undefined,
         segundaPosGraduacao: segundaPosGraduacao.trim(),
+        segundaTurmaViverMais: segundaPosGraduacao.trim() ? segundaTurma || undefined : undefined,
         servicosPrestados: servicosValidos,
         justificativa: justificativa.trim() || undefined,
       });
@@ -151,11 +158,11 @@ export function ModalSolicitacaoGestao({
                 className={campoClasse}
               >
                 <option value="">Selecione sua turma...</option>
-                    {turmaViverMais && !TURMAS_VIVER_MAIS.includes(turmaViverMais) && (
+                    {turmaViverMais && !turmasDoCurso.includes(turmaViverMais) && (
                       // Turma antiga gravada antes do recorte: aparece para não sumir do campo.
                       <option value={turmaViverMais}>Turma {turmaViverMais} (encerrada)</option>
                     )}
-                {TURMAS_VIVER_MAIS.map((t) => (
+                {turmasDoCurso.map((t) => (
                   <option key={t} value={t}>
                     Turma {t}
                   </option>
@@ -174,7 +181,7 @@ export function ModalSolicitacaoGestao({
                 className={campoClasse}
               >
                 <option value="">Selecione a pós-graduação...</option>
-                {POS_GRADUACOES_VIVER_MAIS.map((p) => (
+                {cursosParaSelecao(catalogoCursos, posGraduacaoViverMais).map((p) => (
                   <option key={p} value={p}>
                     {p}
                   </option>
@@ -193,12 +200,18 @@ export function ModalSolicitacaoGestao({
               className={campoClasse}
             >
               <option value="">Nenhuma / Não possui</option>
-              {POS_GRADUACOES_VIVER_MAIS.map((p) => (
+              {cursosParaSelecao(catalogoCursos, segundaPosGraduacao).filter((p) => p !== posGraduacaoViverMais).map((p) => (
                 <option key={p} value={p}>
                   {p}
                 </option>
               ))}
             </select>
+            {segundaPosGraduacao && (
+              <select value={segundaTurma} onChange={(e) => setSegundaTurma(e.target.value)} className={`${campoClasse} mt-2`}>
+                <option value="">Turma da segunda pós…</option>
+                {turmasDaSegunda.map((t) => <option key={t} value={t}>Turma {t}</option>)}
+              </select>
+            )}
           </div>
 
           {/* Serviços que Presto */}

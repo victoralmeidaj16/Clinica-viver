@@ -10,6 +10,8 @@ interface Session {
   inicio: string;
   linkPagamento?: string;
   custeadoPelaEmpresa?: boolean;
+  aguardandoConvenio?: boolean;
+  cobertoPorPacote?: boolean;
   convenioNome?: string;
 }
 interface PaymentResult { fundedByCompany?: boolean; companyName?: string; valor: number; descontoCentavos?: number; subtotalCentavos?: number; pixQrCode?: string; pixCopiaECola?: string; invoiceUrl?: string; }
@@ -89,11 +91,11 @@ export function BookedSessionsPayment({ sessions, cpf, hidePatientPayerBadge = f
 
   if (individuallyPaidCount === 0) return (
     <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-left text-sm text-emerald-950">
-      <p className="font-black">Todas as sessões estão cobertas pela empresa</p>
+      <p className="font-black">{sessions.some(s => s.aguardandoConvenio) ? 'Custeio aguardando autorização da Gestão' : sessions.some(s => s.cobertoPorPacote) ? 'Sessões cobertas pelo pacote' : 'Todas as sessões estão cobertas pela empresa'}</p>
       <p className="mt-1">Não há pagamento individual para estas {sessions.length} sessões reservadas.</p>
       <div className="mt-3 space-y-1.5 border-t border-emerald-200 pt-3 text-xs font-semibold">
         {sessions.map((session) => (
-          <p key={session.inicio} className="capitalize">{label(session.inicio)} · Empresa paga</p>
+          <p key={session.inicio} className="capitalize">{label(session.inicio)} · {session.aguardandoConvenio ? 'Aguardando autorização' : session.cobertoPorPacote ? 'Pacote antecipado' : 'Empresa paga'}</p>
         ))}
       </div>
     </div>

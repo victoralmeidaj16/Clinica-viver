@@ -50,7 +50,7 @@ export async function garantirCobrancaDaSessao(
            ON conv.instituicao_id = pa.instituicao_id
           AND conv.organizacao_ref = o.ref_core AND conv.ref_core = pa.convenio_ref
         WHERE a.instituicao_id = ? AND (a.ref_core = ? OR a.id = ?)
-          AND a.status <> 'cancelado'
+          AND a.status <> 'cancelado' AND a.pacote_id IS NULL AND a.custeio_aguarda_autorizacao=0
         LIMIT 1 FOR UPDATE`,
       [instituicaoId(), agendamentoId, agendamentoId]
     );

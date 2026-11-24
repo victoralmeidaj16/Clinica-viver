@@ -78,7 +78,7 @@ export function custeioEfetivoSql(alias: {
            WHERE cota_ag.instituicao_id = ${p}.instituicao_id
              AND cota_ag.paciente_id = ${p}.id
              ${excluirProprio}
-             AND ((cota_ag.custeado_pela_empresa = 1 AND cota_ag.status <> 'cancelado'
+             AND (cota_ag.cota_ocorrencia_ref = ${p}.convenio_ref OR (cota_ag.custeado_pela_empresa = 1 AND cota_ag.status <> 'cancelado'
                    AND cota_ag.custeio_convenio_ref = ${p}.convenio_ref) ${reservaAnterior})
              AND ${dentroDoCicloSql(p, c, 'cota_ag.inicio', referencia)})
          < ${cotaDeCusteioSql(p, c)} THEN 1

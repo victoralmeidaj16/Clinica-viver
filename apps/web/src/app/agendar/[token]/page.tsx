@@ -85,6 +85,7 @@ function rotuloDia(dia: string): string {
 
 export default function AgendarPage({ params }: Props) {
   const { token } = use(params);
+  const [usarPacote, setUsarPacote] = useState(false);
   const [acessibilidade, setAcessibilidade] = useState<PatientAccessibility | null>();
   const [professionalName, setProfessionalName] = useState<string>();
   const [cpf, setCpf] = useState('');
@@ -184,7 +185,7 @@ export default function AgendarPage({ params }: Props) {
       const inicios = horario.inicios ?? [horario.inicio];
       const payload = isReagendando
         ? { token, cpf, appointmentId: agenda?.agendamentoAtual?.id, inicio: horario.inicio }
-        : { token, cpf, acessibilidade, ...bookingStartsPayload(inicios) };
+        : { token, cpf, usarPacote, acessibilidade, ...bookingStartsPayload(inicios) };
 
       const response = await fetch(url, {
         method: 'POST',
@@ -450,6 +451,7 @@ export default function AgendarPage({ params }: Props) {
 
             {!modoReagendar && <PublicBookingFrequencyField value={frequencia} onChange={mudarFrequencia} />}
 
+            {!modoReagendar && <label><input type="checkbox" checked={usarPacote} onChange={e => setUsarPacote(e.target.checked)} /> Usar saldo de pacote pago</label>}
             {!modoReagendar && <PatientAccessibilityFields value={acessibilidade === undefined ? agenda.acessibilidade : acessibilidade} onChange={setAcessibilidade} disabled={Boolean(salvando)} />}
             {agenda.dias.length === 0 ? (
               <p className="rounded-2xl border border-line bg-soft/50 p-4 text-xs text-muted">

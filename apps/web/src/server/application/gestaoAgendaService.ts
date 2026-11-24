@@ -65,7 +65,7 @@ export async function updateGestaoChargeDue(context: RequestContext, id: string,
   const { organizationId, userId } = context.actor;
   const professionalId = await profissionalDoAgendamentoGestao(organizationId, id);
   if (!professionalId) throw new ApplicationError('NOT_FOUND', 'Agendamento não encontrado.', 404);
-  await updateAgendaAppointmentChargeDue({ ...context,
+  const resultado = await updateAgendaAppointmentChargeDue({ ...context,
     actor: { ...context.actor, professionalProfileId: professionalId } }, id, dueAt, async (anterior) => {
     try {
       const mudancas = diferencasDoAgendamento({ venceEm: anterior.venceEm }, { venceEm: dueAt });
@@ -79,7 +79,7 @@ export async function updateGestaoChargeDue(context: RequestContext, id: string,
       console.error('[agenda] Falha ao registrar a alteração de vencimento.');
     }
   });
-  return { updated: true };
+  return resultado.pending ? { updated:false,pending:true } : { updated:true };
 }
 
 export async function updateGestaoMonthlyCoverage(context: RequestContext, id: string, cota: number) {

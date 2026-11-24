@@ -1,4 +1,5 @@
 import type { TurmaEncerrada } from '@/lib/turmaEncerrada';
+import type { DecisoesVinculos, SituacaoAcademica } from '@/lib/vinculoAcademico';
 import type { AcessibilidadePsicologo } from '@/lib/psychologistAccessibility';
 import type { PosicaoRodizio } from '@/lib/posicaoRodizio';
 
@@ -50,12 +51,17 @@ export interface PsicologoItem {
   turmaViverMais?: string;
   /** Encerramento da turma, derivado no servidor. Ver `lib/turmaEncerrada.ts`. */
   turmaEncerrada?: TurmaEncerrada;
+  /** Vínculos acadêmicos com aprovação, turma e validade, derivados no servidor (2.02 e 1.04). */
+  situacaoAcademica?: SituacaoAcademica;
+  vinculosAcademicos?: DecisoesVinculos;
   posGraduacaoViverMais?: string;
   segundaPosGraduacao?: string;
+  segundaTurmaViverMais?: string;
   solicitacaoAlteracaoGestao?: {
     turmaViverMais?: string;
     posGraduacaoViverMais?: string;
     segundaPosGraduacao?: string;
+    segundaTurmaViverMais?: string;
     servicosPrestados?: string[];
     limitePacientesAtivos?: number;
     justificativa?: string;

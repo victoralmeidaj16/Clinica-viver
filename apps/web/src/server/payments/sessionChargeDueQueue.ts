@@ -3,6 +3,12 @@ import type { RowDataPacket } from 'mysql2';
 import type { Pool, PoolConnection } from 'mysql2/promise';
 import { instituicaoId } from '@/server/persistence/mysql/mappers';
 
+export function prazoSolicitadoSql(instituicao: string, agendamento: string) {
+  return `(SELECT j.vence_em FROM financeiro_ajustes_vencimento j WHERE j.instituicao_id=${instituicao}
+    AND j.agendamento_id=${agendamento} AND j.situacao='pending' AND j.plano->>'$.operation'='change_due'
+    ORDER BY j.criado_em DESC LIMIT 1)`;
+}
+
 /** Inclui todas as sessões do grupo, mesmo quando a sessão remarcada não é a titular. */
 export async function hasPendingChargeDueReset(connection: Pool | PoolConnection, chargeIds: string[]): Promise<boolean> {
   if (!chargeIds.length) return false;

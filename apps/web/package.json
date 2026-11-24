@@ -22,6 +22,7 @@
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "server-only": "^0.0.1",
+    "write-excel-file": "^4.1.1",
     "xml-crypto": "^6.1.2"
   },
   "devDependencies": {

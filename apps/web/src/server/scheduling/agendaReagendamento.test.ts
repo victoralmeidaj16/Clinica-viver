@@ -82,11 +82,11 @@ describe('reabertura financeira ao reagendar', () => {
     connection.query.mockImplementation(async (sql: string) => {
       if (sql.includes('SELECT a.id, a.ref_core, a.profissional_id')) return [[{ id: 'appt', ref_core: 'appt-ref', profissional_id: 'pro', inicio: '2098-12-01T12:00:00Z', fim: '2098-12-01T12:50:00Z', versao: 3 }], []];
       if (sql.includes('SELECT c.ref_core')) return [[{ ref_core: 'charge', status: 'overdue', organizacao_ref: 'org', possui_pagamento: 0 }], []];
-      if (sql.includes('SELECT x.id')) return [[{ id: 'checkout', referencia_externa: 'VM-old', status: 'expired' }], []];
+      if (sql.includes('SELECT x.id')) return [[{ id: 'checkout', cobranca_ref: 'charge', provedor: 'asaas', provedor_pagamento_ref: 'pay-test', referencia_externa: 'VM-old', status: 'expired' }], []];
       return [[], []];
     });
     expect(await rescheduleAppointmentProfessional('org', 'pro', 'appt', '2099-01-01T12:00:00Z', '2099-01-01T12:50:00Z')).toBe('ok');
-    expect(connection.execute).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO financeiro_ajustes_vencimento'),
+    expect(connection.execute).toHaveBeenCalledWith(expect.stringMatching(/INSERT INTO financeiro_ajustes_vencimento[^]*'rejected'/),
       [expect.any(String), expect.any(String), 'appt', expect.any(String), expect.any(String)]);
     expect(concluirReagendamento).toHaveBeenCalledWith(expect.objectContaining({ id: 'appt', versao: 4 }));
     expect(connection.commit.mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(concluirReagendamento).mock.invocationCallOrder[0]);

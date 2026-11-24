@@ -1,4 +1,5 @@
 export interface ConvenioView {
+  politica?: import('@/lib/politicaConvenio').PoliticaConvenio;
   valorSessaoContratoCents?: number;
   id: string; nome: string; razaoSocial?: string; cnpj?: string; emailFaturamento?: string;
   empresaPagaSessoes: boolean; pacoteSessoes?: number | null; pacoteSessoesCiclo?: 'total' | 'mensal' | null; diaVencimento?: number | null; ativo: boolean;
@@ -23,11 +24,14 @@ export interface FaturaConvenioView {
 }
 
 export interface ConvenioDetailView {
+  pendencias?: { id:string; nome:string; inicio:string }[]; podeAutorizar?:boolean;
+  previa?: { base:string; quantidade:number; unitario:number; total:number; sessoes:string[] };
   convenio: ConvenioView; pacientes: PacienteConvenioView[];
   sessoes: SessaoConvenioView[]; faturas: FaturaConvenioView[];
 }
 
 export interface ConvenioPayload {
+  politica?: import('@/lib/politicaConvenio').PoliticaConvenio;
   valorSessaoContratoCents?: number;
   nome: string; razaoSocial?: string; cnpj?: string; emailFaturamento?: string;
   empresaPagaSessoes: boolean; pacoteSessoes?: number | null; pacoteSessoesCiclo?: 'total' | 'mensal' | null; diaVencimento?: number | null; ativo: boolean;

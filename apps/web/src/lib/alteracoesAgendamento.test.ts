@@ -18,3 +18,11 @@ it('mostra o intervalo no fuso da clínica', () => {
     { campo: 'horario', rotulo: 'Data e horário', de: '24/11/2026 às 09:30 – 10:20', para: '25/11/2026 às 11:30 – 12:20' },
   ]);
 });
+
+it('registra alteração de valor da sessão formatada em reais', () => {
+  const mudancas = diferencasDoAgendamento({ valorCentavos: 12000 }, { valorCentavos: 15000 });
+  expect(mudancas).toHaveLength(1);
+  expect(mudancas[0]).toMatchObject({ campo: 'valor', rotulo: 'Valor da sessão' });
+  expect(mudancas[0].de).toContain('120,00');
+  expect(mudancas[0].para).toContain('150,00');
+});

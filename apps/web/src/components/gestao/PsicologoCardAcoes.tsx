@@ -12,7 +12,7 @@ const botao = 'text-[11px] font-extrabold px-3 py-1.5 rounded-xl border transiti
 
 export function PsicologoCardAcoes({ p, onEditar, onAprovar, onRecusar, onAlternarRodizio, onPriorizar, trabalhando, pausado, expanded, onToggleExpanded }: Props) {
   return (
-        <div className="flex items-center gap-2 flex-wrap lg:justify-end shrink-0">
+        <div className="flex items-center justify-end gap-2 flex-wrap shrink-0">
           <button
             disabled={trabalhando}
             onClick={() => onEditar(p)}
@@ -80,6 +80,8 @@ export function PsicologoCardAcoes({ p, onEditar, onAprovar, onRecusar, onAltern
             onClick={onToggleExpanded}
             className="p-2 text-slate-400 hover:text-purple-700 hover:bg-purple-50 rounded-xl transition-all shrink-0 ml-1"
             title={expanded ? 'Recolher detalhes' : 'Expandir detalhes'}
+            aria-expanded={expanded}
+            aria-label={expanded ? 'Recolher detalhes' : 'Expandir detalhes'}
           >
             {expanded ? <ChevronUp className="w-5 h-5 text-purple-700" /> : <ChevronDown className="w-5 h-5" />}
           </button>

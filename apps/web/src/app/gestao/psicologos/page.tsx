@@ -523,7 +523,22 @@ export default function GestaoPsicologosPage() {
           </p>
         </div>
       ) : (
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden divide-y divide-slate-100">
+        <section className="overflow-hidden rounded-2xl border border-psi-soft/60 bg-surface shadow-card">
+          <div className="border-b border-psi-soft/60 bg-psi-soft/20 px-5 py-3 text-xs font-bold text-muted">
+            {`${filtered.length} de ${psicologos.length} registros`}
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[980px] text-left text-xs">
+              <thead className="border-b border-psi-soft/60 bg-psi-soft/30 text-[10px] font-black uppercase tracking-[0.14em] text-muted">
+                <tr>
+                  <th className="p-4">Psicólogo</th>
+                  <th className="p-4">Status</th>
+                  <th className="p-4">Turnos</th>
+                  <th className="p-4">Capacidade</th>
+                  <th className="p-4 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-psi-soft/40">
           {filtered.map((p) => (
             <PsicologoCard
               key={p.id}
@@ -541,7 +556,10 @@ export default function GestaoPsicologosPage() {
               onVinculoAlterado={loadPsicologos}
             />
           ))}
-        </div>
+              </tbody>
+            </table>
+          </div>
+        </section>
       )}
 
       {/* Turmas, prazo de saída e cursos ficam numa área própria (1.01–1.05 e 2.01). */}

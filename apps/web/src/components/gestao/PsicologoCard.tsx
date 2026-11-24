@@ -80,153 +80,130 @@ export function PsicologoCard({
   const trabalhando = ocupado === p.id;
   const temSolicitacaoPendente = p.solicitacaoAlteracaoGestao?.status === 'PENDENTE';
 
+  const alternar = () => setExpanded((atual) => !atual);
+  const colunas = 5;
+
   return (
-    <div
-      data-foco={focoPsicologo(p.id)}
-      className="p-3 sm:p-3.5 hover:bg-slate-50/80 transition-colors space-y-2.5"
-    >
-      {/* Banner de Solicitação de Alteração da Gestão (se houver) */}
+    <>
+      {/* Pedido de alteração pendente: aparece sem precisar expandir. */}
       {temSolicitacaoPendente && (
-        <BannerSolicitacaoAlteracaoGestao
-          psicologo={p}
-          trabalhando={trabalhando}
-          onAprovar={onAprovarSolicitacaoGestao ?? (() => {})}
-          onRecusar={onRecusarSolicitacaoGestao ?? (() => {})}
-          onEditar={onEditar}
-        />
-      )}
-      {/* Linha Principal da Lista */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-        {/* Coluna 1: Foto, Nome, Turma e Status */}
-        <div className="flex items-center gap-3 min-w-0 lg:w-1/3">
-          {p.fotoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={p.fotoUrl}
-              alt={`Foto de ${nomeExibido(p)}`}
-              className="w-10 h-10 rounded-xl object-cover border-2 border-purple-200 shrink-0 shadow-xs"
+        <tr>
+          <td colSpan={colunas} className="px-4 pt-4">
+            <BannerSolicitacaoAlteracaoGestao
+              psicologo={p}
+              trabalhando={trabalhando}
+              onAprovar={onAprovarSolicitacaoGestao ?? (() => {})}
+              onRecusar={onRecusarSolicitacaoGestao ?? (() => {})}
+              onEditar={onEditar}
             />
-          ) : (
-            <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-800 font-black text-base flex items-center justify-center border-2 border-purple-200 shrink-0 shadow-xs">
-              {nomeExibido(p).charAt(0)}
-            </div>
+          </td>
+        </tr>
+      )}
+
+      {/* A linha inteira expande os detalhes, como na Gestão de Pacientes. */}
+      <tr
+        data-foco={focoPsicologo(p.id)}
+        onClick={alternar}
+        className={`cursor-pointer align-top transition-colors hover:bg-psi-soft/30 ${expanded ? 'bg-psi-soft/20' : ''}`}
+      >
+        <td className="p-4">
+          <p className="font-black text-ink">{nomeExibido(p)}</p>
+          <PsicologoPosicaoRodizio rodizio={p.rodizio} />
+        </td>
+        <td className="p-4">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {emSaida?.saidaEm && (
+            <TagStatus
+              icone={CalendarClock}
+              cor="atencao"
+              title={`Turma ${emSaida.turma} de ${emSaida.posGraduacao} encerrada. Sai da vitrine por este vínculo em ${formatarDataCurta(emSaida.saidaEm)}.`}
+            >
+              Saída {formatarDataCurta(emSaida.saidaEm)} · {rotuloRestante(emSaida.diasRestantes ?? 0)}
+            </TagStatus>
           )}
 
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {emSaida?.saidaEm && (
-                <TagStatus
-                  icone={CalendarClock}
-                  cor="atencao"
-                  title={`Turma ${emSaida.turma} de ${emSaida.posGraduacao} encerrada. Sai da vitrine por este vínculo em ${formatarDataCurta(emSaida.saidaEm)}.`}
-                >
-                  Saída {formatarDataCurta(emSaida.saidaEm)} · {rotuloRestante(emSaida.diasRestantes ?? 0)}
-                </TagStatus>
-              )}
+          {temSolicitacaoPendente && (
+            <TagStatus icone={Bell} cor="marca">Alteração solicitada</TagStatus>
+          )}
 
-              {temSolicitacaoPendente && (
-                <TagStatus icone={Bell} cor="marca">Alteração solicitada</TagStatus>
-              )}
+          {p.status === 'EM_ANALISE' ? (
+            <TagStatus icone={Clock3} cor="atencao">Em análise</TagStatus>
+          ) : p.status === 'RECUSADO' ? (
+            <TagStatus icone={XCircle}>Recusado</TagStatus>
+          ) : desligado ? (
+            <TagStatus
+              icone={UserX}
+              cor="negativo"
+              title={encerramento
+                ? `Turma ${encerramento.turma} encerrada em ${formatarDataCurta(encerramento.encerradaEm)}${encerramento.saidaEm ? ` e fora da vitrine desde ${formatarDataCurta(encerramento.saidaEm)}` : ''}. Sem outro vínculo acadêmico válido. Reabra a turma ou prorrogue a saída para desfazer.`
+                : 'Nenhum vínculo acadêmico aprovado continua válido. Fora do rodízio e da vitrine.'}
+            >
+              Fora · turma encerrada
+            </TagStatus>
+          ) : ausencia ? (
+            <TagStatus
+              icone={Plane}
+              cor="ausente"
+              title={`Férias/folga marcadas na própria agenda${ausencia.motivo ? `: ${ausencia.motivo}` : ''}. Fora do rodízio até o fim do período.`}
+            >
+              Ausente {periodoAusencia(ausencia)}
+            </TagStatus>
+          ) : (
+            <TagStatus
+              icone={foraDoRodizio ? PauseCircle : CheckCircle2}
+              cor={foraDoRodizio ? 'negativo' : 'positivo'}
+              title={foraDoRodizio ? p.rodizio?.motivo ?? 'Pausado pela gestão' : 'Disponível para encaminhamentos compatíveis'}
+            >
+              {foraDoRodizio ? (pausado ? 'Pausado' : 'Indisponível') : 'No rodízio'}
+            </TagStatus>
+          )}
 
-              {p.status === 'EM_ANALISE' ? (
-                <TagStatus icone={Clock3} cor="atencao">Em análise</TagStatus>
-              ) : p.status === 'RECUSADO' ? (
-                <TagStatus icone={XCircle}>Recusado</TagStatus>
-              ) : desligado ? (
-                <TagStatus
-                  icone={UserX}
-                  cor="negativo"
-                  title={encerramento
-                    ? `Turma ${encerramento.turma} encerrada em ${formatarDataCurta(encerramento.encerradaEm)}${encerramento.saidaEm ? ` e fora da vitrine desde ${formatarDataCurta(encerramento.saidaEm)}` : ''}. Sem outro vínculo acadêmico válido. Reabra a turma ou prorrogue a saída para desfazer.`
-                    : 'Nenhum vínculo acadêmico aprovado continua válido. Fora do rodízio e da vitrine.'}
-                >
-                  Fora · turma encerrada
-                </TagStatus>
-              ) : ausencia ? (
-                <TagStatus
-                  icone={Plane}
-                  cor="ausente"
-                  title={`Férias/folga marcadas na própria agenda${ausencia.motivo ? `: ${ausencia.motivo}` : ''}. Fora do rodízio até o fim do período.`}
-                >
-                  Ausente {periodoAusencia(ausencia)}
-                </TagStatus>
-              ) : (
-                <TagStatus
-                  icone={foraDoRodizio ? PauseCircle : CheckCircle2}
-                  cor={foraDoRodizio ? 'negativo' : 'positivo'}
-                  title={foraDoRodizio ? p.rodizio?.motivo ?? 'Pausado pela gestão' : 'Disponível para encaminhamentos compatíveis'}
-                >
-                  {foraDoRodizio ? (pausado ? 'Pausado' : 'Indisponível') : 'No rodízio'}
-                </TagStatus>
-              )}
-
-              {proximaAusencia && p.status === 'APROVADO' && (
-                <TagStatus
-                  icone={Plane}
-                  title={`Sai do rodízio automaticamente no período${proximaAusencia.motivo ? `: ${proximaAusencia.motivo}` : ''}.`}
-                >
-                  Folga {periodoAusencia(proximaAusencia)}
-                </TagStatus>
-              )}
-            </div>
-
-            {/*
-              CRP e cidade saíram daqui para os detalhes: numa lista que a
-              gestão percorre para achar quem pausar ou priorizar, eles não são
-              o que se procura, e custavam uma linha em cada card.
-            */}
-            <h3 className="font-extrabold text-slate-900 text-sm leading-snug truncate mt-0.5">
-              {nomeExibido(p)}
-            </h3>
-            <PsicologoPosicaoRodizio rodizio={p.rodizio} />
-          </div>
+          {proximaAusencia && p.status === 'APROVADO' && (
+            <TagStatus
+              icone={Plane}
+              title={`Sai do rodízio automaticamente no período${proximaAusencia.motivo ? `: ${proximaAusencia.motivo}` : ''}.`}
+            >
+              Folga {periodoAusencia(proximaAusencia)}
+            </TagStatus>
+          )}
         </div>
-
-        {/* Coluna 2: Turnos & Capacidade */}
-        <div className="flex items-center gap-6 lg:w-1/3 justify-between lg:justify-start">
-          <div className="space-y-1">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Turnos</span>
-            <span className="text-xs font-semibold text-slate-800 block">
-              {p.turnosDisponiveis?.length ? p.turnosDisponiveis.map(rotuloTurno).join(', ') : 'Nenhum'}
-            </span>
-          </div>
-
-          <div className="space-y-1 min-w-[120px]">
-            <div className="flex justify-between items-center text-xs">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Capacidade</span>
-              <button
-                type="button"
-                onClick={() => void onAjustarLimite(p)}
-                className="font-extrabold text-purple-900 hover:underline text-xs"
-                title="Ajustar limite de pacientes ativos"
-              >
-                {ativos}/{limite}
-              </button>
-            </div>
-            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+        </td>
+        <td className="p-4 font-semibold text-ink">
+          {p.turnosDisponiveis?.length ? p.turnosDisponiveis.map(rotuloTurno).join(', ') : 'Nenhum'}
+        </td>
+        <td className="p-4">
+          <div className="min-w-[120px] space-y-1.5">
+            <button
+              type="button"
+              onClick={(event) => { event.stopPropagation(); void onAjustarLimite(p); }}
+              className="font-bold text-ink hover:underline"
+              title="Ajustar limite de pacientes ativos"
+            >
+              {ativos}/{limite} pacientes
+            </button>
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-psi-soft/60">
               <div
-                className={`h-full transition-all ${
-                  perc >= 100 ? 'bg-rose-500' : perc >= 75 ? 'bg-amber-500' : 'bg-purple-600'
-                }`}
+                className={`h-full transition-all ${perc >= 100 ? 'bg-rose-500' : perc >= 75 ? 'bg-amber-500' : 'bg-psi-vibrant'}`}
                 style={{ width: `${perc}%` }}
               />
             </div>
           </div>
-        </div>
+        </td>
+        <td className="p-4" onClick={(event) => event.stopPropagation()}>
+          <PsicologoCardAcoes p={p} trabalhando={trabalhando} pausado={pausado} expanded={expanded}
+            onToggleExpanded={alternar} onEditar={onEditar} onAprovar={onAprovar}
+            onRecusar={onRecusar} onAlternarRodizio={onAlternarRodizio} onPriorizar={onPriorizar} />
+        </td>
+      </tr>
 
-        {/* Coluna 3: Ações e Botão de Expansão */}
-        <PsicologoCardAcoes p={p} trabalhando={trabalhando} pausado={pausado} expanded={expanded}
-          onToggleExpanded={() => setExpanded(!expanded)} onEditar={onEditar} onAprovar={onAprovar}
-          onRecusar={onRecusar} onAlternarRodizio={onAlternarRodizio} onPriorizar={onPriorizar} />
-      </div>
-
-      {/* Detalhes Expandidos da Linha */}
       {expanded && (
-        <>
-          <PsicologoCardDetalhes p={p} trabalhando={trabalhando} onReenviarConvite={onReenviarConvite} />
-          {onVinculoAlterado && <VinculosAcademicosPainel p={p} onAlterado={onVinculoAlterado} />}
-        </>
+        <tr className="bg-psi-soft/10">
+          <td colSpan={colunas} className="px-4 pb-5">
+            <PsicologoCardDetalhes p={p} trabalhando={trabalhando} onReenviarConvite={onReenviarConvite} />
+            {onVinculoAlterado && <VinculosAcademicosPainel p={p} onAlterado={onVinculoAlterado} />}
+          </td>
+        </tr>
       )}
-    </div>
+    </>
   );
 }

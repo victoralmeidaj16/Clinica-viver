@@ -56,6 +56,36 @@ Cores fora do roxo só servem para dizer **em que situação algo está**, nunca
 | Aviso / atenção | `border-amber-200 bg-amber-50 text-amber-900` | Aviso no resumo da disponibilidade |
 | Ação destrutiva (hover) | `hover:bg-rose-50 hover:text-rose-600` | Remover um intervalo da grade |
 
+### Tags e indicadores de status: base neutra, cor só no ícone
+
+Tags ("Turma 25A") e indicadores de status ("Indisponível", "Conta ativada", "Folga") usam **a mesma base neutra do botão "Pausar"**:
+- fundo branco;
+- borda cinza discreta;
+- texto escuro.
+
+A cor aparece **só no ícone**, e só quando ajuda a reconhecer o estado. Implementação em [TagStatus.tsx](../../apps/web/src/components/gestao/TagStatus.tsx):
+
+```tsx
+const TAG_NEUTRA = 'border border-slate-200 bg-white text-slate-700';
+
+<TagStatus icone={PauseCircle} cor="negativo">Indisponível</TagStatus>
+<TagStatus icone={CheckCircle2} cor="positivo">No rodízio</TagStatus>
+<TagStatus>Turma 25A</TagStatus>   // sem ícone: etiqueta informativa
+```
+
+| `cor` do ícone | Classe | Quando |
+| :--- | :--- | :--- |
+| `neutro` (padrão) | `text-slate-400` | Informação sem juízo (folga marcada, recusado, etapa pendente) |
+| `positivo` | `text-emerald-600` | Concluído / ativo ("Conta ativada", "No rodízio") |
+| `atencao` | `text-amber-600` | Requer acompanhamento ("Em análise", saída prevista) |
+| `negativo` | `text-rose-600` | Fora de operação ("Indisponível", "Fora · turma encerrada") |
+| `ausente` | `text-sky-600` | Ausência em curso |
+| `marca` | `text-psi-vibrant` | Ação ou aviso da plataforma ("Reenviar convite", "Alteração solicitada") |
+
+O estado também precisa aparecer no texto ou na forma do ícone (✓ cheio × círculo vazio), nunca só na cor.
+
+**Não use** a variante *soft-outline* (*outlined tonal badge*): fundo colorido claro, borda da mesma cor e texto mais escuro do mesmo tom (ex.: `bg-emerald-50 border-emerald-200 text-emerald-700`). Ela foi retirada da ficha do psicólogo em 24/11/2026.
+
 O token `coral` (`#F43F5E`, claro `#FECDD3`, escuro `#E11D48`) existe para urgência, mas a página de referência usa `rose-*`. Texto `coral` sobre `coral-light` não atinge contraste suficiente; use o par `rose-50`/`rose-700` ou mais escuro.
 
 ---
@@ -160,14 +190,14 @@ A classe `.input` de `globals.css` segue a mesma ideia com borda `psi-soft`.
 
 O padrão abaixo aparece na ficha do psicólogo em **Gestão de Psicólogos** ([PsicologoCardDetalhes](../../apps/web/src/components/gestao/PsicologoCardDetalhes.tsx), [SemaforoCredenciamento](../../apps/web/src/components/gestao/SemaforoCredenciamento.tsx)). **Não deve ser copiado**:
 
-- **Chips coloridos por categoria:** verde/menta para "Acesso criado", "Convite enviado", "Conta ativada" e para as demandas; vermelho para "Indisponível"; cinza para "Folga"; lilás para turma e "Reenviar convite". Cada cor diferente compete pela atenção sem indicar prioridade.
+- **Chips coloridos por categoria (variante soft-outline)**: verde/menta para "Acesso criado", "Convite enviado", "Conta ativada" e para as demandas; vermelho para "Indisponível"; cinza para "Folga"; lilás para turma e "Reenviar convite". Cada cor diferente compete pela atenção sem indicar prioridade. As tags de status do card e os marcos do credenciamento já usam a tag neutra; as demandas, os públicos e os serviços nos detalhes ainda não.
 - **Cards de seção com tons diferentes** lado a lado: branco em "Serviços", lilás em "Público alvo", verde-água em "Demandas". A seção não precisa de cor própria; título e conteúdo bastam.
 - **Barra de capacidade vermelha cheia** para indicar "5/5". Lotação é situação normal de trabalho, não erro.
 - **Faixa amarela larga e arredondada** como aviso fixo dentro da ficha.
 - **Rótulos em CAIXA ALTA cinza-azulado** ("TURNOS", "CAPACIDADE") em `slate`. Use o rótulo `muted` em caixa normal da seção 3.
 
 Em vez disso:
-- Use chips neutros (`chip-accent` ou o chip de valor).
+- Use a tag neutra (`TagStatus`) para status e etiquetas, com a cor só no ícone.
 - Reserve as cores de estado da seção 2 para o que realmente é erro ou aviso.
 - Organize as seções com cards brancos iguais.
 

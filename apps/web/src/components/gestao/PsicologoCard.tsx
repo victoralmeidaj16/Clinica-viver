@@ -7,6 +7,7 @@ import {
   Bell,
   Plane,
   UserX,
+  CalendarClock,
 } from 'lucide-react';
 import { foraPorVinculoAcademico, formatarDataCurta } from '@/lib/turmaEncerrada';
 import { rotuloRestante } from '@/lib/turmasCiclo';
@@ -19,6 +20,7 @@ import { PsicologoCardAcoes } from './PsicologoCardAcoes';
 import { BannerSolicitacaoAlteracaoGestao } from './BannerSolicitacaoAlteracaoGestao';
 import { focoPsicologo } from '@/lib/focoNotificacao';
 import { PsicologoPosicaoRodizio } from './PsicologoPosicaoRodizio';
+import { TagStatus } from './TagStatus';
 
 export interface PsicologoCardProps {
   /** Recarrega a lista depois de uma decisão sobre vínculo acadêmico. */
@@ -112,70 +114,61 @@ export function PsicologoCard({
 
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[10px] font-black text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">
-                Turma {p.turmaViverMais || '—'}
-              </span>
+              <TagStatus>Turma {p.turmaViverMais || '—'}</TagStatus>
 
               {emSaida?.saidaEm && (
-                <span
-                  className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200"
+                <TagStatus
+                  icone={CalendarClock}
+                  cor="atencao"
                   title={`Turma ${emSaida.turma} de ${emSaida.posGraduacao} encerrada. Sai da vitrine por este vínculo em ${formatarDataCurta(emSaida.saidaEm)}.`}
                 >
                   Saída {formatarDataCurta(emSaida.saidaEm)} · {rotuloRestante(emSaida.diasRestantes ?? 0)}
-                </span>
+                </TagStatus>
               )}
 
               {temSolicitacaoPendente && (
-                <span className="text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 bg-purple-100 text-purple-900 border border-purple-300 animate-pulse">
-                  <Bell className="w-3 h-3 text-purple-700" /> Alteração solicitada
-                </span>
+                <TagStatus icone={Bell} cor="marca">Alteração solicitada</TagStatus>
               )}
 
               {p.status === 'EM_ANALISE' ? (
-                <span className="text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200">
-                  <Clock3 className="w-3 h-3" /> Em análise
-                </span>
+                <TagStatus icone={Clock3} cor="atencao">Em análise</TagStatus>
               ) : p.status === 'RECUSADO' ? (
-                <span className="text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 bg-slate-100 text-slate-600 border border-slate-200">
-                  <XCircle className="w-3 h-3" /> Recusado
-                </span>
+                <TagStatus icone={XCircle}>Recusado</TagStatus>
               ) : desligado ? (
-                <span
-                  className="text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 bg-rose-50 text-rose-700 border border-rose-200"
+                <TagStatus
+                  icone={UserX}
+                  cor="negativo"
                   title={encerramento
                     ? `Turma ${encerramento.turma} encerrada em ${formatarDataCurta(encerramento.encerradaEm)}${encerramento.saidaEm ? ` e fora da vitrine desde ${formatarDataCurta(encerramento.saidaEm)}` : ''}. Sem outro vínculo acadêmico válido. Reabra a turma ou prorrogue a saída para desfazer.`
                     : 'Nenhum vínculo acadêmico aprovado continua válido. Fora do rodízio e da vitrine.'}
                 >
-                  <UserX className="w-3 h-3" /> Fora · turma encerrada
-                </span>
+                  Fora · turma encerrada
+                </TagStatus>
               ) : ausencia ? (
-                <span
-                  className="text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 bg-sky-50 text-sky-800 border border-sky-200"
+                <TagStatus
+                  icone={Plane}
+                  cor="ausente"
                   title={`Férias/folga marcadas na própria agenda${ausencia.motivo ? `: ${ausencia.motivo}` : ''}. Fora do rodízio até o fim do período.`}
                 >
-                  <Plane className="w-3 h-3" /> Ausente {periodoAusencia(ausencia)}
-                </span>
+                  Ausente {periodoAusencia(ausencia)}
+                </TagStatus>
               ) : (
-                <span
-                  className={`text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 ${
-                    foraDoRodizio
-                      ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                      : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                  }`}
+                <TagStatus
+                  icone={foraDoRodizio ? PauseCircle : CheckCircle2}
+                  cor={foraDoRodizio ? 'negativo' : 'positivo'}
                   title={foraDoRodizio ? p.rodizio?.motivo ?? 'Pausado pela gestão' : 'Disponível para encaminhamentos compatíveis'}
                 >
-                  {foraDoRodizio ? <PauseCircle className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
                   {foraDoRodizio ? (pausado ? 'Pausado' : 'Indisponível') : 'No rodízio'}
-                </span>
+                </TagStatus>
               )}
 
               {proximaAusencia && p.status === 'APROVADO' && (
-                <span
-                  className="text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 bg-slate-50 text-slate-600 border border-slate-200"
+                <TagStatus
+                  icone={Plane}
                   title={`Sai do rodízio automaticamente no período${proximaAusencia.motivo ? `: ${proximaAusencia.motivo}` : ''}.`}
                 >
-                  <Plane className="w-3 h-3" /> Folga {periodoAusencia(proximaAusencia)}
-                </span>
+                  Folga {periodoAusencia(proximaAusencia)}
+                </TagStatus>
               )}
             </div>
 

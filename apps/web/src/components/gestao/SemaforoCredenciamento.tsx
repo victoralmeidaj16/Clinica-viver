@@ -1,6 +1,7 @@
 import React from 'react';
 import { CheckCircle2, Circle, HelpCircle, MailPlus } from 'lucide-react';
 import { PsicologoItem } from './types';
+import { COR_ICONE, TAG_NEUTRA } from './TagStatus';
 
 export function SemaforoCredenciamento({
   psicologo,
@@ -24,21 +25,17 @@ export function SemaforoCredenciamento({
       {marcos.map(([rotulo, feito]) => (
         <span
           key={rotulo}
-          className={`text-[10px] font-bold px-2 py-1 rounded-lg border flex items-center gap-1 ${
-            feito === undefined
-              ? 'bg-slate-50 text-slate-400 border-slate-200'
-              : feito
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                : 'bg-slate-50 text-slate-500 border-slate-200'
+          className={`text-[10px] font-bold px-2 py-1 rounded-lg flex items-center gap-1 border border-slate-200 bg-white ${
+            feito === undefined ? 'text-slate-400' : 'text-slate-700'
           }`}
           title={feito === undefined ? 'Indisponível em modo demonstração' : undefined}
         >
           {feito === undefined ? (
-            <HelpCircle className="w-3 h-3" />
+            <HelpCircle aria-hidden className={`w-3 h-3 ${COR_ICONE.neutro}`} />
           ) : feito ? (
-            <CheckCircle2 className="w-3 h-3" />
+            <CheckCircle2 aria-hidden className={`w-3 h-3 ${COR_ICONE.positivo}`} />
           ) : (
-            <Circle className="w-3 h-3" />
+            <Circle aria-hidden className={`w-3 h-3 ${COR_ICONE.neutro}`} />
           )}
           {rotulo}
         </span>
@@ -48,9 +45,9 @@ export function SemaforoCredenciamento({
           type="button"
           disabled={reenviando}
           onClick={() => onReenviar(psicologo)}
-          className="text-[10px] font-extrabold px-2 py-1 rounded-lg border border-purple-200 bg-purple-50 text-purple-900 hover:bg-purple-100 disabled:opacity-50 flex items-center gap-1"
+          className={`text-[10px] font-bold px-2 py-1 rounded-lg flex items-center gap-1 hover:bg-slate-50 disabled:opacity-50 ${TAG_NEUTRA}`}
         >
-          <MailPlus className="w-3 h-3" />
+          <MailPlus aria-hidden className={`w-3 h-3 ${COR_ICONE.marca}`} />
           {reenviando ? 'Reenviando…' : 'Reenviar convite'}
         </button>
       )}

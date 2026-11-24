@@ -34,9 +34,9 @@ export function TagStatus({
   return (
     <span
       title={title}
-      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-bold ${TAG_NEUTRA} ${className}`}
+      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold ${TAG_NEUTRA} ${className}`}
     >
-      {Icone && <Icone aria-hidden className={`h-3.5 w-3.5 shrink-0 ${COR_ICONE[cor]}`} />}
+      {Icone && <Icone aria-hidden className={`h-3 w-3 shrink-0 ${COR_ICONE[cor]}`} />}
       {children}
     </span>
   );

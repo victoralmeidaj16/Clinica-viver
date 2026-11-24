@@ -8,11 +8,11 @@ type Props = Pick<PsicologoCardProps, 'p' | 'onEditar' | 'onAprovar' | 'onRecusa
   expanded: boolean;
   onToggleExpanded: () => void;
 };
-const botao = 'text-[13px] font-extrabold px-3 py-1.5 rounded-xl border transition-all disabled:opacity-50 flex items-center gap-1.5 whitespace-nowrap';
+const botao = 'text-xs font-extrabold px-2.5 py-1.5 rounded-xl border transition-all disabled:opacity-50 flex items-center gap-1.5 whitespace-nowrap';
 
 export function PsicologoCardAcoes({ p, onEditar, onAprovar, onRecusar, onAlternarRodizio, onPriorizar, trabalhando, pausado, expanded, onToggleExpanded }: Props) {
   return (
-        <div className="flex items-center justify-end gap-2 shrink-0">
+        <div className="flex items-center justify-end gap-1.5 shrink-0">
           <button
             disabled={trabalhando}
             onClick={() => onEditar(p)}
@@ -78,7 +78,7 @@ export function PsicologoCardAcoes({ p, onEditar, onAprovar, onRecusar, onAltern
           <button
             type="button"
             onClick={onToggleExpanded}
-            className="p-2 text-slate-400 hover:text-purple-700 hover:bg-purple-50 rounded-xl transition-all shrink-0 ml-1"
+            className="p-2 text-slate-400 hover:text-purple-700 hover:bg-purple-50 rounded-xl transition-all shrink-0"
             title={expanded ? 'Recolher detalhes' : 'Expandir detalhes'}
             aria-expanded={expanded}
             aria-label={expanded ? 'Recolher detalhes' : 'Expandir detalhes'}

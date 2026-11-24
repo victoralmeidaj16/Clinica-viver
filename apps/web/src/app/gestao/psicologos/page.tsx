@@ -424,14 +424,14 @@ export default function GestaoPsicologosPage() {
             {`${filtered.length} de ${psicologos.length} registros`}
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1100px] text-left text-sm">
+            <table className="w-full min-w-[920px] text-left text-[13px]">
               <thead className="border-b border-psi-soft/60 bg-psi-soft/30 text-[11px] font-black uppercase tracking-[0.14em] text-muted">
                 <tr>
-                  <th className="px-4 py-3">Psicólogo</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Turnos</th>
-                  <th className="px-4 py-3">Capacidade</th>
-                  <th className="px-4 py-3 text-right">Ações</th>
+                  <th className="px-3 py-3">Psicólogo</th>
+                  <th className="px-3 py-3">Status</th>
+                  <th className="px-3 py-3">Turnos</th>
+                  <th className="px-3 py-3">Capacidade</th>
+                  <th className="px-3 py-3 text-right">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-psi-soft/40">

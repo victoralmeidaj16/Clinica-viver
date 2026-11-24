@@ -49,11 +49,11 @@ describe('avisos de remarcação', () => {
     expect(state.enviar).toHaveBeenCalledTimes(4);
   });
   it('falha de envio não impede o outro destinatário nem lança para o reagendamento', async () => {
-    state.enviar.mockResolvedValueOnce({ situacao: 'falha' });
+    state.enviar.mockResolvedValueOnce({ situacao: 'falha', reenvioSeguro: true });
     await expect(avisarSessaoRemarcada(session, previous, 2)).resolves.toBeUndefined();
     expect(state.enviar).toHaveBeenCalledTimes(2);
     expect(state.execute).toHaveBeenCalledWith(expect.stringContaining("situacao = 'aguardando_horario'"),
-      [JSON.stringify({ inicioAnterior: previous, inicioNovo: session.inicio, fimNovo: session.fim, modalidade: session.modalidade }), 'inst', 'appointment', 'remarcacao_paciente', 2]);
+      [expect.any(Date), 'inst', expect.any(String)]);
   });
 });
 

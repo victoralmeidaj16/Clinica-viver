@@ -5,6 +5,7 @@ import { getMysqlPool } from '@/server/oci/runtime';
 import { instituicaoId } from '@/server/persistence/mysql/mappers';
 import { enviarTexto } from '@/server/application/viverMaisWhatsApp';
 import { getContatosDaSessao } from './agendaRepository';
+import { finalizarAviso, adiarNovaTentativa } from './finalizarAviso';
 import { avisoParaReenvio } from './agendaAvisosReenvio';
 import { proximaAberturaComercial } from './horarioComercial';
 
@@ -19,6 +20,7 @@ import { proximaAberturaComercial } from './horarioComercial';
 const SESSAO_ATIVA = new Set(['agendado', 'confirmado']);
 
 export interface ResultadoLiberacao {
+  incertos: number;
   enviados: number;
   descartados: number;
   adiados: number;
@@ -33,7 +35,7 @@ async function marcar(id: string, situacao: string, de: string): Promise<boolean
 }
 
 export async function liberarAvisosAguardando(agora = new Date()): Promise<ResultadoLiberacao> {
-  const resultado: ResultadoLiberacao = { enviados: 0, descartados: 0, adiados: 0 };
+  const resultado: ResultadoLiberacao = { incertos: 0, enviados: 0, descartados: 0, adiados: 0 };
   if (proximaAberturaComercial(agora)) return resultado;
 
   // Recupera processos interrompidos; o adaptador mantém a chave de envio
@@ -92,18 +94,13 @@ export async function liberarAvisosAguardando(agora = new Date()): Promise<Resul
         false,
         { variaveis: mensagem.variaveis, referencia: `agendamento:${sessao.agendamentoId}` }
       );
-      // Falha de rede volta para a fila: a próxima varredura tenta de novo,
-      // até a sessão começar e a linha ser descartada.
-      if (envio.situacao === 'falha') {
-        await marcar(id, 'aguardando_horario', 'reservado');
-        resultado.adiados += 1;
-      } else {
-        await marcar(id, envio.situacao, 'reservado');
-        if (envio.situacao === 'enviada') resultado.enviados += 1;
-      }
+      const situacao = await finalizarAviso(id, envio, agora);
+      if (situacao === 'aguardando_horario') resultado.adiados += 1;
+      if (situacao === 'enviada') resultado.enviados += 1;
+      if (situacao === 'entrega_incerta') resultado.incertos += 1;
     } catch (erro) {
       console.error('[agenda] Falha ao liberar aviso adiado:', erro);
-      await marcar(id, 'aguardando_horario', 'reservado').catch(() => undefined);
+      await adiarNovaTentativa(id, agora).catch(() => undefined);
       resultado.adiados += 1;
     }
   }

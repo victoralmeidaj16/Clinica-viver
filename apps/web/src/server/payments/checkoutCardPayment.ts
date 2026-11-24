@@ -3,7 +3,7 @@ import type { ResultSetHeader } from 'mysql2';
 import { getMysqlPool } from '@/server/oci/runtime';
 import { instituicaoId } from '@/server/persistence/mysql/mappers';
 import { asaasDueDate } from '@/lib/chargeDue';
-import { createAsaasPayment, findAsaasPaymentByExternalReference, getAsaasPayment,
+import { AsaasPaymentRejectedError, createAsaasPayment, findAsaasPaymentByExternalReference, getAsaasPayment,
   getOrCreateAsaasCustomer } from '@/server/adapters/asaasAdapter';
 import { SessionChargeUnavailableError, type ReservedCheckout } from './paymentLinkRepository';
 
@@ -41,7 +41,7 @@ export async function getOrCreateCheckoutCardPayment(checkout: ReservedCheckout,
         `UPDATE financeiro_checkouts_asaas SET erro_codigo = ?
           WHERE instituicao_id = ? AND referencia_externa = ? AND erro_codigo = 'CARD_ISSUING'
             AND provedor_pagamento_ref IS NULL`,
-        [paymentMayExist ? 'CARD_UNKNOWN' : null, instituicaoId(), checkout.externalReference],
+        [paymentMayExist && !(error instanceof AsaasPaymentRejectedError) ? 'CARD_UNKNOWN' : null, instituicaoId(), checkout.externalReference],
       );
     }
     throw error;

@@ -31,7 +31,7 @@ describe('liberação dos avisos adiados', () => {
     expect(state.query).not.toHaveBeenCalled();
   });
   it('na abertura toma a linha e envia a confirmação', async () => {
-    await expect(liberarAvisosAguardando(abertura)).resolves.toEqual({ enviados: 1, descartados: 0, adiados: 0 });
+    await expect(liberarAvisosAguardando(abertura)).resolves.toEqual({ enviados: 1, descartados: 0, adiados: 0, incertos: 0 });
     expect(state.enviar).toHaveBeenCalledWith(session.pacienteTelefone, expect.stringContaining('Sua sessão foi marcada'),
       'agenda_confirmacao_paciente', 'agenda:confirmacao_paciente:appointment:0',
       false, expect.objectContaining({ variaveis: expect.objectContaining({ nome_paciente: 'Paciente fictício' }) }));
@@ -49,9 +49,41 @@ describe('liberação dos avisos adiados', () => {
     expect(situacoes()).toEqual(['reservado', 'descartada']);
   });
   it('falha de envio devolve a linha para a fila', async () => {
-    state.enviar.mockResolvedValue({ situacao: 'falha' });
+    state.enviar.mockResolvedValue({ situacao: 'falha', reenvioSeguro: true });
     await expect(liberarAvisosAguardando(abertura)).resolves.toMatchObject({ adiados: 1 });
-    expect(situacoes()).toEqual(['reservado', 'aguardando_horario']);
+    expect(state.execute).toHaveBeenCalledWith(expect.stringContaining("SET situacao = 'aguardando_horario', enviar_em = ?"),
+      [new Date(abertura.getTime() + 5 * 60_000), 'inst', 'aviso']);
+  });
+  it('retira entregas incertas da fila para conferência', async () => {
+    state.enviar.mockResolvedValue({ situacao: 'falha', reenvioSeguro: false });
+    await expect(liberarAvisosAguardando(abertura)).resolves.toMatchObject({ adiados: 0, incertos: 1 });
+    expect(situacoes()).toEqual(['reservado', 'entrega_incerta']);
+  });
+  it.skipIf(Number(process.versions.node.split('.')[0]) < 22)('libera o aviso 51 após um lote de falhas', async () => {
+    const moduleName = 'node:sqlite';
+    const { DatabaseSync } = await import(moduleName) as typeof import('node:sqlite');
+    const db = new DatabaseSync(':memory:');
+    try {
+      db.exec(`CREATE TABLE clinica_agenda_avisos (id TEXT PRIMARY KEY, instituicao_id TEXT,
+        agendamento_id TEXT, tipo TEXT, versao INTEGER, dados_reenvio TEXT, situacao TEXT,
+        enviar_em INTEGER, atualizado_em INTEGER)`);
+      const inserir = db.prepare(`INSERT INTO clinica_agenda_avisos VALUES (?, 'inst', ?,
+        'confirmacao_paciente', 0, '{}', 'aguardando_horario', ?, ?)`);
+      for (let i = 0; i <= 50; i++) {
+        inserir.run(String(i), String(i), abertura.getTime() - 51 + i, abertura.getTime());
+      }
+      const params = (values: Array<Date | string>) => values.map(value => value instanceof Date ? value.getTime() : value);
+      state.query.mockImplementation(async (sql, values) => [db.prepare(sql).all(...params(values))]);
+      state.execute.mockImplementation(async (sql, values) => [{ affectedRows: db.prepare(sql).run(...params(values)).changes }]);
+      state.contatos.mockImplementation(async id => ({ ...session, agendamentoId: id }));
+      state.enviar.mockImplementation(async (_telefone, _texto, _finalidade, chave: string) => {
+        const id = Number(chave.split(':')[2]);
+        return id === 50 ? { situacao: 'enviada' } : { situacao: 'falha', reenvioSeguro: id % 2 === 0 };
+      });
+      await expect(liberarAvisosAguardando(abertura)).resolves.toMatchObject({ adiados: 25, incertos: 25, enviados: 0 });
+      await expect(liberarAvisosAguardando(abertura)).resolves.toMatchObject({ adiados: 0, incertos: 0, enviados: 1 });
+      expect(state.enviar).toHaveBeenCalledTimes(51);
+    } finally { db.close(); }
   });
   it('retoma a remarcação com a mesma chave e sem guardar o conteúdo na fila', async () => {
     state.query.mockResolvedValue([[{ id: 'aviso', agendamento_id: 'appointment', tipo: 'remarcacao_paciente', versao: 2,

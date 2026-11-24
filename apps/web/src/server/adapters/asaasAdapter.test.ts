@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createAsaasPayment, deleteAsaasPayment, getAsaasIntegrationStatus, getOrCreateAsaasCustomer } from './asaasAdapter';
+import { AsaasPaymentRejectedError, createAsaasPayment, deleteAsaasPayment, getAsaasIntegrationStatus, getOrCreateAsaasCustomer } from './asaasAdapter';
 
 const originalEnv = { ...process.env };
 
@@ -42,6 +42,15 @@ describe('diagnóstico da integração Asaas', () => {
     expect(status).toMatchObject({ environment: 'unknown', ready: false });
     expect(status.issues.join(' ')).toContain('não pertencem ao mesmo ambiente');
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([400, 401, 403, 422, 408, 500])('classifica a resposta HTTP %i à emissão', async (status) => {
+    process.env.ASAAS_API_URL = 'https://api.asaas.com/v3';
+    process.env.ASAAS_API_KEY = '$aact_prod_teste';
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status })));
+    const result = createAsaasPayment({ customerId: 'cus-1', value: 100, dueDate: '2026-11-05', description: 'Fictícia' });
+    if ([408, 500].includes(status)) await expect(result).rejects.not.toBeInstanceOf(AsaasPaymentRejectedError);
+    else await expect(result).rejects.toBeInstanceOf(AsaasPaymentRejectedError);
   });
 
   it('não remove no Asaas uma cobrança já liquidada e evita buscar QR Code Pix para boleto', async () => {

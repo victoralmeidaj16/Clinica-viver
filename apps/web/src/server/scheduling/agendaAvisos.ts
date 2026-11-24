@@ -10,6 +10,7 @@ import { appBaseUrl } from '@/server/application/appUrl';
 import { comFoco, focoSessao } from '@/lib/focoNotificacao';
 import { proximaAberturaComercial } from './horarioComercial';
 import type { ContatosDaSessao } from './agendaRepository';
+import { finalizarAviso } from './finalizarAviso';
 import type { DadosAvisoReenvio } from './agendaAvisosReenvio';
 import { modeloPadrao } from '@/lib/avisos/catalogo';
 import { renderizarModelo, type ValoresDoModelo } from '@/lib/avisos/modelo';
@@ -37,50 +38,21 @@ import { renderizarModelo, type ValoresDoModelo } from '@/lib/avisos/modelo';
 export type TipoAviso = 'confirmacao_paciente' | 'confirmacao_psicologo' | 'cancelamento_paciente' | 'remarcacao_paciente' | 'remarcacao_psicologo' | 'solicitacao_reagendamento_psicologo' | 'recusa_reagendamento_paciente';
 
 /**
- * Reserva o aviso. `true` significa "é sua vez de enviar".
+ * Devolve o ID da reserva adquirida por esta chamada.
  *
  * `INSERT IGNORE` em vez de consultar-e-inserir: a leitura seguida de escrita
  * deixaria a janela entre as duas aberta, que é exatamente onde duas instâncias
  * decidiriam ambas que ninguém tinha enviado ainda.
  */
 async function reservar(agendamentoId: string, tipo: TipoAviso, versao: number,
-  dadosReenvio?: DadosAvisoReenvio): Promise<boolean> {
+  dadosReenvio?: DadosAvisoReenvio): Promise<string | null> {
+  const id = randomUUID();
   const [resultado] = await getMysqlPool().execute<ResultSetHeader>(
     `INSERT IGNORE INTO clinica_agenda_avisos (id, instituicao_id, agendamento_id, tipo, versao, situacao, dados_reenvio)
      VALUES (?, ?, ?, ?, ?, 'reservado', ?)`,
-    [randomUUID(), instituicaoId(), agendamentoId, tipo, versao, JSON.stringify(dadosReenvio ?? {})]
+    [id, instituicaoId(), agendamentoId, tipo, versao, JSON.stringify(dadosReenvio ?? {})]
   );
-  return resultado.affectedRows > 0;
-}
-
-/**
- * Fecha a reserva com o que aconteceu.
- *
- * Falhas ficam pendentes para a varredura. O adaptador conserva a chave de
- * entrega e evita repetir mensagens cujo resultado ainda seja desconhecido.
- */
-async function encerrar(
-  agendamentoId: string,
-  tipo: TipoAviso,
-  situacao: ResultadoEnvio['situacao'],
-  versao: number,
-  dadosReenvio?: DadosAvisoReenvio
-): Promise<void> {
-  const pool = getMysqlPool();
-  if (situacao === 'falha') {
-    await pool.execute(
-      `UPDATE clinica_agenda_avisos SET situacao = 'aguardando_horario',
-        enviar_em = CURRENT_TIMESTAMP(3), dados_reenvio = ?
-        WHERE instituicao_id = ? AND agendamento_id = ? AND tipo = ? AND versao = ?`,
-      [JSON.stringify(dadosReenvio ?? {}), instituicaoId(), agendamentoId, tipo, versao]
-    );
-    return;
-  }
-  await pool.execute(
-    `UPDATE clinica_agenda_avisos SET situacao = ?
-      WHERE instituicao_id = ? AND agendamento_id = ? AND tipo = ? AND versao = ?`,
-    [situacao, instituicaoId(), agendamentoId, tipo, versao]
-  );
+  return resultado.affectedRows > 0 ? id : null;
 }
 
 export type SituacaoAviso = ResultadoEnvio['situacao'] | 'sem_telefone' | 'ja_enviado' | 'aguardando_horario' | 'erro';
@@ -125,11 +97,12 @@ async function tentarDespachar(
     console.warn(`[agenda] Aviso "${tipo}" não enviado: contato sem telefone cadastrado.`);
     return 'sem_telefone';
   }
-  if (!(await reservar(agendamentoId, tipo, versao, dadosReenvio))) return 'ja_enviado';
+  const id = await reservar(agendamentoId, tipo, versao, dadosReenvio);
+  if (!id) return 'ja_enviado';
 
   const resultado = await enviarTexto(telefone, texto, finalidade, `agenda:${tipo}:${agendamentoId}:${versao}`,
     false, { variaveis, referencia: `agendamento:${agendamentoId}` });
-  await encerrar(agendamentoId, tipo, resultado.situacao, versao, dadosReenvio);
+  await finalizarAviso(id, resultado);
   return resultado.situacao;
 }
 

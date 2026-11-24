@@ -192,11 +192,11 @@ export async function listarConvenios(organizationId: string, somenteAtivos = fa
   return rows.map(toConvenio);
 }
 
-export async function listarConveniosPublicos(): Promise<Array<{ id: string; nome: string }>> {
+export async function listarConveniosPublicos(organizationId: string): Promise<Array<{ id: string; nome: string }>> {
   const [rows] = await getMysqlPool().query<RowDataPacket[]>(
     `SELECT ref_core, nome FROM clinica_convenios
-      WHERE instituicao_id = ? AND organizacao_ref = 'org-viver-mais' AND ativo = 1 ORDER BY nome`,
-    [instituicaoId()]
+      WHERE instituicao_id = ? AND organizacao_ref = ? AND ativo = 1 ORDER BY nome`,
+    [instituicaoId(), organizationId]
   );
   return rows.map((row) => ({ id: String(row.ref_core), nome: String(row.nome) }));
 }

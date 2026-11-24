@@ -13,10 +13,12 @@ vi.mock('@/server/payments/paymentLinkRepository', () => ({
   isCompanyFundedReservation: () => false, isExpiredReservation: () => false,
 }));
 vi.mock('@/server/adapters/interPixAdapter', () => ({}));
-vi.mock('@/server/adapters/asaasAdapter', () => ({
+vi.mock('@/server/adapters/asaasAdapter', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/server/adapters/asaasAdapter')>(),
   createAsaasPayment: mocks.create, findAsaasPaymentByExternalReference: mocks.find, getAsaasPayment: mocks.get,
   getOrCreateAsaasCustomer: async () => 'customer-test',
 }));
+import { AsaasPaymentRejectedError } from '@/server/adapters/asaasAdapter';
 import { POST } from './route';
 
 const checkout = { externalReference: 'VM-test', chargeId: 'charge-test', amountCents: 10000,
@@ -47,6 +49,15 @@ describe('emissão concorrente do cartão', () => {
     expect(mocks.create).toHaveBeenCalledTimes(1);
     expect(responses.map((r) => r.status).sort()).toEqual([200, 409]);
     expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ externalReference: 'VM-test', value: 100, billingType: 'CREDIT_CARD' }));
+  });
+
+  it('libera a reserva após rejeição definitiva e permite emitir após a correção', async () => {
+    mocks.create.mockRejectedValueOnce(new AsaasPaymentRejectedError('Valor rejeitado.'));
+    expect((await POST(request())).status).toBe(500);
+    expect(database.prepare('SELECT erro_codigo FROM financeiro_checkouts_asaas').get()?.erro_codigo).toBeNull();
+    expect((await POST(request())).status).toBe(200);
+    expect(mocks.create).toHaveBeenCalledTimes(2);
+    expect(mocks.bind).toHaveBeenCalledTimes(1);
   });
 
   it('após timeout consulta o pagamento existente e não emite novamente', async () => {

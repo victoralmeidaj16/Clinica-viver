@@ -282,6 +282,8 @@ export async function getOrCreateAsaasCustomer(input: AsaasCustomerInput): Promi
   return newCustomer.id;
 }
 
+export class AsaasPaymentRejectedError extends Error {}
+
 /**
  * Cria uma cobrança no Asaas e gera a chave Pix + QR Code.
  */
@@ -300,9 +302,9 @@ export async function createAsaasPayment(input: AsaasPaymentInput): Promise<Asaa
   });
 
   if (!paymentRes.ok) {
-    const errorBody = await paymentRes.text();
-    console.error('[asaas] Erro ao criar cobrança:', paymentRes.status, errorBody);
-    throw new Error(`Falha ao criar cobrança no Asaas (${paymentRes.status}): ${errorBody}`);
+    const message = `Falha ao criar cobrança no Asaas (${paymentRes.status}).`;
+    if ([400, 401, 403, 422].includes(paymentRes.status)) throw new AsaasPaymentRejectedError(message);
+    throw new Error(message);
   }
 
   return withPixQrCode(await paymentRes.json());

@@ -1,8 +1,8 @@
 # Checklist de testes da plataforma
 
-Última atualização: 13/11/2026, depois da rodada no navegador.
+Última atualização: 24/11/2026 — ampliado com roteiro prático para execução manual sobre a produção `5850646` (mantendo o histórico de 13/11/2026). Veja também [testes-pdf-2026-11-23.md](testes-pdf-2026-11-23.md).
 
-Este checklist junta três registros: a rodada de 28/10 ([testes-plataforma-2026-10-28.md](testes-plataforma-2026-10-28.md)), o informativo de 11/11 ([informativo-verificacao-2026-11-11.md](informativo-verificacao-2026-11-11.md)) e o documento da equipe `ERROS E ACERTOS - PLATAFORMA CLÍNICA.docx`, editado pela última vez em 05/11. A rodada de 13/11 foi feita no navegador, em produção.
+Este checklist junta três registros: a rodada de 28/10 ([testes-plataforma-2026-10-28.md](testes-plataforma-2026-10-28.md)), o informativo de 11/11 ([informativo-verificacao-2026-11-11.md](informativo-verificacao-2026-11-11.md)) e o documento da equipe `ERROS E ACERTOS - PLATAFORMA CLÍNICA.docx`, editado pela última vez em 05/11. A rodada de 13/11 foi feita no navegador, em produção. Na atualização de 24/11, a seção 7 reúne o roteiro completo para você executar manualmente no ambiente publicado.
 
 **Status**
 
@@ -20,15 +20,17 @@ Este checklist junta três registros: a rodada de 28/10 ([testes-plataforma-2026
 
 ## Resumo
 
+> O resumo abaixo acompanha os 57 itens históricos das seções 1–6 (atualizados após correções publicadas até `5850646`); o roteiro prático de execução manual com checkboxes está na seção 7.
+
 | Área | ✅ | ❌ | 🔁 | ⏳ | 📝 |
 | --- | --- | --- | --- | --- | --- |
-| Painel do psicólogo | 14 | 4 | 0 | 2 | 0 |
+| Painel do psicólogo | 14 | 3 | 1 | 2 | 0 |
 | Painel da gestão | 9 | 1 | 1 | 2 | 0 |
 | Site e cadastros públicos | 8 | 2 | 0 | 0 | 0 |
-| Fluxos e WhatsApp | 0 | 1 | 0 | 2 | 3 |
+| Fluxos e WhatsApp | 0 | 1 | 2 | 2 | 1 |
 | Contrato | 0 | 0 | 0 | 0 | 1 |
 | Testes automatizados e infraestrutura | 7 | 0 | 0 | 0 | 0 |
-| **Total** | **38** | **8** | **1** | **6** | **4** |
+| **Total (seções 1–6)** | **38** | **7** | **4** | **6** | **2** |
 
 ---
 
@@ -54,7 +56,7 @@ Este checklist junta três registros: a rodada de 28/10 ([testes-plataforma-2026
 | PSI-09 | Agendamento manual de paciente **conveniado** mostra data de vencimento, mas quem paga é a empresa | Equipe | ✅ OK | 13/11: não aparece vencimento. A tela mostra "Custeado por Alvet Hospital Veterinário, sem cobrança ao paciente". |
 | PSI-10 | Paciente encaminhado para outro psicólogo: o novo psicólogo recebe "primeiro contato há 15 dias", dado que pertence ao psicólogo anterior | Equipe | ❌ Erro | A contagem deve reiniciar no encaminhamento. |
 | PSI-11 | Psicólogo não consegue registrar no prontuário | Equipe | ✅ OK | 13/11: registro salvo no Paciente Teste (HTTP 201) e exibido no histórico. O título é "TESTE PLATAFORMA 13/11 (PSI-11), pode apagar". |
-| PSI-18 | No "Agendar" do paciente aparecem os 5 serviços (inclusive Psicoterapia de Casal), mas o psicólogo só tem Avaliação Psicológica homologada | 13/11 | ❌ Erro | Encontrado em 13/11. Só acontece pelo **Agendar de Meus Pacientes**: `PatientList.tsx` não envia `servicosHabilitados` ao modal, que sem a lista mostra todos e já abre com Psicoterapia Individual selecionada. Pela Agenda a lista vem certa. O servidor recusa o serviço não homologado (`appointmentService.ts:63`), então não grava dado errado: é erro de tela, prioridade média. Correção: enviar a lista também em Meus Pacientes. |
+| PSI-18 | No "Agendar" do paciente aparecem os 5 serviços (inclusive Psicoterapia de Casal), mas o psicólogo só tem Avaliação Psicológica homologada | 13/11 | 🔁 Retestar | Encontrado em 13/11 e corrigido no commit `1ffb8a4` (`PatientList.tsx` passou a enviar `servicosHabilitados` ao modal de agendamento). O servidor também valida (`appointmentService.ts`). Falta retestar em tela na produção `5850646`. |
 
 ### Agenda e horários
 
@@ -113,8 +115,8 @@ Este checklist junta três registros: a rodada de 28/10 ([testes-plataforma-2026
 | --- | --- | --- | --- | --- |
 | FLX-01 | Paciente não recebe a mensagem certa | Equipe | ❌ Erro | Falta detalhar qual mensagem, em qual etapa e o que deveria chegar. |
 | FLX-02 | Mensagem de agendamento diz "responda para remarcar ou cancelar", mas responder não faz nada | Equipe | 📝 Ajuste | Pedido: trocar por um link de solicitação de remarcação ou por contato direto com o profissional. |
-| FLX-03 | Comprovante de Aceite Eletrônico: o psicólogo só recebe depois da aprovação da gestão, junto com o e-mail de criar senha. O admin continua recebendo na solicitação | Equipe | 📝 Ajuste | |
-| FLX-04 | Declaração de estágio: só contam sessões confirmadas pelo psicólogo, pagas ou não | Equipe | 📝 Ajuste | Regra de negócio a implementar ou conferir. |
+| FLX-03 | Comprovante de Aceite Eletrônico: o psicólogo só recebe depois da aprovação da gestão, junto com o e-mail de criar senha. O admin continua recebendo na solicitação | Equipe | 🔁 Retestar | Implementado (`ab3e4ea`/`5850646`): envio do comprovante definitivo do psicólogo ocorre somente após aprovação, mantendo envio da via da clínica após aprovação conforme `CAD-04`. Validar em tela. |
+| FLX-04 | Declaração de estágio: só contam sessões confirmadas pelo psicólogo, pagas ou não | Equipe | 🔁 Retestar | Implementado (`bc348fb`, migration `091`): apuração considera apenas sessões confirmadas (pagas ou não), filtradas por período e pela duração real em horas/minutos (`AGD-07`, `AGD-09`). Validar em tela. |
 | FLX-05 | Triagem: protocolo único, sem duplicidade | 11/11 | ⏳ Pendente | Commit `ab7897b`. Exige registrar uma triagem. |
 | FLX-06 | Encaminhamento de lead ao psicólogo: decisão só pelo link e sem resposta automática a saudação | — | ⏳ Pendente | Commit `72e731c`, de 11/11. |
 
@@ -153,6 +155,51 @@ Este checklist junta três registros: a rodada de 28/10 ([testes-plataforma-2026
    - FLX-05, triagem: dispara WhatsApp.
 3. **Os 4 ajustes (📝)** dependem de decisão da equipe.
 
+## 7. Roteiro prático de testes manuais para execução (24/11/2026)
+
+Use os checkboxes abaixo ao executar a bateria de testes no ambiente publicado (`5850646`) ou em `npm run web:dev`, sempre com **dados fictícios**. Os códigos entre parênteses (`SEG-xx`, `OPS-xx`, `CAD-xx`, `ROD-xx`, `AGD-xx`, `FIN-xx`) ligam cada passo às evidências de [testes-pdf-2026-11-23.md](testes-pdf-2026-11-23.md).
+
+### 7.1 Visitante / Acesso Público (sem login)
+
+- [ ] **Rotas protegidas sem sessão (`SEG-01`):** em aba anônima, abrir `/gestao/cockpit`, `/pacientes`, `/linha-do-tempo`, `/gestao/financeiro` e `/convenios` → confirmar redirecionamento imediato para `/login?next=…`.
+- [ ] **Vitrine, serviço unificado e convênios (`CAD-01`, `SITE-02`, `SITE-08`):** abrir `/vitrine` → confirmar o card único **Orientação Vocacional e Profissional**, lista de empresas parceiras ao marcar convênio = Sim e verificação de acessibilidade no agendamento pelo site (`SITE-03`).
+- [ ] **Menor sem CPF com responsável (`ROD-15`):** na triagem pública da vitrine, marcar *"ainda não tem CPF"*, informar nome e CPF fictício do responsável → confirmar geração de protocolo mantendo o menor identificado sem misturar com o responsável.
+- [ ] **Cadastro de psicólogo (`CAD-02`, `SEG-04`, `SITE-04`, `SITE-05`, `SITE-07`):** testar 17 cursos, soma de serviços/públicos ao escolher 2ª pós, obrigatoriedade da foto, campo de acessibilidade, ausência de seleção manual de duração em Neuro/Avaliação e bloqueio (HTTP 409) ao tentar cadastrar novamente mesmo e-mail, CRP ou WhatsApp.
+- [ ] **Link público da agenda e custeio (`AGD-03`, `FIN-08`, `SITE-01`):** abrir `/agendar/[token]` com CPF inválido/zerado (rejeitado) e depois com CPF fictício → conferir horários filtrados pela duração do serviço/público; em sessão custeada pela empresa (`custeado = 1`), confirmar que o botão **"Ver fatura / pagar"** não aparece.
+- [ ] **Checkout público e validação pública (`GES-07`, `OPS-07`, `OPS-10`):** abrir `/pagar/sessao/[token]` (inclusive com token inválido/expirado) → confirmar mensagem amigável sem stack trace/detalhe interno; abrir `/validar-certificado` e `/painel-certificados` e conferir login/isolamento em `/aluno/login` → `/aluno`.
+
+### 7.2 Perfil Psicólogo
+
+- [ ] **Ativação, redefinição e revogação de sessão (`SEG-02`, `SITE-09`):** testar `/ativar-conta` ou `/redefinir-senha` em uma janela mantendo outra sessão aberta com a senha antiga → confirmar que a sessão anterior é invalidada na próxima requisição.
+- [ ] **Meu Cadastro (`CAD-03`, `CAD-07`, `OPS-09`, `PSI-02`, `PSI-03`):** abrir `/meu-cadastro` → baixar o PDF do Termo de Adesão aceito, conferir os vínculos acadêmicos independentes (1ª/2ª pós), editar campo livre (ex.: turno) salvando direto e enviar solicitação de campo protegido (ex.: capacidade/pós) conferindo que não aparece escolha de duração indevida.
+- [ ] **Meus Pacientes e cadastro manual (`ROD-05`, `ROD-10`, `ROD-16`, `PSI-04`..`PSI-08`, `PSI-18`):** cadastrar paciente fictício conferindo restrição aos públicos e serviços homologados, opção **Projeto Acolhe** (sem consumir vaga do limite de 5), menor sem CPF com responsável, vínculo coletivo (casal/família/grupo) e teste de `PSI-07` (Particular + Conveniado = Sim); clicar em **Agendar** direto no card de Meus Pacientes e validar que `PSI-18` exibe só os serviços homologados.
+- [ ] **Agenda, disponibilidade e férias (`OPS-01`, `OPS-02`, `AGD-02`, `PSI-12`..`PSI-14`):** configurar disponibilidade presencial/on-line, bloquear dia inteiro (férias) e confirmar retirada do rodízio (preservando pausa manual) + aviso no sino da Gestão; testar Orientação Parental (50 min individual / 1h30 família), Avaliação variável (ex.: 120 min) e bloqueio de choque de horário no intervalo reservado.
+- [ ] **Falta paga, realização sem prontuário, reagendamento e recusa (`OPS-03`, `OPS-04`, `ROD-11`, `PSI-15`, `PSI-16`):** registrar falta em sessão particular paga (opções cobrar vs. não cobrar), confirmar realização de outra sessão sem preencher prontuário (conferindo que só a realizada conta para estágio), testar reagendamento/cancelamento (horário antigo liberado e público preservado) e recusar um encaminhamento em `/confirmar-contato/[id]` preenchendo motivo opcional.
+- [ ] **Sigilo, linha do tempo e documentos psicológicos (`AGD-05`, `AGD-06`, `SEG-05`, `OPS-05`, `PSI-11`):** abrir `/linha-do-tempo`, iniciar rascunho e alternar de ficha para confirmar retenção do rascunho; conferir que Psicólogo B não acessa paciente exclusivo de Psicólogo A; consultar vínculo encerrado para ver apenas registros próprios e adicionar complemento datado; abrir `/pacientes/[id]/documentos` e gerar prévia de documento.
+- [ ] **Meu Financeiro e isolamento de rotas (`FIN-01`, `FIN-04`, `FIN-05`, `PSI-17`, `PSI-20`):** abrir `/meu-financeiro` → conferir coluna **Atendimento / Origem** (serviço + data/hora ou pacote), clicar em aviso de cobrança vencida no sino para focar a linha, exportar CSV e validar bloqueio ao tentar abrir `/gestao/cockpit` e `/relatorios` (`PSI-20`).
+
+### 7.3 Perfil Gestão
+
+- [ ] **Cockpit, rodízio e configuração de oferta (`ROD-01`..`ROD-03`, `ROD-13`, `AGD-01`, `GES-03`, `GES-05`, `GES-11`):** conferir ordem do rodízio e nota `"empate, decidido por sorteio"`, pedido direcionado expirado/recusado com botão **"Devolver ao rodízio"**, selo **"Aceito"** após aceite, alerta de 48h sem primeiro agendamento no sino e edição do prazo configurável da oferta (1 a 168h) com histórico antes/depois.
+- [ ] **Cursos, turmas, demandas e vínculos (`CAD-04`..`CAD-07`):** em `/gestao/cursos`, editar permissões de um curso, criar turma com datas, editar demanda clínica e encerrar uma turma conferindo saída prevista (+3 meses), contagem regressiva e prorrogação/reabertura (mantendo outra pós válida); em `/gestao/psicologos`, conferir bloqueio do comprovante definitivo antes da aprovação, aprovar candidato para liberar envio do Termo e aprovar/recusar 1ª e 2ª pós independentemente.
+- [ ] **Pacientes, vínculo direto, espera e inativação (`ROD-09`, `ROD-12`, `ROD-14`, `ROD-17`, `GES-04`):** em `/gestao/pacientes`, abrir gaveta de paciente e conferir histórico por CPF + motivos de recusa, testar escolha **"Pedir aceite (24h)"** vs. **"Vincular diretamente"**, testar exceção de capacidade `"6 de 5"` com justificativa obrigatória, incluir em lista de espera automática/manual, conferir preferências originais com histórico e comparar **Inativar vínculo** com **Registrar desistência**.
+- [ ] **Agenda da clínica e declaração de estágio (`AGD-04`, `AGD-07`, `AGD-08`, `AGD-09`, `GES-01`, `GES-02`):** em `/gestao/agenda`, filtrar por `Realizada`/`Cancelada`, editar horário, formato, valor (R$) e pagador conferindo histórico antes/depois e trava em cobrança já paga, além de testar movimentação para data passada (`GES-01`); em `/relatorios/declaracao`, filtrar período (`inicio`/`fim`) e conferir cálculo em horas e minutos reais (ex.: 50 min + 90 min = `2 horas e 20 minutos`).
+- [ ] **Financeiro da clínica e convênios PJ (`FIN-01`, `FIN-02`, `FIN-07`, `FIN-09`..`FIN-12`, `OPS-06`..`OPS-08`, `GES-06`, `GES-09`):** em `/gestao/financeiro`, conferir conciliação de 70% por recebimento (e taxa de cartão separada), pacote antecipado de sessões com saldo, alteração de vencimento com baixa parcial, registro de decisão da Gestão em estorno com justificativa e bloqueio para cobrança agrupada entre meses diferentes; em `/convenios`, configurar valor contratual por sessão e políticas (falta/cancelamento/excedente/base), fechar fatura, baixar demonstrativo PDF/CSV sem dados clínicos e abrir prévia de boleto/NFS-e sem emitir em produção.
+- [ ] **Sigilo clínico e notificações (`SEG-03`, `OPS-09`, `GES-08`, `GES-10`, `GES-12`, `GES-13`):** tentar abrir `/linha-do-tempo` como Gestão (deve bloquear/redirecionar), aprovar/recusar alteração protegida de perfil de psicólogo e conferir no sino o rótulo exibido para alterações (`GES-13`), além de abrir `/relatorios`, `/configuracoes/integracoes` e `/ajuda`.
+
+### 7.4 Perfil Financeiro (`billing`)
+
+- [ ] **Login próprio e isolamento (`FIN-06`, `SEG-03`):** entrar com usuário vinculado apenas a `billing` → confirmar redirecionamento para `/gestao/financeiro` e menu lateral exibindo apenas **Financeiro & Repasses**, **Convênios PJ** e **Ajuda**.
+- [ ] **Bloqueio de sigilo e gestão (`FIN-06`, `SEG-03`):** tentar navegar diretamente para `/linha-do-tempo`, `/gestao/cockpit`, `/gestao/pacientes`, `/gestao/psicologos`, `/gestao/agenda`, `/pacientes` e `/relatorios` → confirmar redirecionamento para `/gestao/financeiro` e ausência de dados clínicos em relatórios/exportações.
+- [ ] **Operação financeira e ausência de emissão fiscal (`FIN-13`, `OPS-08`):** consultar a apuração mensal de créditos gravados por profissional em `/gestao/financeiro`, exportar **Excel (`.xlsx`)** e **PDF** validando os valores e abrir `/convenios` confirmando operação das faturas sem botão/permissão de emissão de NFS-e.
+
+### 7.5 Regressões e pendências antigas (13/11) para conferir na mesma bateria
+
+- [ ] **Sem disparo real sem combinar antes:** testar somente após alinhar ambiente/destinatário `PSI-16` (reagendamento com aviso), `FLX-05` (protocolo único na triagem), `FLX-06` (decisão só pelo link WhatsApp) e `FLX-01` (conferência de textos).
+- [ ] **Decisões/cadastros da equipe:** validar resolução de `SITE-10` (cadastros duplicados em produção), `PSI-10` (reinício da contagem de primeiro contato ao encaminhar para outro psicólogo) e `CTR-01` (paginação do Termo de Adesão em ~5 páginas).
+
+---
+
 ## Histórico de rodadas
 
 | Data | Tipo | Registro |
@@ -160,4 +207,5 @@ Este checklist junta três registros: a rodada de 28/10 ([testes-plataforma-2026
 | 28/10/2026 | Interface publicada e testes automatizados | [testes-plataforma-2026-10-28.md](testes-plataforma-2026-10-28.md) |
 | 05/11/2026 | Testes manuais da equipe | `ERROS E ACERTOS - PLATAFORMA CLÍNICA.docx` |
 | 11/11/2026 | Lint, testes, build e rotas publicadas | [informativo-verificacao-2026-11-11.md](informativo-verificacao-2026-11-11.md) |
-| 13/11/2026 | Navegador em produção (Playwright), perfis de gestão e de psicólogo, só leitura. Consulta de leitura ao banco para o SITE-06 | Este checklist. Nada foi salvo e nenhum diálogo foi confirmado |
+| 13/11/2026 | Navegador em produção (Playwright), perfis de gestão e de psicólogo, só leitura. Consulta de leitura ao banco para o SITE-06 | Seções 1–6 deste checklist. Nada foi salvo e nenhum diálogo foi confirmado |
+| 24/11/2026 | Ampliação do roteiro manual pós-deploy `5850646` (inclui segurança, sigilo, operação diária, perfil Financeiro e reteste de itens de 13/11) | Seção 7 deste checklist e [testes-pdf-2026-11-23.md](testes-pdf-2026-11-23.md) |

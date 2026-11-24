@@ -123,7 +123,7 @@ export function PsicologoCard({
           </div>
         </td>
         <td className="px-3 py-3">
-        <div className="flex items-center gap-1.5">
+        <div className="flex max-w-[15rem] flex-wrap items-center gap-1">
           {emSaida?.saidaEm && (
             <TagStatus
               icone={CalendarClock}

@@ -7,10 +7,8 @@ describe('opcoesAtendimentoDaPos', () => {
   ];
   const servicosAmplos = [
     'Atendimento Psicológico',
-    'Orientação Vocacional e Profissional',
     'Orientação Parental',
-    'Orientação Vocacional',
-    'Orientação Profissional',
+    'Orientação Vocacional e Profissional',
   ];
   const cursosAmplos = [
     'Programa de Estudos e Pós-graduação em Psicanálise',

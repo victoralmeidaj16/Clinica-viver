@@ -16,6 +16,15 @@ vi.mock('@/server/viverMaisGestaoAuth', () => {
   return { exigirGestao: () => exigirGestaoMock(), NaoAutorizadoError };
 });
 
+vi.mock('@/server/application/autorGestao', () => ({
+  exigirGestaoComAutor: async () => {
+    await exigirGestaoMock();
+    return { sessao: { organizationId: 'org' }, autor: { usuarioRef: 'gestao-1' } };
+  },
+}));
+const auditoriaMock = vi.fn();
+vi.mock('@/server/application/auditoriaAlteracoes', () => ({ registrarAlteracao: (...args: unknown[]) => auditoriaMock(...args) }));
+
 const avisarAlocacaoMock = vi.fn();
 vi.mock('@/server/application/viverMaisWhatsApp', () => ({
   avisarAlocacao: (...args: unknown[]) => avisarAlocacaoMock(...args),

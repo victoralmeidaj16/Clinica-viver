@@ -1,17 +1,30 @@
 import 'server-only';
 import type { FinalidadeMensagem } from '@/server/application/viverMaisWhatsApp';
 import type { ContatosDaSessao } from './agendaRepository';
+import type { ValoresDoModelo } from '@/lib/avisos/modelo';
 import {
   textoCancelamentoPaciente, textoConfirmacaoPaciente, textoConfirmacaoPsicologo,
   textoRecusaReagendamentoPaciente, textoSolicitacaoReagendamentoPsicologo, textosRemarcacao,
+  variaveisDaSessao, variaveisRemarcacao, variaveisSolicitacaoReagendamento,
 } from './agendaAvisos';
 
 export type DadosAvisoReenvio = { inicioAnterior?: string; inicioSolicitado?: string;
   inicioNovo?: string; fimNovo?: string; modalidade?: ContatosDaSessao['modalidade'] };
-type Mensagem = { telefone: string | null; texto: string; finalidade: FinalidadeMensagem };
+type Mensagem = { telefone: string | null; texto: string; finalidade: FinalidadeMensagem; variaveis: ValoresDoModelo };
 
 /** Reconstrói o aviso sem persistir texto ou telefone na fila. */
 export function avisoParaReenvio(tipo: string, sessao: ContatosDaSessao, dados: DadosAvisoReenvio): Mensagem | null {
+  const mensagem = montar(tipo, sessao, dados);
+  if (!mensagem) return null;
+  const variaveis = tipo.startsWith('remarcacao_') && dados.inicioAnterior
+    ? variaveisRemarcacao(sessao, dados.inicioAnterior)
+    : tipo === 'solicitacao_reagendamento_psicologo' && dados.inicioSolicitado
+      ? variaveisSolicitacaoReagendamento(sessao, dados.inicioSolicitado)
+      : variaveisDaSessao(sessao);
+  return { ...mensagem, variaveis };
+}
+
+function montar(tipo: string, sessao: ContatosDaSessao, dados: DadosAvisoReenvio): Omit<Mensagem, 'variaveis'> | null {
   switch (tipo) {
     case 'confirmacao_paciente': return { telefone: sessao.pacienteTelefone, texto: textoConfirmacaoPaciente(sessao), finalidade: 'agenda_confirmacao_paciente' };
     case 'confirmacao_psicologo': return { telefone: sessao.profissionalTelefone, texto: textoConfirmacaoPsicologo(sessao), finalidade: 'agenda_confirmacao_psicologo' };

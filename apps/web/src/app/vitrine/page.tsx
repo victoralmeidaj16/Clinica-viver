@@ -83,7 +83,7 @@ const PASSOS_AGENDAMENTO: PassoJornada[] = [
     titulo: 'Serviço',
     resumo: 'Escolha a modalidade',
     detalhes: [
-      'Selecione entre Psicoterapia Individual, Psicoterapia de Casal, Avaliação Psicológica e Neuropsicológica, Orientação Vocacional, Orientação Profissional ou Orientação Parental.',
+      'Selecione entre Psicoterapia Individual, Psicoterapia de Casal, Avaliação Psicológica e Neuropsicológica, Orientação Vocacional e Profissional ou Orientação Parental.',
       'Depois escolha entre o agendamento Acessível/Social ou Particular — os valores de cada serviço aparecem logo abaixo.',
     ],
   },
@@ -329,19 +329,9 @@ export default function ViverMaisLandingPage() {
         { tipo: 'PARTICULAR', label: 'Agendamento Particular', preco: attendancePriceLabel('AVALIACAO', 'PARTICULAR') }
       ]
     },
-    ORIENTACAO_VOCACIONAL: {
-      titulo: 'Orientação Vocacional',
-      descricao: 'Apoia a escolha de uma profissão ou de um curso, considerando interesses, habilidades e valores de quem está decidindo o próprio caminho.',
-      duracao: '50min',
-      imagem: '/orientacao_profissional.jpg',
-      opcoes: [
-        { tipo: 'SOCIAL', label: 'Agendamento Acessível/Social', preco: attendancePriceLabel('ORIENTACAO_VOCACIONAL', 'SOCIAL') },
-        { tipo: 'PARTICULAR', label: 'Agendamento Particular', preco: attendancePriceLabel('ORIENTACAO_VOCACIONAL', 'PARTICULAR') }
-      ]
-    },
     ORIENTACAO_PROFISSIONAL: {
-      titulo: 'Orientação Profissional',
-      descricao: 'Auxilia no replanejamento ou na transição de carreira, considerando experiências, habilidades e objetivos profissionais.',
+      titulo: 'Orientação Vocacional e Profissional',
+      descricao: 'Apoia a escolha de uma profissão ou de um curso e auxilia no replanejamento ou na transição de carreira, considerando interesses, experiências, habilidades e objetivos profissionais.',
       duracao: '50min',
       imagem: '/orientacao_profissional.jpg',
       opcoes: [

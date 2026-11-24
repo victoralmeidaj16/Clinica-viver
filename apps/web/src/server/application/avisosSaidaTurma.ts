@@ -1,6 +1,8 @@
 import 'server-only';
 
 import { lerAvisosTurma } from '@/lib/turmasCiclo';
+import { modeloPadrao } from '@/lib/avisos/catalogo';
+import { renderizarModelo } from '@/lib/avisos/modelo';
 import { getCaptureRepository } from '@/server/persistence/captureRepository';
 import { CHAVE_AVISOS_TURMAS } from '@/server/persistence/turmasEncerradas';
 import { lerConfiguracaoGestao, organizacaoPadrao } from './configuracaoGestao';
@@ -23,11 +25,14 @@ export async function enviarAvisosDeSaidaPorWhatsApp(): Promise<number> {
   for (const cadastro of cadastrosPsicologos) {
     const aviso = cadastro.status === 'APROVADO' ? cadastro.avisoSaidaTurma : undefined;
     if (!aviso || !cadastro.whatsapp) continue;
+    const variaveis = { nome_profissional: nomeDeExibicao(cadastro), texto_aviso: aviso.textoPsicologo };
     const resultado = await enviarTexto(
       cadastro.whatsapp,
-      `Olá, ${nomeDeExibicao(cadastro)}! 💜\n\n${aviso.textoPsicologo}\n\nEquipe Viver Mais Psicologia`,
+      renderizarModelo(modeloPadrao('aviso_saida_turma'), variaveis),
       'aviso_saida_turma',
-      `turma-saida:${cadastro.id}:${aviso.posGraduacao}:${aviso.turma}:${aviso.encerradaEm}:${aviso.marco}`
+      `turma-saida:${cadastro.id}:${aviso.posGraduacao}:${aviso.turma}:${aviso.encerradaEm}:${aviso.marco}`,
+      false,
+      { variaveis, referencia: `cadastro:${cadastro.id}` }
     );
     if (resultado.situacao === 'enviada') enviados += 1;
   }

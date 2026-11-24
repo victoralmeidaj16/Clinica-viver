@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getCaptureRepository } from '@/server/persistence/captureRepository';
-import { exigirGestao, NaoAutorizadoError } from '@/server/viverMaisGestaoAuth';
+import { NaoAutorizadoError } from '@/server/viverMaisGestaoAuth';
+import { exigirGestaoComAutor } from '@/server/application/autorGestao';
+import { registrarAlteracao } from '@/server/application/auditoriaAlteracoes';
 import { CorpoInvalidoError, validarCorpo } from '@/server/application/psychologistRegistration';
 import { limitePacientesValido, mensagemLimitePacientesInvalido } from '@/lib/psychologistCapacity';
 
@@ -9,7 +11,7 @@ export const dynamic = 'force-dynamic';
 
 export async function PATCH(request: Request) {
   try {
-    await exigirGestao();
+    const { sessao, autor } = await exigirGestaoComAutor();
     const corpo = (await request.json()) as Record<string, unknown>;
     await validarCorpo(corpo);
     const limite = Number(corpo.limitePacientesAtivos);
@@ -29,9 +31,18 @@ export async function PATCH(request: Request) {
             limitePacientesAtivos: limite,
           })),
         },
-        result: { atualizados: state.cadastrosPsicologos.length, acimaDoLimite },
+        result: {
+          atualizados: state.cadastrosPsicologos.length,
+          acimaDoLimite,
+          anteriores: [...new Set(state.cadastrosPsicologos.map((p) => p.limitePacientesAtivos ?? 'padrão'))].join(', '),
+        },
       };
     });
+    // Limite anterior e novo da equipe (13.02).
+    await registrarAlteracao({ organizationId: sessao.organizationId, modulo: 'psicologos', entidadeTipo: 'equipe',
+      entidadeRef: 'limite_pacientes_ativos', entidadeRotulo: 'Limite de pacientes ativos da equipe', acao: 'alterar_limite_pacientes',
+      campos: resultado.anteriores === String(limite) ? [] : [{ campo: 'limitePacientesAtivos', rotulo: 'Limite de pacientes ativos',
+        anterior: resultado.anteriores || '—', novo: String(limite) }], autor });
 
     return NextResponse.json({ success: true, data: { limitePacientesAtivos: limite, ...resultado } });
   } catch (error) {

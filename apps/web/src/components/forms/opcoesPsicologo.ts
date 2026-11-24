@@ -23,8 +23,6 @@ export const SERVICOS_PRESTADOS: readonly string[] = [
   'Avaliação Psicológica',
   'Orientação Vocacional e Profissional',
   'Orientação Parental',
-  'Orientação Vocacional',
-  'Orientação Profissional',
 ];
 
 export const TEMPOS_ATENDIMENTO_POS: readonly number[] = [50, 90];
@@ -57,10 +55,8 @@ const POS_COM_OPCOES_DE_AVALIACAO: readonly string[] = [
 
 const SERVICOS_POS_AMPLAS: readonly string[] = [
   'Atendimento Psicológico',
-  'Orientação Vocacional e Profissional',
   'Orientação Parental',
-  'Orientação Vocacional',
-  'Orientação Profissional',
+  'Orientação Vocacional e Profissional',
 ];
 
 const SERVICOS_POS_RESTRITAS: readonly string[] = [

@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { exigirGestaoComAutor } from '@/server/application/autorGestao';
 import { inativarPelaGestao, reativarPelaGestao } from '@/server/application/patientInactivation';
 import { falhaGestao } from '@/server/application/respostaGestao';
+import { registrarAlteracao } from '@/server/application/auditoriaAlteracoes';
+import type { TriagemPacienteRecord } from '@/server/application/persistence';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -20,8 +22,15 @@ export async function POST(request: Request) {
       patientId: String(body.patientId ?? '').trim() || undefined,
       leadId: String(body.leadId ?? '').trim() || undefined,
     };
+    // Situação do vínculo antes e depois, com o motivo (13.02).
+    const auditar = (lead: TriagemPacienteRecord, acao: string, de: string, para: string, motivo: unknown) =>
+      registrarAlteracao({ organizationId: sessao.organizationId, modulo: 'pacientes', entidadeTipo: 'paciente',
+        entidadeRef: lead.pacienteRef ?? `lead:${lead.id}`, entidadeRotulo: `${lead.nomeSocial || lead.nomePaciente} (${lead.protocolo})`,
+        acao, campos: [{ campo: 'status_vinculo', rotulo: 'Situação do vínculo', anterior: de, novo: para }],
+        motivo: typeof motivo === 'string' ? motivo : undefined, autor });
     if (body.acao === 'INATIVAR') {
       const lead = await inativarPelaGestao(sessao.organizationId, autor, referencia, body.motivo);
+      await auditar(lead, 'inativar_vinculo', `Ativo${lead.psicologoNome ? ` com ${lead.psicologoNome}` : ''}`, 'Inativo', body.motivo);
       return NextResponse.json({ success: true, data: lead });
     }
     if (body.acao === 'REATIVAR') {
@@ -29,6 +38,7 @@ export async function POST(request: Request) {
         justificativa: typeof body.justificativa === 'string' ? body.justificativa : undefined,
         excederLimite: body.excederLimite === true,
       });
+      await auditar(lead, 'reativar_vinculo', 'Inativo', `Ativo${lead.psicologoNome ? ` com ${lead.psicologoNome}` : ''}${body.excederLimite === true ? ' (acima do limite)' : ''}`, body.justificativa);
       return NextResponse.json({ success: true, data: lead });
     }
     return NextResponse.json({ success: false, error: 'Ação desconhecida.' }, { status: 400 });

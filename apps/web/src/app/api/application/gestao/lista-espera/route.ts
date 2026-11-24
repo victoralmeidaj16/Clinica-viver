@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
-import { modoListaEsperaValido } from '@/lib/listaEspera';
+import { modoListaEsperaValido, ROTULO_MODO_LISTA_ESPERA, type ListaEsperaRegistro } from '@/lib/listaEspera';
+import { camposAlterados } from '@/lib/auditoria';
+import { registrarAlteracao } from '@/server/application/auditoriaAlteracoes';
 import { exigirGestaoComAutor } from '@/server/application/autorGestao';
 import {
   alterarListaDeEspera,
@@ -33,7 +35,7 @@ const MENSAGENS: Record<Exclude<ResultadoListaEspera['situacao'], 'ok'>, [number
  */
 export async function POST(request: Request) {
   try {
-    const { autor } = await exigirGestaoComAutor();
+    const { sessao, autor } = await exigirGestaoComAutor();
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
     const leadId = String(body.leadId ?? '').trim();
     const acao = body.acao;
@@ -49,7 +51,9 @@ export async function POST(request: Request) {
     const motivoPrioridade = typeof body.motivoPrioridade === 'string' ? body.motivoPrioridade : undefined;
     const motivo = typeof body.motivo === 'string' ? body.motivo : undefined;
 
+    let antes: ListaEsperaRegistro | undefined;
     const resultado = await getCaptureRepository().mutate((state) => {
+      antes = state.triagensPacientes.find((lead) => lead.id === leadId)?.listaEspera;
       const snapshot = captureStateAsSnapshot(state);
       const handled = acao === 'ENTRAR'
         ? colocarNaListaDeEspera(snapshot, leadId, { modo: modo!, prioritario, motivoPrioridade }, autor)
@@ -68,6 +72,18 @@ export async function POST(request: Request) {
       const [status, error] = MENSAGENS[resultado.situacao];
       return NextResponse.json({ success: false, error }, { status });
     }
+    // Situação na lista antes e depois (13.02).
+    const naLista = (registro?: ListaEsperaRegistro) => ({
+      situacao: registro && !registro.saidaEm ? 'Na lista de espera' : 'Fora da lista',
+      modo: registro && !registro.saidaEm ? ROTULO_MODO_LISTA_ESPERA[registro.modo] : null,
+      prioridade: registro && !registro.saidaEm && registro.prioritario ? `Prioritário: ${registro.motivoPrioridade ?? ''}` : null,
+    });
+    await registrarAlteracao({ organizationId: sessao.organizationId, modulo: 'fila', entidadeTipo: 'solicitacao',
+      entidadeRef: resultado.lead.pacienteRef ?? `lead:${resultado.lead.id}`, entidadeRotulo: resultado.lead.protocolo,
+      acao: `lista_espera_${String(acao).toLowerCase()}`,
+      campos: camposAlterados(naLista(antes), naLista(resultado.lead.listaEspera),
+        { situacao: 'Lista de espera', modo: 'Modo', prioridade: 'Prioridade excepcional' }),
+      motivo: acao === 'RETIRAR' ? motivo : motivoPrioridade, autor });
     if (resultado.lead.listaEspera?.modo === 'AUTOMATICO') await executarListaDeEsperaSemFalhar();
     return NextResponse.json({ success: true, data: resultado.lead });
   } catch (error) {

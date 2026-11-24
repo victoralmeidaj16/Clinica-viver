@@ -1,4 +1,8 @@
 import 'server-only';
+import { camposAlterados, reaisDeCentavos, type ValorAuditavel } from '@/lib/auditoria';
+import { registrarAlteracao } from './auditoriaAlteracoes';
+import type { Convenio } from '@/server/persistence/mysql/convenioRepository';
+import { nomeDoUsuario } from './autorGestao';
 
 import type { RequestContext } from './context';
 import { ApplicationError } from './http';
@@ -124,16 +128,44 @@ export async function createConvenio(context: RequestContext, body: Record<strin
   const organizationId = admin(context);
   const input = dadosConvenio(body) as ReturnType<typeof dadosConvenio> & { nome: string };
   try {
-    return await criarConvenio(organizationId, {
+    const criado = await criarConvenio(organizationId, {
       politica: input.politica, valorSessaoContratoCents: input.valorSessaoContratoCents, nome: input.nome, razaoSocial: input.razaoSocial, cnpj: input.cnpj,
       emailFaturamento: input.emailFaturamento,
       empresaPagaSessoes: input.empresaPagaSessoes ?? false,
       pacoteSessoes: input.pacoteSessoes, pacoteSessoesCiclo: input.pacoteSessoesCiclo, diaVencimento: input.diaVencimento,
       ativo: input.ativo ?? true,
     });
+    if (criado && typeof criado === 'object' && 'id' in criado) {
+      await auditarConvenio(context, organizationId, String(criado.id), 'criar_convenio', null, criado as Convenio);
+    }
+    return criado;
   } catch (error) {
     return convenioNameConflict(error);
   }
+}
+
+const ROTULOS_CONVENIO = {
+  nome: 'Nome', razaoSocial: 'Razão social', cnpj: 'CNPJ', emailFaturamento: 'E-mail de faturamento',
+  empresaPaga: 'Empresa paga as sessões', valorSessao: 'Valor da sessão no contrato', pacote: 'Sessões cobertas por paciente',
+  ciclo: 'Ciclo da cota', diaVencimento: 'Dia de vencimento', politica: 'Política de cobrança', ativo: 'Ativo',
+};
+
+function estadoConvenio(convenio: Convenio | null): Record<string, ValorAuditavel> {
+  if (!convenio) return {};
+  return {
+    nome: convenio.nome, razaoSocial: convenio.razaoSocial, cnpj: convenio.cnpj, emailFaturamento: convenio.emailFaturamento,
+    empresaPaga: convenio.empresaPagaSessoes, valorSessao: convenio.valorSessaoContratoCents === undefined ? null : reaisDeCentavos(convenio.valorSessaoContratoCents),
+    pacote: convenio.pacoteSessoes ?? 'Sem limite', ciclo: convenio.pacoteSessoesCiclo, diaVencimento: convenio.diaVencimento,
+    politica: convenio.politica ? JSON.stringify(convenio.politica) : null, ativo: convenio.ativo,
+  };
+}
+
+/** Valor anterior e novo do acordo do convênio (13.02). */
+async function auditarConvenio(context: RequestContext, organizationId: string, id: string, acao: string,
+  antes: Convenio | null, depois: Convenio): Promise<void> {
+  await registrarAlteracao({ organizationId, modulo: 'convenios', entidadeTipo: 'convenio', entidadeRef: id,
+    entidadeRotulo: depois.nome, acao, campos: camposAlterados(estadoConvenio(antes), estadoConvenio(depois), ROTULOS_CONVENIO),
+    autor: { usuarioRef: context.actor.userId, nome: await nomeDoUsuario(context.actor.userId) } });
 }
 
 export async function updateConvenio(context: RequestContext, id: string, body: Record<string, unknown>) {
@@ -147,6 +179,7 @@ export async function updateConvenio(context: RequestContext, id: string, body: 
     return convenioNameConflict(error);
   }
   if (!updated) throw new ApplicationError('NOT_FOUND', 'Convênio não encontrado.', 404);
+  await auditarConvenio(context, organizationId, id, 'alterar_convenio', anterior ?? null, updated);
   // O formulário sempre reenvia o acordo inteiro: corrigir um e-mail não pode
   // cancelar a cobrança de uma sessão que a gestão decidiu deixar com o paciente.
   const alvos = new Set<string>();

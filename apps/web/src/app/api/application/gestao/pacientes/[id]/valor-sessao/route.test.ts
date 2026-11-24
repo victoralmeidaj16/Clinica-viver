@@ -11,6 +11,8 @@ vi.mock('@/server/viverMaisGestaoAuth', () => ({
   NaoAutorizadoError: class NaoAutorizadoError extends Error {},
 }));
 vi.mock('@/server/auth', () => ({ readSession: state.readSession }));
+vi.mock('@/server/application/autorGestao', () => ({ nomeDoUsuario: async () => 'Gestão fictícia' }));
+vi.mock('@/server/application/auditoriaPaciente', () => ({ estadoDoPaciente: async () => null, auditarPaciente: async () => undefined }));
 vi.mock('@/server/persistence/mysql/patientSessionPricing', () => ({
   updatePatientSessionPricing: state.update,
   validatePatientSessionPricing: (input: Record<string, unknown>) => {

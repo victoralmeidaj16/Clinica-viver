@@ -142,7 +142,7 @@ export function ausenciaVigente(
 }
 
 const SERVICOS_CONHECIDOS = new Set(derivarServicosHabilitados([
-  'Atendimento Psicológico', 'Avaliação Psicológica', 'Orientação Vocacional', 'Orientação Profissional', 'Orientação Parental',
+  'Atendimento Psicológico', 'Avaliação Psicológica', 'Orientação Vocacional e Profissional', 'Orientação Parental',
 ]));
 
 /**

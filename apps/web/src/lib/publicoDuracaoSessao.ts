@@ -52,14 +52,15 @@ export function duracaoCompativelComPublico(
   publicoDoVinculo: string | undefined,
   origem: 'link' | 'manual'
 ): boolean {
-  if (!CLINICAL_SERVICES.some((servico) => servico.key === serviceKey)) return false;
-  if (serviceKey === 'AVALIACAO') return isValidAppointmentDuration(duracaoMin);
-  if (serviceKey === 'PSICOTERAPIA_CASAL') return duracaoMin === 90;
+  const chave = serviceKey === 'ORIENTACAO_VOCACIONAL' ? 'ORIENTACAO_PROFISSIONAL' : serviceKey;
+  if (!CLINICAL_SERVICES.some((servico) => servico.key === chave)) return false;
+  if (chave === 'AVALIACAO') return isValidAppointmentDuration(duracaoMin);
+  if (chave === 'PSICOTERAPIA_CASAL') return duracaoMin === 90;
 
   const conhecido = Boolean(publicoDoVinculo?.trim());
   if (publicoColetivo(publicoDoVinculo)) return duracaoMin === 90;
 
-  if (serviceKey === 'ORIENTACAO_PARENTAL') {
+  if (chave === 'ORIENTACAO_PARENTAL') {
     if (origem === 'manual' || !conhecido) return duracaoMin === 50 || duracaoMin === 90;
     return duracaoMin === 50;
   }

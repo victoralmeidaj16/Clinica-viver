@@ -21,6 +21,9 @@ import { nomeDeExibicao } from './viverMaisRodizio';
 import { prazoDaOferta, rotuloPrazo } from '@/lib/prazoOferta';
 import { responsavelDoPrimeiroContato } from '@/lib/responsavelFinanceiro';
 import { ROTULO_TIPO_COLETIVO } from '@/lib/vinculoColetivo';
+import { modeloPadrao } from '@/lib/avisos/catalogo';
+import { renderizarModelo, type ValoresDoModelo } from '@/lib/avisos/modelo';
+import { prepararAviso, registrarResultadoDoAviso, type OpcoesDoAviso } from '@/server/communication/avisoEnvio';
 
 /**
  * Avisos da triagem: acolhimento na solicitação, orientações no aceite.
@@ -42,12 +45,18 @@ export type FinalidadeMensagem =
   | 'agenda_recusa_reagendamento_paciente'
   | 'agenda_cancelamento_paciente'
   | 'confirmacao_triagem_paciente'
-  | 'aviso_saida_turma';
+  | 'aviso_saida_turma'
+  | 'aceite_sem_agendamento_gestao'
+  | 'lembrete_sessao_paciente';
 
 export interface ResultadoEnvio {
   finalidade: FinalidadeMensagem;
   chaveDedupe: string;
-  situacao: 'enviada' | 'bloqueada_allowlist' | 'provedor_desconfigurado' | 'falha';
+  /**
+   * `canal_desligado`: a Gestão escolheu outro canal para este aviso (12.01)
+   * ou o aviso é complementar e está desativado (12.02).
+   */
+  situacao: 'enviada' | 'bloqueada_allowlist' | 'provedor_desconfigurado' | 'falha' | 'canal_desligado';
   /** Recusa explícita antes da entrega; timeout não permite presumir falha de entrega. */
   reenvioSeguro?: boolean;
 }
@@ -63,14 +72,39 @@ function evolutionConfig(): { url: string; apiKey: string; instancia: string } |
 /**
  * Envia um texto pelo WhatsApp, validando o telefone **antes** de qualquer
  * chamada de rede: número vazio ou truncado não é assunto do provedor.
+ *
+ * `texto` é a mensagem montada com o modelo padrão. Com `opcoes.variaveis`, a
+ * versão gravada pela Gestão substitui o padrão (12.02); o canal escolhido
+ * por ela decide se o WhatsApp sai (12.01). Todo resultado fica no registro
+ * de envios (12.04), inclusive bloqueios e falhas.
  */
 export async function enviarTexto(
   telefone: string,
   texto: string,
   finalidade: FinalidadeMensagem,
   chaveDedupe: string,
-  autorizadoPelaGestao = false
+  autorizadoPelaGestao = false,
+  opcoes: OpcoesDoAviso = {}
 ): Promise<ResultadoEnvio> {
+  const aviso = await prepararAviso(finalidade, texto, opcoes);
+  const resultado = await entregarTexto(telefone, aviso.texto, finalidade, chaveDedupe, autorizadoPelaGestao, aviso.desligado);
+  await registrarResultadoDoAviso({ finalidade, chaveDedupe, telefone, texto: aviso.texto,
+    versao: aviso.versao, situacao: resultado.situacao, reenvioSeguro: resultado.reenvioSeguro, opcoes });
+  return resultado;
+}
+
+async function entregarTexto(
+  telefone: string,
+  texto: string,
+  finalidade: FinalidadeMensagem,
+  chaveDedupe: string,
+  autorizadoPelaGestao: boolean,
+  desligado: boolean
+): Promise<ResultadoEnvio> {
+  if (desligado) {
+    console.info(`[whatsapp] "${finalidade}" não sai por WhatsApp: canal ou ativação definidos pela Gestão.`);
+    return { finalidade, chaveDedupe, situacao: 'canal_desligado' };
+  }
   if (!autorizadoPelaGestao) {
     try {
       assertWhatsAppRecipientAllowed(telefone);
@@ -104,6 +138,14 @@ export async function enviarTexto(
   }
 }
 
+function variaveisBoasVindas(psicologo: CadastroPsicologoRecord, activationUrl: string): ValoresDoModelo {
+  return {
+    nome_profissional: psicologo.nomeSocial?.trim() || psicologo.nomeCompleto.trim(),
+    login: psicologo.email,
+    link_ativacao: activationUrl,
+  };
+}
+
 /**
  * Convite de acesso enviado apenas depois da aprovação autenticada da gestão.
  * O telefone foi informado pelo próprio profissional e conferido pela
@@ -114,25 +156,14 @@ export async function avisarBoasVindasPsicologo(
   activationUrl: string,
   tentativaId?: string
 ): Promise<ResultadoEnvio> {
-  const nome = psicologo.nomeSocial?.trim() || psicologo.nomeCompleto.trim();
-  const texto = [
-    `Olá, ${nome}! Seu cadastro profissional foi aprovado pela Viver Mais Psicologia.`,
-    '',
-    'Seu acesso à plataforma já está disponível.',
-    `Login: ${psicologo.email}`,
-    '',
-    'Crie sua senha pessoal pelo link seguro abaixo:',
-    activationUrl,
-    '',
-    'O link é individual, expira em 72 horas e pode ser usado uma única vez.',
-    'A Viver Mais nunca solicitará sua senha pelo WhatsApp.',
-  ].join('\n');
+  const variaveis = variaveisBoasVindas(psicologo, activationUrl);
   return enviarTexto(
     psicologo.whatsapp,
-    texto,
+    renderizarModelo(modeloPadrao('boas_vindas_psicologo'), variaveis),
     'boas_vindas_psicologo',
     `boas-vindas:${psicologo.id}${tentativaId ? `:${tentativaId}` : ''}`,
-    true
+    true,
+    { variaveis, referencia: `cadastro:${psicologo.id}` }
   );
 }
 
@@ -214,36 +245,33 @@ function rotuloModalidadeLead(modalidade: string | undefined): string {
  * Um único link concentra o aceite, a recusa e a confirmação posterior do
  * primeiro contato, mantendo a decisão protegida pelo token da alocação.
  */
+export function variaveisParaPsicologo(
+  lead: TriagemPacienteRecord,
+  psicologo: CadastroPsicologoRecord
+): ValoresDoModelo {
+  // Pedido para profissional específico: recusa e silêncio vão para a
+  // coordenação, nunca para o rodízio (especificação final, 4.05 e 5.04).
+  const direto = lead.tipoAlocacao === 'ESCOLHA_DIRETA';
+  return {
+    nome_profissional: nomeDeExibicao(psicologo),
+    aviso_escolha_direta: direto ? 'O paciente escolheu você na vitrine.' : '',
+    dados_paciente: dadosDoPaciente(lead).join('\n'),
+    instrucao_recusa: direto
+      ? '➡️ Se não desejar atender, poderá recusar pelo mesmo link, e a coordenação da clínica decidirá o encaminhamento.'
+      : '➡️ Se não desejar atender, poderá selecionar a opção de encaminhar o paciente ao próximo profissional da fila que atenda aos critérios.',
+    link_decisao: linkConfirmacao(lead, psicologo.id),
+    prazo_resposta: rotuloPrazo(prazoDaOferta(lead)),
+    consequencia_sem_resposta: direto
+      ? 'a solicitação seguirá para a coordenação da clínica'
+      : 'o paciente será encaminhado automaticamente ao próximo profissional da fila',
+  };
+}
+
 export function textoParaPsicologo(
   lead: TriagemPacienteRecord,
   psicologo: CadastroPsicologoRecord
 ): string {
-  // Pedido para profissional específico: recusa e silêncio vão para a
-  // coordenação, nunca para o rodízio (especificação final, 4.05 e 5.04).
-  const direto = lead.tipoAlocacao === 'ESCOLHA_DIRETA';
-  const linhas = [
-    `Olá, ${nomeDeExibicao(psicologo)}! 💜 Você recebeu um novo paciente pela Viver Mais.`,
-    ...(direto ? ['O paciente escolheu você na vitrine.'] : []),
-    '',
-    '*Dados do paciente*',
-    '',
-    ...dadosDoPaciente(lead),
-    '',
-    '*📌 O que você precisa fazer?*',
-    '',
-    'Acesse o link abaixo para informar se deseja atender esse paciente.',
-    '✅ Ao aceitar, o paciente recebe da clínica as orientações sobre os próximos passos, e você assume o contato para combinar o primeiro horário.',
-    direto
-      ? '➡️ Se não desejar atender, poderá recusar pelo mesmo link, e a coordenação da clínica decidirá o encaminhamento.'
-      : '➡️ Se não desejar atender, poderá selecionar a opção de encaminhar o paciente ao próximo profissional da fila que atenda aos critérios.',
-    '',
-    linkConfirmacao(lead, psicologo.id),
-    '',
-    `🚨 *Atenção:* é importante acessar o link e registrar sua decisão. Caso não haja uma resposta em até ${rotuloPrazo(prazoDaOferta(lead))}, ${direto ? 'a solicitação seguirá para a coordenação da clínica' : 'o paciente será encaminhado automaticamente ao próximo profissional da fila'}.`,
-    '',
-    'Entre em contato o quanto antes! Quanto mais rápido o paciente receber seu contato, maiores são as chances de conseguir agendar o atendimento. 💜',
-  ];
-  return linhas.join('\n');
+  return renderizarModelo(modeloPadrao('alocacao_psicologo'), variaveisParaPsicologo(lead, psicologo));
 }
 
 /**
@@ -262,17 +290,11 @@ export function resolverPrecoEModalidade(lead: TriagemPacienteRecord): {
 
 /** Acolhimento imediato, inclusive quando não há profissional disponível. */
 export function textoRecebimentoPaciente(): string {
-  return [
-    'Olá! Seja bem-vindo(a) à Viver Mais Psicologia! 🫂',
-    '',
-    'Recebemos sua solicitação de agendamento e agradecemos por entrar em contato com a gente!',
-    '',
-    'Em breve, você receberá as próximas orientações por aqui, neste mesmo contato.',
-    '',
-    'Estamos à disposição para te acolher! ✨',
-    '',
-    '⚠️ Em caso de urgência: se você estiver em sofrimento emocional intenso ou em uma situação de crise, ligue para o CVV, pelo número 188 (24 horas), ou procure um serviço de emergência da sua região.',
-  ].join('\n');
+  return renderizarModelo(modeloPadrao('recebimento_paciente'), {});
+}
+
+function nomeDoPaciente(lead: TriagemPacienteRecord): string {
+  return lead.nomeSocial?.trim() || lead.nomePaciente?.trim() || 'Paciente';
 }
 
 export interface OpcoesPagamentoPaciente {
@@ -349,11 +371,11 @@ async function resolverPagamentoPaciente(lead: TriagemPacienteRecord): Promise<O
  * contato do psicólogo, adaptados ao pagador e ao preço efetivo.
  * Não anuncia sessão marcada — o horário ainda será combinado (12.01).
  */
-export function textoParaPaciente(
+export function variaveisParaPaciente(
   lead: TriagemPacienteRecord,
   opcoes?: OpcoesPagamentoPaciente
-): string {
-  const nomePaciente = lead.nomeSocial?.trim() || lead.nomePaciente?.trim() || 'Paciente';
+): ValoresDoModelo {
+  const nomePaciente = nomeDoPaciente(lead);
   // Criança ou adolescente: a mensagem é do responsável e fala do menor (6.03).
   const responsavel = responsavelDoPrimeiroContato(lead);
   const saudacao = responsavel
@@ -391,41 +413,24 @@ export function textoParaPaciente(
           : `O valor para ${servico} ${modalidadeRotulo} é de ${valor} por sessão.`,
       ];
 
-  return [
-    ...saudacao,
-    'Aqui é a equipe da Clínica Viver Mais Psicologia!',
-    '',
-    `Que bom ter você com a gente! 🫂 Ficamos felizes por você ter escolhido a Viver Mais para dar esse passo tão importante no seu processo de ${servico}. Seu agendamento já foi encaminhado ao(à) psicólogo(a), e queremos te passar algumas informações importantes para os próximos passos.`,
-    '',
-    '📲 Contato com o(a) psicólogo(a)',
-    '',
-    'O(a) psicólogo(a) tem até 24 horas para entrar em contato com você após o recebimento desta mensagem.',
-    '',
-    'Caso esse prazo coincida com finais de semana ou feriados, ele será estendido até o próximo dia útil.',
-    '',
-    'Se você não receber o contato dentro desse prazo, avise a gente por aqui para que possamos ajudar!',
-    '',
-    ...blocoPagamento,
-    '',
-    '📅 Horários e organização dos atendimentos',
-    '',
-    'A combinação dos dias, horários das sessões e demais detalhes do atendimento será feita diretamente com o(a) psicólogo(a).',
-    '',
-    'As sessões individuais têm duração de 50 minutos, enquanto as sessões de casal/família têm duração de 1h30.',
-    '',
-    'Se tiver qualquer dúvida ou precisar de ajuda durante esse processo, estamos à disposição por aqui! 💜',
-    '',
-    'Seja muito bem-vindo(a) à Viver Mais Psicologia! Esperamos que esse seja um espaço de cuidado e acolhimento para você. ✨',
-    '',
-    'Com carinho,',
-    'Equipe Viver Mais Psicologia',
-    '',
-    '⚠️ Em caso de urgência: se você estiver em sofrimento emocional intenso ou em uma situação de crise, ligue para o CVV, pelo número 188 (24 horas), ou procure um serviço de emergência da sua região.',
-  ].join('\n');
+  return {
+    nome_paciente: nomePaciente,
+    saudacao: saudacao.join('\n'),
+    servico,
+    orientacoes_pagamento: blocoPagamento.join('\n'),
+  };
+}
+
+export function textoParaPaciente(
+  lead: TriagemPacienteRecord,
+  opcoes?: OpcoesPagamentoPaciente
+): string {
+  return renderizarModelo(modeloPadrao('confirmacao_triagem_paciente'), variaveisParaPaciente(lead, opcoes));
 }
 
 export async function avisarRecebimentoPaciente(lead: TriagemPacienteRecord): Promise<ResultadoEnvio> {
-  return enviarTexto(lead.telefone, textoRecebimentoPaciente(), 'recebimento_paciente', `recebimento:${lead.id}`);
+  return enviarTexto(lead.telefone, textoRecebimentoPaciente(), 'recebimento_paciente', `recebimento:${lead.id}`,
+    false, { variaveis: { nome_paciente: nomeDoPaciente(lead) }, referencia: `protocolo:${lead.protocolo}` });
 }
 
 export async function avisarConfirmacaoPaciente(
@@ -437,12 +442,19 @@ export async function avisarConfirmacaoPaciente(
     responsavelDoPrimeiroContato(lead)?.telefone || lead.telefone,
     textoParaPaciente(lead, pagamento),
     'confirmacao_triagem_paciente',
-    `confirmacao-paciente:${lead.id}`
+    `confirmacao-paciente:${lead.id}`,
+    false,
+    { variaveis: variaveisParaPaciente(lead, pagamento), referencia: `protocolo:${lead.protocolo}` }
   );
 }
 
 /** Aviso operacional para os números da coordenação, se houver algum configurado. */
-export async function avisarCoordenacao(texto: string, chaveDedupe: string): Promise<ResultadoEnvio[]> {
+export async function avisarCoordenacao(
+  texto: string,
+  chaveDedupe: string,
+  finalidade: FinalidadeMensagem = 'alerta_coordenacao',
+  opcoes: OpcoesDoAviso = {}
+): Promise<ResultadoEnvio[]> {
   const destinatarios = (process.env.WHATSAPP_COORDINATION_NUMBERS ?? '')
     .split(',')
     .map((numero) => numero.trim())
@@ -454,8 +466,10 @@ export async function avisarCoordenacao(texto: string, chaveDedupe: string): Pro
       await enviarTexto(
         destinatario,
         texto,
-        'alerta_coordenacao',
-        `${chaveDedupe}:${destinatario.replace(/\D/g, '')}`
+        finalidade,
+        `${chaveDedupe}:${destinatario.replace(/\D/g, '')}`,
+        false,
+        opcoes
       )
     );
   }
@@ -472,7 +486,9 @@ export async function avisarAlocacao(
       psicologo.whatsapp,
       textoParaPsicologo(lead, psicologo),
       'alocacao_psicologo',
-      `alocacao:${lead.id}:${psicologo.id}`
+      `alocacao:${lead.id}:${psicologo.id}`,
+      false,
+      { variaveis: variaveisParaPsicologo(lead, psicologo), referencia: `protocolo:${lead.protocolo}` }
     ),
   ];
 }
@@ -489,7 +505,9 @@ export async function avisarTransbordo(
       psicologo.whatsapp,
       textoParaPsicologo(lead, psicologo),
       'alocacao_psicologo',
-      `alocacao:${lead.id}:${psicologo.id}`
+      `alocacao:${lead.id}:${psicologo.id}`,
+      false,
+      { variaveis: variaveisParaPsicologo(lead, psicologo), referencia: `protocolo:${lead.protocolo}` }
     ),
   ];
 
@@ -518,7 +536,9 @@ export async function avisarTransbordo(
         destinatario,
         textoCoordenacao,
         'alerta_coordenacao',
-        `alerta-transbordo:${lead.id}:${psicologo.id}:${destinatario.replace(/\D/g, '')}`
+        `alerta-transbordo:${lead.id}:${psicologo.id}:${destinatario.replace(/\D/g, '')}`,
+        false,
+        { referencia: `protocolo:${lead.protocolo}` }
       )
     );
   }

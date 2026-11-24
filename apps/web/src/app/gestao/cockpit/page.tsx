@@ -49,6 +49,8 @@ import { DevolverAoRodizioBotao } from '@/components/gestao/DevolverAoRodizioBot
 import { PrazoOfertaPainel } from '@/components/gestao/PrazoOfertaPainel';
 import { ListaEsperaResumo } from '@/components/gestao/ListaEsperaResumo';
 import { naListaDeEspera, type ListaEsperaRegistro } from '@/lib/listaEspera';
+import { PainelIndicadoresGestao } from '@/components/gestao/painel/PainelIndicadoresGestao';
+import { OcorrenciasGestao } from '@/components/gestao/painel/OcorrenciasGestao';
 
 /** Linha da fila, como o `GET /api/application/triagem` a devolve. */
 interface LeadFila {
@@ -500,7 +502,12 @@ export default function GestaoCockpitPage() {
         </div>
       )}
 
+      {/* Indicadores com período identificado (13.04) e ocorrências para decidir (13.06). */}
+      <PainelIndicadoresGestao />
+      <OcorrenciasGestao />
+
       {/* KPI Cards SLA */}
+      <p className="text-[11px] font-bold uppercase tracking-wide text-muted">Fila neste momento</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
         <CardKpi titulo="Aguardando contato" valor={contarPacientes(aguardandoContato.length)} icone={CheckCircle2} />
         <CardKpi

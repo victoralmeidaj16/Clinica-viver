@@ -3,7 +3,9 @@ import { captureStateAsSnapshot, getCaptureRepository } from '@/server/persisten
 import { devolverAoRodizio, type ResultadoDevolucaoRodizio } from '@/server/application/viverMaisRodizio';
 import { avisarAlocacao } from '@/server/application/viverMaisWhatsApp';
 import { avisarAlocacaoPsicologoPorEmail } from '@/server/application/triagemEmail';
-import { exigirGestao, NaoAutorizadoError } from '@/server/viverMaisGestaoAuth';
+import { NaoAutorizadoError } from '@/server/viverMaisGestaoAuth';
+import { exigirGestaoComAutor } from '@/server/application/autorGestao';
+import { registrarAlteracao } from '@/server/application/auditoriaAlteracoes';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -14,7 +16,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await exigirGestao();
+    const { sessao, autor } = await exigirGestaoComAutor();
     const { id } = await params;
 
     const resultado = await getCaptureRepository().mutate<ResultadoDevolucaoRodizio>((state) => {
@@ -45,6 +47,11 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       });
     }
 
+    // Intervenção da Gestão com o resultado (13.02).
+    await registrarAlteracao({ organizationId: sessao.organizationId, modulo: 'fila', entidadeTipo: 'solicitacao',
+      entidadeRef: `lead:${resultado.lead.id}`, entidadeRotulo: resultado.lead.protocolo, acao: 'devolver_ao_rodizio',
+      campos: [{ campo: 'psicologo', rotulo: 'Psicólogo oferecido', anterior: 'Aguardando decisão da Gestão', novo: resultado.lead.psicologoNome || '—' }],
+      autor });
     await Promise.allSettled([
       avisarAlocacao(resultado.lead, resultado.psicologo),
       avisarAlocacaoPsicologoPorEmail(resultado.lead, resultado.psicologo, 'RODIZIO'),

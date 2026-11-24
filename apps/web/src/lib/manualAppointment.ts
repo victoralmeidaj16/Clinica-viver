@@ -64,14 +64,8 @@ export const CLINICAL_SERVICES: readonly ClinicalServiceOption[] = [
     ],
   },
   {
-    key: 'ORIENTACAO_VOCACIONAL',
-    label: 'Orientação Vocacional',
-    durationMinutes: 50,
-    durationOptions: individualOrCollectiveDurations,
-  },
-  {
     key: 'ORIENTACAO_PROFISSIONAL',
-    label: 'Orientação Profissional',
+    label: 'Orientação Vocacional e Profissional',
     durationMinutes: 50,
     durationOptions: individualOrCollectiveDurations,
   },
@@ -82,17 +76,21 @@ export const CLINICAL_SERVICES: readonly ClinicalServiceOption[] = [
   },
 ] as const;
 
+function canonicalServiceKey(serviceKey: string): string {
+  return serviceKey === 'ORIENTACAO_VOCACIONAL' ? 'ORIENTACAO_PROFISSIONAL' : serviceKey;
+}
+
 export function getServiceDuration(serviceKey: string): number {
-  const service = CLINICAL_SERVICES.find((item) => item.key === serviceKey);
+  const service = CLINICAL_SERVICES.find((item) => item.key === canonicalServiceKey(serviceKey));
   return service ? service.durationMinutes : 50;
 }
 
 export function hasVariableDuration(serviceKey: string): boolean {
-  return CLINICAL_SERVICES.some((item) => item.key === serviceKey && item.variableDuration);
+  return CLINICAL_SERVICES.some((item) => item.key === canonicalServiceKey(serviceKey) && item.variableDuration);
 }
 
 export function validServiceDuration(serviceKey: string, durationMinutes: number): boolean {
-  const service = CLINICAL_SERVICES.find((item) => item.key === serviceKey);
+  const service = CLINICAL_SERVICES.find((item) => item.key === canonicalServiceKey(serviceKey));
   if (!service) return false;
   if (service.variableDuration) return isValidAppointmentDuration(durationMinutes);
   if (service.durationOptions) return service.durationOptions.some((option) => option.minutes === durationMinutes);

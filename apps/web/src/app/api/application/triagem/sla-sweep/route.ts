@@ -7,6 +7,7 @@ import { exigirVarreduraAutorizada, NaoAutorizadoError } from '@/server/viverMai
 import { desvincularPacientesTransbordados, reconciliarPacientes } from '@/server/application/patientPromotion';
 import { executarListaDeEspera } from '@/server/application/listaEsperaExecucao';
 import { enviarAvisosDeSaidaPorWhatsApp } from '@/server/application/avisosSaidaTurma';
+import { avisarAceitesSemAgendamento, enviarLembretesDeSessao } from '@/server/application/avisosDaVarredura';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -76,11 +77,23 @@ export async function POST(request: Request) {
       return 0;
     });
 
+    // 48h sem primeiro agendamento (7.03) e lembrete da véspera (12.02).
+    const avisosAceiteSemAgendamento = leadId ? 0 : await avisarAceitesSemAgendamento().catch((erro) => {
+      console.error('[avisos] Falha no aviso de 48h sem agendamento:', erro);
+      return 0;
+    });
+    const lembretesDeSessao = leadId ? 0 : await enviarLembretesDeSessao().catch((erro) => {
+      console.error('[avisos] Falha nos lembretes de sessão:', erro);
+      return 0;
+    });
+
     return NextResponse.json({
       success: true,
       transbordosExecutados: resultado.transbordos.length,
       ofertasListaEspera,
       avisosDeTurma,
+      avisosAceiteSemAgendamento,
+      lembretesDeSessao,
       pacientesPromovidos,
       leads: resultado.transbordos.map((item) => ({
         protocolo: item.lead.protocolo,

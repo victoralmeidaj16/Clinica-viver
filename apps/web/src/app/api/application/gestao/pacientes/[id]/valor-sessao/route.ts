@@ -2,6 +2,8 @@ import { exigirGestao, NaoAutorizadoError } from '@/server/viverMaisGestaoAuth';
 import { ApplicationError, failure, readJson, success } from '@/server/application/http';
 import { updatePatientSessionPricing, validatePatientSessionPricing } from '@/server/persistence/mysql/patientSessionPricing';
 import { readSession } from '@/server/auth';
+import { nomeDoUsuario } from '@/server/application/autorGestao';
+import { auditarPaciente, estadoDoPaciente } from '@/server/application/auditoriaPaciente';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,7 +15,13 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     if (!session) throw new Error('Faça login para continuar.');
     const { id } = await params;
     const pricing = validatePatientSessionPricing(await readJson(request));
-    await updatePatientSessionPricing(session.organizationId, decodeURIComponent(id), pricing);
+    const pacienteRef = decodeURIComponent(id);
+    const antes = await estadoDoPaciente(session.organizationId, pacienteRef);
+    await updatePatientSessionPricing(session.organizationId, pacienteRef, pricing);
+    // Valor anterior e novo da intervenção (13.02).
+    await auditarPaciente({ organizationId: session.organizationId, pacienteRef, acao: 'alterar_valor_sessao', antes,
+      depois: await estadoDoPaciente(session.organizationId, pacienteRef),
+      autor: { usuarioRef: session.userId, nome: await nomeDoUsuario(session.userId) } });
     return success(pricing);
   } catch (error) {
     return failure(error instanceof NaoAutorizadoError

@@ -197,8 +197,14 @@ export function psicologoCompativel(
     return false;
   }
   if (servicoDesejado && p.servicosHabilitados && p.servicosHabilitados.length > 0) {
+    const ehOrientacaoCarreira = (servico: string) =>
+      servico === 'ORIENTACAO_PROFISSIONAL'
+      || servico === 'ORIENTACAO_VOCACIONAL'
+      || servico === 'ORIENTACAO_VOCACIONAL_PROFISSIONAL';
     if (servicoDesejado === 'PSICOTERAPIA_CASAL') {
       if (!p.servicosHabilitados.includes('PSICOTERAPIA') && !p.servicosHabilitados.includes('PSICOTERAPIA_CASAL')) return false;
+    } else if (ehOrientacaoCarreira(servicoDesejado)) {
+      if (!p.servicosHabilitados.some(ehOrientacaoCarreira)) return false;
     } else if (!p.servicosHabilitados.includes(servicoDesejado)) {
       return false;
     }

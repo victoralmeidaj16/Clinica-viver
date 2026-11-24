@@ -116,8 +116,8 @@ const PRINCIPAIS_DEMANDAS = [
 const ROTULOS_SERVICO: Record<string, string> = {
   PSICOTERAPIA: 'Psicoterapia',
   AVALIACAO: 'Avaliação Psicológica',
-  ORIENTACAO_VOCACIONAL: 'Orientação Vocacional',
-  ORIENTACAO_PROFISSIONAL: 'Orientação Profissional',
+  ORIENTACAO_VOCACIONAL: 'Orientação Vocacional e Profissional',
+  ORIENTACAO_PROFISSIONAL: 'Orientação Vocacional e Profissional',
   ORIENTACAO_PARENTAL: 'Orientação Parental',
 };
 

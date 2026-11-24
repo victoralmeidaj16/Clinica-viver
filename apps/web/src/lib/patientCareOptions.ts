@@ -12,7 +12,8 @@ export function servicesForRegistration(habilitacao: HabilitacaoAtendimento | nu
   if (habilitacao?.status !== 'APROVADO') return [];
   const servicos = habilitacao.servicosHabilitados ?? [];
   return PATIENT_SERVICES.filter(([key]) => servicos.includes(key)
-    || (key === 'PSICOTERAPIA_CASAL' && servicos.includes('PSICOTERAPIA')));
+    || (key === 'PSICOTERAPIA_CASAL' && servicos.includes('PSICOTERAPIA'))
+    || (key === 'ORIENTACAO_PROFISSIONAL' && servicos.includes('ORIENTACAO_VOCACIONAL')));
 }
 
 export function publicoPermitido(
@@ -49,8 +50,7 @@ export const PATIENT_SERVICES = [
   ['PSICOTERAPIA', 'Psicoterapia Individual'],
   ['PSICOTERAPIA_CASAL', 'Psicoterapia de Casal'],
   ['AVALIACAO', 'Avaliação Psicológica e Neuropsicológica'],
-  ['ORIENTACAO_VOCACIONAL', 'Orientação Vocacional'],
-  ['ORIENTACAO_PROFISSIONAL', 'Orientação Profissional'],
+  ['ORIENTACAO_PROFISSIONAL', 'Orientação Vocacional e Profissional'],
   ['ORIENTACAO_PARENTAL', 'Orientação Parental'],
 ] as const;
 export const PATIENT_MODALITIES = [
@@ -60,7 +60,8 @@ export const PATIENT_MODALITIES = [
 ] as const;
 
 export function serviceName(key: string): string {
-  return PATIENT_SERVICES.find(([value]) => value === key)?.[1] ?? '';
+  const canonical = key === 'ORIENTACAO_VOCACIONAL' ? 'ORIENTACAO_PROFISSIONAL' : key;
+  return PATIENT_SERVICES.find(([value]) => value === canonical)?.[1] ?? '';
 }
 
 export function modalitiesForService(serviceKey: string, habilitacao?: HabilitacaoAtendimento | null) {

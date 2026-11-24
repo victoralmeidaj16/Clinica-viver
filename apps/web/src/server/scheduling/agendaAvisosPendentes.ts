@@ -88,7 +88,9 @@ export async function liberarAvisosAguardando(agora = new Date()): Promise<Resul
         mensagem.telefone,
         mensagem.texto,
         mensagem.finalidade,
-        `agenda:${tipo}:${sessao.agendamentoId}:${versao}`
+        `agenda:${tipo}:${sessao.agendamentoId}:${versao}`,
+        false,
+        { variaveis: mensagem.variaveis, referencia: `agendamento:${sessao.agendamentoId}` }
       );
       // Falha de rede volta para a fila: a próxima varredura tenta de novo,
       // até a sessão começar e a linha ser descartada.

@@ -30,10 +30,12 @@ describe('avisos de remarcação', () => {
     expect(state.enviar).toHaveBeenCalledTimes(2);
     expect(state.enviar).toHaveBeenCalledWith(session.pacienteTelefone,
       expect.stringContaining('Sua sessão com Profissional fictício foi remarcada'),
-      'agenda_remarcacao_paciente', 'agenda:remarcacao_paciente:appointment:2');
+      'agenda_remarcacao_paciente', 'agenda:remarcacao_paciente:appointment:2',
+      false, expect.objectContaining({ variaveis: expect.objectContaining({ nome_paciente: 'Paciente fictício' }) }));
     expect(state.enviar).toHaveBeenCalledWith(session.profissionalTelefone,
       expect.stringContaining('A sessão de Paciente fictício foi remarcada'),
-      'agenda_remarcacao_psicologo', 'agenda:remarcacao_psicologo:appointment:2');
+      'agenda_remarcacao_psicologo', 'agenda:remarcacao_psicologo:appointment:2',
+      false, expect.objectContaining({ variaveis: expect.objectContaining({ nome_paciente: 'Paciente fictício' }) }));
     for (const [, text] of state.enviar.mock.calls) {
       expect(text).toContain('Horário anterior:'); expect(text).toContain('às 12:00');
       expect(text).toContain('Novo horário:'); expect(text).toContain('às 15:00');
@@ -77,7 +79,8 @@ describe('confirmação de sessão marcada', () => {
     await avisarPacienteSessaoMarcada(session, agora);
     expect(state.enviar).toHaveBeenCalledOnce();
     expect(state.enviar).toHaveBeenCalledWith(session.pacienteTelefone, expect.stringContaining('Sua sessão foi marcada'),
-      'agenda_confirmacao_paciente', 'agenda:confirmacao_paciente:appointment:0');
+      'agenda_confirmacao_paciente', 'agenda:confirmacao_paciente:appointment:0',
+      false, expect.objectContaining({ variaveis: expect.objectContaining({ nome_paciente: 'Paciente fictício' }) }));
   });
 
   it('agenda o aviso manual para a abertura comercial sem enviar antes', async () => {
@@ -90,7 +93,8 @@ describe('confirmação de sessão marcada', () => {
   it('em horário comercial confirma ao paciente na hora', async () => {
     await avisarSessaoMarcada(session, new Date('2026-09-23T13:00:00Z'));
     expect(state.enviar).toHaveBeenCalledWith(session.pacienteTelefone, expect.stringContaining('Sua sessão foi marcada'),
-      'agenda_confirmacao_paciente', 'agenda:confirmacao_paciente:appointment:0');
+      'agenda_confirmacao_paciente', 'agenda:confirmacao_paciente:appointment:0',
+      false, expect.objectContaining({ variaveis: expect.objectContaining({ nome_paciente: 'Paciente fictício' }) }));
   });
   it('fora do horário deixa a confirmação na fila e avisa só o profissional', async () => {
     await avisarSessaoMarcada(session, new Date('2026-09-23T02:00:00Z'));

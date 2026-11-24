@@ -1409,15 +1409,15 @@ export function resolverServicoDaTriagem(input: {
   modalidade?: unknown;
 }): string | undefined {
   const key = typeof input.servicoKey === 'string' ? input.servicoKey.trim().toUpperCase() : '';
-  if (key && CLINICAL_SERVICES.some((item) => item.key === key)) return key;
+  const canonicalKey = key === 'ORIENTACAO_VOCACIONAL' ? 'ORIENTACAO_PROFISSIONAL' : key;
+  if (canonicalKey && CLINICAL_SERVICES.some((item) => item.key === canonicalKey)) return canonicalKey;
 
   const texto = `${String(input.modalidade ?? '')} ${String(input.servico ?? '')}`.toLocaleLowerCase('pt-BR');
   if (!texto.trim()) return undefined;
   if (texto.includes('casal')) return 'PSICOTERAPIA_CASAL';
   if (texto.includes('avalia')) return 'AVALIACAO';
   if (texto.includes('parental')) return 'ORIENTACAO_PARENTAL';
-  if (texto.includes('vocacional')) return 'ORIENTACAO_VOCACIONAL';
-  if (texto.includes('profissional')) return 'ORIENTACAO_PROFISSIONAL';
+  if (texto.includes('vocacional') || texto.includes('profissional')) return 'ORIENTACAO_PROFISSIONAL';
   if (texto.includes('psicoterapia') || texto.includes('atendimento psicol')) return 'PSICOTERAPIA';
   return undefined;
 }

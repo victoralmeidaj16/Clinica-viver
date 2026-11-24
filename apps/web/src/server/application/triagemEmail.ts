@@ -5,8 +5,34 @@ import 'server-only';
 
 import type { CadastroPsicologoRecord, TriagemPacienteRecord } from './persistence';
 import { gerarTokenConfirmacao } from '@/server/viverMaisConfirmToken';
+import { usaEmail } from '@/lib/avisos/catalogo';
+import { registrarEnvioDeAviso, type SituacaoEnvioAviso } from '@/server/communication/avisosEnviosRepository';
+import { canalDoAviso } from './modelosAvisos';
 
 const RESEND_ENDPOINT = 'https://api.resend.com/emails';
+
+/**
+ * O canal de cada aviso é decisão da Gestão (12.01): com "somente WhatsApp",
+ * o e-mail não sai. Todo resultado entra no registro de envios (12.04), sem
+ * guardar o conteúdo — o reenvio de e-mail não passa pela tela de envios.
+ */
+async function comCanalERegistro(
+  finalidade: 'recebimento_paciente' | 'alocacao_psicologo',
+  chave: string,
+  destino: string | undefined,
+  referencia: string,
+  enviar: () => Promise<ResultadoEmailTriagem>
+): Promise<ResultadoEmailTriagem> {
+  const canal = await canalDoAviso(finalidade).catch(() => null);
+  if (canal && !usaEmail(canal)) return { situacao: 'canal_desligado' };
+  const resultado = await enviar();
+  await registrarEnvioDeAviso({
+    finalidade, chaveDedupe: chave, canal: 'email',
+    destinatarioTipo: finalidade === 'recebimento_paciente' ? 'paciente' : 'psicologo',
+    destino, referencia, situacao: resultado.situacao as SituacaoEnvioAviso, modeloVersao: 0,
+  });
+  return resultado;
+}
 
 export type TipoAlocacaoLead = 'ESCOLHA_DIRETA' | 'RODIZIO';
 
@@ -14,7 +40,9 @@ type SituacaoEmail =
   | 'enviada'
   | 'destinatario_invalido'
   | 'provedor_desconfigurado'
-  | 'falha';
+  | 'falha'
+  /** A Gestão escolheu só WhatsApp para este aviso (12.01). */
+  | 'canal_desligado';
 
 export interface ResultadoEmailTriagem {
   situacao: SituacaoEmail;
@@ -114,6 +142,13 @@ export function conteudoTriagemRecebida(
 }
 
 export async function avisarTriagemRecebidaPorEmail(
+  lead: TriagemPacienteRecord
+): Promise<ResultadoEmailTriagem> {
+  return comCanalERegistro('recebimento_paciente', `email-recebimento:${lead.id}`, lead.email,
+    `protocolo:${lead.protocolo}`, () => enviarTriagemRecebida(lead));
+}
+
+async function enviarTriagemRecebida(
   lead: TriagemPacienteRecord
 ): Promise<ResultadoEmailTriagem> {
   const destinatario = normalizarEmail(lead.email);
@@ -405,6 +440,15 @@ export async function avisarAlocacaoPsicologoPorEmail(
   lead: TriagemPacienteRecord,
   psicologo: CadastroPsicologoRecord,
   tipoAlocacao: TipoAlocacaoLead = lead.tipoAlocacao ?? 'RODIZIO'
+): Promise<ResultadoEmailTriagem> {
+  return comCanalERegistro('alocacao_psicologo', `email-alocacao:${lead.id}:${psicologo.id}`, psicologo.email,
+    `protocolo:${lead.protocolo}`, () => enviarAlocacaoPsicologo(lead, psicologo, tipoAlocacao));
+}
+
+async function enviarAlocacaoPsicologo(
+  lead: TriagemPacienteRecord,
+  psicologo: CadastroPsicologoRecord,
+  tipoAlocacao: TipoAlocacaoLead
 ): Promise<ResultadoEmailTriagem> {
   const destinatario = normalizarEmail(psicologo.email);
   if (!destinatario) return { situacao: 'destinatario_invalido' };

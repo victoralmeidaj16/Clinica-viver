@@ -27,6 +27,8 @@ import {
 import { promoverLeadEmPaciente } from '@/server/application/patientPromotion';
 import { avisarAlocacao, avisarConfirmacaoPaciente, avisarTransbordo } from '@/server/application/viverMaisWhatsApp';
 import { avisarAlocacaoPsicologoPorEmail } from '@/server/application/triagemEmail';
+import { registrarAlteracao } from '@/server/application/auditoriaAlteracoes';
+import { nomeDoUsuario } from '@/server/application/autorGestao';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -420,6 +422,17 @@ export async function PATCH(request: Request) {
       );
     }
     void avisarAlocacaoPsicologoPorEmail(leadFinal, resultado.psicologo, 'RODIZIO');
+    // Psicólogo anterior e novo, com o motivo (13.02).
+    const sessao = await readSession();
+    if (sessao) {
+      await registrarAlteracao({ organizationId: sessao.organizationId, modulo: 'fila', entidadeTipo: 'solicitacao',
+        entidadeRef: leadFinal.pacienteRef ?? `lead:${leadFinal.id}`,
+        entidadeRotulo: `${leadFinal.nomeSocial || leadFinal.nomePaciente} (${leadFinal.protocolo})`,
+        acao: modo === 'VINCULAR_DIRETO' ? 'vincular_direto' : 'reencaminhar',
+        campos: [{ campo: 'psicologo', rotulo: 'Psicólogo', anterior: resultado.psicologoAnteriorNome || '—', novo: leadFinal.psicologoNome || '—' }],
+        motivo: [motivo, excederLimite && justificativaExcesso ? `Acima do limite: ${justificativaExcesso}` : ''].filter(Boolean).join(' · '),
+        autor: { usuarioRef: sessao.userId, nome: await nomeDoUsuario(sessao.userId) } });
+    }
     return NextResponse.json({
       success: true,
       data: leadFinal,

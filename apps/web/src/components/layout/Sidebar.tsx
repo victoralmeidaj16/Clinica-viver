@@ -19,6 +19,8 @@ import {
   X,
   HelpCircle,
   GraduationCap,
+  MessageSquareText,
+  FileBarChart,
 } from 'lucide-react';
 
 const psicologoItems = [
@@ -43,6 +45,8 @@ const gestaoItems = [
   { label: 'Painel da clínica', href: '/gestao/cockpit', icon: Shield },
   { label: 'Financeiro & Repasses', href: '/gestao/financeiro', icon: CreditCard },
   { label: 'Indicadores Mensais', href: '/relatorios', icon: BarChart3 },
+  { label: 'Relatórios por Área', href: '/gestao/relatorios', icon: FileBarChart },
+  { label: 'Mensagens e Avisos', href: '/gestao/avisos', icon: MessageSquareText },
   { label: 'Convênios PJ', href: '/convenios', icon: Briefcase },
   { label: 'Integrações (Asaas/Wpp)', href: '/configuracoes/integracoes', icon: Brain },
   { label: 'Ajuda', href: '/ajuda', icon: HelpCircle },

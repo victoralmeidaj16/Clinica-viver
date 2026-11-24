@@ -33,7 +33,8 @@ describe('liberação dos avisos adiados', () => {
   it('na abertura toma a linha e envia a confirmação', async () => {
     await expect(liberarAvisosAguardando(abertura)).resolves.toEqual({ enviados: 1, descartados: 0, adiados: 0 });
     expect(state.enviar).toHaveBeenCalledWith(session.pacienteTelefone, expect.stringContaining('Sua sessão foi marcada'),
-      'agenda_confirmacao_paciente', 'agenda:confirmacao_paciente:appointment:0');
+      'agenda_confirmacao_paciente', 'agenda:confirmacao_paciente:appointment:0',
+      false, expect.objectContaining({ variaveis: expect.objectContaining({ nome_paciente: 'Paciente fictício' }) }));
     expect(situacoes()).toEqual(['reservado', 'enviada']);
   });
   it('não envia se outra chamada já tomou a linha', async () => {
@@ -58,7 +59,8 @@ describe('liberação dos avisos adiados', () => {
     state.contatos.mockResolvedValue(session);
     await expect(liberarAvisosAguardando(abertura)).resolves.toMatchObject({ enviados: 1 });
     expect(state.enviar).toHaveBeenCalledWith(session.pacienteTelefone, expect.stringContaining('Horário anterior:'),
-      'agenda_remarcacao_paciente', 'agenda:remarcacao_paciente:appointment:2');
+      'agenda_remarcacao_paciente', 'agenda:remarcacao_paciente:appointment:2',
+      false, expect.objectContaining({ variaveis: expect.objectContaining({ nome_paciente: 'Paciente fictício' }) }));
   });
   it('descarta remarcação superada por outra alteração', async () => {
     state.query.mockResolvedValue([[{ id: 'aviso', agendamento_id: 'appointment', tipo: 'remarcacao_paciente', versao: 2,

@@ -11,6 +11,8 @@ import { comFoco, focoSessao } from '@/lib/focoNotificacao';
 import { proximaAberturaComercial } from './horarioComercial';
 import type { ContatosDaSessao } from './agendaRepository';
 import type { DadosAvisoReenvio } from './agendaAvisosReenvio';
+import { modeloPadrao } from '@/lib/avisos/catalogo';
+import { renderizarModelo, type ValoresDoModelo } from '@/lib/avisos/modelo';
 
 /**
  * Avisos de WhatsApp da agenda.
@@ -98,10 +100,11 @@ async function despachar(
   finalidade: Parameters<typeof enviarTexto>[2],
   texto: string,
   versao = 0,
-  dadosReenvio?: DadosAvisoReenvio
+  dadosReenvio?: DadosAvisoReenvio,
+  variaveis?: ValoresDoModelo
 ): Promise<SituacaoAviso> {
   try {
-    return await tentarDespachar(agendamentoId, tipo, telefone, finalidade, texto, versao, dadosReenvio);
+    return await tentarDespachar(agendamentoId, tipo, telefone, finalidade, texto, versao, dadosReenvio, variaveis);
   } catch (erro) {
     console.error(`[agenda] Falha ao processar aviso "${tipo}":`, erro);
     return 'erro';
@@ -115,7 +118,8 @@ async function tentarDespachar(
   finalidade: Parameters<typeof enviarTexto>[2],
   texto: string,
   versao = 0,
-  dadosReenvio?: DadosAvisoReenvio
+  dadosReenvio?: DadosAvisoReenvio,
+  variaveis?: ValoresDoModelo
 ): Promise<SituacaoAviso> {
   if (!telefone?.trim()) {
     console.warn(`[agenda] Aviso "${tipo}" não enviado: contato sem telefone cadastrado.`);
@@ -123,7 +127,8 @@ async function tentarDespachar(
   }
   if (!(await reservar(agendamentoId, tipo, versao, dadosReenvio))) return 'ja_enviado';
 
-  const resultado = await enviarTexto(telefone, texto, finalidade, `agenda:${tipo}:${agendamentoId}:${versao}`);
+  const resultado = await enviarTexto(telefone, texto, finalidade, `agenda:${tipo}:${agendamentoId}:${versao}`,
+    false, { variaveis, referencia: `agendamento:${agendamentoId}` });
   await encerrar(agendamentoId, tipo, resultado.situacao, versao, dadosReenvio);
   return resultado.situacao;
 }
@@ -180,7 +185,7 @@ export function quandoPorExtenso(iso: string): string {
   return `${dia}, às ${hora}`;
 }
 
-function rotuloModalidade(modalidade: ContatosDaSessao['modalidade']): string {
+export function rotuloModalidade(modalidade: ContatosDaSessao['modalidade']): string {
   switch (modalidade) {
     case 'online':
       return 'Atendimento online';
@@ -199,29 +204,24 @@ function rotuloModalidade(modalidade: ContatosDaSessao['modalidade']): string {
  * operação, e a mensagem existe para a pessoa não faltar, não para adiantar
  * atendimento.
  */
+/** Campos comuns aos avisos da agenda (12.02). */
+export function variaveisDaSessao(sessao: ContatosDaSessao, extras: ValoresDoModelo = {}): ValoresDoModelo {
+  return {
+    nome_paciente: sessao.pacienteNome,
+    nome_profissional: sessao.profissionalNome,
+    dia_horario: quandoPorExtenso(sessao.inicio),
+    modalidade: rotuloModalidade(sessao.modalidade),
+    ...extras,
+  };
+}
+
 export function textoConfirmacaoPaciente(sessao: ContatosDaSessao): string {
-  return [
-    `Olá, ${sessao.pacienteNome}! Sua sessão foi marcada na Viver Mais Psicologia.`,
-    '',
-    `Profissional: ${sessao.profissionalNome}`,
-    `Quando: ${quandoPorExtenso(sessao.inicio)}`,
-    rotuloModalidade(sessao.modalidade),
-    '',
-    'Se precisar remarcar ou desmarcar, responda esta mensagem com antecedência.',
-  ].join('\n');
+  return renderizarModelo(modeloPadrao('agenda_confirmacao_paciente'), variaveisDaSessao(sessao));
 }
 
 /** Aviso ao psicólogo: a agenda dele mudou e quem mudou foi o paciente. */
 export function textoConfirmacaoPsicologo(sessao: ContatosDaSessao): string {
-  return [
-    `Olá, ${sessao.profissionalNome}! Uma sessão foi marcada na sua agenda pelo link de marcação.`,
-    '',
-    `Paciente: ${sessao.pacienteNome}`,
-    `Quando: ${quandoPorExtenso(sessao.inicio)}`,
-    rotuloModalidade(sessao.modalidade),
-    '',
-    'A sessão já aparece na aba Agenda da plataforma.',
-  ].join('\n');
+  return renderizarModelo(modeloPadrao('agenda_confirmacao_psicologo'), variaveisDaSessao(sessao));
 }
 
 /**
@@ -232,11 +232,7 @@ export function textoConfirmacaoPsicologo(sessao: ContatosDaSessao): string {
  * campo de registro em mensagem ao paciente sem ninguém ter decidido isso.
  */
 export function textoCancelamentoPaciente(sessao: ContatosDaSessao): string {
-  return [
-    `Olá, ${sessao.pacienteNome}. Sua sessão de ${quandoPorExtenso(sessao.inicio)} com ${sessao.profissionalNome} foi cancelada.`,
-    '',
-    'Entre em contato com seu(sua) psicólogo(a) para realizar um novo agendamento.',
-  ].join('\n');
+  return renderizarModelo(modeloPadrao('agenda_cancelamento_paciente'), variaveisDaSessao(sessao));
 }
 
 // ---------------------------------------------------------------------------
@@ -254,7 +250,10 @@ export async function avisarPacienteSessaoMarcada(sessao: ContatosDaSessao, agor
       'confirmacao_paciente',
       sessao.pacienteTelefone,
       'agenda_confirmacao_paciente',
-      textoConfirmacaoPaciente(sessao)
+      textoConfirmacaoPaciente(sessao),
+      0,
+      undefined,
+      variaveisDaSessao(sessao)
     );
   }
 }
@@ -267,7 +266,10 @@ export async function avisarSessaoMarcada(sessao: ContatosDaSessao, agora = new 
     'confirmacao_psicologo',
     sessao.profissionalTelefone,
     'agenda_confirmacao_psicologo',
-    textoConfirmacaoPsicologo(sessao)
+    textoConfirmacaoPsicologo(sessao),
+    0,
+    undefined,
+    variaveisDaSessao(sessao)
   );
 }
 
@@ -277,7 +279,10 @@ export async function avisarSessaoCancelada(sessao: ContatosDaSessao): Promise<v
     'cancelamento_paciente',
     sessao.pacienteTelefone,
     'agenda_cancelamento_paciente',
-    textoCancelamentoPaciente(sessao)
+    textoCancelamentoPaciente(sessao),
+    0,
+    undefined,
+    variaveisDaSessao(sessao)
   );
 }
 
@@ -285,37 +290,41 @@ export async function avisarSessaoCancelada(sessao: ContatosDaSessao): Promise<v
 export async function avisarSessaoRemarcada(sessao: ContatosDaSessao, inicioAnterior: string, versao: number): Promise<void> {
   const textos = textosRemarcacao(sessao, inicioAnterior);
   const dados = { inicioAnterior, inicioNovo: sessao.inicio, fimNovo: sessao.fim, modalidade: sessao.modalidade };
+  const variaveis = variaveisRemarcacao(sessao, inicioAnterior);
   await despachar(sessao.agendamentoId, 'remarcacao_paciente', sessao.pacienteTelefone,
-    'agenda_remarcacao_paciente', textos.paciente, versao, dados);
+    'agenda_remarcacao_paciente', textos.paciente, versao, dados, variaveis);
   await despachar(sessao.agendamentoId, 'remarcacao_psicologo', sessao.profissionalTelefone,
-    'agenda_remarcacao_psicologo', textos.profissional, versao, dados);
+    'agenda_remarcacao_psicologo', textos.profissional, versao, dados, variaveis);
+}
+
+export function variaveisRemarcacao(sessao: ContatosDaSessao, inicioAnterior: string): ValoresDoModelo {
+  return variaveisDaSessao(sessao, {
+    horario_anterior: quandoPorExtenso(inicioAnterior),
+    novo_horario: quandoPorExtenso(sessao.inicio),
+  });
 }
 
 export function textosRemarcacao(sessao: ContatosDaSessao, inicioAnterior: string) {
-  const detalhes = [
-    `Horário anterior: ${quandoPorExtenso(inicioAnterior)}`,
-    `Novo horário: ${quandoPorExtenso(sessao.inicio)}`,
-    rotuloModalidade(sessao.modalidade),
-  ].join('\n');
+  const variaveis = variaveisRemarcacao(sessao, inicioAnterior);
   return {
-    paciente: `Olá, ${sessao.pacienteNome}! Sua sessão com ${sessao.profissionalNome} foi remarcada.\n\n${detalhes}`,
-    profissional: `Olá, ${sessao.profissionalNome}! A sessão de ${sessao.pacienteNome} foi remarcada.\n\n${detalhes}`,
+    paciente: renderizarModelo(modeloPadrao('agenda_remarcacao_paciente'), variaveis),
+    profissional: renderizarModelo(modeloPadrao('agenda_remarcacao_psicologo'), variaveis),
   };
+}
+
+export function variaveisSolicitacaoReagendamento(sessao: ContatosDaSessao, inicioSolicitado: string): ValoresDoModelo {
+  return variaveisDaSessao(sessao, {
+    horario_solicitado: quandoPorExtenso(inicioSolicitado),
+    link_agenda: `${appBaseUrl()}${comFoco('/agenda', focoSessao(sessao.agendamentoId))}`,
+  });
 }
 
 export function textoSolicitacaoReagendamentoPsicologo(
   sessao: ContatosDaSessao,
   inicioSolicitado: string
 ): string {
-  const link = `${appBaseUrl()}${comFoco('/agenda', focoSessao(sessao.agendamentoId))}`;
-  return [
-    `Olá, ${sessao.profissionalNome}! ${sessao.pacienteNome} solicitou um reagendamento.`,
-    '',
-    `Horário atual: ${quandoPorExtenso(sessao.inicio)}`,
-    `Horário solicitado: ${quandoPorExtenso(inicioSolicitado)}`,
-    '',
-    `Acesse a plataforma para aceitar ou recusar: ${link}`,
-  ].join('\n');
+  return renderizarModelo(modeloPadrao('agenda_solicitacao_reagendamento_psicologo'),
+    variaveisSolicitacaoReagendamento(sessao, inicioSolicitado));
 }
 
 export async function avisarSolicitacaoReagendamentoPsicologo(
@@ -330,7 +339,8 @@ export async function avisarSolicitacaoReagendamentoPsicologo(
     'agenda_solicitacao_reagendamento_psicologo',
     textoSolicitacaoReagendamentoPsicologo(sessao, inicioSolicitado),
     sequencia,
-    { inicioSolicitado }
+    { inicioSolicitado },
+    variaveisSolicitacaoReagendamento(sessao, inicioSolicitado)
   );
 }
 
@@ -344,10 +354,12 @@ export async function avisarRecusaReagendamentoPaciente(
     sessao.pacienteTelefone,
     'agenda_recusa_reagendamento_paciente',
     textoRecusaReagendamentoPaciente(sessao),
-    sequencia
+    sequencia,
+    undefined,
+    variaveisDaSessao(sessao)
   );
 }
 
 export function textoRecusaReagendamentoPaciente(sessao: ContatosDaSessao): string {
-  return `Olá, ${sessao.pacienteNome}. A solicitação de mudança não foi aceita. Sua sessão continua confirmada para ${quandoPorExtenso(sessao.inicio)}.`;
+  return renderizarModelo(modeloPadrao('agenda_recusa_reagendamento_paciente'), variaveisDaSessao(sessao));
 }

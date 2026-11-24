@@ -2,20 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import type { MotivoCancelamentoNfse } from '@thats-life/core';
-import {
-  AlertTriangle,
-  Building2,
-  CheckCircle2,
-  CreditCard,
-  FileSpreadsheet,
-  Filter,
-  Percent,
-  RefreshCw,
-  Search,
-  TrendingUp,
-  Users,
-  Wallet,
-} from 'lucide-react';
+import { AlertTriangle, Search } from 'lucide-react';
 import { applicationRequest, commandHeaders } from '@/lib/applicationApi';
 import {
   NfsePreviewModal,
@@ -25,6 +12,7 @@ import {
 import { PatientPackagePanel } from '@/components/financial/PatientPackagePanel';
 import { EducationalCreditPanel } from '@/components/financial/EducationalCreditPanel';
 import { ClinicReceivablesTable, type Atendimento } from '@/components/financial/ClinicReceivablesTable';
+import { ConsolidadoPorPsicologo, FinanceiroCabecalho, FinanceiroIndicadores, type ConsolidadoPsicologo, type ResumoFinanceiro } from '@/components/financial/FinanceiroResumo';
 
 /**
  * Financeiro da clínica.
@@ -40,39 +28,15 @@ import { ClinicReceivablesTable, type Atendimento } from '@/components/financial
  */
 
 
-interface ConsolidadoPsicologo {
-  psicologoId: string;
-  psicologoNome: string;
-  atendimentos: number;
-  faturadoCents: number;
-  recebidoCents: number;
-  emAbertoCents: number;
-  creditoPsicologoCents: number;
-  receitaClinicaCents: number;
-}
 
 interface Panorama {
   periodo: { inicio?: string; fim?: string };
   geradoEm: string;
-  resumo: {
-    atendimentos: number;
-    liquidados: number;
-    vencidos: number;
-    faturadoCents: number;
-    recebidoCents: number;
-    emAbertoCents: number;
-    vencidoCents: number;
-    inadimplencia: number;
-    creditoPsicologosCents: number;
-    receitaClinicaCents: number;
-    provisionadoConvenioCents: number;
-  };
+  resumo: ResumoFinanceiro;
   atendimentos: Atendimento[];
   porPsicologo: ConsolidadoPsicologo[];
 }
 
-const dinheiro = (centavos: number) =>
-  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(centavos / 100);
 
 /** `AAAA-MM-DD` no fuso de quem está olhando, sem passar por UTC. */
 function diaLocal(data: Date): string {
@@ -342,243 +306,39 @@ export default function FinanceiroClinicaPage() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
-      {eAdmin && <PatientPackagePanel />}
-      <EducationalCreditPanel admin={Boolean(eAdmin)} />
-      {/* Cabeçalho */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <span className="chip-accent text-[11px] mb-1">Extrato Financeiro da Clínica</span>
-          <h1 className="text-2xl font-black text-ink flex items-center gap-2">
-            <CreditCard className="w-6 h-6 text-psi-vibrant" />
-            Financeiro & Repasses da Clínica
-          </h1>
-          <p className="text-xs text-muted">
-            O outro lado do extrato do psicólogo: quanto entrou no período, quanto é receita da
-            clínica (30%) e quanto está reservado como crédito de abatimento dos alunos (70%).
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => void exportarCsv()}
-          disabled={exportando || !periodo.inicio || !periodo.fim}
-          className="bg-surface hover:bg-slate-50 text-ink border border-line font-extrabold text-xs px-4 py-2.5 rounded-2xl shadow-card transition-all flex items-center gap-2 disabled:opacity-50 disabled:pointer-events-none"
-        >
-          <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-          {exportando ? 'Gerando…' : 'Exportar Relatório (CSV)'}
-        </button>
-      </div>
-
-      {/* Filtro de período */}
-      <form
-        onSubmit={filtrarPeriodo}
-        className="bg-surface p-5 rounded-3xl border border-line shadow-card flex flex-col sm:flex-row sm:items-end justify-between gap-4 text-xs"
-      >
-        <div className="flex flex-col sm:flex-row items-center gap-4 flex-1">
-          <div className="w-full sm:w-auto">
-            <label className="font-bold text-ink block mb-1" htmlFor="data-inicio">
-              Data Inicial
-            </label>
-            <input
-              id="data-inicio"
-              type="date"
-              value={dataInicio}
-              onChange={(evento) => setDataInicio(evento.target.value)}
-              className="bg-slate-50 border border-line rounded-xl p-2.5 text-ink font-semibold focus:outline-none focus:border-psi-vibrant w-full"
-            />
-          </div>
-
-          <div className="w-full sm:w-auto">
-            <label className="font-bold text-ink block mb-1" htmlFor="data-fim">
-              Data Final
-            </label>
-            <input
-              id="data-fim"
-              type="date"
-              value={dataFim}
-              onChange={(evento) => setDataFim(evento.target.value)}
-              className="bg-slate-50 border border-line rounded-xl p-2.5 text-ink font-semibold focus:outline-none focus:border-psi-vibrant w-full"
-            />
-          </div>
-        </div>
-
-        <button
-          type="submit"
-          disabled={carregando}
-          className="bg-psi-vibrant text-white font-extrabold text-xs px-5 py-3 rounded-2xl shadow-md hover:bg-psi-vibrant/90 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
-        >
-          {carregando ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Filter className="w-4 h-4" />}
-          {carregando ? 'Carregando…' : 'Filtrar Período'}
-        </button>
-      </form>
+      <FinanceiroCabecalho
+        dataInicio={dataInicio}
+        dataFim={dataFim}
+        onDataInicio={setDataInicio}
+        onDataFim={setDataFim}
+        onFiltrar={filtrarPeriodo}
+        carregando={carregando}
+        exportando={exportando}
+        podeExportar={Boolean(periodo.inicio && periodo.fim)}
+        onExportar={() => void exportarCsv()}
+      />
 
       {erro && (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-xs font-bold text-rose-800 flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 shrink-0" />
+        <div role="alert" className="flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-xs font-bold text-rose-700">
+          <AlertTriangle aria-hidden className="h-4 w-4 shrink-0" />
           {erro}
         </div>
       )}
 
-      {/* KPIs */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        <div className="bg-gradient-to-br from-psi-darkest to-slate-900 text-white rounded-3xl p-6 shadow-contrast relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-psi-soft/80">Receita da Clínica (30%)</span>
-            <div className="p-2 rounded-xl bg-psi-vibrant/20 text-psi-vibrant border border-psi-vibrant/30">
-              <Building2 className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-4">
-            <h2 className="text-3xl font-black text-white">
-              {dinheiro(resumo?.receitaClinicaCents ?? 0)}
-            </h2>
-            <p className="text-[11px] text-psi-soft/70 font-semibold mt-1 flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-              Sobre {dinheiro(resumo?.recebidoCents ?? 0)} efetivamente recebidos no período
-            </p>
-          </div>
-          <div className="mt-5 pt-4 border-t border-white/10 flex items-center justify-between">
-            <div>
-              <p className="text-[10px] uppercase tracking-widest text-psi-soft/50">
-                Crédito dos psicólogos (70%)
-              </p>
-              <p className="text-lg font-black text-emerald-400">
-                {dinheiro(resumo?.creditoPsicologosCents ?? 0)}
-              </p>
-            </div>
-            <Percent className="w-5 h-5 text-emerald-400/70" />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4 gap-5 lg:col-span-2">
-          <article className="bg-surface rounded-3xl border border-line shadow-card p-5">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-black uppercase tracking-wider text-muted">
-                Faturado no período
-              </span>
-              <TrendingUp className="w-4 h-4 text-psi-vibrant" />
-            </div>
-            <p className="mt-4 text-2xl font-black text-ink">{dinheiro(resumo?.faturadoCents ?? 0)}</p>
-            <p className="mt-1 text-[11px] text-muted">
-              {resumo?.atendimentos ?? 0} atendimentos · {resumo?.liquidados ?? 0} liquidados
-            </p>
-          </article>
-
-          <article className="rounded-3xl border border-emerald-200 bg-emerald-50/70 p-5 shadow-card">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-black uppercase tracking-wider text-emerald-800">
-                Provisionado de convênios
-              </span>
-              <Building2 className="w-4 h-4 text-emerald-700" />
-            </div>
-            <p className="mt-4 text-2xl font-black text-emerald-900">{dinheiro(resumo?.provisionadoConvenioCents ?? 0)}</p>
-            <p className="mt-1 text-[11px] text-emerald-800/75">A faturar ou aguardando baixa do boleto</p>
-          </article>
-
-          <article className="bg-surface rounded-3xl border border-line shadow-card p-5">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-black uppercase tracking-wider text-muted">
-                Recebido
-              </span>
-              <Wallet className="w-4 h-4 text-emerald-600" />
-            </div>
-            <p className="mt-4 text-2xl font-black text-emerald-700">
-              {dinheiro(resumo?.recebidoCents ?? 0)}
-            </p>
-            <p className="mt-1 text-[11px] text-muted">Pagamentos confirmados menos estornos</p>
-          </article>
-
-          <article className="bg-surface rounded-3xl border border-line shadow-card p-5">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-black uppercase tracking-wider text-muted">
-                Em aberto
-              </span>
-              <AlertTriangle className="w-4 h-4 text-amber-600" />
-            </div>
-            <p className="mt-4 text-2xl font-black text-ink">{dinheiro(resumo?.emAbertoCents ?? 0)}</p>
-            <p className="mt-1 text-[11px] text-muted">
-              {dinheiro(resumo?.vencidoCents ?? 0)} vencidos ·{' '}
-              {((resumo?.inadimplencia ?? 0) * 100).toFixed(1).replace('.', ',')}% de inadimplência
-            </p>
-          </article>
-        </div>
-      </div>
-
-      {/* Consolidado por psicólogo */}
-      <div className="bg-surface rounded-3xl border border-line shadow-card overflow-hidden">
-        <div className="p-6 border-b border-line flex items-center justify-between gap-4">
-          <div>
-            <h3 className="font-extrabold text-base text-ink flex items-center gap-2">
-              <Users className="w-4 h-4 text-psi-vibrant" />
-              Consolidado por Psicólogo
-            </h3>
-            <p className="text-xs text-muted">
-              Quanto cada psicólogo gerou e quanto tem de crédito a abater na mensalidade
-            </p>
-          </div>
-          <span className="chip text-[11px] whitespace-nowrap">
-            {panorama?.porPsicologo.length ?? 0} psicólogos
-          </span>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[46rem] text-left text-xs">
-            <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-line">
-              <tr>
-                <th className="px-6 py-4">Psicólogo</th>
-                <th className="px-6 py-4">Atendimentos</th>
-                <th className="px-6 py-4">Faturado</th>
-                <th className="px-6 py-4">Recebido</th>
-                <th className="px-6 py-4">Em aberto</th>
-                <th className="px-6 py-4 text-emerald-700">Crédito (70%)</th>
-                <th className="px-6 py-4 text-psi-deep">Clínica (30%)</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {(panorama?.porPsicologo ?? []).map((item) => (
-                <tr key={item.psicologoId} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="px-6 py-4 font-extrabold text-ink">{item.psicologoNome}</td>
-                  <td className="px-6 py-4 text-muted">{item.atendimentos}</td>
-                  <td className="px-6 py-4 font-bold text-ink">{dinheiro(item.faturadoCents)}</td>
-                  <td className="px-6 py-4 font-bold text-emerald-700">
-                    {dinheiro(item.recebidoCents)}
-                  </td>
-                  <td
-                    className={`px-6 py-4 font-semibold ${
-                      item.emAbertoCents > 0 ? 'text-rose-700' : 'text-muted'
-                    }`}
-                  >
-                    {dinheiro(item.emAbertoCents)}
-                  </td>
-                  <td className="px-6 py-4 font-black text-emerald-600 bg-emerald-50/50">
-                    {dinheiro(item.creditoPsicologoCents)}
-                  </td>
-                  <td className="px-6 py-4 font-black text-psi-deep">
-                    {dinheiro(item.receitaClinicaCents)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {!carregando && (panorama?.porPsicologo.length ?? 0) === 0 && (
-            <p className="p-10 text-center text-xs text-muted">
-              Nenhum atendimento com cobrança registrada nesse período.
-            </p>
-          )}
-        </div>
-      </div>
+      <FinanceiroIndicadores resumo={resumo} />
+      <ConsolidadoPorPsicologo linhas={panorama?.porPsicologo ?? []} carregando={carregando} />
 
       {/* Atendimentos */}
-      <div className="bg-surface rounded-3xl border border-line shadow-card overflow-hidden">
-        <div className="p-6 border-b border-line space-y-4">
+      <section className="overflow-hidden rounded-2xl border border-psi-soft/60 bg-surface shadow-card">
+        <div className="space-y-4 border-b border-psi-soft/60 p-5 sm:p-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h3 className="font-extrabold text-base text-ink">Atendimentos no Período</h3>
+              <h2 className="text-base font-black text-psi-darkest">Atendimentos no período</h2>
               <p className="text-xs text-muted">
                 Cobranças conciliadas pelo motor financeiro, sessão por sessão
               </p>
             </div>
-            <span className="bg-emerald-100 text-emerald-800 text-[11px] font-bold px-3 py-1 rounded-full border border-emerald-200 whitespace-nowrap">
+            <span className="whitespace-nowrap rounded-lg border border-psi-soft bg-white px-2 py-0.5 text-xs font-extrabold text-psi-darkest">
               {atendimentos.length} de {panorama?.atendimentos.length ?? 0} atendimentos
             </span>
           </div>
@@ -624,7 +384,7 @@ export default function FinanceiroClinicaPage() {
             </p>
           )}
         </div>
-      </div>
+      </section>
 
       {panorama && (
         <p className="text-center text-[10px] text-muted">
@@ -635,6 +395,10 @@ export default function FinanceiroClinicaPage() {
           }).format(new Date(panorama.geradoEm))}
         </p>
       )}
+
+      {/* Ferramentas da Gestão: depois do extrato, que é o que a página responde primeiro. */}
+      {eAdmin && <PatientPackagePanel />}
+      <EducationalCreditPanel admin={Boolean(eAdmin)} />
 
       {nfseAberta && (
         <NfsePreviewModal

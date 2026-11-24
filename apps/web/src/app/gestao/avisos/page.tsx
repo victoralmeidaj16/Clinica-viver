@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { MessageSquareText } from 'lucide-react';
 import { PainelModelosAvisos } from '@/components/gestao/avisos/PainelModelosAvisos';
 import { PainelEnviosAvisos } from '@/components/gestao/avisos/PainelEnviosAvisos';
+import { AbasSegmentadas } from '@/components/ui/AbasSegmentadas';
 
 type Aba = 'modelos' | 'envios';
 
@@ -28,31 +29,20 @@ export default function GestaoAvisosPage() {
   return (
     <div className="mx-auto max-w-6xl space-y-6 pb-12">
       <div>
+        <span className="chip-accent mb-1 text-[11px]">Comunicação</span>
         <h1 className="flex items-center gap-2 text-2xl font-black text-ink">
-          <MessageSquareText className="h-6 w-6 text-psi-vibrant" /> Mensagens e avisos
+          <MessageSquareText aria-hidden className="h-6 w-6 text-psi-vibrant" /> Mensagens e avisos
         </h1>
-        <p className="text-xs text-muted">
+        <p className="max-w-3xl text-xs text-muted">
           O texto de cada aviso, o canal de envio e o histórico do que saiu para pacientes, psicólogos e coordenação.
         </p>
       </div>
 
-      <div className="-mx-4 flex items-center gap-2 overflow-x-auto border-b border-line px-4 pb-2 sm:mx-0 sm:px-0">
-        {ABAS.map(([valor, rotulo]) => (
-          <button
-            key={valor}
-            type="button"
-            onClick={() => setAba(valor)}
-            className={`shrink-0 whitespace-nowrap rounded-2xl px-5 py-2.5 text-xs font-extrabold transition-all ${
-              aba === valor ? 'bg-psi-vibrant text-white shadow-md' : 'border border-line bg-surface text-muted hover:bg-slate-100 hover:text-ink'
-            }`}
-          >
-            {rotulo}
-          </button>
-        ))}
-      </div>
+      <AbasSegmentadas abas={ABAS} ativa={aba} onTrocar={setAba} rotulo="Áreas de mensagens e avisos" />
 
-      {aba === 'modelos' && <PainelModelosAvisos />}
-      {aba === 'envios' && <PainelEnviosAvisos />}
+      <div role="tabpanel" id={`painel-${aba}`} aria-labelledby={`aba-${aba}`}>
+        {aba === 'modelos' ? <PainelModelosAvisos /> : <PainelEnviosAvisos />}
+      </div>
     </div>
   );
 }

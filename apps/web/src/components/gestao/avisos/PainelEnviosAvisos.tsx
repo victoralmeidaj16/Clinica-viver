@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { RefreshCw, Send } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Circle, RefreshCw, Send, XCircle, type LucideIcon } from 'lucide-react';
+import { TagStatus, type COR_ICONE } from '@/components/gestao/TagStatus';
 import { avisoDoCatalogo, ROTULO_CANAL, ROTULO_DESTINATARIO, type CanalAviso, type DestinatarioAviso } from '@/lib/avisos/catalogo';
 import { chamarGestao, dataHoraBr } from '@/components/gestao/gestaoApi';
 
@@ -23,13 +24,14 @@ interface Envio {
   criadoEm: string;
 }
 
-const SITUACAO: Record<string, { rotulo: string; classe: string }> = {
-  enviada: { rotulo: 'Entregue ao provedor', classe: 'bg-emerald-50 text-emerald-800' },
-  registrado: { rotulo: 'Registrado no painel', classe: 'bg-slate-100 text-slate-700' },
-  falha: { rotulo: 'Falhou', classe: 'bg-rose-50 text-rose-800' },
-  bloqueada_allowlist: { rotulo: 'Telefone recusado', classe: 'bg-rose-50 text-rose-800' },
-  provedor_desconfigurado: { rotulo: 'Integração desligada', classe: 'bg-amber-50 text-amber-800' },
-  destinatario_invalido: { rotulo: 'Destino inválido', classe: 'bg-rose-50 text-rose-800' },
+// Tag neutra com a cor só no ícone (design.md).
+const SITUACAO: Record<string, { rotulo: string; icone: LucideIcon; cor: keyof typeof COR_ICONE }> = {
+  enviada: { rotulo: 'Entregue ao provedor', icone: CheckCircle2, cor: 'positivo' },
+  registrado: { rotulo: 'Registrado no painel', icone: Circle, cor: 'neutro' },
+  falha: { rotulo: 'Falhou', icone: XCircle, cor: 'negativo' },
+  bloqueada_allowlist: { rotulo: 'Telefone recusado', icone: XCircle, cor: 'negativo' },
+  provedor_desconfigurado: { rotulo: 'Integração desligada', icone: AlertTriangle, cor: 'atencao' },
+  destinatario_invalido: { rotulo: 'Destino inválido', icone: XCircle, cor: 'negativo' },
 };
 
 const NAO_ENTREGUES = ['falha', 'bloqueada_allowlist', 'provedor_desconfigurado', 'destinatario_invalido'];
@@ -89,60 +91,60 @@ export function PainelEnviosAvisos() {
 
   return (
     <section className="space-y-3">
-      <div className="flex flex-wrap items-end gap-3 rounded-3xl border border-line bg-surface p-4 shadow-card">
+      <div className="flex flex-wrap items-end gap-3 rounded-[20px] border border-line bg-surface p-4 shadow-card">
         <label className="flex items-center gap-2 text-xs font-bold text-ink">
           <input type="checkbox" checked={soFalhas} onChange={(event) => setSoFalhas(event.target.checked)} />
           Só não entregues e ainda não reenviados
         </label>
         <label className="text-[11px] font-bold text-muted">De
-          <input type="date" value={desde} onChange={(event) => setDesde(event.target.value)} className="mt-1 block rounded-xl border border-line bg-white px-3 py-1.5 text-xs text-ink" />
+          <input type="date" value={desde} onChange={(event) => setDesde(event.target.value)} className="mt-1 block rounded-xl border border-psi-soft bg-white px-3 py-1.5 text-xs text-ink focus:border-psi-vibrant focus:outline-none" />
         </label>
         <label className="text-[11px] font-bold text-muted">Até
-          <input type="date" value={ate} onChange={(event) => setAte(event.target.value)} className="mt-1 block rounded-xl border border-line bg-white px-3 py-1.5 text-xs text-ink" />
+          <input type="date" value={ate} onChange={(event) => setAte(event.target.value)} className="mt-1 block rounded-xl border border-psi-soft bg-white px-3 py-1.5 text-xs text-ink focus:border-psi-vibrant focus:outline-none" />
         </label>
-        <button type="button" onClick={() => void carregar()} className="btn-ghost min-h-9 justify-center">
-          <RefreshCw className="h-4 w-4" /> Atualizar
+        <button type="button" onClick={() => void carregar()} className="btn-outline min-h-9 px-4 py-2 text-xs">
+          <RefreshCw aria-hidden className="h-4 w-4 text-psi-vibrant" /> Atualizar
         </button>
       </div>
-      {!disponivel && <p className="text-xs font-semibold text-amber-800">O registro de envios começa depois da migration 104 no banco.</p>}
+      {!disponivel && <p className="text-xs font-semibold text-amber-800">O registro de envios ainda não está disponível neste ambiente.</p>}
       {erro && <p className="text-xs font-semibold text-rose-700">{erro}</p>}
-      {mensagem && <p className="text-xs font-semibold text-emerald-700">{mensagem}</p>}
-      <div className="overflow-x-auto rounded-3xl border border-line bg-surface shadow-card">
+      {mensagem && <p role="status" className="flex items-center gap-1.5 text-xs font-semibold text-ink"><CheckCircle2 aria-hidden className="h-4 w-4 text-emerald-600" />{mensagem}</p>}
+      <div className="overflow-x-auto rounded-2xl border border-psi-soft/60 bg-surface shadow-card">
         <table className="w-full min-w-[56rem] text-left text-xs">
-          <thead className="border-b border-line text-[11px] uppercase tracking-wide text-muted">
+          <thead className="border-b border-psi-soft/60 bg-psi-soft/30 text-[10px] font-black uppercase tracking-[0.14em] text-muted">
             <tr>
-              <th className="px-3 py-2">Quando</th><th className="px-3 py-2">Aviso</th><th className="px-3 py-2">Destinatário</th>
-              <th className="px-3 py-2">Origem</th><th className="px-3 py-2">Retorno</th><th className="px-3 py-2">Versão</th><th className="px-3 py-2" />
+              <th className="px-4 py-3">Quando</th><th className="px-4 py-3">Aviso</th><th className="px-4 py-3">Destinatário</th>
+              <th className="px-4 py-3">Origem</th><th className="px-4 py-3">Retorno</th><th className="px-4 py-3">Versão</th><th className="px-4 py-3" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-line">
+          <tbody className="divide-y divide-psi-soft/40">
             {envios?.length === 0 && (
               <tr><td colSpan={7} className="px-3 py-6 text-center text-muted">{soFalhas ? 'Nenhum aviso pendente de entrega.' : 'Nenhum envio no período.'}</td></tr>
             )}
             {envios?.map((envio) => {
-              const situacao = SITUACAO[envio.situacao] ?? { rotulo: envio.situacao, classe: 'bg-slate-100 text-slate-700' };
+              const situacao = SITUACAO[envio.situacao] ?? { rotulo: envio.situacao, icone: Circle, cor: 'neutro' as const };
               const incertoAqui = envio.situacao === 'falha' && envio.reenvioSeguro === false;
               const reenviavel = envio.canal === 'whatsapp' && !envio.reenviadoEm && NAO_ENTREGUES.includes(envio.situacao);
               return (
                 <tr key={envio.id} className="align-top">
                   <td className="whitespace-nowrap px-3 py-2 text-muted">{dataHoraBr(envio.criadoEm)}</td>
-                  <td className="px-3 py-2 font-semibold text-ink">
+                  <td className="px-4 py-3 font-semibold text-ink">
                     {tituloDoAviso(envio.finalidade)}
                     {envio.reenvioDe && <span className="block text-[10px] font-normal text-muted">Reenvio{envio.autorNome ? ` por ${envio.autorNome}` : ''}</span>}
                   </td>
-                  <td className="px-3 py-2 text-muted">
+                  <td className="px-4 py-3 text-muted">
                     {ROTULO_DESTINATARIO[envio.destinatarioTipo as DestinatarioAviso] ?? envio.destinatarioTipo}
                     <span className="block text-[10px]">{ROTULO_CANAL[envio.canal as CanalAviso] ?? envio.canal}{envio.destinoFinal ? ` · final ${envio.destinoFinal}` : ''}</span>
                   </td>
-                  <td className="px-3 py-2 font-mono text-[11px] text-muted">{envio.referencia ?? '—'}</td>
-                  <td className="px-3 py-2">
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${situacao.classe}`}>{situacao.rotulo}</span>
+                  <td className="px-4 py-3 font-mono text-[11px] text-muted">{envio.referencia ?? '—'}</td>
+                  <td className="px-4 py-3">
+                    <TagStatus icone={situacao.icone} cor={situacao.cor}>{situacao.rotulo}</TagStatus>
                     {incertoAqui && <span className="mt-1 block text-[10px] text-amber-800">Sem confirmação do provedor: pode ter chegado.</span>}
                     {envio.tentativas > 1 && <span className="mt-1 block text-[10px] text-muted">{envio.tentativas} tentativas</span>}
                     {envio.reenviadoEm && <span className="mt-1 block text-[10px] text-muted">Reenviado em {dataHoraBr(envio.reenviadoEm)}</span>}
                   </td>
-                  <td className="px-3 py-2 text-muted">{envio.modeloVersao ? `v${envio.modeloVersao}` : 'padrão'}</td>
-                  <td className="px-3 py-2">
+                  <td className="px-4 py-3 text-muted">{envio.modeloVersao ? `v${envio.modeloVersao}` : 'padrão'}</td>
+                  <td className="px-4 py-3">
                     {reenviavel ? (
                       envio.podeReenviar ? (
                         incerto === envio.id ? (

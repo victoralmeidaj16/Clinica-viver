@@ -59,10 +59,11 @@ export function nfseRowAction(input: {
   }
 }
 
+/** Botão em base neutra; o tom vale só para o ícone (design.md). */
 export const nfseRowTone: Record<NfseRowAction['tone'], string> = {
-  muted: 'border-line bg-slate-50 text-muted',
-  ready: 'border-psi-vibrant/30 bg-psi-soft/40 text-psi-deep hover:bg-psi-soft',
-  progress: 'border-sky-200 bg-sky-50 text-sky-800 hover:bg-sky-100',
-  success: 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100',
-  danger: 'border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100',
+  muted: 'text-slate-400',
+  ready: 'text-psi-vibrant',
+  progress: 'text-slate-400',
+  success: 'text-emerald-600',
+  danger: 'text-rose-600',
 };

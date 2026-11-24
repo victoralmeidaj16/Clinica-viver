@@ -84,7 +84,7 @@ export function EditorModeloAviso({ aviso, modelo, salvando, onSalvar }: Props) 
         </label>
         <div className="text-[11px] font-bold text-muted">
           Prévia com valores de exemplo
-          <pre className="mt-1 max-h-[22rem] overflow-auto whitespace-pre-wrap rounded-xl border border-line bg-emerald-50/50 px-3 py-2 font-sans text-[12px] font-normal leading-5 text-ink">
+          <pre className="mt-1 max-h-[22rem] overflow-auto whitespace-pre-wrap rounded-xl border border-line bg-psi-light px-3 py-2 font-sans text-[12px] font-normal leading-5 text-ink">
             {renderizarModelo(texto, exemplos)}
           </pre>
         </div>
@@ -99,7 +99,7 @@ export function EditorModeloAviso({ aviso, modelo, salvando, onSalvar }: Props) 
               type="button"
               title={campo.descricao}
               onClick={() => inserirCampo(campo.nome)}
-              className="rounded-lg border border-line bg-surface px-2 py-1 font-mono text-[11px] text-ink hover:bg-slate-50"
+              className="rounded-lg border border-line bg-surface px-2 py-1 font-mono text-[11px] text-ink hover:bg-psi-soft/50"
             >
               {`{{${campo.nome}}}`}
               {aviso.camposObrigatorios.includes(campo.nome) && <span className="ml-1 text-rose-600">*</span>}
@@ -147,7 +147,7 @@ export function EditorModeloAviso({ aviso, modelo, salvando, onSalvar }: Props) 
         </ul>
       )}
       {!modelo.editavel && (
-        <p className="text-xs font-semibold text-amber-800">A edição fica disponível depois da migration 087 no banco.</p>
+        <p className="text-xs font-semibold text-amber-800">A edição ainda não está disponível neste ambiente.</p>
       )}
 
       <div className="flex flex-wrap items-center gap-2">

@@ -20,7 +20,7 @@ export function preferenciasAtuais(patient: ManagedPatient): Partial<Record<Camp
   };
 }
 
-const campo = 'mt-1 block w-full rounded-xl border border-line bg-slate-50 px-3 py-2 text-xs text-ink focus:border-psi-vibrant focus:outline-none';
+const campo = 'mt-1 block w-full rounded-xl border border-line bg-psi-light px-3 py-2 text-xs text-ink focus:border-psi-vibrant focus:outline-none';
 
 /** Preferências do pedido na Gestão: origem, histórico e correção (4.04). */
 export default function PatientPreferencesPanel({ patient, onChange }: {

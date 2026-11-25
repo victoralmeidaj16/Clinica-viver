@@ -6,7 +6,6 @@ import { CadastroPsicologoForm } from '@/components/forms/CadastroPsicologoForm'
 import { PsicologoItem, FiltroStatus } from '@/components/gestao/types';
 import { PsicologoCard } from '@/components/gestao/PsicologoCard';
 import { PsicologosCabecalho, PsicologosIndicadores } from '@/components/gestao/PsicologosCabecalho';
-import { ModalMotivo } from '@/components/gestao/ModalMotivo';
 import { ModalEdicao } from '@/components/gestao/ModalEdicao';
 import { ModalLimitePacientes } from '@/components/gestao/ModalLimitePacientes';
 import Link from 'next/link';
@@ -51,7 +50,6 @@ export default function GestaoPsicologosPage() {
   const [copiedLink, setCopiedLink] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [ocupado, setOcupado] = useState<string | null>(null);
-  const [motivoAlvo, setMotivoAlvo] = useState<PsicologoItem | null>(null);
   const [editando, setEditando] = useState<PsicologoItem | null>(null);
   const [limiteAlvo, setLimiteAlvo] = useState<PsicologoItem | 'TODOS' | null>(null);
 
@@ -171,25 +169,6 @@ export default function GestaoPsicologosPage() {
   const recusar = (p: PsicologoItem) => {
     if (!confirm(`Recusar o credenciamento de ${nomeExibido(p)}?`)) return;
     return atualizar(p.id, { status: 'RECUSADO' });
-  };
-
-  const alternarRodizio = (p: PsicologoItem) => {
-    if (p.pausadoNoRodizio) {
-      return atualizar(p.id, { pausadoNoRodizio: false, exibirNaVitrine: true });
-    }
-    setMotivoAlvo(p);
-  };
-
-  const confirmarMotivo = async (motivo: string) => {
-    if (!motivoAlvo) return;
-    const psicologo = motivoAlvo;
-    setMotivoAlvo(null);
-    await atualizar(psicologo.id, {
-      pausadoNoRodizio: true,
-      exibirNaVitrine: false,
-      motivoPausaRodizio: motivo,
-      motivoDesativacao: motivo,
-    });
   };
 
   const salvarLimite = async (limite: number) => {
@@ -451,7 +430,7 @@ export default function GestaoPsicologosPage() {
               ocupado={ocupado}
               onAprovar={(item) => void aprovar(item)}
               onRecusar={(item) => void recusar(item)}
-              onAlternarRodizio={alternarRodizio}
+              onAtualizarControles={atualizar}
               onEditar={(item) => setEditando(item)}
               onAjustarLimite={(item) => setLimiteAlvo(item)}
               onPriorizar={(item) => void priorizarNaFila(item)}
@@ -475,14 +454,6 @@ export default function GestaoPsicologosPage() {
         <span>Turmas, prazo de saída da vitrine e cursos</span>
         <span className="text-xs font-bold text-psi-deep">Abrir Cursos e turmas →</span>
       </Link>
-
-      {motivoAlvo && (
-        <ModalMotivo
-          alvo={motivoAlvo}
-          onConfirmar={(motivo) => void confirmarMotivo(motivo)}
-          onCancelar={() => setMotivoAlvo(null)}
-        />
-      )}
 
       {editando && (
         <ModalEdicao

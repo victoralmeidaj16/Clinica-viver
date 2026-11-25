@@ -5,7 +5,7 @@ import type { RowDataPacket } from 'mysql2';
 import { registrarCobrancaContratual } from './companySessionCharge';
 import { getMysqlPool } from '@/server/oci/runtime';
 import { custeioEfetivoSql } from '@/server/persistence/mysql/custeioSql';
-import { instituicaoId } from '@/server/persistence/mysql/mappers';
+import { instanteSql, instituicaoId } from '@/server/persistence/mysql/mappers';
 import { cancelarCobrancaDaSessao } from './sessionChargeCancellation';
 
 export interface ResultadoTransferencia {
@@ -153,7 +153,7 @@ async function transferirSessaoBloqueada(agendamentoId: string): Promise<boolean
     await registrarCobrancaContratual(connection, {
       agendamentoId, organizacao: agendamento.organizacao_ref, convenio: agendamento.convenio_ref,
       sessao: agendamento.sessao_clinica_ref, paciente: agendamento.paciente_ref, profissional: agendamento.profissional_ref,
-      inicio: new Date(agendamento.inicio), confirmadaEm: new Date(agendamento.confirmada_em),
+      inicio: instanteSql(agendamento.inicio), confirmadaEm: instanteSql(agendamento.confirmada_em),
     }, agendamento.valor_sessao_contrato_centavos == null ? null : Number(agendamento.valor_sessao_contrato_centavos));
     await connection.commit();
     return true;

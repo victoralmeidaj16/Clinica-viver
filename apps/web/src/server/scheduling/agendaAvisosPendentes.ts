@@ -2,7 +2,7 @@ import 'server-only';
 
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { getMysqlPool } from '@/server/oci/runtime';
-import { instituicaoId } from '@/server/persistence/mysql/mappers';
+import { instanteSql, instituicaoId } from '@/server/persistence/mysql/mappers';
 import { enviarTexto } from '@/server/application/viverMaisWhatsApp';
 import { getContatosDaSessao } from './agendaRepository';
 import { finalizarAviso, adiarNovaTentativa } from './finalizarAviso';
@@ -70,8 +70,8 @@ export async function liberarAvisosAguardando(agora = new Date()): Promise<Resul
         );
         solicitacaoValida = pedidos[0]?.status === (tipo === 'solicitacao_reagendamento_psicologo' ? 'pendente' : 'recusada');
         if (solicitacaoValida && tipo === 'solicitacao_reagendamento_psicologo' && sessao) {
-          solicitacaoValida = new Date(pedidos[0].inicio_atual).getTime() === Date.parse(sessao.inicio)
-            && new Date(pedidos[0].fim_atual).getTime() === Date.parse(sessao.fim);
+          solicitacaoValida = instanteSql(pedidos[0].inicio_atual).getTime() === Date.parse(sessao.inicio)
+            && instanteSql(pedidos[0].fim_atual).getTime() === Date.parse(sessao.fim);
         }
       }
       const mensagem = sessao ? avisoParaReenvio(tipo, sessao, dados) : null;

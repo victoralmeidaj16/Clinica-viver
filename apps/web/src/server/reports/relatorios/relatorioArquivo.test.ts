@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 
 import { areaRelatorio, contemTermo, dentroDoPeriodo, formatarCelula } from '@/lib/relatorios/areas';
-import { arquivoDoRelatorio, descricaoDosFiltros } from './relatorioArquivo';
+import { arquivoDoRelatorio, descricaoDosFiltros, tomDaSituacao } from './relatorioArquivo';
 import { filtrosDaUrl, type RelatorioDaArea } from './relatoriosArea';
 
 const relatorio: RelatorioDaArea = {
@@ -24,6 +24,21 @@ describe('exportação dos relatórios por área', () => {
     expect(xlsx.subarray(0, 2).toString()).toBe('PK');
     const pdf = await arquivoDoRelatorio(relatorio, 'pdf');
     expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+  });
+
+  it('leva as linhas que não cabem para as páginas seguintes', async () => {
+    const longo = { ...relatorio, linhas: Array.from({ length: 30 }, () => relatorio.linhas).flat() };
+    const pdf = (await arquivoDoRelatorio(longo, 'pdf')).toString('latin1');
+    expect(pdf.match(/\/Type \/Page\b/g)!.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('colore o ponto da situação pelo estado, com neutro para o desconhecido', () => {
+    expect(tomDaSituacao('Realizada')).toBe('positivo');
+    expect(tomDaSituacao('Paga em parte')).toBe('atencao');
+    expect(tomDaSituacao('Inativo')).toBe('negativo');
+    expect(tomDaSituacao('Cancelada')).toBe('negativo');
+    expect(tomDaSituacao('Agendada')).toBe('marca');
+    expect(tomDaSituacao('Rascunho')).toBe('neutro');
   });
 
   it('gera os arquivos também sem linhas', async () => {

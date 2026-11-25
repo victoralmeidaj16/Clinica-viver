@@ -1,16 +1,16 @@
 import React from 'react';
-import { CheckCircle2, XCircle, Edit3, PlayCircle, PauseCircle, RotateCcw, ChevronUp, ChevronDown } from 'lucide-react';
+import { CheckCircle2, XCircle, Edit3, RotateCcw, ChevronUp, ChevronDown } from 'lucide-react';
 import type { PsicologoCardProps } from './PsicologoCard';
+import { PsicologoPausaRodizio } from './PsicologoControles';
 
-type Props = Pick<PsicologoCardProps, 'p' | 'onEditar' | 'onAprovar' | 'onRecusar' | 'onAlternarRodizio' | 'onPriorizar'> & {
+type Props = Pick<PsicologoCardProps, 'p' | 'onEditar' | 'onAprovar' | 'onRecusar' | 'onAtualizarControles' | 'onPriorizar'> & {
   trabalhando: boolean;
-  pausado: boolean;
   expanded: boolean;
   onToggleExpanded: () => void;
 };
 const botao = 'text-xs font-extrabold px-2.5 py-1.5 rounded-xl border transition-all disabled:opacity-50 flex items-center gap-1.5 whitespace-nowrap';
 
-export function PsicologoCardAcoes({ p, onEditar, onAprovar, onRecusar, onAlternarRodizio, onPriorizar, trabalhando, pausado, expanded, onToggleExpanded }: Props) {
+export function PsicologoCardAcoes({ p, onEditar, onAprovar, onRecusar, onAtualizarControles, onPriorizar, trabalhando, expanded, onToggleExpanded }: Props) {
   return (
         <div className="flex items-center justify-end gap-1.5 shrink-0">
           <button
@@ -49,20 +49,8 @@ export function PsicologoCardAcoes({ p, onEditar, onAprovar, onRecusar, onAltern
             </button>
           ) : (
             <>
-              <button
-                disabled={trabalhando}
-                onClick={() => onAlternarRodizio(p)}
-                title={pausado ? 'Volta ao rodízio e à vitrine' : 'Sai do rodízio e da vitrine'}
-                className={`${botao} ${
-                  pausado
-                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
-                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                {pausado ? <PlayCircle className="w-3.5 h-3.5" /> : <PauseCircle className="w-3.5 h-3.5" />}
-                {pausado ? 'Retomar' : 'Pausar'}
-              </button>
-              {!pausado && (
+              <PsicologoPausaRodizio p={p} trabalhando={trabalhando} onAtualizar={onAtualizarControles} />
+              {!p.pausadoNoRodizio && (
                 <button
                   disabled={trabalhando}
                   onClick={() => void onPriorizar(p)}

@@ -5,7 +5,7 @@ export class CadastroDuplicadoError extends Error {
   readonly status = 409;
   readonly code = 'CADASTRO_DUPLICADO';
   constructor() {
-    super('Já existe um cadastro com este e-mail ou WhatsApp. Se ele é seu, recupere o acesso. Se ainda está em análise ou os contatos pertencem a outra pessoa, fale com a gestão.');
+    super('Já existe um cadastro com este e-mail, CRP ou WhatsApp. Se ele é seu, recupere o acesso. Se ainda está em análise ou os dados pertencem a outra pessoa, fale com a gestão.');
     this.name = 'CadastroDuplicadoError';
   }
 }
@@ -21,15 +21,23 @@ export function telefoneDeCadastro(value: string): string {
     : number;
 }
 
+/** Região + registro só com dígitos: "CRP 06/123456", "06/123456" e "06123456" são o mesmo CRP. */
+export function crpDeCadastro(value?: string): string {
+  const digits = (value ?? '').replace(/\D/g, '').slice(0, 9);
+  return digits.length > 2 ? digits : '';
+}
+
 export function assertCadastroUnico(
-  cadastro: Pick<CadastroPsicologoRecord, 'id' | 'email' | 'whatsapp'>,
-  existentes: readonly CadastroPsicologoRecord[]
+  cadastro: Pick<CadastroPsicologoRecord, 'id' | 'email' | 'whatsapp'> & { crp?: string },
+  existentes: readonly Pick<CadastroPsicologoRecord, 'id' | 'email' | 'whatsapp' | 'crp'>[]
 ): void {
   const email = emailDeCadastro(cadastro.email);
   const telefone = telefoneDeCadastro(cadastro.whatsapp);
+  const crp = crpDeCadastro(cadastro.crp);
   if (existentes.some((outro) => outro.id !== cadastro.id && (
     (email && emailDeCadastro(outro.email) === email)
     || (telefone && telefoneDeCadastro(outro.whatsapp) === telefone)
+    || (crp && crpDeCadastro(outro.crp) === crp)
   ))) throw new CadastroDuplicadoError();
 }
 
@@ -43,6 +51,7 @@ export function assertMudancasDeCadastroUnicas(
     const anterior = porId.get(cadastro.id);
     if (!anterior || emailDeCadastro(anterior.email) !== emailDeCadastro(cadastro.email)
       || telefoneDeCadastro(anterior.whatsapp) !== telefoneDeCadastro(cadastro.whatsapp)
+      || crpDeCadastro(anterior.crp) !== crpDeCadastro(cadastro.crp)
       || (cadastro.status === 'APROVADO' && anterior.status !== 'APROVADO')) {
       assertCadastroUnico(cadastro, depois);
     }

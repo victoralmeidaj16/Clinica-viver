@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ query: vi.fn(), cancel: vi.fn(), rollback: vi.fn(), execute: vi.fn(), connectionQuery: vi.fn(), connectionExecute: vi.fn(), lockQuery: vi.fn() }));
 vi.mock('server-only', () => ({}));
 vi.mock('@/server/oci/runtime', () => ({ getMysqlPool: () => ({ query: mocks.query, execute: mocks.execute, getConnection: async () => ({ beginTransaction: async () => {}, query: (sql: string, ...args: unknown[]) => sql.includes('GET_LOCK') || sql.includes('RELEASE_LOCK') || sql.startsWith('SELECT custeado_pela_empresa') ? mocks.lockQuery(sql, ...args) : mocks.connectionQuery(sql, ...args), execute: mocks.connectionExecute, commit: async () => {}, rollback: mocks.rollback, release: () => {} }) }) }));
-vi.mock('@/server/persistence/mysql/mappers', () => ({ instituicaoId: () => 'inst-1', rowId: (_: string, id: string) => id }));
+vi.mock('@/server/persistence/mysql/mappers', async (original) => ({ ...await original<typeof import('@/server/persistence/mysql/mappers')>(), instituicaoId: () => 'inst-1', rowId: (_: string, id: string) => id }));
 vi.mock('./sessionChargeCancellation', () => ({ cancelarCobrancaDaSessao: mocks.cancel }));
 import { transferirCobrancasParaEmpresa } from './convenioChargeTransfer';
 

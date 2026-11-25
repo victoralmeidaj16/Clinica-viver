@@ -138,39 +138,60 @@ describe('estado operacional do psicólogo', () => {
     const acessibilidade = { necessita: true, descricao: 'Intérprete de Libras.' };
     expect(aplicarMudancas(cadastro({ acessibilidade }), { status: 'APROVADO' }, CAMPOS_DA_GESTAO).acessibilidade).toEqual(acessibilidade);
   });
-  it('retira da vitrine ao pausar o rodízio', () => {
+  it('pausa o rodízio de um perfil que continua na vitrine', () => {
     const resultado = aplicarMudancas(
       cadastro(),
       { pausadoNoRodizio: true, motivoPausaRodizio: 'Férias' },
       CAMPOS_DA_GESTAO
     );
 
-    expect(resultado.pausadoNoRodizio).toBe(true);
-    expect(resultado.exibirNaVitrine).toBe(false);
+    expect(resultado).toMatchObject({
+      pausadoNoRodizio: true, exibirNaVitrine: true, motivoPausaRodizio: 'Férias',
+    });
+    expect(resultado.motivoDesativacao).toBeUndefined();
   });
 
-  it('devolve à vitrine ao retomar o rodízio', () => {
+  it('retoma o rodízio de um perfil oculto e preserva o motivo da vitrine', () => {
     const resultado = aplicarMudancas(
-      cadastro({ pausadoNoRodizio: true, exibirNaVitrine: false }),
+      cadastro({
+        pausadoNoRodizio: true, exibirNaVitrine: false,
+        motivoPausaRodizio: 'Férias', motivoDesativacao: 'Revisão da foto',
+      }),
       { pausadoNoRodizio: false },
       CAMPOS_DA_GESTAO
     );
 
-    expect(resultado.pausadoNoRodizio).toBe(false);
-    expect(resultado.exibirNaVitrine).toBe(true);
+    expect(resultado).toMatchObject({
+      pausadoNoRodizio: false, exibirNaVitrine: false, motivoDesativacao: 'Revisão da foto',
+    });
     expect(resultado.motivoPausaRodizio).toBeUndefined();
-    expect(resultado.motivoDesativacao).toBeUndefined();
   });
 
-  it('converte o comando legado de ocultar em pausa', () => {
+  it('oculta da vitrine um perfil que continua no rodízio', () => {
     const resultado = aplicarMudancas(
       cadastro(),
       { exibirNaVitrine: false },
       CAMPOS_DA_GESTAO
     );
 
-    expect(resultado.pausadoNoRodizio).toBe(true);
-    expect(resultado.exibirNaVitrine).toBe(false);
+    expect(resultado).toMatchObject({ pausadoNoRodizio: false, exibirNaVitrine: false });
+    expect(resultado.motivoPausaRodizio).toBeUndefined();
+  });
+
+  it('volta a exibir um perfil e preserva sua pausa e o motivo do rodízio', () => {
+    const resultado = aplicarMudancas(
+      cadastro({
+        pausadoNoRodizio: true, exibirNaVitrine: false,
+        motivoPausaRodizio: 'Férias', motivoDesativacao: 'Revisão da foto',
+      }),
+      { exibirNaVitrine: true },
+      CAMPOS_DA_GESTAO
+    );
+
+    expect(resultado).toMatchObject({
+      pausadoNoRodizio: true, exibirNaVitrine: true, motivoPausaRodizio: 'Férias',
+    });
+    expect(resultado.motivoDesativacao).toBeUndefined();
   });
 
   it('deriva modalidades com equivalência social e acessível', () => {

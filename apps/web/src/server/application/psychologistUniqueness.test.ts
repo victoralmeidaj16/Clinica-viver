@@ -12,6 +12,17 @@ describe('cadastro único', () => {
   it.each(['(48) 99831-5675', '+55 (48) 9831-5675', '5548998315675'])('bloqueia telefone equivalente %s mesmo com outro e-mail', (whatsapp) => {
     expect(() => assertCadastroUnico({ ...novo, whatsapp }, [original])).toThrow(CadastroDuplicadoError);
   });
+  it.each(['CRP 12/34567', '12/34567', '1234567'])('bloqueia CRP equivalente %s mesmo com outros contatos', (crp) => {
+    expect(() => assertCadastroUnico({ ...novo, crp }, [{ ...original, crp: '12/34567' }])).toThrow(CadastroDuplicadoError);
+  });
+  it('permite CRP diferente e cadastros sem CRP', () => {
+    expect(() => assertCadastroUnico({ ...novo, crp: '12/34568' }, [{ ...original, crp: '12/34567' }])).not.toThrow();
+    expect(() => assertCadastroUnico({ ...novo, crp: '' }, [{ ...original, crp: '' }])).not.toThrow();
+  });
+  it('bloqueia edição que passa a repetir o CRP de outro cadastro', () => {
+    const antes = [{ ...original, crp: '12/34567' }, { ...novo, crp: '12/99999' }];
+    expect(() => assertMudancasDeCadastroUnicas(antes, [antes[0], { ...antes[1], crp: 'CRP 12/34567' }])).toThrow(CadastroDuplicadoError);
+  });
   it('permite contatos próprios e novos contatos distintos', () => {
     expect(() => assertCadastroUnico(original, [original])).not.toThrow();
     expect(() => assertCadastroUnico(novo, [original])).not.toThrow();

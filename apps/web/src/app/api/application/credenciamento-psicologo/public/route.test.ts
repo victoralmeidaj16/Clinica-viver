@@ -45,6 +45,15 @@ describe('compatibilidade da vitrine com o envio da escolha direta', () => {
     expect(data[0]).not.toHaveProperty('acessibilidade');
     expect(JSON.stringify(data)).not.toContain('Recurso de acessibilidade fictício.');
   });
+  it('publica o perfil visível em pausa e omite o perfil oculto que continua na fila', async () => {
+    mocks.read.mockResolvedValue({ ...emptySnapshot(), cadastrosPsicologos: [
+      { ...psi, exibirNaVitrine: true, pausadoNoRodizio: true },
+      { ...psi, id: 'oculto', exibirNaVitrine: false, pausadoNoRodizio: false },
+    ] });
+
+    const { data } = await (await GET()).json();
+    expect(data).toMatchObject([{ id: psi.id, disponivelParaNovosPacientes: false }]);
+  });
   const casos: [string, Partial<CadastroPsicologoRecord>, Partial<TriagemPacienteRecord>, boolean][] = [
     ['mesmo telefone e email do profissional', {}, {}, true],
     ['modalidade não cadastrada', { modalidadesAtendidas: [] }, {}, false],

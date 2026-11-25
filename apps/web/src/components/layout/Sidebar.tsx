@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -96,16 +97,27 @@ export default function Sidebar({
         <div className={`h-16 sm:h-20 px-4 flex items-center justify-between border-b border-white/10 relative ${
           colapsado ? 'lg:h-auto lg:flex-col lg:justify-center lg:gap-2 lg:px-0 lg:py-4' : ''
         }`}>
-          <div className="flex items-center gap-3 overflow-hidden">
-            <div className="w-10 h-10 rounded-xl bg-psi-vibrant text-white flex items-center justify-center shrink-0 shadow-md">
-              <Brain className="w-6 h-6" />
-            </div>
+          {/* Logo oficial; minimizado, só o símbolo (recorte da mesma arte). */}
+          <div className="overflow-hidden">
             <div className={`animate-in fade-in duration-200 ${colapsado ? 'lg:hidden' : ''}`}>
-              <h1 className="font-black text-sm text-white leading-none tracking-tight flex items-center gap-1">
-                Viver Mais <span className="text-psi-darkest text-[10px] font-black px-1.5 py-0.5 rounded-md bg-psi-vibrant">Psi</span>
-              </h1>
-              <p className="text-[10px] text-psi-soft/70 font-semibold mt-1 whitespace-nowrap">Clínica Escola & Atendimento</p>
+              <Image
+                src="/logo-viver-mais-white.png"
+                alt="Viver Mais Psicologia"
+                width={317}
+                height={60}
+                className="h-7 w-auto"
+                priority
+              />
+              <p className="text-[10px] text-psi-soft/70 font-semibold mt-1.5 whitespace-nowrap">Clínica Escola & Atendimento</p>
             </div>
+            <Image
+              src="/logo-viver-mais-simbolo.png"
+              alt="Viver Mais Psicologia"
+              width={69}
+              height={60}
+              className={`hidden h-8 w-auto ${colapsado ? 'lg:block' : ''}`}
+              priority
+            />
           </div>
 
           {/* Fechar a gaveta (toque) / Minimizar o menu (desktop) */}

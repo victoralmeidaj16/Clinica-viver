@@ -51,6 +51,8 @@ import { ListaEsperaResumo } from '@/components/gestao/ListaEsperaResumo';
 import { naListaDeEspera, type ListaEsperaRegistro } from '@/lib/listaEspera';
 import { PainelIndicadoresGestao } from '@/components/gestao/painel/PainelIndicadoresGestao';
 import { OcorrenciasGestao } from '@/components/gestao/painel/OcorrenciasGestao';
+import { PsicologoPausaRodizio, PsicologoVisibilidadeVitrine } from '@/components/gestao/PsicologoControles';
+import { PsicologoPosicaoRodizio } from '@/components/gestao/PsicologoPosicaoRodizio';
 
 /** Linha da fila, como o `GET /api/application/triagem` a devolve. */
 interface LeadFila {
@@ -112,7 +114,9 @@ interface PsicologoCadastro {
   limitePacientesAtivos?: number;
   pacientesAtivosCount?: number;
   exibirNaVitrine?: boolean;
-  motivoDesativacao?: string;
+  pausadoNoRodizio?: boolean;
+  motivoPausaRodizio?: string;
+  rodizio?: PsicologoItem['rodizio'];
   turmaViverMais?: string;
   posGraduacaoViverMais?: string;
   segundaPosGraduacao?: string;
@@ -121,16 +125,6 @@ interface PsicologoCadastro {
 const nomeExibicao = (psi: PsicologoCadastro): string => psi.nomeSocial?.trim() || psi.nomeCompleto;
 
 const LIMITE_PADRAO = 5;
-
-/**
- * Um profissional aprovado só entra no rodízio depois que a gestão define a
- * faixa de valor e o turno que ele atende — o formulário de candidatura não
- * coleta isso. Sem o aviso, o cadastro pareceria pronto e nunca receberia
- * ninguém, sem explicação em lugar nenhum.
- */
-const cadastroIncompletoParaRodizio = (psi: PsicologoCadastro): boolean =>
-  psi.status === 'APROVADO' &&
-  ((psi.modalidadesAtendidas ?? []).length === 0 || (psi.turnosDisponiveis ?? []).length === 0);
 
 const contarPacientes = (n: number) => `${n} ${n === 1 ? 'paciente' : 'pacientes'}`;
 
@@ -214,6 +208,7 @@ export default function GestaoCockpitPage() {
 
   const [leads, setLeads] = useState<LeadFila[]>([]);
   const [cadastros, setCadastros] = useState<PsicologoCadastro[]>([]);
+  const [cadastrosEmAtualizacao, setCadastrosEmAtualizacao] = useState<string[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erroCarga, setErroCarga] = useState<string | null>(null);
   const [cadastroAberto, setCadastroAberto] = useState<PsicologoCadastro | null>(null);
@@ -276,24 +271,25 @@ export default function GestaoCockpitPage() {
   const profissionais = cadastros.filter((psi) => psi.status === 'APROVADO');
 
   const atualizarCadastro = async (id: string, mudancas: Record<string, unknown>) => {
-    const resposta = await fetch(`/api/application/credenciamento-psicologo/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(mudancas),
-    });
-    const corpo = await resposta.json();
-    if (!corpo.success) {
-      setErroCarga(corpo.error ?? 'Não foi possível salvar a alteração.');
-      return;
+    setCadastrosEmAtualizacao((fila) => [...fila, id]);
+    try {
+      const resposta = await fetch(`/api/application/credenciamento-psicologo/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(mudancas),
+      });
+      const corpo = await resposta.json();
+      if (!resposta.ok || !corpo.success) {
+        setErroCarga(corpo.error ?? 'Não foi possível salvar a alteração.');
+        return;
+      }
+      await recarregar();
+    } catch {
+      setErroCarga('Falha de conexão ao salvar a alteração.');
+    } finally {
+      setCadastrosEmAtualizacao((fila) => fila.filter((item) => item !== id));
     }
-    await recarregar();
   };
-
-  const toggleAtivoPsicologo = (psi: PsicologoCadastro) =>
-    atualizarCadastro(psi.id, {
-      exibirNaVitrine: !(psi.exibirNaVitrine ?? true),
-      motivoDesativacao: 'Pausa solicitada à gestão',
-    });
 
   const [filtroModalidade, setFiltroModalidade] = useState<string>('TODAS');
   const [filtroTurno, setFiltroTurno] = useState<string>('TODOS');
@@ -326,7 +322,7 @@ export default function GestaoCockpitPage() {
   const [novoPsiModal, setNovoPsiModal] = useState(false);
 
   const handleAprovarPsicologo = (id: string) =>
-    atualizarCadastro(id, { status: 'APROVADO', exibirNaVitrine: true });
+    atualizarCadastro(id, { status: 'APROVADO', exibirNaVitrine: true, pausadoNoRodizio: false });
   const handleRecusarPsicologo = (id: string) => atualizarCadastro(id, { status: 'RECUSADO' });
 
   const abrirFormularioCadastro = (psi: PsicologoCadastro) => {
@@ -487,7 +483,7 @@ export default function GestaoCockpitPage() {
             onCancelar={() => setNovoPsiModal(false)}
             onSucesso={async (cadastro) => {
               // Cadastro feito pela gestão não passa pela análise: aprova na hora.
-              await atualizarCadastro(cadastro.id, { status: 'APROVADO', exibirNaVitrine: true });
+              await handleAprovarPsicologo(cadastro.id);
               setNovoPsiModal(false);
               await recarregar();
             }}
@@ -555,7 +551,7 @@ export default function GestaoCockpitPage() {
           }`}
         >
           <Users className="w-4 h-4" />
-          Gestão de Psicólogos (Ativar/Desativar)
+          Gestão de Psicólogos
         </button>
 
         <button
@@ -954,13 +950,11 @@ export default function GestaoCockpitPage() {
         </div>
       )}
 
-      {/* Conteúdo da Aba 3: Gestão de Profissionais & Toggle Manual */}
       {abaAtiva === 'PROFISSIONAIS' && (
         <div className="bg-surface rounded-3xl border border-line shadow-card overflow-hidden space-y-4">
           <div className="p-6 border-b border-line flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <h3 className="font-extrabold text-base text-ink">Psicólogos da Clínica (Visibilidade & Rodízio)</h3>
-              <p className="text-xs text-muted">Ative ou desative manualmente a exibição no carrossel e no rodízio de novos pacientes</p>
+              <h3 className="font-extrabold text-base text-ink">Vitrine e rodízio dos psicólogos</h3>
             </div>
           </div>
 
@@ -973,7 +967,7 @@ export default function GestaoCockpitPage() {
                   <th className="px-6 py-4">Turma / Pós-Graduação</th>
                   <th className="px-6 py-4">Pacientes Ativos</th>
                   <th className="px-6 py-4">Status no Rodízio</th>
-                  <th className="px-6 py-4 text-right">Ação / Toggle</th>
+                  <th className="px-6 py-4 text-right">Controles</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
@@ -987,10 +981,10 @@ export default function GestaoCockpitPage() {
                   </tr>
                 )}
                 {profissionais.map((psi) => {
-                  const ativo = psi.exibirNaVitrine ?? true;
                   const teto = psi.limitePacientesAtivos ?? LIMITE_PADRAO;
                   const ativos = psi.pacientesAtivosCount ?? 0;
                   const noTeto = ativos >= teto;
+                  const trabalhando = cadastrosEmAtualizacao.includes(psi.id);
 
                   return (
                     <tr key={psi.id} className="hover:bg-slate-50/80 transition-colors">
@@ -1013,54 +1007,16 @@ export default function GestaoCockpitPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        {/* Três estados distintos, porque pedem ações distintas: pausa é
-                            decisão da gestão, teto é consequência da agenda, e cadastro
-                            incompleto é trabalho que ficou pela metade. */}
-                        {!ativo ? (
-                          <div>
-                            <span className="bg-rose-100 text-rose-800 border border-rose-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full inline-block">
-                              ○ Desativado do rodízio
-                            </span>
-                            {psi.motivoDesativacao && (
-                              <p className="text-[10px] text-rose-600 font-semibold mt-1">{psi.motivoDesativacao}</p>
-                            )}
-                          </div>
-                        ) : noTeto ? (
-                          <div>
-                            <span className="bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full inline-block">
-                              ◐ Fora da vez
-                            </span>
-                            <p className="text-[10px] text-amber-700 font-semibold mt-1">
-                              Teto de pacientes atingido
-                            </p>
-                          </div>
-                        ) : cadastroIncompletoParaRodizio(psi) ? (
-                          <div>
-                            <span className="bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full inline-block">
-                              ◐ Cadastro incompleto
-                            </span>
-                            <p className="text-[10px] text-amber-700 font-semibold mt-1">
-                              Falta definir turno e faixa de valor
-                            </p>
-                          </div>
-                        ) : (
-                          <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-extrabold px-2.5 py-1 rounded-full flex items-center gap-1 w-max">
-                            ● Ativo no rodízio
-                          </span>
+                        <PsicologoPosicaoRodizio rodizio={psi.rodizio} />
+                        {psi.pausadoNoRodizio && psi.motivoPausaRodizio && (
+                          <p className="mt-1 text-[11px] font-semibold text-muted">{psi.motivoPausaRodizio}</p>
                         )}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button
-                          type="button"
-                          onClick={() => void toggleAtivoPsicologo(psi)}
-                          className={`font-extrabold text-[11px] px-4 py-2 rounded-xl transition-all shadow-sm ${
-                            ativo
-                              ? 'bg-rose-100 hover:bg-rose-200 text-rose-800 border border-rose-300'
-                              : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                          }`}
-                        >
-                          {ativo ? 'Desativar perfil' : 'Ativar no rodízio'}
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+                          <PsicologoVisibilidadeVitrine p={psi} trabalhando={trabalhando} onAtualizar={atualizarCadastro} />
+                          <PsicologoPausaRodizio p={psi} trabalhando={trabalhando} onAtualizar={atualizarCadastro} />
+                        </div>
                       </td>
                     </tr>
                   );

@@ -131,7 +131,7 @@ export function PsicologosIndicadores({
 
       <Indicador rotulo="Pausados" valor={pausados} icone={PauseCircle} corIcone={COR_ICONE.negativo}
         lateral={<span className={chipValor}>Sem encaminhamento</span>}>
-        <p className="text-xs text-muted">Fora do rodízio e da vitrine</p>
+        <p className="text-xs text-muted">Pausa manual pela gestão</p>
       </Indicador>
     </div>
   );

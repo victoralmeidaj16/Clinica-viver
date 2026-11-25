@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { precificarSessoesPendentes, registrarCobrancaContratual } from './companySessionCharge';
 
 vi.mock('server-only', () => ({}));
-vi.mock('@/server/persistence/mysql/mappers', () => ({
+vi.mock('@/server/persistence/mysql/mappers', async (original) => ({
+  ...await original<typeof import('@/server/persistence/mysql/mappers')>(),
   instituicaoId: () => 'inst-1',
   rowId: (tipo: string, ref: string) => tipo + ':' + ref,
 }));

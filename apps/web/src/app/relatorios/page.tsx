@@ -38,7 +38,6 @@ export default function MonthlyIndicatorsPage() {
   const [competencia, setCompetencia] = useState(() => competenciaAtual());
   const [report, setReport] = useState<MonthlyIndicators | null>(null);
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
-  const [persistence, setPersistence] = useState<'mysql' | 'memory' | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,7 +54,6 @@ export default function MonthlyIndicatorsPage() {
         }
         setReport(envelope.data);
         setGeneratedAt(envelope.meta?.generatedAt ?? new Date().toISOString());
-        setPersistence(envelope.meta?.persistence ?? null);
       })
       .catch((cause: unknown) => {
         if (cause instanceof DOMException && cause.name === 'AbortError') return;
@@ -129,11 +127,6 @@ export default function MonthlyIndicatorsPage() {
 
       {!loading && report && (
         <>
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-line bg-surface px-4 py-3 text-[11px] text-muted">
-            <span><strong className="text-ink">{formatCompetencia(report.competencia)}</strong> · fuso {report.periodo.timezone}</span>
-            <span>Atualizado em {generatedAt ? new Date(generatedAt).toLocaleString('pt-BR', { timeZone: report.periodo.timezone }) : '—'} · fonte {persistence ?? '—'}</span>
-          </div>
-
           <section className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
             <MonthlyIndicatorCard number={1} title="Fila atual de leads" icon={Users}
               value={`${report.filaAtual.total} aguardando`}

@@ -16,7 +16,7 @@ import { randomUUID } from 'node:crypto';
 import type { RowDataPacket } from 'mysql2';
 import type { Pool, PoolConnection } from 'mysql2/promise';
 import { getMysqlPool, isMysqlConfigured } from '@/server/oci/runtime';
-import { fromSqlTimestamp, instituicaoId, rowId } from '@/server/persistence/mysql/mappers';
+import { fromSqlTimestamp, instanteSql, instituicaoId, rowId } from '@/server/persistence/mysql/mappers';
 import { custeioDoAgendamentoSql } from '@/server/persistence/mysql/custeioSql';
 import { patientSessionPricingFromRow, resolvePatientSessionAmountCents } from '@/server/persistence/mysql/patientSessionPricing';
 import {
@@ -354,8 +354,8 @@ export async function listBlocks(
   );
   return rows.map((row) => ({
     id: String(row.id),
-    inicio: new Date(row.inicio).toISOString(),
-    fim: new Date(row.fim).toISOString(),
+    inicio: instanteSql(row.inicio).toISOString(),
+    fim: instanteSql(row.fim).toISOString(),
     motivo: row.motivo ? String(row.motivo) : undefined,
     tipo: row.tipo === 'dia' ? 'dia' : 'horario',
   }));
@@ -504,9 +504,9 @@ export async function listAppointments(
     } while (pagina.length === tamanhoPagina);
 
     return rows.map((row) => {
-      const fim = new Date(
-        row.fim ?? new Date(row.inicio).getTime() + Number(row.duracao_min) * 60_000
-      );
+      const fim = row.fim
+        ? instanteSql(row.fim)
+        : new Date(instanteSql(row.inicio).getTime() + Number(row.duracao_min) * 60_000);
       // O status devolvido é o que está gravado. Colapsar "já passou" em
       // "realizado" aqui escondia da interface justamente os atendimentos que
       // ainda esperam a confirmação do psicólogo.
@@ -518,14 +518,14 @@ export async function listAppointments(
         pacienteNome: String(row.paciente_nome ?? 'Paciente'),
         pacienteRef: row.paciente_ref ? String(row.paciente_ref) : undefined,
         agendamentoRef: row.agendamento_ref ? String(row.agendamento_ref) : undefined,
-        inicio: new Date(row.inicio).toISOString(),
+        inicio: instanteSql(row.inicio).toISOString(),
         fim: fim.toISOString(),
         modalidade: row.modalidade,
         serviceKey: row.servico_key ? String(row.servico_key) : undefined,
         status,
         origem: String(row.origem_criacao),
-        criadoEm: new Date(row.criado_em).toISOString(),
-        realizadoEm: row.realizado_em ? new Date(row.realizado_em).toISOString() : undefined,
+        criadoEm: instanteSql(row.criado_em).toISOString(),
+        realizadoEm: row.realizado_em ? instanteSql(row.realizado_em).toISOString() : undefined,
         linkPagamento: `/pagar/sessao/${String(row.token_pagamento_sessao)}`,
         pagamentoStatus: row.pagamento_status ? String(row.pagamento_status) : undefined,
         formaPagamento: row.forma_pagamento ? String(row.forma_pagamento) : undefined,
@@ -538,12 +538,12 @@ export async function listAppointments(
           id: String(row.solicitacao_id),
           sequence: Number(row.solicitacao_numero),
           appointmentId: String(row.id),
-          currentStartsAt: new Date(row.solicitacao_inicio_atual).toISOString(),
-          currentEndsAt: new Date(row.solicitacao_fim_atual).toISOString(),
-          requestedStartsAt: new Date(row.inicio_solicitado).toISOString(),
-          requestedEndsAt: new Date(row.fim_solicitado).toISOString(),
+          currentStartsAt: instanteSql(row.solicitacao_inicio_atual).toISOString(),
+          currentEndsAt: instanteSql(row.solicitacao_fim_atual).toISOString(),
+          requestedStartsAt: instanteSql(row.inicio_solicitado).toISOString(),
+          requestedEndsAt: instanteSql(row.fim_solicitado).toISOString(),
           requestedModality: row.modalidade_solicitada,
-          requestedAt: new Date(row.solicitado_em).toISOString(),
+          requestedAt: instanteSql(row.solicitado_em).toISOString(),
         } : undefined,
       };
     });
@@ -790,7 +790,7 @@ export async function rescheduleAppointmentProfessional(
       return 'stale';
     }
     const duracaoAtual = agendamento.fim
-      ? (new Date(agendamento.fim).getTime() - new Date(agendamento.inicio).getTime()) / 60_000
+      ? (instanteSql(agendamento.fim).getTime() - instanteSql(agendamento.inicio).getTime()) / 60_000
       : Number(agendamento.duracao_min);
     if ((novoFim.getTime() - novoInicio.getTime()) / 60_000 !== duracaoAtual) {
       await connection.rollback();
@@ -830,14 +830,14 @@ export async function rescheduleAppointmentProfessional(
       [novoInicio, novoFim, instituicaoId(), agendamento.id]
     );
 
-    if (novoInicio.getTime() !== new Date(agendamento.inicio).getTime()) {
+    if (novoInicio.getTime() !== instanteSql(agendamento.inicio).getTime()) {
       await resetAppointmentChargeDue(connection, String(agendamento.id), novoInicio.toISOString());
     }
 
     await connection.commit();
-    if (novoInicio.getTime() !== new Date(agendamento.inicio).getTime()) {
+    if (novoInicio.getTime() !== instanteSql(agendamento.inicio).getTime()) {
       await concluirReagendamento({ id: String(agendamento.id),
-        inicioAnterior: new Date(agendamento.inicio).toISOString(), inicio: novoInicio.toISOString(),
+        inicioAnterior: instanteSql(agendamento.inicio).toISOString(), inicio: novoInicio.toISOString(),
         fim: novoFim.toISOString(), versao: Number(agendamento.versao ?? 0) + 1,
       });
     }
@@ -1379,8 +1379,8 @@ const CONTATOS_SELECT = `
 function contatos(row: RowDataPacket): ContatosDaSessao {
   return {
     agendamentoId: String(row.id),
-    inicio: new Date(row.inicio).toISOString(),
-    fim: new Date(row.fim).toISOString(),
+    inicio: instanteSql(row.inicio).toISOString(),
+    fim: instanteSql(row.fim).toISOString(),
     modalidade: row.modalidade,
     status: String(row.status),
     pacienteNome: String(row.paciente_nome ?? 'Paciente'),
@@ -1588,8 +1588,8 @@ async function ocupacao(
     [instituicaoId(), profissionalRowId, ate, de]
   );
   return [...agendados, ...bloqueios].map((row) => ({
-    inicio: new Date(row.inicio).getTime(),
-    fim: new Date(row.fim).getTime(),
+    inicio: instanteSql(row.inicio).getTime(),
+    fim: instanteSql(row.fim).getTime(),
   }));
 }
 
@@ -1824,15 +1824,15 @@ export async function getActiveUpcomingAppointment(
   const row = rows[0];
   if (!row) return null;
 
-  const inicioMs = new Date(row.inicio).getTime();
+  const inicioMs = instanteSql(row.inicio).getTime();
   const agoraMs = agora.getTime();
   const horasAteInicio = Math.max(0, (inicioMs - agoraMs) / (1000 * 60 * 60));
   const podeReagendar = horasAteInicio >= 2;
 
   return {
     id: String(row.id),
-    inicio: new Date(row.inicio).toISOString(),
-    fim: new Date(row.fim).toISOString(),
+    inicio: instanteSql(row.inicio).toISOString(),
+    fim: instanteSql(row.fim).toISOString(),
     modalidade: String(row.modalidade ?? 'online'),
     status: String(row.status),
     publico: row.publico_atendimento ?? undefined,
@@ -1842,12 +1842,12 @@ export async function getActiveUpcomingAppointment(
     horasAteInicio: Number(horasAteInicio.toFixed(1)),
     solicitacaoReagendamento: row.solicitacao_id ? {
       id: String(row.solicitacao_id), sequence: Number(row.solicitacao_numero), appointmentId: String(row.id),
-      currentStartsAt: new Date(row.solicitacao_inicio_atual).toISOString(),
-      currentEndsAt: new Date(row.solicitacao_fim_atual).toISOString(),
-      requestedStartsAt: new Date(row.inicio_solicitado).toISOString(),
-      requestedEndsAt: new Date(row.fim_solicitado).toISOString(),
+      currentStartsAt: instanteSql(row.solicitacao_inicio_atual).toISOString(),
+      currentEndsAt: instanteSql(row.solicitacao_fim_atual).toISOString(),
+      requestedStartsAt: instanteSql(row.inicio_solicitado).toISOString(),
+      requestedEndsAt: instanteSql(row.fim_solicitado).toISOString(),
       requestedModality: row.modalidade_solicitada,
-      requestedAt: new Date(row.solicitado_em).toISOString(),
+      requestedAt: instanteSql(row.solicitado_em).toISOString(),
     } : undefined,
   };
 }

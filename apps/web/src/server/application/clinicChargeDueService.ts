@@ -1,7 +1,7 @@
 import 'server-only';
 import type { RowDataPacket } from 'mysql2';
 import { getMysqlPool, isMysqlConfigured } from '@/server/oci/runtime';
-import { instituicaoId } from '@/server/persistence/mysql/mappers';
+import { instanteSql, instituicaoId } from '@/server/persistence/mysql/mappers';
 import { dataHoraSessao } from '@/lib/sessionReference';
 import { registrarAlteracao } from './auditoriaAlteracoes';
 import { nomeDoUsuario } from './autorGestao';
@@ -16,7 +16,7 @@ async function vencimentoAtual(organizationId: string, chargeId: string): Promis
       'SELECT vence_em FROM financeiro_cobrancas WHERE instituicao_id = ? AND organizacao_ref = ? AND ref_core = ? LIMIT 1',
       [instituicaoId(), organizationId, chargeId],
     );
-    return rows[0]?.vence_em ? new Date(rows[0].vence_em).toISOString() : null;
+    return rows[0]?.vence_em ? instanteSql(rows[0].vence_em).toISOString() : null;
   } catch {
     return null;
   }

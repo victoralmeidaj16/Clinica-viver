@@ -21,13 +21,7 @@ import {
   type StatusTriagem,
   type TriagemPacienteRecord,
 } from '@/server/application/persistence';
-import {
-  fromSqlTimestamp,
-  instituicaoId,
-  rowId,
-  toSqlDate,
-  toSqlTimestamp,
-} from './mappers';
+import { fromSqlTimestamp, instanteSql, instituicaoId, rowId, toSqlDate, toSqlTimestamp } from './mappers';
 import { comTurmasEncerradas } from '@/server/persistence/turmasEncerradas';
 import { lerListaEspera } from '@/lib/listaEspera';
 import { lerInativacoes } from '@/lib/inativacaoVinculo';
@@ -790,10 +784,10 @@ export class MysqlCaptureRepository {
         const ref = String(row.profissional_ref);
         const lista = porProfissional.get(ref) ?? [];
         lista.push({
-          inicio: new Date(row.inicio).toISOString(),
-          fim: new Date(row.fim).toISOString(),
+          inicio: instanteSql(row.inicio).toISOString(),
+          fim: instanteSql(row.fim).toISOString(),
           motivo: row.motivo ? String(row.motivo) : undefined,
-          criadoEm: fromSqlTimestamp(row.criado_em) ?? new Date(row.inicio).toISOString(),
+          criadoEm: fromSqlTimestamp(row.criado_em) ?? instanteSql(row.inicio).toISOString(),
         });
         porProfissional.set(ref, lista);
       }

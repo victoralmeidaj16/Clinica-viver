@@ -32,7 +32,7 @@ export function CadastroExistenteNotice({ email }: { email: string }) {
 
   return (
     <section ref={notice} tabIndex={-1} aria-label="Cadastro existente" className="space-y-3 rounded-2xl border border-purple-200 bg-purple-50 p-4 text-sm text-purple-950">
-      <p role="alert" className="font-bold">Já existe um cadastro com este e-mail ou WhatsApp.</p>
+      <p role="alert" className="font-bold">Já existe um cadastro com este e-mail, CRP ou WhatsApp.</p>
       <p>Se o cadastro é seu e você esqueceu a senha, recupere seu acesso. Não é necessário fazer outro cadastro.</p>
       <p className="text-xs">O link será solicitado para o e-mail que você informou. Se o cadastro ainda está em análise, você não criou sua senha ou precisa corrigir os contatos, fale com a gestão.</p>
       {message ? <p role="status">{message}</p> : <button

@@ -16,7 +16,13 @@ export function PsicologoCardDetalhes({ p, trabalhando, onReenviarConvite }: Pro
         <div className="pt-4 border-t border-slate-200/80 space-y-4 animate-in fade-in slide-in-from-top-1 duration-150">
           {pausado && (
             <p className="text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2">
-              Sem novos encaminhamentos e fora da vitrine: {p.motivoPausaRodizio ?? 'sem motivo registrado'}
+              Pausa no rodízio · {p.motivoPausaRodizio ?? 'Sem motivo registrado'}
+            </p>
+          )}
+
+          {p.exibirNaVitrine === false && (
+            <p className="text-[11px] font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+              Perfil oculto na vitrine · {p.motivoDesativacao ?? 'Sem motivo registrado'}
             </p>
           )}
 

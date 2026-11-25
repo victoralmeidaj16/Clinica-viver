@@ -304,17 +304,10 @@ export function aplicarMudancas(
     delete solicitacaoAlteracaoGestao.limitePacientesAtivos;
   }
 
-
-  // Pausa e vitrine são um único estado operacional: fora do rodízio também
-  // significa fora do site público. Aceitar o campo antigo de vitrine mantém
-  // compatibilidade com clientes já publicados, mas ele é convertido em pausa.
-  const pausadoNoRodizio =
-    pode('pausadoNoRodizio') && typeof corpo.pausadoNoRodizio === 'boolean'
-      ? corpo.pausadoNoRodizio
-      : pode('exibirNaVitrine') && typeof corpo.exibirNaVitrine === 'boolean'
-        ? !corpo.exibirNaVitrine
-        : Boolean(existente.pausadoNoRodizio || existente.exibirNaVitrine === false);
-  const exibirNaVitrine = !pausadoNoRodizio;
+  const pausadoNoRodizio = pode('pausadoNoRodizio') && typeof corpo.pausadoNoRodizio === 'boolean'
+    ? corpo.pausadoNoRodizio : existente.pausadoNoRodizio ?? false;
+  const exibirNaVitrine = pode('exibirNaVitrine') && typeof corpo.exibirNaVitrine === 'boolean'
+    ? corpo.exibirNaVitrine : existente.exibirNaVitrine ?? true;
 
   const estadoUf = pode('estadoUf')
     ? String(corpo.estadoUf).trim().toUpperCase() || undefined
@@ -436,9 +429,6 @@ export function aplicarMudancas(
       : (pode('motivoDesativacao') ? (corpo.motivoDesativacao as string) : undefined) ??
         existente.motivoDesativacao ??
         'Desativação manual pela gestão',
-    // Mesma simetria do motivo da vitrine: enquanto a pausa existe o motivo
-    // sobrevive, e ao retomar ele some — um motivo órfão descreveria uma
-    // situação que acabou.
     pausadoNoRodizio,
     motivoPausaRodizio: pausadoNoRodizio
       ? (pode('motivoPausaRodizio') ? (corpo.motivoPausaRodizio as string) : undefined) ??

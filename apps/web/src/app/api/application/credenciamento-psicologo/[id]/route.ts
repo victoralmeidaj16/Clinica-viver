@@ -2,9 +2,8 @@ import { CATALOGO_CURSOS_PADRAO } from '@/components/forms/opcoesPsicologo';
 import { obterCatalogoCursos } from '@/server/application/catalogoCursos';
 import { NextResponse } from 'next/server';
 import { CadastroDuplicadoError, assertCadastroUnico } from '@/server/application/psychologistUniqueness';
-import { readSnapshot, writeSnapshot } from '@/server/application/persistence';
 import { isMysqlConfigured } from '@/server/oci/runtime';
-import { MysqlCaptureRepository } from '@/server/persistence/mysql/captureRepository';
+import { getCaptureRepository } from '@/server/persistence/captureRepository';
 import { exigirGestao, NaoAutorizadoError } from '@/server/viverMaisGestaoAuth';
 import {
   aplicarMudancas,
@@ -22,19 +21,7 @@ import { enviarConvitePsicologo } from '@/server/application/psychologistInvitat
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/**
- * Decisões da gestão sobre um cadastro: aprovar, recusar e ligar/desligar do
- * rodízio.
- *
- * O toggle vive aqui, e não numa rota própria, porque é a mesma coisa que a
- * aprovação sob outro nome: as duas respondem "esta pessoa recebe pacientes
- * agora?". Separá-las criaria dois lugares para desligar alguém e a
- * possibilidade de discordarem.
- *
- * Só os campos presentes no corpo são alterados — o `PATCH` é parcial de
- * verdade, para que desligar o perfil não apague, de passagem, os turnos e
- * serviços que a gestão levou tempo cadastrando.
- */
+/** Edição parcial do credenciamento, da visibilidade na vitrine e da pausa no rodízio. */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     await exigirGestao();
@@ -44,65 +31,37 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     await validarCorpo(corpo);
     const catalogo = await obterCatalogoCursos().catch(() => [...CATALOGO_CURSOS_PADRAO]);
+    const usaMysql = isMysqlConfigured();
+    const atualizado = await getCaptureRepository().mutate((state) => {
+      const existente = state.cadastrosPsicologos.find((psi) => psi.id === id);
+      if (!existente) throw new CorpoInvalidoError('Cadastro não encontrado.', 404);
+      if (usaMysql) assertDecisaoDoPedidoAtual(existente, corpo);
+      const next = aplicarMudancas(existente, corpo, CAMPOS_DA_GESTAO, catalogo);
+      if (usaMysql && next.status === 'APROVADO') validateApprovalAccess(next);
+      if (!usaMysql) assertCadastroUnico(next, state.cadastrosPsicologos);
+      return {
+        next: {
+          ...state,
+          cadastrosPsicologos: state.cadastrosPsicologos.map((psi) => psi.id === id ? next : psi),
+        },
+        result: next,
+      };
+    });
 
-    if (isMysqlConfigured()) {
-      const atualizado = await new MysqlCaptureRepository().mutate((state) => {
-        const existente = state.cadastrosPsicologos.find((psi) => psi.id === id);
-        if (!existente) return { next: state, result: null };
-        assertDecisaoDoPedidoAtual(existente, corpo);
-        const next = aplicarMudancas(existente, corpo, CAMPOS_DA_GESTAO, catalogo);
-        if (next.status === 'APROVADO') validateApprovalAccess(next);
-        return {
-          next: {
-            ...state,
-            cadastrosPsicologos: state.cadastrosPsicologos.map((psi) =>
-              psi.id === id ? next : psi
-            ),
-          },
-          result: next,
-        };
-      });
-
-      if (!atualizado) {
-        return NextResponse.json({ success: false, error: 'Cadastro não encontrado.' }, { status: 404 });
-      }
-      let acesso: {
-        criado: boolean;
-        boasVindas: string;
-        email?: string;
-        emailCodigo?: number;
-        emailDetalhe?: string;
-      } | undefined;
-      if (atualizado.status === 'APROVADO' && (!atualizado.usuarioRef || !atualizado.boasVindasEnviadaEm)) {
-        const convite = await enviarConvitePsicologo(atualizado);
-        acesso = {
+    if (usaMysql && atualizado.status === 'APROVADO' && (!atualizado.usuarioRef || !atualizado.boasVindasEnviadaEm)) {
+      const convite = await enviarConvitePsicologo(atualizado);
+      return NextResponse.json({
+        success: true,
+        data: atualizado,
+        acesso: {
           criado: true,
           boasVindas: convite.whatsapp,
           email: convite.email.situacao,
           emailCodigo: convite.email.codigo,
           emailDetalhe: convite.email.detalhe,
-        };
-      }
-      return NextResponse.json({ success: true, data: atualizado, acesso });
+        },
+      });
     }
-
-    const snapshot = readSnapshot();
-    const existente = snapshot?.cadastrosPsicologos?.find((psi) => psi.id === id);
-
-    if (!snapshot || !existente) {
-      return NextResponse.json({ success: false, error: 'Cadastro não encontrado.' }, { status: 404 });
-    }
-
-    const atualizado = aplicarMudancas(existente, corpo, CAMPOS_DA_GESTAO, catalogo);
-    assertCadastroUnico(atualizado, snapshot.cadastrosPsicologos ?? []);
-
-    await writeSnapshot({
-      ...snapshot,
-      savedAt: new Date().toISOString(),
-      cadastrosPsicologos: (snapshot.cadastrosPsicologos ?? []).map((psi) =>
-        psi.id === id ? atualizado : psi
-      ),
-    });
 
     return NextResponse.json({ success: true, data: atualizado });
   } catch (error) {

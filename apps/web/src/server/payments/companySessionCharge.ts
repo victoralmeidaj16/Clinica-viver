@@ -2,7 +2,7 @@ import 'server-only';
 import { randomUUID } from 'node:crypto';
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import { descricaoFiscalDaSessao } from '@/lib/sessionReference';
-import { instituicaoId, rowId } from '@/server/persistence/mysql/mappers';
+import { instanteSql, instituicaoId, rowId } from '@/server/persistence/mysql/mappers';
 
 interface SessaoCusteada {
   agendamentoId: string;
@@ -66,7 +66,7 @@ export async function precificarSessoesPendentes(
     await registrarCobrancaContratual(connection, {
       organizacao, convenio, agendamentoId: row.id, sessao: row.ref_core,
       paciente: row.paciente_ref, profissional: row.profissional_principal_ref,
-      inicio: new Date(row.inicio), confirmadaEm: new Date(row.confirmada_em),
+      inicio: instanteSql(row.inicio), confirmadaEm: instanteSql(row.confirmada_em),
     }, centavos);
     await connection.execute(
       'UPDATE clinica_agendamentos SET valor_contrato_pendente = 0 WHERE instituicao_id = ? AND id = ?',

@@ -15,16 +15,17 @@ import { PATCH } from './route';
 beforeEach(() => {
   vi.clearAllMocks();
   state.mutate.mockImplementation(async (mutator) => mutator({ triagensPacientes: [], cadastrosPsicologos: [{
-    id: 'psi', usuarioRef: 'user', nomeCompleto: 'Antes', status: 'APROVADO', pausadoNoRodizio: true, exibirNaVitrine: false,
+    id: 'psi', usuarioRef: 'user', nomeCompleto: 'Antes', status: 'APROVADO', pausadoNoRodizio: true, exibirNaVitrine: true,
   }] }).result);
 });
 
-it('preserva a pausa da gestão feita depois da leitura inicial do cadastro', async () => {
+it('preserva a pausa da gestão e a vitrine ao salvar o próprio perfil', async () => {
   const response = await PATCH(new Request('http://localhost/api/application/credenciamento-psicologo/me', {
-    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nomeCompleto: 'Nome atualizado' }),
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nomeCompleto: 'Nome atualizado', pausadoNoRodizio: false, exibirNaVitrine: false }),
   }));
   const body = await response.json();
-  expect(body.data).toMatchObject({ nomeCompleto: 'Nome atualizado', pausadoNoRodizio: true, exibirNaVitrine: false });
+  expect(body.data).toMatchObject({ nomeCompleto: 'Nome atualizado', pausadoNoRodizio: true, exibirNaVitrine: true });
 });
 
 it('conclui a nova seleção usando a pendência atual do registro, mesmo após uma leitura antiga', async () => {

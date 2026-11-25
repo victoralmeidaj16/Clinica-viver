@@ -50,6 +50,15 @@ export function fromSqlTimestamp(value: string | Date | null): string | undefine
   return `${normalized.replace(' ', 'T')}Z`;
 }
 
+/**
+ * Instante de um TIMESTAMP lido do pool. Com `dateStrings` e sessão em UTC, o
+ * banco devolve "AAAA-MM-DD HH:MM:SS" sem fuso; `new Date` leria essa string
+ * no fuso do processo e deslocaria o horário (3h em America/Sao_Paulo).
+ */
+export function instanteSql(value: string | Date): Date {
+  return new Date(fromSqlTimestamp(value) ?? Number.NaN);
+}
+
 export function toSqlTimestamp(iso: string): string {
   return new Date(iso).toISOString().slice(0, 23).replace('T', ' ');
 }

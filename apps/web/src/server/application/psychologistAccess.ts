@@ -91,7 +91,7 @@ export async function provisionPsychologistAccess(
     await connection.beginTransaction();
     const organization = await findOrganization(connection);
     const [registrations] = await connection.query<Array<RowDataPacket & CadastroPsicologoRecord>>(
-      `SELECT ref_core AS id, email, whatsapp, usuario_ref AS usuarioRef, profissional_ref AS profissionalRef
+      `SELECT ref_core AS id, email, whatsapp, crp, usuario_ref AS usuarioRef, profissional_ref AS profissionalRef
          FROM clinica_cadastros_psicologos WHERE instituicao_id = ? FOR UPDATE`,
       [instituicaoId()]
     );

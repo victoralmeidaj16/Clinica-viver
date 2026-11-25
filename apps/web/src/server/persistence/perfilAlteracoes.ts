@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import type { RowDataPacket } from 'mysql2';
 import type { MudancaPerfil } from '@/lib/perfilPsicologoDiff';
 import { getMysqlPool, isMysqlConfigured } from '@/server/oci/runtime';
-import { instituicaoId, rowId, toSqlTimestamp } from '@/server/persistence/mysql/mappers';
+import { instanteSql, instituicaoId, rowId, toSqlTimestamp } from '@/server/persistence/mysql/mappers';
 
 /**
  * O que cada psicólogo alterou no próprio perfil, e quando.
@@ -121,7 +121,7 @@ class MysqlPerfilAlteracoesRepository implements PerfilAlteracoesRepository {
       return rows.map((row) => ({
         cadastroRef: String(row.cadastro_ref),
         psicologoNome: String(row.psicologo_nome),
-        alteradoEm: new Date(row.alterado_em).toISOString(),
+        alteradoEm: instanteSql(row.alterado_em).toISOString(),
         mudancas: normalizarMudancas(row.mudancas),
       }));
     } catch (erro) {

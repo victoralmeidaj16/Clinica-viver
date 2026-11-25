@@ -91,6 +91,20 @@ describe('listAppointments', () => {
     expect(connection.query.mock.calls[1][1]?.slice(-2)).toEqual([200, 200]);
   });
 
+  it('lê horários no formato do pool como UTC com o processo em America/Sao_Paulo (OPS-03)', async () => {
+    const fusoOriginal = process.env.TZ;
+    process.env.TZ = 'America/Sao_Paulo';
+    try {
+      comLinhas({ ...SESSAO_PASSADA, inicio: '2026-12-03 16:50:00.000', fim: '2026-12-03 17:40:00.000', criado_em: '2026-12-01 10:00:00.000' });
+      const [item] = await listAppointments('org-1', 'pro-1', new Date('2026-06-01T00:00:00Z'), AGORA);
+      expect(item.inicio).toBe('2026-12-03T16:50:00.000Z');
+      expect(item.fim).toBe('2026-12-03T17:40:00.000Z');
+      expect(item.criadoEm).toBe('2026-12-01T10:00:00.000Z');
+    } finally {
+      process.env.TZ = fusoOriginal;
+    }
+  });
+
   it('oferece a confirmação de uma sessão aberta que já terminou', async () => {
     const [item] = await listAppointments(
       'org-1',

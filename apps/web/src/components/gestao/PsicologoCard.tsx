@@ -17,6 +17,7 @@ import { PsicologoItem } from './types';
 import { PsicologoCardDetalhes } from './PsicologoCardDetalhes';
 import { VinculosAcademicosPainel } from './VinculosAcademicosPainel';
 import { PsicologoCardAcoes } from './PsicologoCardAcoes';
+import { PsicologoVisibilidadeVitrine, type AtualizarControlesPsicologo } from './PsicologoControles';
 import { BannerSolicitacaoAlteracaoGestao } from './BannerSolicitacaoAlteracaoGestao';
 import { focoPsicologo } from '@/lib/focoNotificacao';
 import { PsicologoPosicaoRodizio } from './PsicologoPosicaoRodizio';
@@ -29,7 +30,7 @@ export interface PsicologoCardProps {
   ocupado: string | null;
   onAprovar: (p: PsicologoItem) => void;
   onRecusar: (p: PsicologoItem) => void;
-  onAlternarRodizio: (p: PsicologoItem) => void;
+  onAtualizarControles: AtualizarControlesPsicologo;
   onEditar: (p: PsicologoItem) => void;
   onAjustarLimite: (p: PsicologoItem) => void;
   onPriorizar: (p: PsicologoItem) => void;
@@ -45,7 +46,7 @@ export function PsicologoCard({
   ocupado,
   onAprovar,
   onRecusar,
-  onAlternarRodizio,
+  onAtualizarControles,
   onEditar,
   onAjustarLimite,
   onPriorizar,
@@ -178,6 +179,9 @@ export function PsicologoCard({
               Folga {periodoAusencia(proximaAusencia)}
             </TagStatus>
           )}
+          {p.status === 'APROVADO' && (
+            <PsicologoVisibilidadeVitrine p={p} trabalhando={trabalhando} onAtualizar={onAtualizarControles} />
+          )}
         </div>
         </td>
         <td className="whitespace-nowrap px-3 py-3 font-semibold text-ink">
@@ -202,9 +206,9 @@ export function PsicologoCard({
           </div>
         </td>
         <td className="px-3 py-3" onClick={(event) => event.stopPropagation()}>
-          <PsicologoCardAcoes p={p} trabalhando={trabalhando} pausado={pausado} expanded={expanded}
+          <PsicologoCardAcoes p={p} trabalhando={trabalhando} expanded={expanded}
             onToggleExpanded={alternar} onEditar={onEditar} onAprovar={onAprovar}
-            onRecusar={onRecusar} onAlternarRodizio={onAlternarRodizio} onPriorizar={onPriorizar} />
+            onRecusar={onRecusar} onAtualizarControles={onAtualizarControles} onPriorizar={onPriorizar} />
         </td>
       </tr>
 

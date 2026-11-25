@@ -5,7 +5,7 @@ import { PsicologoCard, type PsicologoCardProps } from './PsicologoCard';
 const props: PsicologoCardProps = {
   p: { id: 'ficticio', nomeCompleto: 'Profissional fictício', crp: '00/00000', whatsapp: '', status: 'APROVADO',
     rodizio: { posicao: 3, total: 12 } },
-  ocupado: null, onAprovar: vi.fn(), onRecusar: vi.fn(), onAlternarRodizio: vi.fn(), onEditar: vi.fn(),
+  ocupado: null, onAprovar: vi.fn(), onRecusar: vi.fn(), onAtualizarControles: vi.fn(), onEditar: vi.fn(),
   onAjustarLimite: vi.fn(), onPriorizar: vi.fn(), onReenviarConvite: vi.fn(),
 };
 
@@ -28,5 +28,13 @@ describe('posição do psicólogo visível no cartão fechado', () => {
   it('não inventa uma posição caso a API ainda não forneça o dado', () => {
     const html = renderToStaticMarkup(<PsicologoCard {...props} p={{ ...props.p, rodizio: undefined }} />);
     expect(html).toContain('Posição no rodízio indisponível');
+  });
+
+  it('oferece pausa no rodízio e exibição na vitrine para um perfil oculto na fila', () => {
+    const html = renderToStaticMarkup(<PsicologoCard {...props} p={{ ...props.p, exibirNaVitrine: false }} />);
+    expect(html).toContain('No rodízio');
+    expect(html).toContain('Vitrine oculta');
+    expect(html).toContain('aria-label="Pausar rodízio"');
+    expect(html).toContain('aria-label="Exibir na vitrine"');
   });
 });

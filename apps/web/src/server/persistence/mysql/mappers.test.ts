@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { fromSqlTimestamp, toPatientProfile, toSqlTimestamp, type PacienteRow } from './mappers';
+import { fromSqlTimestamp, instanteSql, toPatientProfile, toSqlTimestamp, type PacienteRow } from './mappers';
 
 describe('mapeamento de timestamps MySQL', () => {
   it('normaliza texto UTC, instantes ISO e objetos Date para o mesmo instante', () => {
@@ -13,6 +13,22 @@ describe('mapeamento de timestamps MySQL', () => {
   it('converte o horário ISO recebido por webhooks para o formato aceito pelo MySQL', () => {
     expect(toSqlTimestamp('2026-09-02T13:17:47.912Z'))
       .toBe('2026-09-02 13:17:47.912');
+  });
+});
+
+describe('instanteSql', () => {
+  it('lê o texto UTC do pool como UTC mesmo com o processo em America/Sao_Paulo', () => {
+    const fusoOriginal = process.env.TZ;
+    process.env.TZ = 'America/Sao_Paulo';
+    try {
+      // Pré-condição: no fuso do processo, `new Date` deslocaria 3h (OPS-03).
+      expect(new Date('2026-12-03 16:50:00.000').toISOString()).toBe('2026-12-03T19:50:00.000Z');
+      expect(instanteSql('2026-12-03 16:50:00.000').toISOString()).toBe('2026-12-03T16:50:00.000Z');
+      expect(instanteSql('2026-12-03 16:50:00').toISOString()).toBe('2026-12-03T16:50:00.000Z');
+      expect(instanteSql('2026-12-03T16:50:00Z').toISOString()).toBe('2026-12-03T16:50:00.000Z');
+    } finally {
+      process.env.TZ = fusoOriginal;
+    }
   });
 });
 

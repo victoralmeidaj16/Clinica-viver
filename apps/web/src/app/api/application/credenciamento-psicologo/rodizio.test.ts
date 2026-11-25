@@ -34,4 +34,22 @@ describe('consulta do rodízio pela gestão', () => {
       { id: 'pausado', rodizio: { posicao: null, total: 2, motivo: 'Pausado pela gestão' } },
     ]);
   });
+
+  it('retorna a visibilidade gravada e a situação no rodízio de forma independente', async () => {
+    mocks.readSession.mockResolvedValue({ role: 'admin' });
+    const base = { nomeCompleto: 'Profissional fictício', crp: '00/00000', whatsapp: '', status: 'APROVADO',
+      criadoEm: '2026-01-01T00:00:00Z', turnosDisponiveis: ['MANHA'], modalidadesAtendidas: ['PARTICULAR'] };
+    mocks.read.mockResolvedValue({ cadastrosPsicologos: [
+      { ...base, id: 'oculto', exibirNaVitrine: false, pausadoNoRodizio: false },
+      { ...base, id: 'visivel', exibirNaVitrine: true, pausadoNoRodizio: true },
+    ] });
+
+    const resposta = await GET();
+    expect(resposta.status).toBe(200);
+    expect((await resposta.json()).data).toMatchObject([
+      { id: 'oculto', exibirNaVitrine: false, pausadoNoRodizio: false, rodizio: { posicao: 1 } },
+      { id: 'visivel', exibirNaVitrine: true, pausadoNoRodizio: true,
+        rodizio: { posicao: null, motivo: 'Pausado pela gestão' } },
+    ]);
+  });
 });

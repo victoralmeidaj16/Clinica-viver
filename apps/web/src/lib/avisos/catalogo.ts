@@ -66,7 +66,7 @@ export const ROTULO_CANAL: Record<CanalAviso, string> = {
 };
 
 export const ROTULO_DESTINATARIO: Record<DestinatarioAviso, string> = {
-  paciente: 'Paciente (ou responsável)',
+  paciente: 'Paciente',
   psicologo: 'Psicólogo',
   gestao: 'Coordenação / Gestão',
 };

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { CheckCircle2, ChevronDown, ChevronRight, CircleOff, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ChevronRight } from 'lucide-react';
 import { TagStatus } from '@/components/gestao/TagStatus';
 import {
   CATALOGO_AVISOS,
@@ -80,14 +80,6 @@ export function PainelModelosAvisos() {
                 <span className="flex flex-wrap items-center gap-1.5">
                   <TagStatus>{ROTULO_DESTINATARIO[item.destinatario]}</TagStatus>
                   <TagStatus>{ROTULO_CANAL[modelo.configuracao.canal]}</TagStatus>
-                  {item.essencial ? (
-                    <TagStatus icone={ShieldCheck} cor="marca">Essencial</TagStatus>
-                  ) : modelo.configuracao.ativo ? (
-                    <TagStatus icone={CheckCircle2} cor="positivo">Complementar · ativo</TagStatus>
-                  ) : (
-                    <TagStatus icone={CircleOff}>Complementar · desligado</TagStatus>
-                  )}
-                  <TagStatus>{modelo.configuracao.texto ? `Versão ${modelo.configuracao.versao}` : 'Texto padrão'}</TagStatus>
                 </span>
               </button>
               {expandido && (

@@ -10,6 +10,7 @@ import {
 } from '@/lib/avisos/catalogo';
 import { renderizarModelo, validarModelo } from '@/lib/avisos/modelo';
 import { dataHoraBr } from '@/components/gestao/gestaoApi';
+import { PILULA_CAMPO, rotuloDoCampo, TextoComCampos } from './TextoComCampos';
 
 export interface VersaoDoModelo {
   versao: number;
@@ -74,13 +75,7 @@ export function EditorModeloAviso({ aviso, modelo, salvando, onSalvar }: Props) 
       <div className="grid gap-4 lg:grid-cols-2">
         <label className="block text-[11px] font-bold text-muted">
           Texto da mensagem {ehPadrao && <span className="font-normal">(texto padrão)</span>}
-          <textarea
-            ref={area}
-            value={texto}
-            onChange={(event) => setTexto(event.target.value)}
-            rows={16}
-            className="mt-1 block w-full rounded-xl border border-line bg-white px-3 py-2 font-mono text-[12px] leading-5 text-ink"
-          />
+          <TextoComCampos ref={area} value={texto} onChange={setTexto} rows={16} />
         </label>
         <div className="text-[11px] font-bold text-muted">
           Prévia com valores de exemplo
@@ -99,10 +94,10 @@ export function EditorModeloAviso({ aviso, modelo, salvando, onSalvar }: Props) 
               type="button"
               title={campo.descricao}
               onClick={() => inserirCampo(campo.nome)}
-              className="rounded-lg border border-line bg-surface px-2 py-1 font-mono text-[11px] text-ink hover:bg-psi-soft/50"
+              className={PILULA_CAMPO}
             >
-              {`{{${campo.nome}}}`}
-              {aviso.camposObrigatorios.includes(campo.nome) && <span className="ml-1 text-rose-600">*</span>}
+              {rotuloDoCampo(campo.nome)}
+              {aviso.camposObrigatorios.includes(campo.nome) && <span aria-label="obrigatório" className="text-rose-600">*</span>}
             </button>
           ))}
         </div>
